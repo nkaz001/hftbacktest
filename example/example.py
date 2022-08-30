@@ -1,0 +1,112 @@
+from numba import njit
+import pandas as pd
+
+from hftbacktest import NONE, NEW, HftBacktest, GTX, FeedLatency, BUY, SELL
+
+
+@njit
+def market_making_algo(hbt):
+    while hbt.run:
+        # in microseconds
+        if not hbt.elapse(0.1 * 1e6):
+            return False
+        hbt.clear_inactive_orders()
+
+        """
+        You can find the core ideas from the following articles.
+        https://ieor.columbia.edu/files/seasdepts/industrial-engineering-operations-research/pdf-files/Borden_D_FESeminar_Sp10.pdf (page 5)
+        https://arxiv.org/abs/1105.3115 (the last three equations on page 13 and 7 Backtests)
+        https://www.wikijob.co.uk/trading/forex/market-making
+        
+        Also see my other repo.
+        """
+        a = 1
+        b = 1
+        hs = 1
+
+        # alpha, it can be a combination of several indicators.
+        forecast = 0
+        # in hft, it could be a measurement of short-term market movement such as high - low of the last x-min.
+        volatility = 0
+        # delta risk, it also can be a combination of several risks.
+        risk = (1 + volatility) * hbt.position
+        # half spread = b * (1 + volatility) * hs
+        half_spread = (1 + volatility) * hs
+
+        max_notional_position = 1000
+        notional_qty = 100
+
+        mid = (hbt.best_bid + hbt.best_ask) / 2.0
+
+        # fair value pricing = mid + forecast
+        # risk skewing = -b * risk
+        # half spread = c * half_spread
+        new_bid = mid + a * forecast - b * risk - half_spread
+        new_ask = mid + a * forecast - b * risk + half_spread
+
+        new_bid_tick = round(new_bid / hbt.tick_size)
+        new_ask_tick = round(new_ask / hbt.tick_size)
+
+        new_bid = new_bid_tick * hbt.tick_size
+        new_ask = new_ask_tick * hbt.tick_size
+        order_qty = round(notional_qty / mid / hbt.lot_size) * hbt.lot_size
+
+        # Elapse a process time
+        if not hbt.elapse(.05 * 1e6):
+            return False
+
+        last_order_id = -1
+        update_bid = True
+        update_ask = True
+        for order in hbt.orders.values():
+            if order.side == BUY:
+                if round(order.price / hbt.tick_size) == new_bid_tick \
+                        or hbt.position * mid > max_notional_position:
+                    update_bid = False
+                elif order.status == NEW and order.req == NONE \
+                        or hbt.position * mid > max_notional_position:
+                    hbt.cancel(order.order_id)
+                    last_order_id = order.order_id
+            if order.side == SELL:
+                if round(order.price / hbt.tick_size) == new_ask_tick \
+                        or hbt.position * mid < -max_notional_position:
+                    update_ask = False
+                if order.status == NEW and order.req == NONE \
+                        or hbt.position * mid < -max_notional_position:
+                    hbt.cancel(order.order_id)
+                    last_order_id = order.order_id
+
+        if update_bid:
+            # There is only one order on a given price, use new_bid_tick as order Id.
+            hbt.submit_buy_order(new_bid_tick, new_bid, order_qty, GTX)
+            last_order_id = new_bid_tick
+        if update_ask:
+            # There is only one order on a given price, use new_ask_tick as order Id.
+            hbt.submit_sell_order(new_ask_tick, new_ask, order_qty, GTX)
+            last_order_id = new_ask_tick
+
+        # All order requests are considered to be requested at the same time.
+        # Wait until one of the order responses is received.
+        if last_order_id >= 0:
+            if not hbt.wait_order_response(last_order_id):
+                return False
+
+        print('timestamp=%d, price=%.1f, position=%.3f, equity=%.3f' %
+              (hbt.local_timestamp, mid, hbt.position, hbt.position * mid + hbt.balance + hbt.fee))
+    return True
+
+
+if __name__ == '__main__':
+    # data file
+    # https://github.com/nkaz001/collect-binancefutures
+
+    # This backtest assumes market maker rebates.
+    # https://www.binance.com/en/support/announcement/5d3a662d3ace4132a95e77f6ab0f5422
+    df = pd.read_pickle('btcusdt_20220811.pkl', compression='gzip')
+    hbt = HftBacktest(df,
+                      tick_size=0.1,
+                      lot_size=0.001,
+                      maker_fee=0.00005,
+                      taker_fee=0.0007,
+                      order_latency=FeedLatency(1))
+    market_making_algo(hbt)
