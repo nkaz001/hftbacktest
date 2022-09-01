@@ -91,8 +91,7 @@ def market_making_algo(hbt):
             if not hbt.wait_order_response(last_order_id):
                 return False
 
-        print('timestamp=%d, price=%.1f, position=%.3f, equity=%.3f' %
-              (hbt.local_timestamp, mid, hbt.position, hbt.position * mid + hbt.balance + hbt.fee))
+        print(hbt.local_timestamp, mid, hbt.position, hbt.position * mid + hbt.balance - hbt.fee)
     return True
 
 
@@ -102,11 +101,13 @@ if __name__ == '__main__':
 
     # This backtest assumes market maker rebates.
     # https://www.binance.com/en/support/announcement/5d3a662d3ace4132a95e77f6ab0f5422
-    df = pd.read_pickle('btcusdt_20220811.pkl', compression='gzip')
+    snapshot_df = pd.read_pickle('../../btcusdt_20220830.snapshot.pkl', compression='gzip')
+    df = pd.read_pickle('../../btcusdt_20220831.pkl', compression='gzip')
     hbt = HftBacktest(df,
                       tick_size=0.1,
                       lot_size=0.001,
-                      maker_fee=0.00005,
+                      maker_fee=-0.00005,
                       taker_fee=0.0007,
-                      order_latency=FeedLatency(1))
+                      order_latency=FeedLatency(1),
+                      snapshot=snapshot_df)
     market_making_algo(hbt)
