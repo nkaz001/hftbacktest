@@ -16,12 +16,14 @@ def market_making_algo(hbt):
         You can find the core ideas from the following articles.
         https://ieor.columbia.edu/files/seasdepts/industrial-engineering-operations-research/pdf-files/Borden_D_FESeminar_Sp10.pdf (page 5)
         https://arxiv.org/abs/1105.3115 (the last three equations on page 13 and 7 Backtests)
+        https://blog.bitmex.com/wp-content/uploads/2019/11/Algo-Trading-and-Market-Making.pdf
         https://www.wikijob.co.uk/trading/forex/market-making
         
         Also see my other repo.
         """
         a = 1
         b = 1
+        c = 1
         hs = 1
 
         # alpha, it can be a combination of several indicators.
@@ -29,18 +31,16 @@ def market_making_algo(hbt):
         # in hft, it could be a measurement of short-term market movement such as high - low of the last x-min.
         volatility = 0
         # delta risk, it also can be a combination of several risks.
-        risk = (1 + volatility) * hbt.position
-        # half spread = b * (1 + volatility) * hs
-        half_spread = (1 + volatility) * hs
+        risk = (c + volatility) * hbt.position
+        half_spread = (c + volatility) * hs
 
         max_notional_position = 1000
         notional_qty = 100
 
         mid = (hbt.best_bid + hbt.best_ask) / 2.0
 
-        # fair value pricing = mid + forecast
+        # fair value pricing = mid + a * forecast
         # risk skewing = -b * risk
-        # half spread = c * half_spread
         new_bid = mid + a * forecast - b * risk - half_spread
         new_ask = mid + a * forecast - b * risk + half_spread
 
@@ -76,6 +76,8 @@ def market_making_algo(hbt):
                     hbt.cancel(order.order_id)
                     last_order_id = order.order_id
 
+        # It can be combined with grid trading strategy by sumitting multiple orders to capture the better spread.
+        # Then, it needs a more sophiscated logic to efficiently maintain resting orders in the book.
         if update_bid:
             # There is only one order on a given price, use new_bid_tick as order Id.
             hbt.submit_buy_order(new_bid_tick, new_bid, order_qty, GTX)
