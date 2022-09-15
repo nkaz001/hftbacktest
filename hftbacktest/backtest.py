@@ -34,6 +34,9 @@ GTX = 1  # Post only
 INVALID_MIN = -sys.maxsize
 INVALID_MAX = sys.maxsize
 
+LINEAR = 0
+INVERSE = 1
+
 
 @numba.njit
 def depth_below(depth, start, end):
@@ -136,6 +139,7 @@ class HftBacktest:
                  maker_fee,
                  taker_fee,
                  order_latency,
+                 asset_type,
                  snapshot=None,
                  start_row=0,
                  start_position=0,
@@ -162,6 +166,7 @@ class HftBacktest:
         self.taker_fee = taker_fee
         self.local_timestamp = 0
         self.order_latency = order_latency
+        self.asset_type = asset_type
         if snapshot is not None:
             self.__load_snapshot(snapshot)
 
@@ -207,8 +212,9 @@ class HftBacktest:
         fee = self.maker_fee if order.limit else self.taker_fee
         exec_price = order.exec_price_tick * self.tick_size
         fill_qty = order.qty * order.side
-        fill_amount = exec_price * order.qty * order.side
-        fee_amount = exec_price * order.qty * fee
+        amount = self.asset_type.amount(exec_price, order.qty)
+        fill_amount = amount * order.side
+        fee_amount = amount * fee
         self.position += fill_qty
         self.balance -= fill_amount
         self.fee += fee_amount
@@ -269,6 +275,12 @@ class HftBacktest:
     def __get_best_ask(self):
         return self.best_ask_tick * self.tick_size
 
+    def __compute_mid(self):
+        return (self.best_bid + self.best_ask) / 2.0
+
+    def __compute_equity(self):
+        return self.asset_type.equity(self.mid, self.balance, self.position, self.fee)
+
     start_timestamp = property(__get_start_timestamp)
 
     last_timestamp = property(__get_last_timestamp)
@@ -276,6 +288,10 @@ class HftBacktest:
     best_bid = property(__get_best_bid)
 
     best_ask = property(__get_best_ask)
+
+    mid = property(__compute_mid)
+
+    equity = property(__compute_equity)
 
     def elapse(self, duration):
         if self.local_timestamp == 0:

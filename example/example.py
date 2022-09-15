@@ -1,7 +1,7 @@
 from numba import njit
 import pandas as pd
 
-from hftbacktest import NONE, NEW, HftBacktest, GTX, FeedLatency, BUY, SELL
+from hftbacktest import NONE, NEW, HftBacktest, GTX, FeedLatency, BUY, SELL, Linear
 
 
 @njit
@@ -18,7 +18,7 @@ def market_making_algo(hbt):
         https://arxiv.org/abs/1105.3115 (the last three equations on page 13 and 7 Backtests)
         https://blog.bitmex.com/wp-content/uploads/2019/11/Algo-Trading-and-Market-Making.pdf
         https://www.wikijob.co.uk/trading/forex/market-making
-        
+
         Also see my other repo.
         """
         a = 1
@@ -40,6 +40,7 @@ def market_making_algo(hbt):
         mid = (hbt.best_bid + hbt.best_ask) / 2.0
 
         # fair value pricing = mid + a * forecast
+        #                      or underlying(correlated asset) + adjustment(basis + cost + etc) + a * forecast
         # risk skewing = -b * risk
         new_bid = mid + a * forecast - b * risk - half_spread
         new_ask = mid + a * forecast - b * risk + half_spread
@@ -104,12 +105,15 @@ if __name__ == '__main__':
     # This backtest assumes market maker rebates.
     # https://www.binance.com/en/support/announcement/5d3a662d3ace4132a95e77f6ab0f5422
     snapshot_df = pd.read_pickle('../../btcusdt_20220830.snapshot.pkl', compression='gzip')
-    df = pd.read_pickle('../../btcusdt_20220831.pkl', compression='gzip')
+    df1 = pd.read_pickle('../../btcusdt_20220831.pkl', compression='gzip')
+    df2 = pd.read_pickle('../../btcusdt_20220901.pkl', compression='gzip')
+    df = pd.concat([df1, df2])
     hbt = HftBacktest(df,
                       tick_size=0.1,
                       lot_size=0.001,
                       maker_fee=-0.00005,
                       taker_fee=0.0007,
                       order_latency=FeedLatency(1),
+                      asset_type=Linear,
                       snapshot=snapshot_df)
     market_making_algo(hbt)
