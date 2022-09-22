@@ -5,6 +5,7 @@ from numba import int8, float64, int64, boolean
 from numba.experimental import jitclass
 from numba.typed import Dict
 from numba.types import DictType
+import numpy as np
 
 
 COL_EVENT = 0
@@ -18,6 +19,7 @@ DEPTH_EVENT = 1
 TRADE_EVENT = 2
 DEPTH_SNAPSHOT_CLEAR_EVENT = 3
 DEPTH_SNAPSHOT_EVENT = 4
+USER_DEFINED_EVENT = 100
 
 BUY = 1
 SELL = -1
@@ -33,9 +35,6 @@ GTX = 1  # Post only
 
 INVALID_MIN = -sys.maxsize
 INVALID_MAX = sys.maxsize
-
-LINEAR = 0
-INVERSE = 1
 
 
 @numba.njit
@@ -127,7 +126,9 @@ hbt_cls_spec = [
     ('run', boolean),
     ('maker_fee', float64),
     ('taker_fee', float64),
-    ('local_timestamp', int64)
+    ('local_timestamp', int64),
+    ('last_trade', float64[:]),
+    ('user_data', float64[:, :]),
 ]
 
 
@@ -167,6 +168,8 @@ class HftBacktest:
         self.local_timestamp = 0
         self.order_latency = order_latency
         self.asset_type = asset_type
+        self.last_trade = np.full(data.shape[1], np.nan, np.float64)
+        self.user_data = np.full((20, data.shape[1]), np.nan, np.float64)
         if snapshot is not None:
             self.__load_snapshot(snapshot)
 
@@ -262,6 +265,9 @@ class HftBacktest:
                     or order.status == FILLED \
                     or order.status == CANCELED:
                 del self.orders[order.order_id]
+
+    def get_add_data(self, item_num):
+        return self.user_data[item_num]
 
     def __get_start_timestamp(self):
         return self.data[0, COL_LOCAL_TIMESTAMP]
@@ -499,6 +505,12 @@ class HftBacktest:
                                             order.q -= qty
                                             if round(order.q / self.lot_size) < 0:
                                                 self.__fill(order, exch_timestamp, True)
+                self.last_trade[:] = row[:]
+            elif row[COL_EVENT] >= USER_DEFINED_EVENT:
+                i = int(row[COL_EVENT]) - USER_DEFINED_EVENT
+                if i >= len(self.user_data):
+                    raise ValueError
+                self.user_data[i, :] = row[:]
         self.local_timestamp = timestamp
         if self.row_num + 1 == len(self.data):
             self.run = False
