@@ -117,6 +117,8 @@ hbt_cls_spec = [
     ('position', float64),
     ('balance', float64),
     ('fee', float64),
+    ('trade_qty', float64),
+    ('trade_amount', float64),
     ('tick_size', float64),
     ('lot_size', float64),
     ('best_bid_tick', int64),
@@ -156,6 +158,8 @@ class HftBacktest:
         self.position = start_position
         self.balance = start_balance
         self.fee = start_fee
+        self.trade_qty = 0
+        self.trade_amount = 0
         self.tick_size = tick_size
         self.lot_size = lot_size
         self.best_bid_tick = INVALID_MIN
@@ -221,6 +225,8 @@ class HftBacktest:
         self.position += fill_qty
         self.balance -= fill_amount
         self.fee += fee_amount
+        self.trade_qty += order.qty
+        self.trade_amount += amount
 
     def submit_buy_order(self, order_id, price, qty, time_in_force, wait=False):
         price_tick = round(price / self.tick_size)
@@ -305,6 +311,7 @@ class HftBacktest:
         return self.goto(self.local_timestamp + duration)
 
     def goto(self, timestamp, wait_order_response=-1):
+        found_order_resp_timestamp = False
         while self.row_num + 1 < len(self.data):
             next_local_timestamp = self.data[self.row_num + 1, COL_LOCAL_TIMESTAMP]
             next_exch_timestamp = self.data[self.row_num + 1, COL_EXCH_TIMESTAMP]
@@ -355,8 +362,6 @@ class HftBacktest:
                                     order.exch_status = NEW
                             order.exch_timestamp = order.req_recv_timestamp
                             order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
-                            if wait_order_response >= 0 and wait_order_response == order.order_id:
-                                timestamp = order.resp_recv_timestamp
                         # Process a cancel order.
                         if order.req == CANCELED:
                             order.req = NONE
@@ -365,20 +370,16 @@ class HftBacktest:
                                 order.exch_status = CANCELED
                                 order.exch_timestamp = order.req_recv_timestamp
                                 order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
-                                if wait_order_response >= 0 and wait_order_response == order.order_id:
-                                    timestamp = order.resp_recv_timestamp
                                 if order.side == BUY:
                                     del self.buy_orders[order.price_tick][order.order_id]
                                 else:
                                     del self.sell_orders[order.price_tick][order.order_id]
-            # Check if the local can receive an order status.
-            for order in self.orders.values():
-                if order.status != order.exch_status and timestamp >= order.resp_recv_timestamp:
-                    order.status = order.exch_status
-                    order.local_timestamp = order.resp_recv_timestamp
-                    # The local can acknowledge the changes of balance and position by order fill.
-                    if order.status == FILLED:
-                        self.__apply_fill(order)
+                    if wait_order_response >= 0 \
+                            and wait_order_response == order.order_id \
+                            and order.resp_recv_timestamp != 0 \
+                            and not found_order_resp_timestamp:
+                        timestamp = order.resp_recv_timestamp
+                        found_order_resp_timestamp = True
 
             # Exit the loop if it processes all data rows before a given target local timestamp.
             if next_local_timestamp > timestamp:
@@ -511,6 +512,16 @@ class HftBacktest:
                 if i >= len(self.user_data):
                     raise ValueError
                 self.user_data[i, :] = row[:]
+
+        # Check if the local can receive an order status.
+        for order in self.orders.values():
+            if order.status != order.exch_status and timestamp >= order.resp_recv_timestamp:
+                order.status = order.exch_status
+                order.local_timestamp = order.resp_recv_timestamp
+                # The local can acknowledge the changes of balance and position by order fill.
+                if order.status == FILLED:
+                    self.__apply_fill(order)
+
         self.local_timestamp = timestamp
         if self.row_num + 1 == len(self.data):
             self.run = False

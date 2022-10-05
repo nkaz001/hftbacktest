@@ -3,6 +3,9 @@ from numba.experimental import jitclass
 
 @jitclass
 class _Linear:
+    def __init__(self):
+        pass
+
     def amount(self, exec_price, qty):
         return exec_price * qty
 
@@ -12,6 +15,9 @@ class _Linear:
 
 @jitclass
 class _Inverse:
+    def __init__(self):
+        pass
+
     def amount(self, exec_price, qty):
         return qty / exec_price
 
