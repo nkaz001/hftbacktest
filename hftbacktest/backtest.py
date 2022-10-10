@@ -117,6 +117,7 @@ hbt_cls_spec = [
     ('position', float64),
     ('balance', float64),
     ('fee', float64),
+    ('trade_num', int64),
     ('trade_qty', float64),
     ('trade_amount', float64),
     ('tick_size', float64),
@@ -158,6 +159,7 @@ class HftBacktest:
         self.position = start_position
         self.balance = start_balance
         self.fee = start_fee
+        self.trade_num = 0
         self.trade_qty = 0
         self.trade_amount = 0
         self.tick_size = tick_size
@@ -225,6 +227,7 @@ class HftBacktest:
         self.position += fill_qty
         self.balance -= fill_amount
         self.fee += fee_amount
+        self.trade_num += 1
         self.trade_qty += order.qty
         self.trade_amount += amount
 
@@ -378,7 +381,7 @@ class HftBacktest:
                             and wait_order_response == order.order_id \
                             and order.resp_recv_timestamp != 0 \
                             and not found_order_resp_timestamp:
-                        timestamp = order.resp_recv_timestamp
+                        timestamp = max(order.resp_recv_timestamp, self.local_timestamp)
                         found_order_resp_timestamp = True
 
             # Exit the loop if it processes all data rows before a given target local timestamp.
