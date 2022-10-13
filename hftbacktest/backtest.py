@@ -98,9 +98,14 @@ class Order:
     def __get_exec_price(self):
         return self.exec_price_tick * self.tick_size
 
+    def __get_cancellable(self):
+        return self.status == NEW and self.req == NONE
+
     price = property(__get_price)
 
     exec_price = property(__get_exec_price)
+
+    cancellable = property(__get_cancellable)
 
 
 order_type = Order.class_type.instance_type

@@ -3,6 +3,7 @@ from .assettype import Linear, Inverse
 from .backtest import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY,\
     DEPTH_EVENT, DEPTH_SNAPSHOT_CLEAR_EVENT, TRADE_EVENT, BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, \
     HftBacktest as _HftBacktest, hbt_cls_spec
+from .stat import Stat
 from numba.experimental import jitclass
 
 __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE', 'COL_PRICE', 'COL_QTY',
@@ -10,7 +11,8 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'NONE', 'NEW', 'EXPIRED', 'FILLED', 'CANCELED', 'GTC', 'GTX',
            'Order', 'HftBacktest',
            'FeedLatency', 'ConstantLatency',
-           'Linear', 'Inverse')
+           'Linear', 'Inverse',
+           'Stat')
 
 
 def HftBacktest(df, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, snapshot=None,

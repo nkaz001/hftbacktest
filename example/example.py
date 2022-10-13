@@ -64,16 +64,14 @@ def market_making_algo(hbt):
                 if round(order.price / hbt.tick_size) == new_bid_tick \
                         or hbt.position * mid > max_notional_position:
                     update_bid = False
-                elif order.status == NEW and order.req == NONE \
-                        or hbt.position * mid > max_notional_position:
+                elif order.cancellable or hbt.position * mid > max_notional_position:
                     hbt.cancel(order.order_id)
                     last_order_id = order.order_id
             if order.side == SELL:
                 if round(order.price / hbt.tick_size) == new_ask_tick \
                         or hbt.position * mid < -max_notional_position:
                     update_ask = False
-                if order.status == NEW and order.req == NONE \
-                        or hbt.position * mid < -max_notional_position:
+                if order.cancellable or hbt.position * mid < -max_notional_position:
                     hbt.cancel(order.order_id)
                     last_order_id = order.order_id
 

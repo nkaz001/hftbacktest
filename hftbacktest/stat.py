@@ -116,29 +116,45 @@ class Stat:
     def daily_trade_amount(self):
         return pd.Series(self.trade_amount, index=self.datetime()).diff().rolling('1d').sum().mean()
 
-    def annualised_return(self, denom=None, include_fee=True):
-        equity = self.equity('1y', include_fee=include_fee)
-        ret = pd.concat([pd.Series([0]), equity]).diff().mean()
+    def annualised_return(self, denom=None, include_fee=True, trading_days=365):
+        equity = self.equity(None, include_fee=include_fee)
+        c = (24 * 60 * 60 * 1e9) / (equity.index[-1] - equity.index[0]).value
         if denom is None:
-            return ret
+            return equity[-1] * c * trading_days
         else:
-            return ret / denom
+            return equity[-1] * c * trading_days / denom
 
-    def summary(self, capital, resample='1h', trading_days=365):
+    def summary(self, capital, resample='5min', trading_days=365):
         print('=========== Summary ===========')
         print('Sharpe ratio: %.1f' % (self.sharpe(resample, trading_days=trading_days)))
         print('Sortino ratio: %.1f' % (self.sortino(resample, trading_days=trading_days)))
         print('Risk return ratio: %.1f' % self.riskreturnratio())
         print('Annualised return: %.2f %%' % (self.annualised_return(capital) * 100))
-        print('Max Drawdown: %.2f %%' % (self.maxdrawdown() / capital * 100))
-        print('Average daily trading number: %d' % self.daily_trade_num())
-        print('Average daily trading volume: %d' % self.daily_trade_volume())
-        print('Average daily trading amount: %d' % self.daily_trade_amount())
+        print('Max. draw down: %.2f %%' % (self.maxdrawdown() / capital * 100))
+        print('The number of trades per day: %d' % self.daily_trade_num())
+        print('Avg. daily trading volume: %d' % self.daily_trade_volume())
+        print('Avg. daily trading amount: %d' % self.daily_trade_amount())
         position = np.asarray(self.position) * np.asarray(self.mid)
-        print('Leverage: %.2f (Max), %.2f (Avg)' % (np.abs(np.max(position) / capital),
-                                                    np.abs(np.mean(position) / capital)))
-        self.equity('5min').plot()
-        self.equity('5min', include_fee=False).plot()
+        print('Max leverage: %.2f' % (np.max(np.abs(position)) / capital))
+        print('Median leverage: %.2f' % (np.median(np.abs(position)) / capital))
+
+        pyplot.figure(0)
+        mid = pd.Series(self.mid, index=self.datetime())
+
+        ax1 = ((mid / mid[0] - 1).resample(resample).last() * 100).plot(style='grey', alpha=0.5)
+        (self.equity(resample) / capital * 100).plot()
+        (self.equity(resample, include_fee=False) / capital * 100).plot()
+        ax1.set_title('Equity')
+        ax1.set_ylabel('Cumulative Returns (%)')
+        ax1.grid()
+        ax1.legend(['Trading asset', 'Strategy incl. fee', 'Strategy excl. fee'])
+
         pyplot.figure(1)
-        pyplot.plot(self.position)
-        pyplot.plot(self.mid)
+        position = pd.Series(self.position, index=self.datetime())
+        ax2 = position.plot()
+        ax3 = ax2.twinx()
+        (position * mid).plot(ax=ax3, style='grey', alpha=0.2)
+        ax2.set_title('Position')
+        ax2.set_ylabel('Qty')
+        ax3.set_ylabel('Value')
+        ax2.grid()
