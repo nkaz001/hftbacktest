@@ -16,7 +16,7 @@ class ConstantLatency:
     def entry(self, hbt):
         return self.entry_latency
 
-    def response_(self, hbt):
+    def response(self, hbt):
         return self.response_latency
 
 
@@ -24,7 +24,7 @@ class ConstantLatency:
     ('latency_coeff', float64),
 ])
 class FeedLatency:
-    def __init__(self, latency_coeff):
+    def __init__(self, latency_coeff=1):
         self.latency_coeff = latency_coeff
 
     def __latency(self, hbt):

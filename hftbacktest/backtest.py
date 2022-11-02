@@ -17,7 +17,7 @@ COL_QTY = 5
 
 DEPTH_EVENT = 1
 TRADE_EVENT = 2
-DEPTH_SNAPSHOT_CLEAR_EVENT = 3
+DEPTH_CLEAR_EVENT = 3
 DEPTH_SNAPSHOT_EVENT = 4
 USER_DEFINED_EVENT = 100
 
@@ -397,7 +397,7 @@ class HftBacktest:
             row = self.data[self.row_num]
             exch_timestamp = next_exch_timestamp
 
-            if row[COL_EVENT] == DEPTH_SNAPSHOT_CLEAR_EVENT:
+            if row[COL_EVENT] == DEPTH_CLEAR_EVENT:
                 # To apply market depth snapshot, refresh the market depth.
                 clear_upto = round(row[COL_PRICE] / self.tick_size)
                 if row[COL_SIDE] == BUY:
@@ -436,9 +436,7 @@ class HftBacktest:
                             # with the actual trading result.
 
                             # Fill sell orders placed in the bid-side.
-                            if self.best_bid_tick != INVALID_MIN \
-                                    and row[COL_EVENT] == DEPTH_EVENT\
-                                    and exch_timestamp != next_exch_timestamp:
+                            if self.best_bid_tick != INVALID_MIN and row[COL_EVENT] == DEPTH_EVENT:
                                 for t in range(self.best_bid_tick + 1, price_tick + 1):
                                     if t in self.sell_orders:
                                         for order in list(self.sell_orders[t].values()):
@@ -467,9 +465,7 @@ class HftBacktest:
                             # with the actual trading result.
 
                             # Fill buy orders placed in the ask-side.
-                            if self.best_ask_tick != INVALID_MAX \
-                                    and row[COL_EVENT] == DEPTH_EVENT\
-                                    and exch_timestamp != next_exch_timestamp:
+                            if self.best_ask_tick != INVALID_MAX and row[COL_EVENT] == DEPTH_EVENT:
                                 for t in range(price_tick, self.best_ask_tick):
                                     if t in self.buy_orders:
                                         for order in list(self.buy_orders[t].values()):

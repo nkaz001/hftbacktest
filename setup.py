@@ -8,10 +8,12 @@ with open(path.join(path.abspath(path.dirname(__file__)), 'requirements.txt'), '
 
 setup(name='hftbacktest',
       version='1.0',
-      description='High frequency trading backtest tool',
-      author='nkaz001@protonmail.com',
+      license='MIT',
+      description='High-frequency trading backtesting tool',
+      keywords='high-frequency trading backtest',
+      author='nkaz',
       author_email='nkaz001@protonmail.com',
+      url='https://github.com/nkaz001/hftbacktest',
       install_requires=requirements,
       packages=find_packages(),
 )
-
