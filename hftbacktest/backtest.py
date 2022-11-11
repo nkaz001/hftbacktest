@@ -281,7 +281,7 @@ class HftBacktest:
                 del self.orders[order.order_id]
 
     def get_add_data(self, item_num):
-        return self.user_data[item_num]
+        return self.user_data[item_num - USER_DEFINED_EVENT]
 
     def __get_start_timestamp(self):
         return self.data[0, COL_LOCAL_TIMESTAMP]
@@ -324,6 +324,9 @@ class HftBacktest:
             next_local_timestamp = self.data[self.row_num + 1, COL_LOCAL_TIMESTAMP]
             next_exch_timestamp = self.data[self.row_num + 1, COL_EXCH_TIMESTAMP]
             exch_timestamp = self.data[self.row_num, COL_EXCH_TIMESTAMP]
+
+            # exchange timestamp must be ahead of local timestamp.
+            # assert next_local_timestamp > next_exch_timestamp
 
             # A user order cannot be processed between the rows that have the same exchange timestamp.
             # These events happen all at once in an exchange.
