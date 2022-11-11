@@ -280,8 +280,8 @@ class HftBacktest:
                     or order.status == CANCELED:
                 del self.orders[order.order_id]
 
-    def get_add_data(self, item_num):
-        return self.user_data[item_num - USER_DEFINED_EVENT]
+    def get_user_data(self, event):
+        return self.user_data[event - USER_DEFINED_EVENT]
 
     def __get_start_timestamp(self):
         return self.data[0, COL_LOCAL_TIMESTAMP]
