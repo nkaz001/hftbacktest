@@ -21,11 +21,17 @@ class ConstantLatency:
 
 
 @jitclass([
-    ('latency_coeff', float64),
+    ('entry_latency_mul', float64),
+    ('resp_latency_mul', float64),
+    ('entry_latency', float64),
+    ('response_latency', float64),
 ])
 class FeedLatency:
-    def __init__(self, latency_coeff=1):
-        self.latency_coeff = latency_coeff
+    def __init__(self, entry_latency_mul=1, resp_latency_mul=1, entry_latency=0, response_latency=0):
+        self.entry_latency_mul = entry_latency_mul
+        self.resp_latency_mul = resp_latency_mul
+        self.entry_latency = entry_latency
+        self.response_latency = response_latency
 
     def __latency(self, hbt):
         if hbt.row_num + 1 < len(hbt.data):
@@ -38,10 +44,10 @@ class FeedLatency:
         exch_timestamp = hbt.data[hbt.row_num, COL_EXCH_TIMESTAMP]
         lat1 = local_timestamp - exch_timestamp
         lat2 = next_local_timestamp - next_exch_timestamp
-        return self.latency_coeff * (lat1 + lat2) / 2.0
+        return (lat1 + lat2) / 2.0
 
     def entry(self, hbt):
-        return self.__latency(hbt)
+        return self.entry_latency + self.entry_latency_mul * self.__latency(hbt)
 
     def response(self, hbt):
-        return self.__latency(hbt)
+        return self.response_latency + self.resp_latency_mul * self.__latency(hbt)
