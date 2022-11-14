@@ -14,6 +14,8 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'Linear', 'Inverse',
            'Stat')
 
+__version__ = '1.0.1'
+
 
 def HftBacktest(df, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, snapshot=None,
                 start_row=0, start_position=0, start_balance=0, start_fee=0):

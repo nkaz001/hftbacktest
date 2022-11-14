@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 setup(name='hftbacktest',
-      version='1.0',
+      version='1.0.1',
       license='MIT',
       description='High-frequency trading backtesting tool',
       keywords='high-frequency trading backtest',
