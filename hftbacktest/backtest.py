@@ -262,6 +262,7 @@ class HftBacktest:
             raise ValueError('req')
         order.req = CANCELED
         order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(self)
+        order.resp_recv_timestamp = 0
         if wait:
             return self.goto(self.last_timestamp, wait_order_response=order_id)
         return True
