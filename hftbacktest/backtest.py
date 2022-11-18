@@ -66,6 +66,7 @@ def depth_above(depth, start, end):
     ('req', int8),
     ('req_recv_timestamp', int64),
     ('resp_recv_timestamp', int64),
+    ('exec_recv_timestamp', int64),
     ('exec_price_tick', int64),
     ('order_id', int64),
     ('q', float64),
@@ -87,6 +88,7 @@ class Order:
         self.req = NONE
         self.req_recv_timestamp = 0
         self.resp_recv_timestamp = 0
+        self.exec_recv_timestamp = 0
         self.exec_price_tick = 0
         self.order_id = order_id
         self.q = 0
@@ -176,7 +178,7 @@ class HftBacktest:
         self.run = True
         self.maker_fee = maker_fee
         self.taker_fee = taker_fee
-        self.local_timestamp = 0
+        self.local_timestamp = self.start_timestamp
         self.order_latency = order_latency
         self.asset_type = asset_type
         self.last_trade = np.full(data.shape[1], np.nan, np.float64)
@@ -215,7 +217,7 @@ class HftBacktest:
         order.exec_price_tick = order.price_tick if limit else exec_price_tick
         order.exch_status = FILLED
         order.exch_timestamp = timestamp
-        order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
+        order.exec_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
         if limit:
             if order.side == BUY:
                 del self.buy_orders[order.price_tick][order.order_id]
@@ -315,8 +317,6 @@ class HftBacktest:
     equity = property(__compute_equity)
 
     def elapse(self, duration):
-        if self.local_timestamp == 0:
-            self.local_timestamp = self.start_timestamp
         return self.goto(self.local_timestamp + duration)
 
     def goto(self, timestamp, wait_order_response=-1):
@@ -386,6 +386,8 @@ class HftBacktest:
                                     del self.buy_orders[order.price_tick][order.order_id]
                                 else:
                                     del self.sell_orders[order.price_tick][order.order_id]
+                            else:
+                                order.resp_recv_timestamp = order.req_recv_timestamp + self.order_latency.response(self)
                     if wait_order_response >= 0 \
                             and wait_order_response == order.order_id \
                             and order.resp_recv_timestamp != 0 \
@@ -523,12 +525,16 @@ class HftBacktest:
 
         # Check if the local can receive an order status.
         for order in self.orders.values():
-            if order.status != order.exch_status and timestamp >= order.resp_recv_timestamp:
-                order.status = order.exch_status
-                order.local_timestamp = order.resp_recv_timestamp
-                # The local can acknowledge the changes of balance and position by order fill.
-                if order.status == FILLED:
-                    self.__apply_fill(order)
+            if order.status != order.exch_status:
+                if timestamp >= order.exec_recv_timestamp:
+                    order.status = order.exch_status
+                    order.local_timestamp = order.exec_recv_timestamp
+                    # The local can acknowledge the changes of balance and position by order fill.
+                    if order.status == FILLED:
+                        self.__apply_fill(order)
+                elif timestamp >= order.resp_recv_timestamp:
+                    order.status = order.exch_status
+                    order.local_timestamp = order.resp_recv_timestamp
 
         self.local_timestamp = timestamp
         if self.row_num + 1 == len(self.data):
