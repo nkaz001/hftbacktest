@@ -69,7 +69,7 @@ def depth_above(depth, start, end):
     ('exec_recv_timestamp', int64),
     ('exec_price_tick', int64),
     ('order_id', int64),
-    ('q', float64),
+    ('q', float64[:]),
     ('limit', boolean),
 ])
 class Order:
@@ -91,7 +91,7 @@ class Order:
         self.exec_recv_timestamp = 0
         self.exec_price_tick = 0
         self.order_id = order_id
-        self.q = 0
+        self.q = np.zeros(2, float64)
         self.limit = False
 
     def __get_price(self):
@@ -151,6 +151,7 @@ class HftBacktest:
                  taker_fee,
                  order_latency,
                  asset_type,
+                 queue_model,
                  snapshot=None,
                  start_row=0,
                  start_position=0,
@@ -181,6 +182,7 @@ class HftBacktest:
         self.local_timestamp = self.start_timestamp
         self.order_latency = order_latency
         self.asset_type = asset_type
+        self.queue_model = queue_model
         self.last_trade = np.full(data.shape[1], np.nan, np.float64)
         self.user_data = np.full((20, data.shape[1]), np.nan, np.float64)
         if snapshot is not None:
@@ -353,7 +355,7 @@ class HftBacktest:
                                     o = self.buy_orders.setdefault(order.price_tick, Dict.empty(int64, dict_type))
                                     o[order.order_id] = order
                                     # Initialize the order's queue position.
-                                    order.q = self.bid_depth.get(order.price_tick, 0)
+                                    self.queue_model.new(order, self)
                                     order.exch_status = NEW
                             else:
                                 # Check if a sell order price is less than or equal to the current best bid.
@@ -370,7 +372,7 @@ class HftBacktest:
                                     o = self.sell_orders.setdefault(order.price_tick, Dict.empty(int64, dict_type))
                                     o[order.order_id] = order
                                     # Initialize the order's queue position.
-                                    order.q = self.ask_depth.get(order.price_tick, 0)
+                                    self.queue_model.new(order, self)
                                     order.exch_status = NEW
                             order.exch_timestamp = order.req_recv_timestamp
                             order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
@@ -424,11 +426,12 @@ class HftBacktest:
                 price_tick = round(row[COL_PRICE] / self.tick_size)
                 qty = row[COL_QTY]
                 if row[COL_SIDE] == BUY:
+                    prev_qty = self.bid_depth.get(price_tick, 0)
                     self.bid_depth[price_tick] = qty
                     # Update a user order's queue position.
                     if price_tick in self.buy_orders:
                         for order in self.buy_orders[price_tick].values():
-                            order.q = min(order.q, qty)
+                            self.queue_model.depth(order, prev_qty, qty, self)
                     # Update the best bid and the best ask.
                     if round(qty / self.lot_size) == 0:
                         del self.bid_depth[price_tick]
@@ -453,11 +456,12 @@ class HftBacktest:
                         if price_tick < self.low_bid_tick:
                             self.low_bid_tick = price_tick
                 else:
+                    prev_qty = self.ask_depth.get(price_tick, 0)
                     self.ask_depth[price_tick] = qty
                     # Update a user order's queue position.
                     if price_tick in self.sell_orders:
                         for order in self.sell_orders[price_tick].values():
-                            order.q = min(order.q, qty)
+                            self.queue_model.depth(order, prev_qty, qty, self)
                     # Update the best bid and the best ask.
                     if round(qty / self.lot_size) == 0:
                         del self.ask_depth[price_tick]
@@ -499,8 +503,8 @@ class HftBacktest:
                                             self.__fill(order, exch_timestamp, True)
                                         elif order.price_tick == price_tick:
                                             # Update the order's queue position.
-                                            order.q -= qty
-                                            if round(order.q / self.lot_size) < 0:
+                                            self.queue_model.trade(order, qty, self)
+                                            if self.queue_model.is_filled(order, self):
                                                 self.__fill(order, exch_timestamp, True)
                 else:
                     if self.best_ask_tick != INVALID_MAX:
@@ -513,8 +517,8 @@ class HftBacktest:
                                             self.__fill(order, exch_timestamp, True)
                                         elif order.price_tick == price_tick:
                                             # Update the order's queue position.
-                                            order.q -= qty
-                                            if round(order.q / self.lot_size) < 0:
+                                            self.queue_model.trade(order, qty, self)
+                                            if self.queue_model.is_filled(order, self):
                                                 self.__fill(order, exch_timestamp, True)
                 self.last_trade[:] = row[:]
             elif row[COL_EVENT] >= USER_DEFINED_EVENT:
