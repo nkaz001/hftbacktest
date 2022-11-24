@@ -45,7 +45,7 @@ class ProbQueueModel:
     def depth(self, order, prev_qty, new_qty, hbt):
         chg = prev_qty - new_qty
         # In order to avoid duplicate order queue position adjustment, subtract queue position change by trades.
-        chg = chg + order.q[1]
+        chg = chg - order.q[1]
         # Reset, as quantity change by trade should be already reflected in qty.
         order.q[1] = 0
         # For an increase of the quantity, front queue doesn't change by the quantity change.
