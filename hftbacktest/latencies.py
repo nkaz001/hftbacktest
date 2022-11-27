@@ -34,17 +34,37 @@ class FeedLatency:
         self.response_latency = response_latency
 
     def __latency(self, hbt):
-        if hbt.row_num + 1 < len(hbt.data):
-            next_local_timestamp = hbt.data[hbt.row_num + 1, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = hbt.data[hbt.row_num + 1, COL_EXCH_TIMESTAMP]
+        local_timestamp = -1
+        exch_timestamp = -1
+        for row_num in range(hbt.row_num, -1, -1):
+            local_timestamp = hbt.data[row_num + 1, COL_LOCAL_TIMESTAMP]
+            exch_timestamp = hbt.data[row_num + 1, COL_EXCH_TIMESTAMP]
+            if local_timestamp != -1 and exch_timestamp != -1:
+                break
+
+        next_local_timestamp = -1
+        next_exch_timestamp = -1
+        for row_num in range(hbt.row_num + 1, len(hbt.data)):
+            next_local_timestamp = hbt.data[row_num + 1, COL_LOCAL_TIMESTAMP]
+            next_exch_timestamp = hbt.data[row_num + 1, COL_EXCH_TIMESTAMP]
+            if next_local_timestamp != -1 and next_exch_timestamp != -1:
+                break
+
+        lat1 = -1
+        lat2 = -1
+        if local_timestamp != -1 and exch_timestamp != -1:
+            lat1 = local_timestamp - exch_timestamp
+        if next_local_timestamp != -1 and next_exch_timestamp != -1:
+            lat2 = next_local_timestamp - next_exch_timestamp
+
+        if lat1 != -1 and lat2 != -1:
+            return (lat1 + lat2) / 2.0
+        elif lat1 != -1:
+            return lat1
+        elif lat2 != -1:
+            return lat2
         else:
-            next_local_timestamp = hbt.data[hbt.row_num, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = hbt.data[hbt.row_num, COL_EXCH_TIMESTAMP]
-        local_timestamp = hbt.data[hbt.row_num, COL_LOCAL_TIMESTAMP]
-        exch_timestamp = hbt.data[hbt.row_num, COL_EXCH_TIMESTAMP]
-        lat1 = local_timestamp - exch_timestamp
-        lat2 = next_local_timestamp - next_exch_timestamp
-        return (lat1 + lat2) / 2.0
+            raise ValueError
 
     def entry(self, hbt):
         return self.entry_latency + self.entry_latency_mul * self.__latency(hbt)

@@ -398,134 +398,142 @@ class HftBacktest:
                         found_order_resp_timestamp = True
 
             # Exit the loop if it processes all data rows before a given target local timestamp.
-            if next_local_timestamp > timestamp:
+            # -1 means timestamp is invalid so ignored.
+            if next_local_timestamp > timestamp and next_local_timestamp != -1:
                 break
             # Get the next row.
             self.row_num += 1
             row = self.data[self.row_num]
             exch_timestamp = next_exch_timestamp
+            local_timestamp = next_local_timestamp
 
-            if row[COL_EVENT] == DEPTH_CLEAR_EVENT:
-                # To apply market depth snapshot, refresh the market depth.
-                clear_upto = round(row[COL_PRICE] / self.tick_size)
-                if row[COL_SIDE] == BUY:
-                    if self.best_bid_tick != INVALID_MIN:
-                        for t in range(self.best_bid_tick, clear_upto - 1, -1):
-                            if t in self.ask_depth:
-                                del self.ask_depth[t]
-                elif row[COL_SIDE] == SELL:
-                    if self.best_ask_tick != INVALID_MAX:
-                        for t in range(self.best_ask_tick, clear_upto + 1):
-                            if t in self.ask_depth:
-                                del self.ask_depth[t]
-                else:
-                    self.bid_depth.clear()
-                    self.ask_depth.clear()
-            elif row[COL_EVENT] == DEPTH_EVENT or row[COL_EVENT] == DEPTH_SNAPSHOT_EVENT:
-                # Update the market depth.
-                price_tick = round(row[COL_PRICE] / self.tick_size)
-                qty = row[COL_QTY]
-                if row[COL_SIDE] == BUY:
-                    prev_qty = self.bid_depth.get(price_tick, 0)
-                    self.bid_depth[price_tick] = qty
-                    # Update a user order's queue position.
-                    if price_tick in self.buy_orders:
-                        for order in self.buy_orders[price_tick].values():
-                            self.queue_model.depth(order, prev_qty, qty, self)
-                    # Update the best bid and the best ask.
-                    if round(qty / self.lot_size) == 0:
-                        del self.bid_depth[price_tick]
-                        if price_tick == self.best_bid_tick:
-                            self.best_bid_tick = depth_below(self.bid_depth, self.best_bid_tick, self.low_bid_tick)
+            # Order fill logic needs valid exch_timestamp.
+            # And market depth also needs valid local_timestamp as it needs to be received by local.
+            if exch_timestamp != -1 and local_timestamp != -1:
+                if row[COL_EVENT] == DEPTH_CLEAR_EVENT:
+                    # To apply market depth snapshot, refresh the market depth.
+                    clear_upto = round(row[COL_PRICE] / self.tick_size)
+                    if row[COL_SIDE] == BUY:
+                        if self.best_bid_tick != INVALID_MIN:
+                            for t in range(self.best_bid_tick, clear_upto - 1, -1):
+                                if t in self.ask_depth:
+                                    del self.ask_depth[t]
+                    elif row[COL_SIDE] == SELL:
+                        if self.best_ask_tick != INVALID_MAX:
+                            for t in range(self.best_ask_tick, clear_upto + 1):
+                                if t in self.ask_depth:
+                                    del self.ask_depth[t]
                     else:
-                        if price_tick > self.best_bid_tick:
-                            # Not sure if it's okay to fill orders by the best bid/ask without trade. But, without it
-                            # there are active orders even if they cross the best bid/ask and the backtest gets messy.
-                            # As this backtest assumes no market impact it would be fine, but it's better to compare
-                            # with the actual trading result.
+                        self.bid_depth.clear()
+                        self.ask_depth.clear()
+                elif row[COL_EVENT] == DEPTH_EVENT or row[COL_EVENT] == DEPTH_SNAPSHOT_EVENT:
+                    # Update the market depth.
+                    price_tick = round(row[COL_PRICE] / self.tick_size)
+                    qty = row[COL_QTY]
+                    if row[COL_SIDE] == BUY:
+                        prev_qty = self.bid_depth.get(price_tick, 0)
+                        self.bid_depth[price_tick] = qty
+                        # Update a user order's queue position.
+                        if price_tick in self.buy_orders:
+                            for order in self.buy_orders[price_tick].values():
+                                self.queue_model.depth(order, prev_qty, qty, self)
+                        # Update the best bid and the best ask.
+                        if round(qty / self.lot_size) == 0:
+                            del self.bid_depth[price_tick]
+                            if price_tick == self.best_bid_tick:
+                                self.best_bid_tick = depth_below(self.bid_depth, self.best_bid_tick, self.low_bid_tick)
+                        else:
+                            if price_tick > self.best_bid_tick:
+                                # Not sure if it's okay to fill orders by the best bid/ask without trade. But, without it
+                                # there are active orders even if they cross the best bid/ask and the backtest gets messy.
+                                # As this backtest assumes no market impact it would be fine, but it's better to compare
+                                # with the actual trading result.
 
-                            # Fill sell orders placed in the bid-side.
-                            if self.best_bid_tick != INVALID_MIN and row[COL_EVENT] == DEPTH_EVENT:
-                                for t in range(self.best_bid_tick + 1, price_tick + 1):
-                                    if t in self.sell_orders:
-                                        for order in list(self.sell_orders[t].values()):
-                                            self.__fill(order, exch_timestamp, True)
-                            self.best_bid_tick = price_tick
-                            if self.best_bid_tick >= self.best_ask_tick:
-                                self.best_ask_tick = depth_above(self.ask_depth, self.best_bid_tick, self.high_ask_tick)
-                        if price_tick < self.low_bid_tick:
-                            self.low_bid_tick = price_tick
-                else:
-                    prev_qty = self.ask_depth.get(price_tick, 0)
-                    self.ask_depth[price_tick] = qty
-                    # Update a user order's queue position.
-                    if price_tick in self.sell_orders:
-                        for order in self.sell_orders[price_tick].values():
-                            self.queue_model.depth(order, prev_qty, qty, self)
-                    # Update the best bid and the best ask.
-                    if round(qty / self.lot_size) == 0:
-                        del self.ask_depth[price_tick]
-                        if price_tick == self.best_ask_tick:
-                            self.best_ask_tick = depth_above(self.ask_depth, self.best_ask_tick, self.high_ask_tick)
+                                # Fill sell orders placed in the bid-side.
+                                if self.best_bid_tick != INVALID_MIN and row[COL_EVENT] == DEPTH_EVENT:
+                                    for t in range(self.best_bid_tick + 1, price_tick + 1):
+                                        if t in self.sell_orders:
+                                            for order in list(self.sell_orders[t].values()):
+                                                self.__fill(order, exch_timestamp, True)
+                                self.best_bid_tick = price_tick
+                                if self.best_bid_tick >= self.best_ask_tick:
+                                    self.best_ask_tick = depth_above(self.ask_depth, self.best_bid_tick, self.high_ask_tick)
+                            if price_tick < self.low_bid_tick:
+                                self.low_bid_tick = price_tick
                     else:
-                        if price_tick < self.best_ask_tick:
-                            # Not sure if it's okay to fill orders by the best bid/ask without trade. But, without it
-                            # there are active orders even if they cross the best bid/ask and the backtest gets messy.
-                            # As this backtest assumes no market impact it would be fine, but it's better to compare
-                            # with the actual trading result.
+                        prev_qty = self.ask_depth.get(price_tick, 0)
+                        self.ask_depth[price_tick] = qty
+                        # Update a user order's queue position.
+                        if price_tick in self.sell_orders:
+                            for order in self.sell_orders[price_tick].values():
+                                self.queue_model.depth(order, prev_qty, qty, self)
+                        # Update the best bid and the best ask.
+                        if round(qty / self.lot_size) == 0:
+                            del self.ask_depth[price_tick]
+                            if price_tick == self.best_ask_tick:
+                                self.best_ask_tick = depth_above(self.ask_depth, self.best_ask_tick, self.high_ask_tick)
+                        else:
+                            if price_tick < self.best_ask_tick:
+                                # Not sure if it's okay to fill orders by the best bid/ask without trade. But, without it
+                                # there are active orders even if they cross the best bid/ask and the backtest gets messy.
+                                # As this backtest assumes no market impact it would be fine, but it's better to compare
+                                # with the actual trading result.
 
-                            # Fill buy orders placed in the ask-side.
-                            if self.best_ask_tick != INVALID_MAX and row[COL_EVENT] == DEPTH_EVENT:
-                                for t in range(price_tick, self.best_ask_tick):
-                                    if t in self.buy_orders:
-                                        for order in list(self.buy_orders[t].values()):
-                                            self.__fill(order, exch_timestamp, True)
-                            self.best_ask_tick = price_tick
-                            if self.best_ask_tick <= self.best_bid_tick:
-                                self.best_bid_tick = depth_below(self.bid_depth, self.best_ask_tick, self.low_bid_tick)
-                        if price_tick > self.high_ask_tick:
-                            self.high_ask_tick = price_tick
-            elif row[COL_EVENT] == TRADE_EVENT:
-                # Check if a user order is filled.
-                # To simplify the backtest and avoid a complex market-impact model, all user orders are
-                # considered to be small enough not to make any market impact.
-                price_tick = round(row[COL_PRICE] / self.tick_size)
-                qty = row[COL_QTY]
-                # This side is a trade initiator's side.
-                if row[COL_SIDE] == BUY:
-                    if self.best_bid_tick != INVALID_MIN:
-                        for t in range(self.best_bid_tick + 1, price_tick + 1):
-                            if t in self.sell_orders:
-                                for order in list(self.sell_orders[t].values()):
-                                    # Only if a user order is active.
-                                    if order.exch_status == NEW:
-                                        if order.price_tick < price_tick:
-                                            self.__fill(order, exch_timestamp, True)
-                                        elif order.price_tick == price_tick:
-                                            # Update the order's queue position.
-                                            self.queue_model.trade(order, qty, self)
-                                            if self.queue_model.is_filled(order, self):
+                                # Fill buy orders placed in the ask-side.
+                                if self.best_ask_tick != INVALID_MAX and row[COL_EVENT] == DEPTH_EVENT:
+                                    for t in range(price_tick, self.best_ask_tick):
+                                        if t in self.buy_orders:
+                                            for order in list(self.buy_orders[t].values()):
                                                 self.__fill(order, exch_timestamp, True)
-                else:
-                    if self.best_ask_tick != INVALID_MAX:
-                        for t in range(self.best_ask_tick - 1, price_tick - 1, -1):
-                            if t in self.buy_orders:
-                                for order in list(self.buy_orders[t].values()):
-                                    # Only if a user order is active.
-                                    if order.exch_status == NEW:
-                                        if order.price_tick > price_tick:
-                                            self.__fill(order, exch_timestamp, True)
-                                        elif order.price_tick == price_tick:
-                                            # Update the order's queue position.
-                                            self.queue_model.trade(order, qty, self)
-                                            if self.queue_model.is_filled(order, self):
+                                self.best_ask_tick = price_tick
+                                if self.best_ask_tick <= self.best_bid_tick:
+                                    self.best_bid_tick = depth_below(self.bid_depth, self.best_ask_tick, self.low_bid_tick)
+                            if price_tick > self.high_ask_tick:
+                                self.high_ask_tick = price_tick
+                elif row[COL_EVENT] == TRADE_EVENT:
+                    # Check if a user order is filled.
+                    # To simplify the backtest and avoid a complex market-impact model, all user orders are
+                    # considered to be small enough not to make any market impact.
+                    price_tick = round(row[COL_PRICE] / self.tick_size)
+                    qty = row[COL_QTY]
+                    # This side is a trade initiator's side.
+                    if row[COL_SIDE] == BUY:
+                        if self.best_bid_tick != INVALID_MIN:
+                            for t in range(self.best_bid_tick + 1, price_tick + 1):
+                                if t in self.sell_orders:
+                                    for order in list(self.sell_orders[t].values()):
+                                        # Only if a user order is active.
+                                        if order.exch_status == NEW:
+                                            if order.price_tick < price_tick:
                                                 self.__fill(order, exch_timestamp, True)
-                self.last_trade[:] = row[:]
-            elif row[COL_EVENT] >= USER_DEFINED_EVENT:
-                i = int(row[COL_EVENT]) - USER_DEFINED_EVENT
-                if i >= len(self.user_data):
-                    raise ValueError
-                self.user_data[i, :] = row[:]
+                                            elif order.price_tick == price_tick:
+                                                # Update the order's queue position.
+                                                self.queue_model.trade(order, qty, self)
+                                                if self.queue_model.is_filled(order, self):
+                                                    self.__fill(order, exch_timestamp, True)
+                    else:
+                        if self.best_ask_tick != INVALID_MAX:
+                            for t in range(self.best_ask_tick - 1, price_tick - 1, -1):
+                                if t in self.buy_orders:
+                                    for order in list(self.buy_orders[t].values()):
+                                        # Only if a user order is active.
+                                        if order.exch_status == NEW:
+                                            if order.price_tick > price_tick:
+                                                self.__fill(order, exch_timestamp, True)
+                                            elif order.price_tick == price_tick:
+                                                # Update the order's queue position.
+                                                self.queue_model.trade(order, qty, self)
+                                                if self.queue_model.is_filled(order, self):
+                                                    self.__fill(order, exch_timestamp, True)
+            # Only row with the valid local_timestamp will be received by local.
+            if local_timestamp != -1:
+                if row[COL_EVENT] == TRADE_EVENT:
+                    self.last_trade[:] = row[:]
+                elif row[COL_EVENT] >= USER_DEFINED_EVENT:
+                    i = int(row[COL_EVENT]) - USER_DEFINED_EVENT
+                    if i >= len(self.user_data):
+                        raise ValueError
+                    self.user_data[i, :] = row[:]
 
         # Check if the local can receive an order status.
         for order in self.orders.values():
