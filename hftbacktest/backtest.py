@@ -490,7 +490,9 @@ class HftBacktest:
                                     self.best_bid_tick = depth_below(self.bid_depth, self.best_ask_tick, self.low_bid_tick)
                             if price_tick > self.high_ask_tick:
                                 self.high_ask_tick = price_tick
-                elif row[COL_EVENT] == TRADE_EVENT:
+            # Order fill logic needs valid exch_timestamp.
+            if exch_timestamp != -1:
+                if row[COL_EVENT] == TRADE_EVENT:
                     # Check if a user order is filled.
                     # To simplify the backtest and avoid a complex market-impact model, all user orders are
                     # considered to be small enough not to make any market impact.
