@@ -33,6 +33,6 @@ def HftBacktest(df, tick_size, lot_size, maker_fee, taker_fee, order_latency, as
     ]
     hbt = jitclass(spec=spec)(_HftBacktest)
     # hbt = _HftBacktest
-    return hbt(df.values, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model,
+    return hbt(df.to_numpy(), tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model,
                snapshot.values if snapshot is not None else None,
                start_row, start_position, start_balance, start_fee)

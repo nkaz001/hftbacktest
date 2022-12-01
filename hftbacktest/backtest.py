@@ -219,7 +219,7 @@ class HftBacktest:
         order.exec_price_tick = order.price_tick if limit else exec_price_tick
         order.exch_status = FILLED
         order.exch_timestamp = timestamp
-        order.exec_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
+        order.exec_recv_timestamp = order.exch_timestamp + self.order_latency.response(order, self)
         if limit:
             if order.side == BUY:
                 del self.buy_orders[order.price_tick][order.order_id]
@@ -244,7 +244,7 @@ class HftBacktest:
         price_tick = round(price / self.tick_size)
         order = Order(order_id, price_tick, self.tick_size, qty, BUY, time_in_force)
         order.req = NEW
-        order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(self)
+        order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(order, self)
         self.orders[order.order_id] = order
         if wait:
             return self.goto(self.last_timestamp, wait_order_response=order_id)
@@ -254,7 +254,7 @@ class HftBacktest:
         price_tick = round(price / self.tick_size)
         order = Order(order_id, price_tick, self.tick_size, qty, SELL, time_in_force)
         order.req = NEW
-        order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(self)
+        order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(order, self)
         self.orders[order.order_id] = order
         if wait:
             return self.goto(self.last_timestamp, wait_order_response=order_id)
@@ -265,7 +265,7 @@ class HftBacktest:
         if order.req != NONE:
             raise ValueError('req')
         order.req = CANCELED
-        order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(self)
+        order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(order, self)
         order.resp_recv_timestamp = 0
         if wait:
             return self.goto(self.last_timestamp, wait_order_response=order_id)
@@ -375,7 +375,7 @@ class HftBacktest:
                                     self.queue_model.new(order, self)
                                     order.exch_status = NEW
                             order.exch_timestamp = order.req_recv_timestamp
-                            order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
+                            order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(order, self)
                         # Process a cancel order.
                         if order.req == CANCELED:
                             order.req = NONE
@@ -383,13 +383,14 @@ class HftBacktest:
                             if order.exch_status == NEW:
                                 order.exch_status = CANCELED
                                 order.exch_timestamp = order.req_recv_timestamp
-                                order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(self)
+                                order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(order, self)
                                 if order.side == BUY:
                                     del self.buy_orders[order.price_tick][order.order_id]
                                 else:
                                     del self.sell_orders[order.price_tick][order.order_id]
                             else:
-                                order.resp_recv_timestamp = order.req_recv_timestamp + self.order_latency.response(self)
+                                order.exch_timestamp = order.req_recv_timestamp
+                                order.resp_recv_timestamp = order.req_recv_timestamp + self.order_latency.response(order, self)
                     if wait_order_response >= 0 \
                             and wait_order_response == order.order_id \
                             and order.resp_recv_timestamp != 0 \
