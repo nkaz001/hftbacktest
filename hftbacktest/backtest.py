@@ -36,6 +36,9 @@ GTX = 1  # Post only
 INVALID_MIN = -sys.maxsize
 INVALID_MAX = sys.maxsize
 
+WAIT_ORDER_RESPONSE_NONE = -1
+WAIT_ORDER_RESPONSE_ANY = -2
+
 
 @numba.njit
 def depth_below(depth, start, end):
@@ -137,7 +140,8 @@ hbt_cls_spec = [
     ('maker_fee', float64),
     ('taker_fee', float64),
     ('local_timestamp', int64),
-    ('last_trade', float64[:]),
+    ('trade_len', int64),
+    ('last_trades_', float64[:]),
     ('user_data', float64[:, :]),
 ]
 
@@ -156,7 +160,8 @@ class HftBacktest:
                  start_row=0,
                  start_position=0,
                  start_balance=0,
-                 start_fee=0):
+                 start_fee=0,
+                 trade_list_size=1000):
         self.data = data
         self.row_num = start_row
         self.ask_depth = Dict.empty(int64, float64)
@@ -183,7 +188,8 @@ class HftBacktest:
         self.order_latency = order_latency
         self.asset_type = asset_type
         self.queue_model = queue_model
-        self.last_trade = np.full(data.shape[1], np.nan, np.float64)
+        self.trade_len = 0
+        self.last_trades_ = np.full((trade_list_size, data.shape[1]), np.nan, np.float64)
         self.user_data = np.full((20, data.shape[1]), np.nan, np.float64)
         if snapshot is not None:
             self.__load_snapshot(snapshot)
@@ -278,6 +284,21 @@ class HftBacktest:
             timestamp = max(self.local_timestamp, self.last_timestamp)
         return self.goto(timestamp, wait_order_response=order_id)
 
+    def wait_next_feed(self, include_order_resp, timeout=-1):
+        if timeout >= 0:
+            timestamp = self.local_timestamp + timeout
+        else:
+            timestamp = max(self.local_timestamp, self.last_timestamp)
+
+        next_local_timestamp = timestamp
+        for row_num in range(self.row_num + 1, len(self.data)):
+            next_local_timestamp = self.data[row_num, COL_LOCAL_TIMESTAMP]
+            if next_local_timestamp > 0:
+                break
+        next_local_timestamp = min(timestamp, next_local_timestamp)
+        wait_order_response = WAIT_ORDER_RESPONSE_ANY if include_order_resp else WAIT_ORDER_RESPONSE_NONE
+        return self.goto(next_local_timestamp, wait_order_response=wait_order_response)
+
     def clear_inactive_orders(self):
         for order in list(self.orders.values()):
             if order.status == EXPIRED \
@@ -285,8 +306,14 @@ class HftBacktest:
                     or order.status == CANCELED:
                 del self.orders[order.order_id]
 
+    def clear_last_trades(self):
+        self.trade_len = 0
+
     def get_user_data(self, event):
         return self.user_data[event - USER_DEFINED_EVENT]
+
+    def __get_last_trades(self):
+        return self.last_trades_[:self.trade_len]
 
     def __get_start_timestamp(self):
         return self.data[0, COL_LOCAL_TIMESTAMP]
@@ -306,6 +333,8 @@ class HftBacktest:
     def __compute_equity(self):
         return self.asset_type.equity(self.mid, self.balance, self.position, self.fee)
 
+    last_trades = property(__get_last_trades)
+
     start_timestamp = property(__get_start_timestamp)
 
     last_timestamp = property(__get_last_timestamp)
@@ -321,7 +350,7 @@ class HftBacktest:
     def elapse(self, duration):
         return self.goto(self.local_timestamp + duration)
 
-    def goto(self, timestamp, wait_order_response=-1):
+    def goto(self, timestamp, wait_order_response=WAIT_ORDER_RESPONSE_NONE):
         found_order_resp_timestamp = False
         while self.row_num + 1 < len(self.data):
             next_local_timestamp = self.data[self.row_num + 1, COL_LOCAL_TIMESTAMP]
@@ -350,6 +379,9 @@ class HftBacktest:
                                         self.__fill(order,
                                                     order.req_recv_timestamp,
                                                     False, exec_price_tick=self.best_ask_tick)
+                                        if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                            timestamp = order.exec_recv_timestamp
                                 else:
                                     # Now a user order is active. An exchange accepts a user order.
                                     o = self.buy_orders.setdefault(order.price_tick, Dict.empty(int64, dict_type))
@@ -367,6 +399,9 @@ class HftBacktest:
                                         self.__fill(order,
                                                     order.req_recv_timestamp,
                                                     False, exec_price_tick=self.best_bid_tick)
+                                        if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                            timestamp = order.exec_recv_timestamp
                                 else:
                                     # Now a user order is active. An exchange accepts a user order.
                                     o = self.sell_orders.setdefault(order.price_tick, Dict.empty(int64, dict_type))
@@ -376,6 +411,10 @@ class HftBacktest:
                                     order.exch_status = NEW
                             order.exch_timestamp = order.req_recv_timestamp
                             order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(order, self)
+                            if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                    and self.local_timestamp < order.resp_recv_timestamp < timestamp:
+                                timestamp = order.resp_recv_timestamp
+
                         # Process a cancel order.
                         if order.req == CANCELED:
                             order.req = NONE
@@ -384,6 +423,10 @@ class HftBacktest:
                                 order.exch_status = CANCELED
                                 order.exch_timestamp = order.req_recv_timestamp
                                 order.resp_recv_timestamp = order.exch_timestamp + self.order_latency.response(order, self)
+                                if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                        and self.local_timestamp < order.resp_recv_timestamp < timestamp:
+                                    timestamp = order.resp_recv_timestamp
+
                                 if order.side == BUY:
                                     del self.buy_orders[order.price_tick][order.order_id]
                                 else:
@@ -391,8 +434,10 @@ class HftBacktest:
                             else:
                                 order.exch_timestamp = order.req_recv_timestamp
                                 order.resp_recv_timestamp = order.req_recv_timestamp + self.order_latency.response(order, self)
-                    if wait_order_response >= 0 \
-                            and wait_order_response == order.order_id \
+                                if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                        and self.local_timestamp < order.resp_recv_timestamp < timestamp:
+                                    timestamp = order.resp_recv_timestamp
+                    if wait_order_response == order.order_id \
                             and order.resp_recv_timestamp != 0 \
                             and not found_order_resp_timestamp:
                         timestamp = max(order.resp_recv_timestamp, self.local_timestamp)
@@ -456,6 +501,9 @@ class HftBacktest:
                                         if t in self.sell_orders:
                                             for order in list(self.sell_orders[t].values()):
                                                 self.__fill(order, exch_timestamp, True)
+                                                if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                        and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                                    timestamp = order.exec_recv_timestamp
                                 self.best_bid_tick = price_tick
                                 if self.best_bid_tick >= self.best_ask_tick:
                                     self.best_ask_tick = depth_above(self.ask_depth, self.best_bid_tick, self.high_ask_tick)
@@ -486,6 +534,9 @@ class HftBacktest:
                                         if t in self.buy_orders:
                                             for order in list(self.buy_orders[t].values()):
                                                 self.__fill(order, exch_timestamp, True)
+                                                if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                        and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                                    timestamp = order.exec_recv_timestamp
                                 self.best_ask_tick = price_tick
                                 if self.best_ask_tick <= self.best_bid_tick:
                                     self.best_bid_tick = depth_below(self.bid_depth, self.best_ask_tick, self.low_bid_tick)
@@ -509,11 +560,17 @@ class HftBacktest:
                                         if order.exch_status == NEW:
                                             if order.price_tick < price_tick:
                                                 self.__fill(order, exch_timestamp, True)
+                                                if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                        and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                                    timestamp = order.exec_recv_timestamp
                                             elif order.price_tick == price_tick:
                                                 # Update the order's queue position.
                                                 self.queue_model.trade(order, qty, self)
                                                 if self.queue_model.is_filled(order, self):
                                                     self.__fill(order, exch_timestamp, True)
+                                                    if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                            and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                                        timestamp = order.exec_recv_timestamp
                     else:
                         if self.best_ask_tick != INVALID_MAX:
                             for t in range(self.best_ask_tick - 1, price_tick - 1, -1):
@@ -523,15 +580,22 @@ class HftBacktest:
                                         if order.exch_status == NEW:
                                             if order.price_tick > price_tick:
                                                 self.__fill(order, exch_timestamp, True)
+                                                if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                        and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                                    timestamp = order.exec_recv_timestamp
                                             elif order.price_tick == price_tick:
                                                 # Update the order's queue position.
                                                 self.queue_model.trade(order, qty, self)
                                                 if self.queue_model.is_filled(order, self):
                                                     self.__fill(order, exch_timestamp, True)
+                                                    if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
+                                                            and self.local_timestamp < order.exec_recv_timestamp < timestamp:
+                                                        timestamp = order.exec_recv_timestamp
             # Only row with the valid local_timestamp will be received by local.
             if local_timestamp != -1:
-                if row[COL_EVENT] == TRADE_EVENT:
-                    self.last_trade[:] = row[:]
+                if row[COL_EVENT] == TRADE_EVENT and self.trade_len < self.last_trades_.shape[0] - 1:
+                    self.last_trades_[self.trade_len, :] = row[:]
+                    self.trade_len += 1
                 elif row[COL_EVENT] >= USER_DEFINED_EVENT:
                     i = int(row[COL_EVENT]) - USER_DEFINED_EVENT
                     if i >= len(self.user_data):

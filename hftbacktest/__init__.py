@@ -18,11 +18,11 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'Stat',
            'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct')
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 
 def HftBacktest(df, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model=None,
-                snapshot=None, start_row=0, start_position=0, start_balance=0, start_fee=0):
+                snapshot=None, start_row=0, start_position=0, start_balance=0, start_fee=0, trade_list_size=1000):
     assert (df.columns[:6] == ['event', 'exch_timestamp', 'local_timestamp', 'side', 'price', 'qty']).all()
     if queue_model is None:
         queue_model = RiskAverseQueueModel()
@@ -35,4 +35,4 @@ def HftBacktest(df, tick_size, lot_size, maker_fee, taker_fee, order_latency, as
     # hbt = _HftBacktest
     return hbt(df.to_numpy(), tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model,
                snapshot.values if snapshot is not None else None,
-               start_row, start_position, start_balance, start_fee)
+               start_row, start_position, start_balance, start_fee, trade_list_size)
