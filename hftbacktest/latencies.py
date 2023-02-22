@@ -34,28 +34,21 @@ class FeedLatency:
         self.response_latency = response_latency
 
     def __latency(self, hbt):
-        local_timestamp = -1
-        exch_timestamp = -1
-        for row_num in range(hbt.row_num, -1, -1):
-            local_timestamp = hbt.data[row_num + 1, COL_LOCAL_TIMESTAMP]
-            exch_timestamp = hbt.data[row_num + 1, COL_EXCH_TIMESTAMP]
-            if local_timestamp != -1 and exch_timestamp != -1:
-                break
-
-        next_local_timestamp = -1
-        next_exch_timestamp = -1
-        for row_num in range(hbt.row_num + 1, len(hbt.data)):
-            next_local_timestamp = hbt.data[row_num + 1, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = hbt.data[row_num + 1, COL_EXCH_TIMESTAMP]
-            if next_local_timestamp != -1 and next_exch_timestamp != -1:
-                break
-
         lat1 = -1
+        for row_num in range(hbt.row_num, -1, -1):
+            local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
+            exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
+            if local_timestamp != -1 and exch_timestamp != -1:
+                lat1 = local_timestamp - exch_timestamp
+                break
+
         lat2 = -1
-        if local_timestamp != -1 and exch_timestamp != -1:
-            lat1 = local_timestamp - exch_timestamp
-        if next_local_timestamp != -1 and next_exch_timestamp != -1:
-            lat2 = next_local_timestamp - next_exch_timestamp
+        for row_num in range(hbt.row_num + 1, len(hbt.data)):
+            next_local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
+            next_exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
+            if next_local_timestamp != -1 and next_exch_timestamp != -1:
+                lat2 = next_local_timestamp - next_exch_timestamp
+                break
 
         if lat1 != -1 and lat2 != -1:
             return (lat1 + lat2) / 2.0
@@ -88,8 +81,8 @@ class ForwardFeedLatency:
 
     def __latency(self, hbt):
         for row_num in range(hbt.row_num + 1, len(hbt.data)):
-            next_local_timestamp = hbt.data[row_num + 1, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = hbt.data[row_num + 1, COL_EXCH_TIMESTAMP]
+            next_local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
+            next_exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
             if next_local_timestamp != -1 and next_exch_timestamp != -1:
                 return next_local_timestamp - next_exch_timestamp
         return ValueError
@@ -116,8 +109,8 @@ class BackwardFeedLatency:
 
     def __latency(self, hbt):
         for row_num in range(hbt.row_num, -1, -1):
-            local_timestamp = hbt.data[row_num + 1, COL_LOCAL_TIMESTAMP]
-            exch_timestamp = hbt.data[row_num + 1, COL_EXCH_TIMESTAMP]
+            local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
+            exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
             if local_timestamp != -1 and exch_timestamp != -1:
                 return local_timestamp - exch_timestamp
             return ValueError
