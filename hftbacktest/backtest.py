@@ -151,7 +151,7 @@ class DataReader:
                 elif filepath.endswith('.npz'):
                     data = np.load(filepath)['data']
                 else:
-                    df = pd.read_pickle(filepath)
+                    df = pd.read_pickle(filepath, compression='gzip')
                     data = df.values
             self.file_num += 1
             return data
@@ -318,7 +318,7 @@ class HftBacktest:
     def cancel(self, order_id, wait=False):
         order = self.orders.get(order_id)
         if order is None:
-            raise ValueError('the given order_id does not exist.')
+            raise KeyError('the given order_id does not exist.')
         if order.req != NONE:
             raise ValueError('the given order cannot be cancelled due to req.')
         order.req = CANCELED
@@ -669,11 +669,11 @@ class HftBacktest:
                             self.last_trades_[self.trade_len, :] = row[:]
                             self.trade_len += 1
                         else:
-                            raise ValueError('Insufficient trade list size.')
+                            raise IndexError('Insufficient trade list size.')
                 elif row[COL_EVENT] >= USER_DEFINED_EVENT:
                     i = int(row[COL_EVENT]) - USER_DEFINED_EVENT
                     if i >= len(self.user_data):
-                        raise ValueError('USER_DEFINED_EVENT is out of range.')
+                        raise IndexError('USER_DEFINED_EVENT is out of range.')
                     self.user_data[i, :] = row[:]
 
         # Check if the local can receive an order status.

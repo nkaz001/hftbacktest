@@ -181,7 +181,7 @@ class Stat:
         (rs_equity / capital * 100).plot(ax=axs[0])
         (rs_equity_wo_fee / capital * 100).plot(ax=axs[0])
 
-        axs[0].set_title('Equity')
+        # axs[0].set_title('Equity')
         axs[0].set_ylabel('Cumulative Returns (%)')
         axs[0].grid()
         axs[0].legend(['Trading asset', 'Strategy incl. fee', 'Strategy excl. fee'])
@@ -191,7 +191,7 @@ class Stat:
         position.plot(ax=axs[1])
         # ax3 = ax2.twinx()
         # (position * mid).plot(ax=ax3, style='grey', alpha=0.2)
-        axs[1].set_title('Position')
-        axs[1].set_ylabel('Qty')
+        # axs[1].set_title('Position')
+        axs[1].set_ylabel('Position (Qty)')
         # ax3.set_ylabel('Value')
         axs[1].grid()

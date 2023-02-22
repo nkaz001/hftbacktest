@@ -103,10 +103,8 @@ if __name__ == '__main__':
     # This backtest assumes market maker rebates.
     # https://www.binance.com/en/support/announcement/5d3a662d3ace4132a95e77f6ab0f5422
     snapshot_df = pd.read_pickle('../../btcusdt_20220830.snapshot.pkl', compression='gzip')
-    df1 = pd.read_pickle('../../btcusdt_20220831.pkl', compression='gzip')
-    df2 = pd.read_pickle('../../btcusdt_20220901.pkl', compression='gzip')
-    df = pd.concat([df1, df2])
-    hbt = HftBacktest(df,
+
+    hbt = HftBacktest(['../../btcusdt_20220831.pkl', '../../btcusdt_20220901.pkl'],
                       tick_size=0.1,
                       lot_size=0.001,
                       maker_fee=-0.00005,
