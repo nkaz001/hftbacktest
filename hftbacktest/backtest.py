@@ -1,10 +1,10 @@
 import sys
 
-import numba
-from numba import int8, float64, int64, boolean
+import pandas as pd
+from numba import int8, float64, int64, boolean, njit, objmode
 from numba.experimental import jitclass
-from numba.typed import Dict
-from numba.types import DictType
+from numba.typed import Dict, List
+from numba.types import DictType, ListType, unicode_type
 import numpy as np
 
 
@@ -40,7 +40,7 @@ WAIT_ORDER_RESPONSE_NONE = -1
 WAIT_ORDER_RESPONSE_ANY = -2
 
 
-@numba.njit
+@njit
 def depth_below(depth, start, end):
     for t in range(start - 1, end - 1, -1):
         if t in depth and depth[t] > 0:
@@ -48,7 +48,7 @@ def depth_below(depth, start, end):
     return INVALID_MIN
 
 
-@numba.njit
+@njit
 def depth_above(depth, start, end):
     for t in range(start + 1, end + 1):
         if t in depth and depth[t] > 0:
@@ -113,11 +113,58 @@ class Order:
     cancellable = property(__get_cancellable)
 
 
+@jitclass([
+    ('file_num', int64),
+    ('data', float64[:, :])
+])
+class DataBinder:
+    def __init__(self, data):
+        self.data = data
+        self.file_num = 0
+
+    def next(self):
+        if self.file_num >= 1:
+            return np.empty((0, 0), np.float64)
+        self.file_num += 1
+        return self.data
+
+
+@jitclass([
+    ('file_list', ListType(unicode_type)),
+    ('file_num', int64),
+])
+class DataReader:
+    def __init__(self):
+        self.file_list = List.empty_list(unicode_type)
+        self.file_num = 0
+
+    def add_file(self, filepath):
+        self.file_list.append(filepath)
+
+    def next(self):
+        if self.file_num < len(self.file_list):
+            filepath = self.file_list[self.file_num]
+            with objmode(data='float64[:, :]'):
+                print('Load %s' % filepath)
+                if filepath.endswith('.npy'):
+                    data = np.load(filepath)
+                elif filepath.endswith('.npz'):
+                    data = np.load(filepath)['data']
+                else:
+                    df = pd.read_pickle(filepath)
+                    data = df.values
+            self.file_num += 1
+            return data
+        else:
+            return np.empty((0, 0,), np.float64)
+
+
 order_type = Order.class_type.instance_type
 dict_type = DictType(int64, order_type)
 
 hbt_cls_spec = [
     ('data', float64[:, :]),
+    ('next_data', float64[:, :]),
     ('row_num', int64),
     ('ask_depth', DictType(int64, float64)),
     ('bid_depth', DictType(int64, float64)),
@@ -141,14 +188,14 @@ hbt_cls_spec = [
     ('taker_fee', float64),
     ('local_timestamp', int64),
     ('trade_len', int64),
-    ('last_trades_', float64[:]),
+    ('last_trades_', float64[:, :]),
     ('user_data', float64[:, :]),
 ]
 
 
 class HftBacktest:
     def __init__(self,
-                 data,
+                 data_reader,
                  tick_size,
                  lot_size,
                  maker_fee,
@@ -161,8 +208,10 @@ class HftBacktest:
                  start_position=0,
                  start_balance=0,
                  start_fee=0,
-                 trade_list_size=1000):
-        self.data = data
+                 trade_list_size=0):
+        self.data_reader = data_reader
+        self.data = data_reader.next()
+        self.next_data = data_reader.next()
         self.row_num = start_row
         self.ask_depth = Dict.empty(int64, float64)
         self.bid_depth = Dict.empty(int64, float64)
@@ -189,8 +238,8 @@ class HftBacktest:
         self.asset_type = asset_type
         self.queue_model = queue_model
         self.trade_len = 0
-        self.last_trades_ = np.full((trade_list_size, data.shape[1]), np.nan, np.float64)
-        self.user_data = np.full((20, data.shape[1]), np.nan, np.float64)
+        self.last_trades_ = np.full((trade_list_size, self.data.shape[1]), np.nan, np.float64)
+        self.user_data = np.full((20, self.data.shape[1]), np.nan, np.float64)
         if snapshot is not None:
             self.__load_snapshot(snapshot)
 
@@ -268,8 +317,10 @@ class HftBacktest:
 
     def cancel(self, order_id, wait=False):
         order = self.orders.get(order_id)
+        if order is None:
+            raise ValueError('the given order_id does not exist.')
         if order.req != NONE:
-            raise ValueError('req')
+            raise ValueError('the given order cannot be cancelled due to req.')
         order.req = CANCELED
         order.req_recv_timestamp = self.local_timestamp + self.order_latency.entry(order, self)
         order.resp_recv_timestamp = 0
@@ -312,6 +363,12 @@ class HftBacktest:
     def get_user_data(self, event):
         return self.user_data[event - USER_DEFINED_EVENT]
 
+    def __get_last_trade(self):
+        if self.trade_len > 0:
+            return self.last_trades_[self.trade_len - 1]
+        else:
+            return None
+
     def __get_last_trades(self):
         return self.last_trades_[:self.trade_len]
 
@@ -333,6 +390,8 @@ class HftBacktest:
     def __compute_equity(self):
         return self.asset_type.equity(self.mid, self.balance, self.position, self.fee)
 
+    last_trade = property(__get_last_trade)
+
     last_trades = property(__get_last_trades)
 
     start_timestamp = property(__get_start_timestamp)
@@ -352,10 +411,16 @@ class HftBacktest:
 
     def goto(self, timestamp, wait_order_response=WAIT_ORDER_RESPONSE_NONE):
         found_order_resp_timestamp = False
-        while self.row_num + 1 < len(self.data):
-            next_local_timestamp = self.data[self.row_num + 1, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = self.data[self.row_num + 1, COL_EXCH_TIMESTAMP]
+        while True:
             exch_timestamp = self.data[self.row_num, COL_EXCH_TIMESTAMP]
+            if self.row_num + 1 < len(self.data):
+                next_local_timestamp = self.data[self.row_num + 1, COL_LOCAL_TIMESTAMP]
+                next_exch_timestamp = self.data[self.row_num + 1, COL_EXCH_TIMESTAMP]
+            else:
+                if len(self.next_data) == 0:
+                    break
+                next_local_timestamp = self.next_data[0, COL_LOCAL_TIMESTAMP]
+                next_exch_timestamp = self.next_data[0, COL_EXCH_TIMESTAMP]
 
             # exchange timestamp must be ahead of local timestamp.
             # assert next_local_timestamp > next_exch_timestamp
@@ -426,7 +491,6 @@ class HftBacktest:
                                 if wait_order_response == WAIT_ORDER_RESPONSE_ANY \
                                         and self.local_timestamp < order.resp_recv_timestamp < timestamp:
                                     timestamp = order.resp_recv_timestamp
-
                                 if order.side == BUY:
                                     del self.buy_orders[order.price_tick][order.order_id]
                                 else:
@@ -449,6 +513,12 @@ class HftBacktest:
                 break
             # Get the next row.
             self.row_num += 1
+
+            if self.row_num == len(self.data):
+                self.data = self.next_data
+                self.next_data = self.data_reader.next()
+                self.row_num = 0
+
             row = self.data[self.row_num]
             exch_timestamp = next_exch_timestamp
             local_timestamp = next_local_timestamp
@@ -593,13 +663,17 @@ class HftBacktest:
                                                         timestamp = order.exec_recv_timestamp
             # Only row with the valid local_timestamp will be received by local.
             if local_timestamp != -1:
-                if row[COL_EVENT] == TRADE_EVENT and self.trade_len < self.last_trades_.shape[0] - 1:
-                    self.last_trades_[self.trade_len, :] = row[:]
-                    self.trade_len += 1
+                if row[COL_EVENT] == TRADE_EVENT:
+                    if self.last_trades_.shape[0] > 0:
+                        if self.trade_len < self.last_trades_.shape[0] - 1:
+                            self.last_trades_[self.trade_len, :] = row[:]
+                            self.trade_len += 1
+                        else:
+                            raise ValueError('Insufficient trade list size.')
                 elif row[COL_EVENT] >= USER_DEFINED_EVENT:
                     i = int(row[COL_EVENT]) - USER_DEFINED_EVENT
                     if i >= len(self.user_data):
-                        raise ValueError
+                        raise ValueError('USER_DEFINED_EVENT is out of range.')
                     self.user_data[i, :] = row[:]
 
         # Check if the local can receive an order status.
