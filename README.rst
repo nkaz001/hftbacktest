@@ -18,7 +18,7 @@ Data Source & Format
 Please see https://github.com/nkaz001/collect-binancefutures regarding collecting and converting the feed data.
 
 Examples
-~~~~~~~
+~~~~~~~~
 Please see `example <https://github.com/nkaz001/hftbacktest/tree/master/example>`_ directory.
 
 Documentation
