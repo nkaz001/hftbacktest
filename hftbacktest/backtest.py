@@ -149,10 +149,16 @@ class DataReader:
                 if filepath.endswith('.npy'):
                     data = np.load(filepath)
                 elif filepath.endswith('.npz'):
-                    data = np.load(filepath)['data']
+                    tmp = np.load(filepath)
+                    if 'data' in tmp:
+                        data = tmp['data']
+                    else:
+                        k = list(tmp.keys())[0]
+                        print("Data is loaded from %s instead of 'data'" % k)
+                        data = tmp[k]
                 else:
                     df = pd.read_pickle(filepath, compression='gzip')
-                    data = df.values
+                    data = df.to_numpy()
             self.file_num += 1
             return data
         else:
