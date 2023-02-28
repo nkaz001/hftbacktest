@@ -5,8 +5,8 @@ import numpy as np
 
 from hftbacktest.data import merge_on_local_timestamp, correct, validate_data
 
-BUFFER_SIZE = int(os.environ.get("HBT_DATA_UTIL_BUFFER_SIZE", 100_000_000))
-BASE_LATENCY = int(os.environ.get("HBT_DATA_UTIL_BASE_LATENCY", 0))
+buffer_size = int(os.environ.get("BUFFER_SIZE", 100_000_000))
+base_latency = int(os.environ.get("BASE_LATENCY", 0))
 
 TRADE = 0
 DEPTH = 1
@@ -17,7 +17,7 @@ input_files = sys.argv[2:]
 sets = []
 for file in input_files:
     file_type = None
-    tmp = np.empty((BUFFER_SIZE, 6), np.float64)
+    tmp = np.empty((buffer_size, 6), np.float64)
     row_num = 0
     is_snapshot = False
     ss_bid = None
@@ -125,7 +125,7 @@ while len(sets) > 0:
     data = merge_on_local_timestamp(data, sets[0])
     del sets[0]
 
-data = correct(data, base_latency=BASE_LATENCY)
+data = correct(data, base_latency=base_latency)
 
 # Validate again.
 num_corr = validate_data(data)
