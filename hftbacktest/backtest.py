@@ -152,12 +152,15 @@ class DataReader:
                     tmp = np.load(filepath)
                     if 'data' in tmp:
                         data = tmp['data']
+                        assert data.shape[1] >= 6
                     else:
                         k = list(tmp.keys())[0]
                         print("Data is loaded from %s instead of 'data'" % k)
                         data = tmp[k]
+                        assert data.shape[1] >= 6
                 else:
                     df = pd.read_pickle(filepath, compression='gzip')
+                    assert (df.columns[:6] == ['event', 'exch_timestamp', 'local_timestamp', 'side', 'price', 'qty']).all()
                     data = df.to_numpy()
             self.file_num += 1
             return data

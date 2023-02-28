@@ -33,6 +33,9 @@ def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, 
     elif isinstance(data, np.ndarray):
         assert data.shape[1] >= 6
         reader = DataBinder(data)
+    elif isinstance(data, str):
+        reader = DataReader()
+        reader.add_file(data)
     elif isinstance(data, list):
         reader = DataReader()
         for filepath in data:
@@ -40,8 +43,37 @@ def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, 
             reader.add_file(filepath)
     else:
         raise ValueError('Unsupported data type')
+
+    if isinstance(snapshot, pd.DataFrame):
+        assert (snapshot.columns[:6] == ['event', 'exch_timestamp', 'local_timestamp', 'side', 'price', 'qty']).all()
+        snapshot = snapshot.to_numpy()
+    elif isinstance(snapshot, np.ndarray):
+        assert snapshot.shape[1] >= 6
+    elif isinstance(snapshot, str):
+        if snapshot.endswith('.npy'):
+            snapshot = np.load(snapshot)
+        elif snapshot.endswith('.npz'):
+            tmp = np.load(snapshot)
+            if 'data' in tmp:
+                snapshot = tmp['data']
+                assert snapshot.shape[1] >= 6
+            else:
+                k = list(tmp.keys())[0]
+                print("Snapshot is loaded from %s instead of 'data'" % k)
+                snapshot = tmp[k]
+                assert snapshot.shape[1] >= 6
+        else:
+            df = pd.read_pickle(snapshot, compression='gzip')
+            assert (snapshot.columns[:6] == ['event', 'exch_timestamp', 'local_timestamp', 'side', 'price', 'qty']).all()
+            snapshot = df.to_numpy()
+    elif snapshot is None:
+        pass
+    else:
+        raise ValueError('Unsupported snapshot type')
+
     if queue_model is None:
         queue_model = RiskAverseQueueModel()
+
     spec = hbt_cls_spec + [
         ('order_latency', order_latency._numba_type_),
         ('asset_type', asset_type._numba_type_),
@@ -51,6 +83,5 @@ def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, 
     hbt = jitclass(spec=spec)(_HftBacktest)
     # hbt = _HftBacktest
 
-    return hbt(reader, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model,
-               snapshot.values if snapshot is not None else None,
+    return hbt(reader, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model, snapshot,
                start_row, start_position, start_balance, start_fee, trade_list_size)
