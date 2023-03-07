@@ -7,17 +7,17 @@ import pandas as pd
 import numpy as np
 
 
-@jitclass([
-    ('timestamp', ListType(int64)),
-    ('mid', ListType(float64)),
-    ('balance', ListType(float64)),
-    ('position', ListType(float64)),
-    ('fee', ListType(float64)),
-    ('trade_num', ListType(int64)),
-    ('trade_qty', ListType(float64)),
-    ('trade_amount', ListType(float64)),
-])
+@jitclass
 class Recorder:
+    timestamp: ListType(int64)
+    mid: ListType(float64)
+    balance: ListType(float64)
+    position: ListType(float64)
+    fee: ListType(float64)
+    trade_num: ListType(int64)
+    trade_qty: ListType(float64)
+    trade_amount: ListType(float64)
+
     def __init__(self, timestamp, mid, balance, position, fee, trade_num, trade_qty, trade_amount):
         self.timestamp = timestamp
         self.mid = mid
@@ -29,14 +29,14 @@ class Recorder:
         self.trade_amount = trade_amount
 
     def record(self, hbt):
-        self.timestamp.append(hbt.local_timestamp)
+        self.timestamp.append(hbt.current_timestamp)
         self.mid.append((hbt.best_bid + hbt.best_ask) / 2.0)
         self.balance.append(hbt.balance)
         self.position.append(hbt.position)
         self.fee.append(hbt.fee)
-        self.trade_num.append(hbt.trade_num)
-        self.trade_qty.append(hbt.trade_qty)
-        self.trade_amount.append(hbt.trade_amount)
+        # self.trade_num.append(hbt.trade_num)
+        # self.trade_qty.append(hbt.trade_qty)
+        # self.trade_amount.append(hbt.trade_amount)
 
 
 class Stat:
@@ -64,16 +64,16 @@ class Stat:
 
     def equity(self, resample=None, include_fee=True):
         if include_fee:
-            equity = pd.Series(self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                          np.asarray(self.balance),
-                                                          np.asarray(self.position),
-                                                          np.asarray(self.fee)),
+            equity = pd.Series(self.hbt.local.state.asset_type.equity(np.asarray(self.mid),
+                                                                      np.asarray(self.balance),
+                                                                      np.asarray(self.position),
+                                                                      np.asarray(self.fee)),
                                index=self.datetime())
         else:
-            equity = pd.Series(self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                          np.asarray(self.balance),
-                                                          np.asarray(self.position),
-                                                          0),
+            equity = pd.Series(self.hbt.local.state.asset_type.equity(np.asarray(self.mid),
+                                                                      np.asarray(self.balance),
+                                                                      np.asarray(self.position),
+                                                                      0),
                                index=self.datetime())
         if resample is None:
             return equity
@@ -126,14 +126,14 @@ class Stat:
 
     def summary(self, capital, resample='5min', trading_days=365):
         dt_index = self.datetime()
-        raw_equity = self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                np.asarray(self.balance),
-                                                np.asarray(self.position),
-                                                np.asarray(self.fee))
-        raw_equity_wo_fee = self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                       np.asarray(self.balance),
-                                                       np.asarray(self.position),
-                                                       0)
+        raw_equity = self.hbt.local.state.asset_type.equity(np.asarray(self.mid),
+                                                            np.asarray(self.balance),
+                                                            np.asarray(self.position),
+                                                            np.asarray(self.fee))
+        raw_equity_wo_fee = self.hbt.local.state.asset_type.equity(np.asarray(self.mid),
+                                                                   np.asarray(self.balance),
+                                                                   np.asarray(self.position),
+                                                                   0)
         equity = pd.Series(raw_equity, index=dt_index)
         rs_equity_wo_fee = pd.Series(raw_equity_wo_fee, index=dt_index).resample(resample).last()
         rs_equity = equity.resample(resample).last()
@@ -153,9 +153,9 @@ class Stat:
         ar = raw_equity[-1] * ac * trading_days
         rrr = ar / mdd
 
-        dtn = pd.Series(self.trade_num, index=dt_index).diff().rolling('1d').sum().mean()
-        dtq = pd.Series(self.trade_qty, index=dt_index).diff().rolling('1d').sum().mean()
-        dta = pd.Series(self.trade_amount, index=dt_index).diff().rolling('1d').sum().mean()
+        # dtn = pd.Series(self.trade_num, index=dt_index).diff().rolling('1d').sum().mean()
+        # dtq = pd.Series(self.trade_qty, index=dt_index).diff().rolling('1d').sum().mean()
+        # dta = pd.Series(self.trade_amount, index=dt_index).diff().rolling('1d').sum().mean()
 
         print('=========== Summary ===========')
         print('Sharpe ratio: %.1f' % sr)
@@ -163,9 +163,9 @@ class Stat:
         print('Risk return ratio: %.1f' % rrr)
         print('Annualised return: %.2f %%' % (ar / capital * 100))
         print('Max. draw down: %.2f %%' % (mdd / capital * 100))
-        print('The number of trades per day: %d' % dtn)
-        print('Avg. daily trading volume: %d' % dtq)
-        print('Avg. daily trading amount: %d' % dta)
+        # print('The number of trades per day: %d' % dtn)
+        # print('Avg. daily trading volume: %d' % dtq)
+        # print('Avg. daily trading amount: %d' % dta)
 
         position = np.asarray(self.position) * np.asarray(self.mid)
         print('Max leverage: %.2f' % (np.max(np.abs(position)) / capital))

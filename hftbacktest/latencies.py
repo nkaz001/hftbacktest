@@ -1,7 +1,7 @@
 from numba import float64, int64
 from numba.experimental import jitclass
 
-from .backtest import COL_LOCAL_TIMESTAMP, COL_EXCH_TIMESTAMP
+from .reader import COL_LOCAL_TIMESTAMP, COL_EXCH_TIMESTAMP
 
 
 @jitclass([
@@ -145,14 +145,14 @@ class IntpOrderLatency:
         return (y2 - y1) / (x2 - x1) * (x - x1) + y1
 
     def entry(self, order, hbt):
-        if hbt.local_timestamp < self.data[0, 0]:
+        if hbt.current_timestamp < self.data[0, 0]:
             return self.data[0, 1] - self.data[0, 0]
-        if hbt.local_timestamp >= self.data[-1, 0]:
+        if hbt.current_timestamp >= self.data[-1, 0]:
             return self.data[-1, 1] - self.data[-1, 0]
         for row_num in range(self.entry_rn, len(self.data) - 1):
             req_local_timestamp = self.data[row_num, 0]
             next_req_local_timestamp = self.data[row_num + 1, 0]
-            if req_local_timestamp <= hbt.local_timestamp < next_req_local_timestamp:
+            if req_local_timestamp <= hbt.current_timestamp < next_req_local_timestamp:
                 self.entry_rn = row_num
 
                 exch_timestamp = self.data[row_num, 1]
@@ -160,7 +160,7 @@ class IntpOrderLatency:
 
                 lat1 = exch_timestamp - req_local_timestamp
                 lat2 = next_exch_timestamp - next_req_local_timestamp
-                return self.__intp(hbt.local_timestamp, req_local_timestamp, lat1, next_req_local_timestamp, lat2)
+                return self.__intp(hbt.current_timestamp, req_local_timestamp, lat1, next_req_local_timestamp, lat2)
         raise ValueError
 
     def response(self, order, hbt):
