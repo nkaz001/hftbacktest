@@ -7,12 +7,11 @@ from .reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_SIDE
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, order_ty, OrderBus
 from .backtest import SingleInstHftBacktest
 from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
-from .exchange import NoPartialFillExch
-from .latencies import ConstantLatency, FeedLatency
-from .local import Local
+from .proc import Local, NoPartialFillExch
 from .marketdepth import MarketDepth
 from .state import State
-from .queue import RiskAverseQueueModel, LogProbQueueModel, IdentityProbQueueModel, SquareProbQueueModel
+from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
+from .models.queue import RiskAverseQueueModel, LogProbQueueModel, IdentityProbQueueModel, SquareProbQueueModel
 from .stat import Stat
 
 __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE', 'COL_PRICE', 'COL_QTY',

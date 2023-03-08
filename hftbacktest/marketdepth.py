@@ -80,7 +80,6 @@ class MarketDepth:
             side,
             clear_upto_price,
     ):
-        # To apply market depth snapshot, refresh the market depth.
         clear_upto = round(clear_upto_price / self.tick_size)
         if side == BUY:
             if self.best_bid_tick != INVALID_MIN:
@@ -88,15 +87,23 @@ class MarketDepth:
                     if t in self.bid_depth:
                         del self.bid_depth[t]
                 self.best_bid_tick = depth_below(self.bid_depth, clear_upto - 1, self.low_bid_tick)
+                if self.best_bid_tick == INVALID_MIN:
+                    self.low_bid_tick = INVALID_MAX
         elif side == SELL:
             if self.best_ask_tick != INVALID_MAX:
                 for t in range(self.best_ask_tick, clear_upto + 1):
                     if t in self.ask_depth:
                         del self.ask_depth[t]
                 self.best_ask_tick = depth_above(self.ask_depth, clear_upto + 1, self.high_ask_tick)
+                if self.best_ask_tick == INVALID_MAX:
+                    self.high_ask_tick = INVALID_MIN
         else:
             self.bid_depth.clear()
             self.ask_depth.clear()
+            self.best_bid_tick = INVALID_MIN
+            self.best_ask_tick = INVALID_MAX
+            self.low_bid_tick = INVALID_MAX
+            self.high_ask_tick = INVALID_MIN
 
     def update_bid_depth(
             self,
@@ -116,9 +123,11 @@ class MarketDepth:
             del self.bid_depth[price_tick]
             if price_tick == self.best_bid_tick:
                 self.best_bid_tick = depth_below(self.bid_depth, self.best_bid_tick, self.low_bid_tick)
+                if self.best_bid_tick == INVALID_MIN:
+                    self.low_bid_tick = INVALID_MAX
         else:
             if price_tick > self.best_bid_tick:
-                if self.best_bid_tick != INVALID_MIN and callback is not None:
+                if callback is not None:
                     callback.on_best_bid_update(self.best_bid_tick, price_tick, timestamp)
 
                 self.best_bid_tick = price_tick
@@ -141,14 +150,15 @@ class MarketDepth:
         if callback is not None:
             callback.on_ask_qty_chg(price_tick, prev_qty, qty, timestamp)
 
-        # Update the best bid and the best ask.
         if round(qty / self.lot_size) == 0:
             del self.ask_depth[price_tick]
             if price_tick == self.best_ask_tick:
                 self.best_ask_tick = depth_above(self.ask_depth, self.best_ask_tick, self.high_ask_tick)
+                if self.best_ask_tick == INVALID_MAX:
+                    self.high_ask_tick = INVALID_MIN
         else:
             if price_tick < self.best_ask_tick:
-                if self.best_bid_tick != INVALID_MIN and callback is not None:
+                if callback is not None:
                     callback.on_best_ask_update(self.best_ask_tick, price_tick, timestamp)
 
                 self.best_ask_tick = price_tick

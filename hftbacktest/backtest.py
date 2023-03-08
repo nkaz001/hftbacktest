@@ -132,7 +132,6 @@ class SingleInstHftBacktest_:
 
             # No more data or orders to be processed.
             else:
-                print('run false')
                 self.run = False
                 break
 
