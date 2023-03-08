@@ -14,9 +14,9 @@ class RiskAverseQueueModel:
 
     def new(self, order, proc):
         if order.side == 1:
-            order.q[0] = proc.depth.bid_depth.get(order.price_tick, 0)
+            order.q[0] = proc.bid_depth.get(order.price_tick, 0)
         else:
-            order.q[0] = proc.depth.ask_depth.get(order.price_tick, 0)
+            order.q[0] = proc.ask_depth.get(order.price_tick, 0)
 
     def trade(self, order, qty, proc):
         order.q[0] -= qty
@@ -25,7 +25,7 @@ class RiskAverseQueueModel:
         order.q[0] = min(order.q[0], new_qty)
 
     def is_filled(self, order, proc):
-        return round(order.q[0] / proc.depth.lot_size) < 0
+        return round(order.q[0] / proc.lot_size) < 0
 
 
 class ProbQueueModel:
@@ -34,9 +34,9 @@ class ProbQueueModel:
 
     def new(self, order, proc):
         if order.side == 1:
-            order.q[0] = proc.depth.bid_depth.get(order.price_tick, 0)
+            order.q[0] = proc.bid_depth.get(order.price_tick, 0)
         else:
-            order.q[0] = proc.depth.ask_depth.get(order.price_tick, 0)
+            order.q[0] = proc.ask_depth.get(order.price_tick, 0)
 
     def trade(self, order, qty, proc):
         order.q[0] -= qty
@@ -64,7 +64,7 @@ class ProbQueueModel:
         order.q[0] = min(est_front, new_qty)
 
     def is_filled(self, order, proc):
-        return round(order.q[0] / proc.depth.lot_size) < 0
+        return round(order.q[0] / proc.lot_size) < 0
 
     def prob(self, front, back):
         return np.divide(self.f(back), self.f(back) + self.f(front))

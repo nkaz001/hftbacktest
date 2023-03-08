@@ -7,17 +7,17 @@ import pandas as pd
 import numpy as np
 
 
-@jitclass([
-    ('timestamp', ListType(int64)),
-    ('mid', ListType(float64)),
-    ('balance', ListType(float64)),
-    ('position', ListType(float64)),
-    ('fee', ListType(float64)),
-    ('trade_num', ListType(int64)),
-    ('trade_qty', ListType(float64)),
-    ('trade_amount', ListType(float64)),
-])
+@jitclass
 class Recorder:
+    timestamp: ListType(int64)
+    mid: ListType(float64)
+    balance: ListType(float64)
+    position: ListType(float64)
+    fee: ListType(float64)
+    trade_num: ListType(int64)
+    trade_qty: ListType(float64)
+    trade_amount: ListType(float64)
+
     def __init__(self, timestamp, mid, balance, position, fee, trade_num, trade_qty, trade_amount):
         self.timestamp = timestamp
         self.mid = mid
@@ -29,14 +29,14 @@ class Recorder:
         self.trade_amount = trade_amount
 
     def record(self, hbt):
-        self.timestamp.append(hbt.local_timestamp)
+        self.timestamp.append(hbt.current_timestamp)
         self.mid.append((hbt.best_bid + hbt.best_ask) / 2.0)
         self.balance.append(hbt.balance)
         self.position.append(hbt.position)
         self.fee.append(hbt.fee)
-        self.trade_num.append(hbt.trade_num)
-        self.trade_qty.append(hbt.trade_qty)
-        self.trade_amount.append(hbt.trade_amount)
+        # self.trade_num.append(hbt.trade_num)
+        # self.trade_qty.append(hbt.trade_qty)
+        # self.trade_amount.append(hbt.trade_amount)
 
 
 class Stat:
@@ -53,28 +53,43 @@ class Stat:
         self.trade_qty = List.empty_list(float64, allocated=allocated)
         self.trade_amount = List.empty_list(float64, allocated=allocated)
 
-    def __get_recorder(self):
-        return Recorder(self.timestamp, self.mid, self.balance, self.position, self.fee,
-                        self.trade_num, self.trade_qty, self.trade_amount)
-
-    recorder = property(__get_recorder)
+    @property
+    def recorder(self):
+        return Recorder(
+            self.timestamp,
+            self.mid,
+            self.balance,
+            self.position,
+            self.fee,
+            self.trade_num,
+            self.trade_qty,
+            self.trade_amount
+        )
 
     def datetime(self):
         return pd.to_datetime(np.asarray(self.timestamp), utc=self.utc, unit=self.unit)
 
     def equity(self, resample=None, include_fee=True):
         if include_fee:
-            equity = pd.Series(self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                          np.asarray(self.balance),
-                                                          np.asarray(self.position),
-                                                          np.asarray(self.fee)),
-                               index=self.datetime())
+            equity = pd.Series(
+                self.hbt.local.state.asset_type.equity(
+                    np.asarray(self.mid),
+                    np.asarray(self.balance),
+                    np.asarray(self.position),
+                    np.asarray(self.fee)
+                ),
+                index=self.datetime()
+            )
         else:
-            equity = pd.Series(self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                          np.asarray(self.balance),
-                                                          np.asarray(self.position),
-                                                          0),
-                               index=self.datetime())
+            equity = pd.Series(
+                self.hbt.local.state.asset_type.equity(
+                    np.asarray(self.mid),
+                    np.asarray(self.balance),
+                    np.asarray(self.position),
+                    0
+                ),
+                index=self.datetime()
+            )
         if resample is None:
             return equity
         else:
@@ -124,16 +139,20 @@ class Stat:
         else:
             return equity[-1] * c * trading_days / denom
 
-    def summary(self, capital, resample='5min', trading_days=365):
+    def summary(self, capital=None, resample='5min', trading_days=365):
         dt_index = self.datetime()
-        raw_equity = self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                np.asarray(self.balance),
-                                                np.asarray(self.position),
-                                                np.asarray(self.fee))
-        raw_equity_wo_fee = self.hbt.asset_type.equity(np.asarray(self.mid),
-                                                       np.asarray(self.balance),
-                                                       np.asarray(self.position),
-                                                       0)
+        raw_equity = self.hbt.local.state.asset_type.equity(
+            np.asarray(self.mid),
+            np.asarray(self.balance),
+            np.asarray(self.position),
+            np.asarray(self.fee)
+        )
+        raw_equity_wo_fee = self.hbt.local.state.asset_type.equity(
+            np.asarray(self.mid),
+            np.asarray(self.balance),
+            np.asarray(self.position),
+            0
+        )
         equity = pd.Series(raw_equity, index=dt_index)
         rs_equity_wo_fee = pd.Series(raw_equity_wo_fee, index=dt_index).resample(resample).last()
         rs_equity = equity.resample(resample).last()
@@ -153,23 +172,28 @@ class Stat:
         ar = raw_equity[-1] * ac * trading_days
         rrr = ar / mdd
 
-        dtn = pd.Series(self.trade_num, index=dt_index).diff().rolling('1d').sum().mean()
-        dtq = pd.Series(self.trade_qty, index=dt_index).diff().rolling('1d').sum().mean()
-        dta = pd.Series(self.trade_amount, index=dt_index).diff().rolling('1d').sum().mean()
+        # dtn = pd.Series(self.trade_num, index=dt_index).diff().rolling('1d').sum().mean()
+        # dtq = pd.Series(self.trade_qty, index=dt_index).diff().rolling('1d').sum().mean()
+        # dta = pd.Series(self.trade_amount, index=dt_index).diff().rolling('1d').sum().mean()
 
         print('=========== Summary ===========')
         print('Sharpe ratio: %.1f' % sr)
         print('Sortino ratio: %.1f' % sortino)
         print('Risk return ratio: %.1f' % rrr)
-        print('Annualised return: %.2f %%' % (ar / capital * 100))
-        print('Max. draw down: %.2f %%' % (mdd / capital * 100))
-        print('The number of trades per day: %d' % dtn)
-        print('Avg. daily trading volume: %d' % dtq)
-        print('Avg. daily trading amount: %d' % dta)
+        if capital is not None:
+            print('Annualised return: %.2f %%' % (ar / capital * 100))
+            print('Max. draw down: %.2f %%' % (mdd / capital * 100))
+        else:
+            print('Annualised return: %.2f' % ar)
+            print('Max. draw down: %.2f' % mdd)
+        # print('The number of trades per day: %d' % dtn)
+        # print('Avg. daily trading volume: %d' % dtq)
+        # print('Avg. daily trading amount: %d' % dta)
 
         position = np.asarray(self.position) * np.asarray(self.mid)
-        print('Max leverage: %.2f' % (np.max(np.abs(position)) / capital))
-        print('Median leverage: %.2f' % (np.median(np.abs(position)) / capital))
+        if capital is not None:
+            print('Max leverage: %.2f' % (np.max(np.abs(position)) / capital))
+            print('Median leverage: %.2f' % (np.median(np.abs(position)) / capital))
 
         fig, axs = plt.subplots(2, 1, sharex=True)
         fig.subplots_adjust(hspace=0)
@@ -177,9 +201,14 @@ class Stat:
 
         mid = pd.Series(self.mid, index=dt_index)
 
-        ((mid / mid[0] - 1).resample(resample).last() * 100).plot(ax=axs[0], style='grey', alpha=0.5)
-        (rs_equity / capital * 100).plot(ax=axs[0])
-        (rs_equity_wo_fee / capital * 100).plot(ax=axs[0])
+        if capital is not None:
+            ((mid / mid[0] - 1).resample(resample).last() * 100).plot(ax=axs[0], style='grey', alpha=0.5)
+            (rs_equity / capital * 100).plot(ax=axs[0])
+            (rs_equity_wo_fee / capital * 100).plot(ax=axs[0])
+        else:
+            mid.resample(resample).last().plot(ax=axs[0], style='grey', alpha=0.5)
+            (rs_equity * 100).plot(ax=axs[0])
+            (rs_equity_wo_fee * 100).plot(ax=axs[0])
 
         # axs[0].set_title('Equity')
         axs[0].set_ylabel('Cumulative Returns (%)')
