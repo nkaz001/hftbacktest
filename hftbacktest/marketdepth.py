@@ -58,8 +58,7 @@ class MarketDepth:
         self.ask_depth.clear()
         best_bid = True
         best_ask = True
-        for row_num in range(len(data)):
-            row = data[row_num]
+        for row in data:
             price_tick = round(row[COL_PRICE] / self.tick_size)
             qty = row[COL_QTY]
             if row[COL_SIDE] == BUY:

@@ -13,10 +13,10 @@ class ConstantLatency:
         self.entry_latency = entry_latency
         self.response_latency = response_latency
 
-    def entry(self, order, hbt):
+    def entry(self, order, proc):
         return self.entry_latency
 
-    def response(self, order, hbt):
+    def response(self, order, proc):
         return self.response_latency
 
 
@@ -33,19 +33,19 @@ class FeedLatency:
         self.entry_latency = entry_latency
         self.response_latency = response_latency
 
-    def __latency(self, hbt):
+    def __latency(self, proc):
         lat1 = -1
-        for row_num in range(hbt.row_num, -1, -1):
-            local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
-            exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
+        for row_num in range(proc.row_num, -1, -1):
+            local_timestamp = proc.data[row_num, COL_LOCAL_TIMESTAMP]
+            exch_timestamp = proc.data[row_num, COL_EXCH_TIMESTAMP]
             if local_timestamp != -1 and exch_timestamp != -1:
                 lat1 = local_timestamp - exch_timestamp
                 break
 
         lat2 = -1
-        for row_num in range(hbt.row_num + 1, len(hbt.data)):
-            next_local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
+        for row_num in range(proc.row_num + 1, len(proc.data)):
+            next_local_timestamp = proc.data[row_num, COL_LOCAL_TIMESTAMP]
+            next_exch_timestamp = proc.data[row_num, COL_EXCH_TIMESTAMP]
             if next_local_timestamp != -1 and next_exch_timestamp != -1:
                 lat2 = next_local_timestamp - next_exch_timestamp
                 break
@@ -59,11 +59,11 @@ class FeedLatency:
         else:
             raise ValueError
 
-    def entry(self, order, hbt):
-        return self.entry_latency + self.entry_latency_mul * self.__latency(hbt)
+    def entry(self, order, proc):
+        return self.entry_latency + self.entry_latency_mul * self.__latency(proc)
 
-    def response(self, order, hbt):
-        return self.response_latency + self.resp_latency_mul * self.__latency(hbt)
+    def response(self, order, proc):
+        return self.response_latency + self.resp_latency_mul * self.__latency(proc)
 
 
 @jitclass([
@@ -79,19 +79,19 @@ class ForwardFeedLatency:
         self.entry_latency = entry_latency
         self.response_latency = response_latency
 
-    def __latency(self, hbt):
-        for row_num in range(hbt.row_num + 1, len(hbt.data)):
-            next_local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
+    def __latency(self, proc):
+        for row_num in range(proc.row_num + 1, len(proc.data)):
+            next_local_timestamp = proc.data[row_num, COL_LOCAL_TIMESTAMP]
+            next_exch_timestamp = proc.data[row_num, COL_EXCH_TIMESTAMP]
             if next_local_timestamp != -1 and next_exch_timestamp != -1:
                 return next_local_timestamp - next_exch_timestamp
         return ValueError
 
-    def entry(self, order, hbt):
-        return self.entry_latency + self.entry_latency_mul * self.__latency(hbt)
+    def entry(self, order, proc):
+        return self.entry_latency + self.entry_latency_mul * self.__latency(proc)
 
-    def response(self, order, hbt):
-        return self.response_latency + self.resp_latency_mul * self.__latency(hbt)
+    def response(self, order, proc):
+        return self.response_latency + self.resp_latency_mul * self.__latency(proc)
 
 
 @jitclass([
@@ -107,19 +107,19 @@ class BackwardFeedLatency:
         self.entry_latency = entry_latency
         self.response_latency = response_latency
 
-    def __latency(self, hbt):
-        for row_num in range(hbt.row_num, -1, -1):
-            local_timestamp = hbt.data[row_num, COL_LOCAL_TIMESTAMP]
-            exch_timestamp = hbt.data[row_num, COL_EXCH_TIMESTAMP]
+    def __latency(self, proc):
+        for row_num in range(proc.row_num, -1, -1):
+            local_timestamp = proc.data[row_num, COL_LOCAL_TIMESTAMP]
+            exch_timestamp = proc.data[row_num, COL_EXCH_TIMESTAMP]
             if local_timestamp != -1 and exch_timestamp != -1:
                 return local_timestamp - exch_timestamp
             return ValueError
 
-    def entry(self, order, hbt):
-        return self.entry_latency + self.entry_latency_mul * self.__latency(hbt)
+    def entry(self, order, proc):
+        return self.entry_latency + self.entry_latency_mul * self.__latency(proc)
 
-    def response(self, order, hbt):
-        return self.response_latency + self.resp_latency_mul * self.__latency(hbt)
+    def response(self, order, proc):
+        return self.response_latency + self.resp_latency_mul * self.__latency(proc)
 
 
 @jitclass([
@@ -144,15 +144,15 @@ class IntpOrderLatency:
     def __intp(self, x, x1, y1, x2, y2):
         return (y2 - y1) / (x2 - x1) * (x - x1) + y1
 
-    def entry(self, order, hbt):
-        if hbt.current_timestamp < self.data[0, 0]:
+    def entry(self, order, proc):
+        if proc.current_timestamp < self.data[0, 0]:
             return self.data[0, 1] - self.data[0, 0]
-        if hbt.current_timestamp >= self.data[-1, 0]:
+        if proc.current_timestamp >= self.data[-1, 0]:
             return self.data[-1, 1] - self.data[-1, 0]
         for row_num in range(self.entry_rn, len(self.data) - 1):
             req_local_timestamp = self.data[row_num, 0]
             next_req_local_timestamp = self.data[row_num + 1, 0]
-            if req_local_timestamp <= hbt.current_timestamp < next_req_local_timestamp:
+            if req_local_timestamp <= proc.current_timestamp < next_req_local_timestamp:
                 self.entry_rn = row_num
 
                 exch_timestamp = self.data[row_num, 1]
@@ -160,10 +160,10 @@ class IntpOrderLatency:
 
                 lat1 = exch_timestamp - req_local_timestamp
                 lat2 = next_exch_timestamp - next_req_local_timestamp
-                return self.__intp(hbt.current_timestamp, req_local_timestamp, lat1, next_req_local_timestamp, lat2)
+                return self.__intp(proc.current_timestamp, req_local_timestamp, lat1, next_req_local_timestamp, lat2)
         raise ValueError
 
-    def response(self, order, hbt):
+    def response(self, order, proc):
         if order.exch_timestamp < self.data[0, 1]:
             return self.data[0, 2] - self.data[0, 1]
         if order.exch_timestamp >= self.data[-1, 1]:

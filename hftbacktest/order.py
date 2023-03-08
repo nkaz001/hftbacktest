@@ -133,7 +133,7 @@ class OrderBus:
         return len(self.order_list)
 
     def __delitem__(self, key):
-        order, recv_timestamp = self.order_list[key]
+        order, _ = self.order_list[key]
         del self.order_list[key]
         self.orders[order.order_id] -= 1
         if self.orders[order.order_id] <= 0:

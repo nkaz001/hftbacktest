@@ -4,10 +4,11 @@ import pandas as pd
 from .assettype import Linear, Inverse
 from .reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, \
     DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DataReader, DataBinder, Cache
-from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, order_ty, OrderBus
+from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
 from .backtest import SingleInstHftBacktest
 from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
-from .proc import Local, NoPartialFillExch
+from .proc.local import Local
+from .proc.exchange import NoPartialFillExch
 from .marketdepth import MarketDepth
 from .state import State
 from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
@@ -18,13 +19,13 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'DEPTH_EVENT', 'TRADE_EVENT', 'DEPTH_CLEAR_EVENT', 'DEPTH_SNAPSHOT_EVENT', 'BUY', 'SELL',
            'NONE', 'NEW', 'EXPIRED', 'FILLED', 'CANCELED', 'GTC', 'GTX',
            'Order', 'HftBacktest',
-           'FeedLatency', 'ConstantLatency',
+           'ConstantLatency', 'FeedLatency', 'ForwardFeedLatency', 'BackwardFeedLatency', 'IntpOrderLatency',
            'Linear', 'Inverse',
            'RiskAverseQueueModel', 'LogProbQueueModel', 'IdentityProbQueueModel', 'SquareProbQueueModel',
            'Stat',
            'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct')
 
-__version__ = '2.0.0'
+__version__ = '1.3.0'
 
 
 def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model=None,
