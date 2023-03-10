@@ -1,9 +1,11 @@
+import numpy as np
+from numba import int64, float64
 from numba.experimental import jitclass
 
 from .proc import Proc, proc_spec
 from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, NONE, Order
 from ..reader import COL_EVENT, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, \
-    DEPTH_SNAPSHOT_EVENT
+    DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, USER_DEFINED_EVENT
 
 
 class Local_(Proc):
@@ -14,7 +16,8 @@ class Local_(Proc):
             orders_from_exch,
             depth,
             state,
-            order_latency
+            order_latency,
+            trade_list_size
     ):
         self._proc_init(
             reader,
@@ -24,14 +27,12 @@ class Local_(Proc):
             state,
             order_latency
         )
+        self.trade_len = 0
+        self.last_trades = np.full((trade_list_size, self.data.shape[1]), np.nan, np.float64)
+        self.user_data = np.full((20, self.data.shape[1]), np.nan, np.float64)
 
     def _next_data_timestamp(self):
-        if self.row_num + 1 < len(self.data):
-            return self.data[self.row_num + 1, COL_LOCAL_TIMESTAMP]
-        else:
-            if len(self.next_data) == 0:
-                return -2
-            return self.next_data[0, COL_LOCAL_TIMESTAMP]
+        return self._next_data_timestamp_column(COL_LOCAL_TIMESTAMP)
 
     def _process_recv_order(self, order, recv_timestamp, wait_resp, next_timestamp):
         # Apply the received order response to the local orders.
@@ -59,6 +60,22 @@ class Local_(Proc):
                     row[COL_QTY],
                     row[COL_LOCAL_TIMESTAMP]
                 )
+
+        # Process a trade event
+        elif row[COL_EVENT] == TRADE_EVENT:
+            if self.last_trades.shape[0] > 0:
+                if self.trade_len < self.last_trades.shape[0] - 1:
+                    self.last_trades[self.trade_len] = row[:]
+                    self.trade_len += 1
+                else:
+                    raise IndexError('Insufficient trade list size.')
+
+        # Process a user defined event
+        elif row[COL_EVENT] >= USER_DEFINED_EVENT:
+            i = int(row[COL_EVENT]) - USER_DEFINED_EVENT
+            if i >= len(self.user_data):
+                raise IndexError('USER_DEFINED_EVENT is out of range.')
+            self.user_data[i] = row[:]
         return 0
 
     def submit_buy_order(self, order_id, price, qty, time_in_force, current_timestamp):
@@ -99,6 +116,12 @@ class Local_(Proc):
                     or order.status == CANCELED:
                 del self.orders[order.order_id]
 
+    def clear_last_trades(self):
+        self.trade_len = 0
+
+    def get_user_data(self, event):
+        return self.user_data[event - USER_DEFINED_EVENT]
+
 
 def Local(
         reader,
@@ -106,10 +129,15 @@ def Local(
         orders_from_exch,
         depth,
         state,
-        order_latency
+        order_latency,
+        trade_list_size
 ):
     jitted = jitclass(
-        spec=proc_spec(reader, state, order_latency)
+        spec=proc_spec(reader, state, order_latency) + [
+            ('trade_len', int64),
+            ('last_trades', float64[:, :]),
+            ('user_data', float64[:, :]),
+        ]
     )(Local_)
     return jitted(
         reader,
@@ -117,5 +145,6 @@ def Local(
         orders_from_exch,
         depth,
         state,
-        order_latency
+        order_latency,
+        trade_list_size
     )

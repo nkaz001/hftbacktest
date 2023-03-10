@@ -31,25 +31,31 @@ __version__ = '1.3.0'
 def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model=None,
                 snapshot=None, start_position=0, start_balance=0, start_fee=0, trade_list_size=0):
 
-    cached = Cache()
+    cache = Cache()
 
     if isinstance(data, pd.DataFrame):
         assert (data.columns[:6] == ['event', 'exch_timestamp', 'local_timestamp', 'side', 'price', 'qty']).all()
-        local_reader = DataBinder(data.to_numpy())
-        exch_reader = DataBinder(data.to_numpy())
+        local_reader = DataBinder(cache)
+        local_reader.add_data(data.to_numpy())
+
+        exch_reader = DataBinder(cache)
+        exch_reader.add_data(data.to_numpy())
     elif isinstance(data, np.ndarray):
         assert data.shape[1] >= 6
-        local_reader = DataBinder(data)
-        exch_reader = DataBinder(data)
+        local_reader = DataBinder(cache)
+        local_reader.add_data(data)
+
+        exch_reader = DataBinder(cache)
+        exch_reader.add_data(data)
     elif isinstance(data, str):
-        local_reader = DataReader(cached)
+        local_reader = DataReader(cache)
         local_reader.add_file(data)
 
-        exch_reader = DataReader(cached)
+        exch_reader = DataReader(cache)
         exch_reader.add_file(data)
     elif isinstance(data, list):
-        local_reader = DataReader(cached)
-        exch_reader = DataReader(cached)
+        local_reader = DataReader(cache)
+        exch_reader = DataReader(cache)
         for filepath in data:
             assert isinstance(filepath, str)
             local_reader.add_file(filepath)
@@ -84,7 +90,7 @@ def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, 
                 assert snapshot.shape[1] >= 6
         else:
             df = pd.read_pickle(snapshot, compression='gzip')
-            assert (snapshot.columns[:6] == [
+            assert (df.columns[:6] == [
                 'event',
                 'exch_timestamp',
                 'local_timestamp',
@@ -134,7 +140,8 @@ def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, 
         exch_to_local_orders,
         local_market_depth,
         local_state,
-        order_latency
+        order_latency,
+        trade_list_size
     )
     exch = NoPartialFillExch(
         exch_reader,

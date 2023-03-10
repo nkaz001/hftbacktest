@@ -1,3 +1,4 @@
+import numpy as np
 from numba import typeof, float64, int64
 from numba.typed import Dict
 
@@ -11,9 +12,10 @@ class Proc:
 
     def _proc_init(self, reader, orders_to, orders_from, depth, state, order_latency):
         self.reader = reader
-        self.data = reader.next()
         self.next_data = reader.next()
-        self.row_num = -1
+        self.data = np.empty((0, self.next_data.shape[1]), self.next_data.dtype)
+        self.row_num = 0
+        self.next_row_num = 0
 
         self.orders = Dict.empty(int64, order_ty)
 
@@ -28,16 +30,46 @@ class Proc:
         next_data_timestamp = self._next_data_timestamp()
         next_recv_order_timestamp = self.orders_from.frontmost_timestamp
 
+        # zero and negative timestamp are invalid timestamp.
+        # if two timestamps are valid, choose the earlier one.
+        # otherwise, choose the valid one.
         if (0 < next_recv_order_timestamp < next_data_timestamp) \
                 or (next_data_timestamp <= 0 < next_recv_order_timestamp):
             return next_recv_order_timestamp
         else:
             return next_data_timestamp
 
+    def _next_data_timestamp_column(self, column):
+        # Find the next valid timestamp
+        while True:
+            if self.next_row_num < len(self.next_data):
+                timestamp = self.next_data[self.next_row_num, column]
+                if timestamp > 0:
+                    return timestamp
+            else:
+                # If there is no next_data, return an invalid timestamp.
+                if len(self.next_data) == 0:
+                    return -2
+
+                # Release the current next_data and load the next next_data.
+                self.reader.release(self.next_data)
+                self.next_data = self.reader.next()
+                self.next_row_num = 0
+                if len(self.next_data) == 0:
+                    return -2
+
+                timestamp = self.next_data[self.next_row_num, column]
+                if timestamp > 0:
+                    return timestamp
+            self.next_row_num += 1
+
     def process(self, wait_resp):
         next_data_timestamp = self._next_data_timestamp()
         next_recv_order_timestamp = self.orders_from.frontmost_timestamp
 
+        # zero and negative timestamp are invalid timestamp.
+        # if two timestamps are valid, choose the earlier one.
+        # otherwise, choose the valid one.
         if (0 < next_recv_order_timestamp < next_data_timestamp) \
                 or (next_data_timestamp <= 0 < next_recv_order_timestamp):
             # Process the order part.
@@ -49,7 +81,12 @@ class Proc:
                 if self.orders_from.frontmost_timestamp == recv_timestamp:
                     self.orders_from.__delitem__(i)
 
-                    next_timestamp = self._process_recv_order(order, recv_timestamp, wait_resp, next_timestamp)
+                    next_timestamp = self._process_recv_order(
+                        order,
+                        recv_timestamp,
+                        wait_resp,
+                        next_timestamp
+                    )
                 else:
                     i += 1
                     # Find the next frontmost timestamp
@@ -62,14 +99,13 @@ class Proc:
         else:
             # Process the data part.
             # Move to the next row.
-            self.row_num += 1
-            if self.row_num == len(self.data):
-                self.reader.release(self.data)
-                self.data = self.next_data
-                self.next_data = self.reader.next()
-                self.row_num = 0
+            self.row_num = self.next_row_num
+            self.data = self.next_data
 
             row = self.data[self.row_num]
+
+            self.next_row_num += 1
+
             return self._process_data(row)
 
     @property
@@ -95,6 +131,9 @@ def proc_spec(reader, state, order_latency):
         ('data', float64[:, :]),
         ('next_data', float64[:, :]),
         ('row_num', int64),
+        ('next_row_num', int64),
+        ('data_num', int64),
+        ('next_data_num', int64),
 
         ('orders', order_ladder_ty),
 

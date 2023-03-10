@@ -34,9 +34,9 @@ class Recorder:
         self.balance.append(hbt.balance)
         self.position.append(hbt.position)
         self.fee.append(hbt.fee)
-        # self.trade_num.append(hbt.trade_num)
-        # self.trade_qty.append(hbt.trade_qty)
-        # self.trade_amount.append(hbt.trade_amount)
+        self.trade_num.append(hbt.trade_num)
+        self.trade_qty.append(hbt.trade_qty)
+        self.trade_amount.append(hbt.trade_amount)
 
 
 class Stat:
@@ -172,9 +172,9 @@ class Stat:
         ar = raw_equity[-1] * ac * trading_days
         rrr = ar / mdd
 
-        # dtn = pd.Series(self.trade_num, index=dt_index).diff().rolling('1d').sum().mean()
-        # dtq = pd.Series(self.trade_qty, index=dt_index).diff().rolling('1d').sum().mean()
-        # dta = pd.Series(self.trade_amount, index=dt_index).diff().rolling('1d').sum().mean()
+        dtn = pd.Series(self.trade_num, index=dt_index).diff().rolling('1d').sum().mean()
+        dtq = pd.Series(self.trade_qty, index=dt_index).diff().rolling('1d').sum().mean()
+        dta = pd.Series(self.trade_amount, index=dt_index).diff().rolling('1d').sum().mean()
 
         print('=========== Summary ===========')
         print('Sharpe ratio: %.1f' % sr)
@@ -186,9 +186,9 @@ class Stat:
         else:
             print('Annualised return: %.2f' % ar)
             print('Max. draw down: %.2f' % mdd)
-        # print('The number of trades per day: %d' % dtn)
-        # print('Avg. daily trading volume: %d' % dtq)
-        # print('Avg. daily trading amount: %d' % dta)
+        print('The number of trades per day: %d' % dtn)
+        print('Avg. daily trading volume: %d' % dtq)
+        print('Avg. daily trading amount: %d' % dta)
 
         position = np.asarray(self.position) * np.asarray(self.mid)
         if capital is not None:

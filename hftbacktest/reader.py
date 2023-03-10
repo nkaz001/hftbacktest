@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import pandas as pd
 from numba import int64, float64, objmode
@@ -21,21 +23,7 @@ USER_DEFINED_EVENT = 100
 WAIT_ORDER_RESPONSE_NONE = -1
 WAIT_ORDER_RESPONSE_ANY = -2
 
-
-@jitclass
-class DataBinder:
-    file_num: int64
-    data: float64[:, :]
-
-    def __init__(self, data):
-        self.data = data
-        self.file_num = 0
-
-    def next(self):
-        if self.file_num >= 1:
-            return np.empty((0, 0), np.float64)
-        self.file_num += 1
-        return self.data
+UNTIL_END_OF_DATA = sys.maxsize
 
 
 @jitclass
@@ -53,7 +41,8 @@ class Cache:
 
     def __getitem__(self, key):
         self.ref[key] += 1
-        return self.data[key]
+        data = self.data[key]
+        return data
 
     def __contains__(self, key):
         return key in self.data
@@ -66,6 +55,30 @@ class Cache:
                     del self.data[i]
                     del self.ref[i]
                 return
+
+
+@jitclass
+class DataBinder:
+    data_num: int64
+    cached: Cache.class_type.instance_type
+
+    def __init__(self, cached):
+        self.data_num = 0
+        self.cached = cached
+
+    def add_data(self, data):
+        self.cached[self.data_num] = data
+
+    def release(self, data):
+        pass
+
+    def next(self):
+        if self.data_num < len(self.cached.data):
+            data = self.cached[self.data_num]
+            self.data_num += 1
+            return data
+        else:
+            return np.empty((0, 0), np.float64)
 
 
 @jitclass

@@ -34,12 +34,7 @@ class NoPartialFillExch_(Proc):
         self.queue_model = queue_model
 
     def _next_data_timestamp(self):
-        if self.row_num + 1 < len(self.data):
-            return self.data[self.row_num + 1, COL_EXCH_TIMESTAMP]
-        else:
-            if len(self.next_data) == 0:
-                return -2
-            return self.next_data[0, COL_EXCH_TIMESTAMP]
+        return self._next_data_timestamp_column(COL_EXCH_TIMESTAMP)
 
     def _process_recv_order(self, order, recv_timestamp, wait_resp, next_timestamp):
         # Process a new order.

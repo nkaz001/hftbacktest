@@ -56,22 +56,20 @@ class MarketDepth:
         self.high_ask_tick = INVALID_MIN
         self.bid_depth.clear()
         self.ask_depth.clear()
-        best_bid = True
-        best_ask = True
         for row in data:
             price_tick = round(row[COL_PRICE] / self.tick_size)
             qty = row[COL_QTY]
             if row[COL_SIDE] == BUY:
-                if best_bid:
+                if price_tick > self.best_bid_tick:
                     self.best_bid_tick = price_tick
-                    best_bid = False
-                self.low_bid_tick = price_tick
+                if price_tick < self.low_bid_tick:
+                    self.low_bid_tick = price_tick
                 self.bid_depth[price_tick] = qty
             elif row[COL_SIDE] == SELL:
-                if best_ask:
+                if price_tick < self.best_ask_tick:
                     self.best_ask_tick = price_tick
-                    best_ask = False
-                self.high_ask_tick = price_tick
+                if price_tick > self.high_ask_tick:
+                    self.high_ask_tick = price_tick
                 self.ask_depth[price_tick] = qty
 
     def clear_depth(

@@ -43,9 +43,9 @@ class FeedLatency:
                 break
 
         lat2 = -1
-        for row_num in range(proc.row_num + 1, len(proc.data)):
-            next_local_timestamp = proc.data[row_num, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = proc.data[row_num, COL_EXCH_TIMESTAMP]
+        for row_num in range(proc.next_row_num, len(proc.next_data)):
+            next_local_timestamp = proc.next_data[row_num, COL_LOCAL_TIMESTAMP]
+            next_exch_timestamp = proc.next_data[row_num, COL_EXCH_TIMESTAMP]
             if next_local_timestamp != -1 and next_exch_timestamp != -1:
                 lat2 = next_local_timestamp - next_exch_timestamp
                 break
@@ -80,9 +80,9 @@ class ForwardFeedLatency:
         self.response_latency = response_latency
 
     def __latency(self, proc):
-        for row_num in range(proc.row_num + 1, len(proc.data)):
-            next_local_timestamp = proc.data[row_num, COL_LOCAL_TIMESTAMP]
-            next_exch_timestamp = proc.data[row_num, COL_EXCH_TIMESTAMP]
+        for row_num in range(proc.next_row_num, len(proc.next_data)):
+            next_local_timestamp = proc.next_data[row_num, COL_LOCAL_TIMESTAMP]
+            next_exch_timestamp = proc.next_data[row_num, COL_EXCH_TIMESTAMP]
             if next_local_timestamp != -1 and next_exch_timestamp != -1:
                 return next_local_timestamp - next_exch_timestamp
         return ValueError
