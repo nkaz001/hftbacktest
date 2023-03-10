@@ -19,7 +19,7 @@ Please see https://github.com/nkaz001/collect-binancefutures regarding collectin
 
 Examples
 ~~~~~~~~
-Please see `example <https://github.com/nkaz001/hftbacktest/tree/master/example>`_ directory.
+Please see `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory.
 
 Documentation
 -------------
