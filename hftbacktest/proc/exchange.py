@@ -230,7 +230,7 @@ class NoPartialFillExch_(Proc):
                 self.queue_model.new(order, self)
                 order.status = NEW
         order.exch_timestamp = timestamp
-        local_recv_timestamp = timestamp + self.order_latency.response(order, self)
+        local_recv_timestamp = timestamp + self.order_latency.response(timestamp, order, self)
         self.orders_to.append(order.copy(), local_recv_timestamp)
         return local_recv_timestamp
 
@@ -241,7 +241,7 @@ class NoPartialFillExch_(Proc):
         if exch_order is None:
             order.status = EXPIRED
             order.exch_timestamp = timestamp
-            local_recv_timestamp = timestamp + self.order_latency.response(order, self)
+            local_recv_timestamp = timestamp + self.order_latency.response(timestamp, order, self)
             self.orders_to.append(order.copy(), local_recv_timestamp)
             return local_recv_timestamp
 
@@ -255,7 +255,7 @@ class NoPartialFillExch_(Proc):
         # Make the response.
         exch_order.status = CANCELED
         exch_order.exch_timestamp = timestamp
-        local_recv_timestamp = timestamp + self.order_latency.response(exch_order, self)
+        local_recv_timestamp = timestamp + self.order_latency.response(timestamp, exch_order, self)
         self.orders_to.append(exch_order.copy(), local_recv_timestamp)
         return local_recv_timestamp
 
@@ -264,7 +264,7 @@ class NoPartialFillExch_(Proc):
         order.exec_price_tick = order.price_tick if limit else exec_price_tick
         order.status = FILLED
         order.exch_timestamp = timestamp
-        local_recv_timestamp = order.exch_timestamp + self.order_latency.response(order, self)
+        local_recv_timestamp = order.exch_timestamp + self.order_latency.response(timestamp, order, self)
 
         if delete_order:
             del self.orders[order.order_id]

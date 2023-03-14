@@ -82,7 +82,7 @@ class Local_(Proc):
         price_tick = round(price / self.depth.tick_size)
         order = Order(order_id, price_tick, self.depth.tick_size, qty, BUY, time_in_force)
         order.req = NEW
-        exch_recv_timestamp = current_timestamp + self.order_latency.entry(order, self)
+        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
 
         self.orders[order.order_id] = order
         self.orders_to.append(order.copy(), exch_recv_timestamp)
@@ -91,7 +91,7 @@ class Local_(Proc):
         price_tick = round(price / self.depth.tick_size)
         order = Order(order_id, price_tick, self.depth.tick_size, qty, SELL, time_in_force)
         order.req = NEW
-        exch_recv_timestamp = current_timestamp + self.order_latency.entry(order, self)
+        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
 
         self.orders[order.order_id] = order
         self.orders_to.append(order.copy(), exch_recv_timestamp)
@@ -105,7 +105,7 @@ class Local_(Proc):
             raise ValueError('the given order cannot be cancelled because there is a ongoing request.')
 
         order.req = CANCELED
-        exch_recv_timestamp = current_timestamp + self.order_latency.entry(order, self)
+        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
 
         self.orders_to.append(order.copy(), exch_recv_timestamp)
 
