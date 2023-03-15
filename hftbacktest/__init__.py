@@ -3,7 +3,7 @@ import pandas as pd
 
 from .assettype import Linear, Inverse
 from .reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, \
-    DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DataReader, DataBinder, Cache
+    DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DataReader, Cache
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
 from .backtest import SingleInstHftBacktest
 from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
@@ -34,18 +34,16 @@ def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, 
     cache = Cache()
 
     if isinstance(data, pd.DataFrame):
-        assert (data.columns[:6] == ['event', 'exch_timestamp', 'local_timestamp', 'side', 'price', 'qty']).all()
-        local_reader = DataBinder(cache)
+        local_reader = DataReader(cache)
         local_reader.add_data(data.to_numpy())
 
-        exch_reader = DataBinder(cache)
+        exch_reader = DataReader(cache)
         exch_reader.add_data(data.to_numpy())
     elif isinstance(data, np.ndarray):
-        assert data.shape[1] >= 6
-        local_reader = DataBinder(cache)
+        local_reader = DataReader(cache)
         local_reader.add_data(data)
 
-        exch_reader = DataBinder(cache)
+        exch_reader = DataReader(cache)
         exch_reader.add_data(data)
     elif isinstance(data, str):
         local_reader = DataReader(cache)
@@ -57,9 +55,14 @@ def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, 
         local_reader = DataReader(cache)
         exch_reader = DataReader(cache)
         for filepath in data:
-            assert isinstance(filepath, str)
-            local_reader.add_file(filepath)
-            exch_reader.add_file(filepath)
+            if isinstance(filepath, str):
+                local_reader.add_file(filepath)
+                exch_reader.add_file(filepath)
+            elif isinstance(filepath, pd.DataFrame) or isinstance(filepath, np.ndarray):
+                local_reader.add_data(filepath)
+                exch_reader.add_data(filepath)
+            else:
+                raise ValueError('Unsupported data type')
     else:
         raise ValueError('Unsupported data type')
 

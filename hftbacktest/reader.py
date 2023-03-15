@@ -58,50 +58,34 @@ class Cache:
 
 
 @jitclass
-class DataBinder:
-    data_num: int64
-    cached: Cache.class_type.instance_type
-
-    def __init__(self, cached):
-        self.data_num = 0
-        self.cached = cached
-
-    def add_data(self, data):
-        self.cached[self.data_num] = data
-
-    def release(self, data):
-        pass
-
-    def next(self):
-        if self.data_num < len(self.cached.data):
-            data = self.cached[self.data_num]
-            self.data_num += 1
-            return data
-        else:
-            return np.empty((0, 0), np.float64)
-
-
-@jitclass
 class DataReader:
     file_list: ListType(unicode_type)
-    file_num: int64
-    cached: Cache.class_type.instance_type
+    data_num: int64
+    cache: Cache.class_type.instance_type
 
-    def __init__(self, cached):
+    def __init__(self, cache):
         self.file_list = List.empty_list(unicode_type)
-        self.file_num = 0
-        self.cached = cached
+        self.data_num = 0
+        self.cache = cache
 
     def add_file(self, filepath):
+        if filepath == '':
+            raise ValueError
         self.file_list.append(filepath)
 
+    def add_data(self, data):
+        self.cache[len(self.file_list)] = data
+        self.file_list.append('')
+
     def release(self, data):
-        self.cached.remove(data)
+        self.cache.remove(data)
 
     def next(self):
-        if self.file_num < len(self.file_list):
-            filepath = self.file_list[self.file_num]
-            if not self.cached.__contains__(self.file_num):
+        if self.data_num < len(self.file_list):
+            filepath = self.file_list[self.data_num]
+            if not self.cache.__contains__(self.data_num):
+                if filepath == '':
+                    raise ValueError
                 with objmode(data='float64[:, :]'):
                     print('Load %s' % filepath)
                     if filepath.endswith('.npy'):
@@ -117,9 +101,11 @@ class DataReader:
                     else:
                         df = pd.read_pickle(filepath, compression='gzip')
                         data = df.to_numpy()
-                self.cached[self.file_num] = data
-            data = self.cached[self.file_num]
-            self.file_num += 1
+                if data.shape[1] < 6:
+                    raise ValueError
+                self.cache[self.data_num] = data
+            data = self.cache[self.data_num]
+            self.data_num += 1
             return data
         else:
             return np.empty((0, 0,), float64)
