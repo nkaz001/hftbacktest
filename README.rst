@@ -2,7 +2,7 @@
 HftBacktest
 ===========
 
-|codacy| |pypi| |license|
+|codacy| |codeql| |pypi| |downloads| |license|
 
 High-Frequency Trading Backtesting Tool in Python
 ====================================================================
@@ -25,7 +25,7 @@ Getting started
 Installation
 ------------
 
-hftbacktest supports Python 3.6+. You can install hftbacktest using ``pip``:
+hftbacktest supports Python 3.7+. You can install hftbacktest using ``pip``:
 
 .. code-block:: console
 
@@ -130,14 +130,25 @@ Documentation
 * `Latency model <https://github.com/nkaz001/hftbacktest/wiki/Latency-model>`_
 * `Order fill <https://github.com/nkaz001/hftbacktest/wiki/Order-fill>`_
 
+.. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
+    :alt: |Python Version
+    :target: https://badge.fury.io/py/tensorflow
 
 .. |codacy| image:: https://app.codacy.com/project/badge/Grade/e2cef673757a45b18abfc361779feada
     :alt: |Codacy
     :target: https://www.codacy.com/gh/nkaz001/hftbacktest/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=nkaz001/hftbacktest&amp;utm_campaign=Badge_Grade
 
+.. |codeql| image:: https://github.com/nkaz001/hftbacktest/actions/workflows/codeql.yml/badge.svg?branch=master&event=push
+    :alt: |CodeQL
+    :target: https://github.com/nkaz001/hftbacktest/actions/workflows/codeql.yml
+
 .. |pypi| image:: https://badge.fury.io/py/hftbacktest.svg
-    :alt: |Python Version
+    :alt: |Package Version
     :target: https://pypi.org/project/hftbacktest
+    
+.. |downloads| image:: https://static.pepy.tech/badge/hftbacktest
+    :alt: |Downloads
+    :target: https://pepy.tech/project/hftbacktest
 
 .. |license| image:: https://img.shields.io/badge/License-MIT-green.svg
     :alt: |License
