@@ -16,21 +16,35 @@ from .models.queue import RiskAverseQueueModel, LogProbQueueModel, IdentityProbQ
 from .stat import Stat
 
 __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE', 'COL_PRICE', 'COL_QTY',
-           'DEPTH_EVENT', 'TRADE_EVENT', 'DEPTH_CLEAR_EVENT', 'DEPTH_SNAPSHOT_EVENT', 'BUY', 'SELL',
-           'NONE', 'NEW', 'EXPIRED', 'FILLED', 'CANCELED', 'GTC', 'GTX',
+           'DEPTH_EVENT', 'TRADE_EVENT', 'DEPTH_CLEAR_EVENT', 'DEPTH_SNAPSHOT_EVENT',
+           'BUY', 'SELL',
+           'NONE', 'NEW', 'EXPIRED', 'FILLED', 'CANCELED',
+           'GTC', 'GTX',
            'Order', 'HftBacktest',
            'ConstantLatency', 'FeedLatency', 'ForwardFeedLatency', 'BackwardFeedLatency', 'IntpOrderLatency',
            'Linear', 'Inverse',
            'RiskAverseQueueModel', 'LogProbQueueModel', 'IdentityProbQueueModel', 'SquareProbQueueModel',
            'Stat',
-           'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct')
+           'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct',)
 
 __version__ = '1.3.1'
 
 
-def HftBacktest(data, tick_size, lot_size, maker_fee, taker_fee, order_latency, asset_type, queue_model=None,
-                snapshot=None, start_position=0, start_balance=0, start_fee=0, trade_list_size=0):
-
+def HftBacktest(
+        data,
+        tick_size,
+        lot_size,
+        maker_fee,
+        taker_fee,
+        order_latency,
+        asset_type,
+        queue_model=None,
+        snapshot=None,
+        start_position=0,
+        start_balance=0,
+        start_fee=0,
+        trade_list_size=0
+):
     cache = Cache()
 
     if isinstance(data, pd.DataFrame):
