@@ -25,7 +25,7 @@ class RiskAverseQueueModel:
         order.q[0] = min(order.q[0], new_qty)
 
     def is_filled(self, order, proc):
-        return round(order.q[0] / proc.lot_size) < 0
+        return -order.q[0]
 
 
 class ProbQueueModel:
@@ -64,7 +64,7 @@ class ProbQueueModel:
         order.q[0] = min(est_front, new_qty)
 
     def is_filled(self, order, proc):
-        return round(order.q[0] / proc.lot_size) < 0
+        return -order.q[0]
 
     def prob(self, front, back):
         return np.divide(self.f(back), self.f(back) + self.f(front))

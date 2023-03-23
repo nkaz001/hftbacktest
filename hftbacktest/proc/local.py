@@ -3,7 +3,7 @@ from numba import int64, float64
 from numba.experimental import jitclass
 
 from .proc import Proc, proc_spec
-from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, NONE, Order
+from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, NONE, Order, LIMIT
 from ..reader import COL_EVENT, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, \
     DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, USER_DEFINED_EVENT
 
@@ -78,18 +78,9 @@ class Local_(Proc):
             self.user_data[i] = row[:]
         return 0
 
-    def submit_buy_order(self, order_id, price, qty, time_in_force, current_timestamp):
+    def submit_order(self, order_id, side, price, qty, order_type, time_in_force, current_timestamp):
         price_tick = round(price / self.depth.tick_size)
-        order = Order(order_id, price_tick, self.depth.tick_size, qty, BUY, time_in_force)
-        order.req = NEW
-        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
-
-        self.orders[order.order_id] = order
-        self.orders_to.append(order.copy(), exch_recv_timestamp)
-
-    def submit_sell_order(self, order_id, price, qty, time_in_force, current_timestamp):
-        price_tick = round(price / self.depth.tick_size)
-        order = Order(order_id, price_tick, self.depth.tick_size, qty, SELL, time_in_force)
+        order = Order(order_id, price_tick, self.depth.tick_size, qty, side, time_in_force, order_type)
         order.req = NEW
         exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
 

@@ -94,23 +94,43 @@ class NoPartialFillExch_(Proc):
                         or (len(self.orders) < price_tick - self.depth.best_bid_tick):
                     for order in list(self.orders.values()):
                         if order.side == SELL:
-                            self.__check_if_sell_filled(order, price_tick, qty, row[COL_EXCH_TIMESTAMP])
+                            self.__check_if_sell_filled(
+                                order,
+                                price_tick,
+                                qty,
+                                row[COL_EXCH_TIMESTAMP]
+                            )
                 else:
                     for t in range(self.depth.best_bid_tick + 1, price_tick + 1):
                         if t in self.sell_orders:
                             for order in list(self.sell_orders[t].values()):
-                                self.__check_if_sell_filled(order, price_tick, qty, row[COL_EXCH_TIMESTAMP])
+                                self.__check_if_sell_filled(
+                                    order,
+                                    price_tick,
+                                    qty,
+                                    row[COL_EXCH_TIMESTAMP]
+                                )
             else:
                 if (self.depth.best_ask_tick == INVALID_MAX) \
                         or (len(self.orders) < self.depth.best_ask_tick - price_tick):
                     for order in list(self.orders.values()):
                         if order.side == BUY:
-                            self.__check_if_buy_filled(order, price_tick, qty, row[COL_EXCH_TIMESTAMP])
+                            self.__check_if_buy_filled(
+                                order,
+                                price_tick,
+                                qty,
+                                row[COL_EXCH_TIMESTAMP]
+                            )
                 else:
                     for t in range(self.depth.best_ask_tick - 1, price_tick - 1, -1):
                         if t in self.buy_orders:
                             for order in list(self.buy_orders[t].values()):
-                                self.__check_if_buy_filled(order, price_tick, qty, row[COL_EXCH_TIMESTAMP])
+                                self.__check_if_buy_filled(
+                                    order,
+                                    price_tick,
+                                    qty,
+                                    row[COL_EXCH_TIMESTAMP]
+                                )
         return 0
 
     def __check_if_sell_filled(self, order, price_tick, qty, timestamp):
@@ -119,7 +139,8 @@ class NoPartialFillExch_(Proc):
         elif order.price_tick == price_tick:
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
-            if self.queue_model.is_filled(order, self):
+            exec_qty = self.queue_model.is_filled(order, self)
+            if round(exec_qty / self.depth.lot_size) > 0:
                 self.__fill(order, timestamp, True)
 
     def __check_if_buy_filled(self, order, price_tick, qty, timestamp):
@@ -128,7 +149,8 @@ class NoPartialFillExch_(Proc):
         elif order.price_tick == price_tick:
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
-            if self.queue_model.is_filled(order, self):
+            exec_qty = self.queue_model.is_filled(order, self)
+            if round(exec_qty / self.depth.lot_size) > 0:
                 self.__fill(order, timestamp, True)
 
     def on_new(self, order):
@@ -259,9 +281,18 @@ class NoPartialFillExch_(Proc):
         self.orders_to.append(exch_order.copy(), local_recv_timestamp)
         return local_recv_timestamp
 
-    def __fill(self, order, timestamp, limit, exec_price_tick=0, delete_order=True):
-        order.limit = limit
-        order.exec_price_tick = order.price_tick if limit else exec_price_tick
+    def __fill(
+            self,
+            order,
+            timestamp,
+            maker,
+            exec_price_tick=0,
+            delete_order=True
+    ):
+        order.maker = maker
+        order.exec_price_tick = order.price_tick if maker else exec_price_tick
+        order.exec_qty = order.leaves_qty
+        order.leaves_qty = 0
         order.status = FILLED
         order.exch_timestamp = timestamp
         local_recv_timestamp = order.exch_timestamp + self.order_latency.response(timestamp, order, self)
@@ -269,7 +300,6 @@ class NoPartialFillExch_(Proc):
         if delete_order:
             del self.orders[order.order_id]
 
-        if limit and delete_order:
             if order.side == BUY:
                 del self.buy_orders[order.price_tick][order.order_id]
             else:

@@ -1,6 +1,8 @@
 from numba import int64, boolean, typeof
 from numba.experimental import jitclass
 
+from . import BUY
+from .order import LIMIT, SELL
 from .reader import WAIT_ORDER_RESPONSE_NONE, COL_LOCAL_TIMESTAMP, UNTIL_END_OF_DATA
 
 
@@ -109,15 +111,15 @@ class SingleInstHftBacktest_:
     def local_timestamp(self):
         return self.current_timestamp
 
-    def submit_buy_order(self, order_id, price, qty, time_in_force, wait=False):
-        self.local.submit_buy_order(order_id, price, qty, time_in_force, self.current_timestamp)
+    def submit_buy_order(self, order_id, price, qty, time_in_force, order_type=LIMIT, wait=False):
+        self.local.submit_order(order_id, BUY, price, qty, order_type, time_in_force, self.current_timestamp)
 
         if wait:
             return self.goto(UNTIL_END_OF_DATA, wait_order_response=order_id)
         return True
 
-    def submit_sell_order(self, order_id, price, qty, time_in_force, wait=False):
-        self.local.submit_sell_order(order_id, price, qty, time_in_force, self.current_timestamp)
+    def submit_sell_order(self, order_id, price, qty, time_in_force, order_type=LIMIT, wait=False):
+        self.local.submit_order(order_id, SELL, price, qty, order_type, time_in_force, self.current_timestamp)
 
         if wait:
             return self.goto(UNTIL_END_OF_DATA, wait_order_response=order_id)

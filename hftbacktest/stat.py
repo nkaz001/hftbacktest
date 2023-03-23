@@ -98,13 +98,14 @@ class Stat:
     def sharpe(self, resample, include_fee=True, trading_days=365):
         pnl = self.equity(resample, include_fee=include_fee).diff()
         c = (24 * 60 * 60 * 1e9) / (pnl.index[1] - pnl.index[0]).value
-        return pnl.mean() / pnl.std() * np.sqrt(c * trading_days)
+        std = pnl.std()
+        return np.divide(pnl.mean(), std) * np.sqrt(c * trading_days)
 
     def sortino(self, resample, include_fee=True, trading_days=365):
         pnl = self.equity(resample, include_fee=include_fee).diff()
         std = pnl[pnl < 0].std()
         c = (24 * 60 * 60 * 1e9) / (pnl.index[1] - pnl.index[0]).value
-        return pnl.mean() / std * np.sqrt(c * trading_days)
+        return np.divide(pnl.mean(), std) * np.sqrt(c * trading_days)
 
     def riskreturnratio(self, include_fee=True):
         return self.annualised_return(include_fee=include_fee) / self.maxdrawdown(include_fee=include_fee)
@@ -159,10 +160,10 @@ class Stat:
         rs_pnl = rs_equity.diff()
 
         c = (24 * 60 * 60 * 1e9) / (rs_pnl.index[1] - rs_pnl.index[0]).value
-        sr = rs_pnl.mean() / rs_pnl.std() * np.sqrt(c * trading_days)
+        sr = np.divide(rs_pnl.mean(), rs_pnl.std()) * np.sqrt(c * trading_days)
 
         std = rs_pnl[rs_pnl < 0].std()
-        sortino = rs_pnl.mean() / std * np.sqrt(c * trading_days)
+        sortino = np.divide(rs_pnl.mean(), std) * np.sqrt(c * trading_days)
 
         max_equity = rs_equity.cummax()
         drawdown = rs_equity - max_equity

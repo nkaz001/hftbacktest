@@ -8,7 +8,7 @@ from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Or
 from .backtest import SingleInstHftBacktest
 from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
 from .proc.local import Local
-from .proc.exchange import NoPartialFillExch
+from .proc.nopartialfillexchange import NoPartialFillExch
 from .marketdepth import MarketDepth
 from .state import State
 from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
@@ -27,7 +27,7 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'Stat',
            'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct',)
 
-__version__ = '1.3.1'
+__version__ = '1.4.0'
 
 
 def HftBacktest(
@@ -43,7 +43,8 @@ def HftBacktest(
         start_position=0,
         start_balance=0,
         start_fee=0,
-        trade_list_size=0
+        trade_list_size=0,
+        exchange_model=None
 ):
     cache = Cache()
 
@@ -160,7 +161,11 @@ def HftBacktest(
         order_latency,
         trade_list_size
     )
-    exch = NoPartialFillExch(
+
+    if exchange_model is None:
+        exchange_model = NoPartialFillExch
+
+    exch = exchange_model(
         exch_reader,
         exch_to_local_orders,
         local_to_exch_orders,
