@@ -6,7 +6,7 @@ from .order import LIMIT, SELL
 from .reader import WAIT_ORDER_RESPONSE_NONE, COL_LOCAL_TIMESTAMP, UNTIL_END_OF_DATA
 
 
-class SingleInstHftBacktest_:
+class SingleAssetHftBacktest_:
     def __init__(self, local, exch):
         self.local = local
         self.exch = exch
@@ -204,11 +204,11 @@ class SingleInstHftBacktest_:
         return True
 
 
-def SingleInstHftBacktest(local, exch):
+def SingleAssetHftBacktest(local, exch):
     jitted = jitclass(spec=[
         ('run', boolean),
         ('current_timestamp', int64),
         ('local', typeof(local)),
         ('exch', typeof(exch)),
-    ])(SingleInstHftBacktest_)
+    ])(SingleAssetHftBacktest_)
     return jitted(local, exch)

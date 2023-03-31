@@ -3,6 +3,8 @@ from numba.experimental import jitclass
 from numba.typed.typeddict import Dict
 from numba.types import DictType
 
+import numpy as np
+
 from .proc import Proc, proc_spec
 from ..marketdepth import INVALID_MAX, INVALID_MIN
 from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, PARTIALLY_FILLED, GTX, FOK, IOC, NONE, order_ladder_ty
@@ -10,7 +12,7 @@ from ..reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY
     DEPTH_SNAPSHOT_EVENT, TRADE_EVENT
 
 
-class PartialFillExch_(Proc):
+class PartialFillExchange_(Proc):
     def __init__(
             self,
             reader,
@@ -146,11 +148,12 @@ class PartialFillExch_(Proc):
         elif order.price_tick == price_tick:
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
-            exec_qty = self.queue_model.is_filled(order, self)
-            if round(exec_qty / self.depth.lot_size) > 0:
+            if self.queue_model.is_filled(order, self):
+                q_qty = np.ceil(-order.q[0] / self.depth.lot_size) * self.depth.lot_size
+                exec_qty = min(q_qty, qty, order.leaves_qty)
                 self.__fill(
                     order,
-                    min(exec_qty, qty),
+                    exec_qty,
                     timestamp,
                     True
                 )
@@ -166,11 +169,12 @@ class PartialFillExch_(Proc):
         elif order.price_tick == price_tick:
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
-            exec_qty = self.queue_model.is_filled(order, self)
-            if round(exec_qty / self.depth.lot_size) > 0:
+            if self.queue_model.is_filled(order, self):
+                q_qty = np.ceil(-order.q[0] / self.depth.lot_size) * self.depth.lot_size
+                exec_qty = min(q_qty, qty, order.leaves_qty)
                 self.__fill(
                     order,
-                    min(exec_qty, qty),
+                    exec_qty,
                     timestamp,
                     True
                 )
@@ -261,7 +265,7 @@ class PartialFillExch_(Proc):
                     cum_qty = 0
                     for t in range(self.depth.best_ask_tick, order.price_tick + 1):
                         cum_qty += self.depth.ask_depth[t]
-                        if cum_qty >= order.qty:
+                        if round(cum_qty / self.depth.lot_size) >= round(order.qty / self.depth.lot_size):
                             execute = True
                             break
                     if execute:
@@ -309,6 +313,9 @@ class PartialFillExch_(Proc):
                         )
                         if order.status == FILLED:
                             return local_recv_timestamp
+                    # The buy order cannot remain in the ask book, as it cannot affect the market depth during
+                    # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
+                    # size is not small enough, it introduces unreality.
                     return self.__fill(
                         order,
                         order.leaves_qty,
@@ -320,7 +327,10 @@ class PartialFillExch_(Proc):
             else:
                 # The exchange accepts this order.
                 self.orders[order.order_id] = order
-                o = self.buy_orders.setdefault(order.price_tick, Dict.empty(int64, order_ladder_ty))
+                o = self.buy_orders.setdefault(
+                    order.price_tick,
+                    Dict.empty(int64, order_ladder_ty)
+                )
                 o[order.order_id] = order
                 # Initialize the order's queue position.
                 self.queue_model.new(order, self)
@@ -337,7 +347,7 @@ class PartialFillExch_(Proc):
                     cum_qty = 0
                     for t in range(self.depth.best_bid_tick, order.price_tick - 1, -1):
                         cum_qty += self.depth.bid_depth[t]
-                        if cum_qty >= order.qty:
+                        if round(cum_qty / self.depth.lot_size) >= round(order.qty / self.depth.lot_size):
                             execute = True
                             break
                     if execute:
@@ -385,6 +395,9 @@ class PartialFillExch_(Proc):
                         )
                         if order.status == FILLED:
                             return local_recv_timestamp
+                    # The sell order cannot remain in the bid book, as it cannot affect the market depth during
+                    # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
+                    # size is not small enough, it introduces unreality.
                     return self.__fill(
                         order,
                         order.leaves_qty,
@@ -396,7 +409,10 @@ class PartialFillExch_(Proc):
             else:
                 # The exchange accepts this order.
                 self.orders[order.order_id] = order
-                o = self.sell_orders.setdefault(order.price_tick, Dict.empty(int64, order_ladder_ty))
+                o = self.sell_orders.setdefault(
+                    order.price_tick,
+                    Dict.empty(int64, order_ladder_ty)
+                )
                 o[order.order_id] = order
                 # Initialize the order's queue position.
                 self.queue_model.new(order, self)
@@ -461,7 +477,7 @@ class PartialFillExch_(Proc):
         return local_recv_timestamp
 
 
-def PartialFillExch(
+def PartialFillExchange(
         reader,
         orders_to_local,
         orders_from_local,
@@ -476,7 +492,7 @@ def PartialFillExch(
             ('buy_orders', DictType(int64, order_ladder_ty)),
             ('queue_model', typeof(queue_model))
         ]
-    )(PartialFillExch_)
+    )(PartialFillExchange_)
     return jitted(
         reader,
         orders_to_local,

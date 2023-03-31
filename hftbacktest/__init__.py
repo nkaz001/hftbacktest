@@ -5,10 +5,11 @@ from .assettype import Linear, Inverse
 from .reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, \
     DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DataReader, Cache
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
-from .backtest import SingleInstHftBacktest
+from .backtest import SingleAssetHftBacktest
 from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
 from .proc.local import Local
-from .proc.nopartialfillexchange import NoPartialFillExch
+from .proc.nopartialfillexchange import NoPartialFillExchange
+from .proc.partialfillexchange import PartialFillExchange
 from .marketdepth import MarketDepth
 from .state import State
 from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
@@ -21,6 +22,7 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'NONE', 'NEW', 'EXPIRED', 'FILLED', 'CANCELED',
            'GTC', 'GTX',
            'Order', 'HftBacktest',
+           'NoPartialFillExchange', 'PartialFillExchange',
            'ConstantLatency', 'FeedLatency', 'ForwardFeedLatency', 'BackwardFeedLatency', 'IntpOrderLatency',
            'Linear', 'Inverse',
            'RiskAverseQueueModel', 'LogProbQueueModel', 'IdentityProbQueueModel', 'SquareProbQueueModel',
@@ -163,7 +165,7 @@ def HftBacktest(
     )
 
     if exchange_model is None:
-        exchange_model = NoPartialFillExch
+        exchange_model = NoPartialFillExchange
 
     exch = exchange_model(
         exch_reader,
@@ -175,4 +177,4 @@ def HftBacktest(
         queue_model
     )
 
-    return SingleInstHftBacktest(local, exch)
+    return SingleAssetHftBacktest(local, exch)

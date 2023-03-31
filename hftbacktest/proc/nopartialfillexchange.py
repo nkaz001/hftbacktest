@@ -10,7 +10,7 @@ from ..reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY
     DEPTH_SNAPSHOT_EVENT, TRADE_EVENT
 
 
-class NoPartialFillExch_(Proc):
+class NoPartialFillExchange_(Proc):
     def __init__(
             self,
             reader,
@@ -139,8 +139,7 @@ class NoPartialFillExch_(Proc):
         elif order.price_tick == price_tick:
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
-            exec_qty = self.queue_model.is_filled(order, self)
-            if round(exec_qty / self.depth.lot_size) > 0:
+            if self.queue_model.is_filled(order, self):
                 self.__fill(order, timestamp, True)
 
     def __check_if_buy_filled(self, order, price_tick, qty, timestamp):
@@ -149,8 +148,7 @@ class NoPartialFillExch_(Proc):
         elif order.price_tick == price_tick:
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
-            exec_qty = self.queue_model.is_filled(order, self)
-            if round(exec_qty / self.depth.lot_size) > 0:
+            if self.queue_model.is_filled(order, self):
                 self.__fill(order, timestamp, True)
 
     def on_new(self, order):
@@ -224,7 +222,10 @@ class NoPartialFillExch_(Proc):
             else:
                 # The exchange accepts this order.
                 self.orders[order.order_id] = order
-                o = self.buy_orders.setdefault(order.price_tick, Dict.empty(int64, order_ladder_ty))
+                o = self.buy_orders.setdefault(
+                    order.price_tick,
+                    Dict.empty(int64, order_ladder_ty)
+                )
                 o[order.order_id] = order
                 # Initialize the order's queue position.
                 self.queue_model.new(order, self)
@@ -246,7 +247,10 @@ class NoPartialFillExch_(Proc):
             else:
                 # The exchange accepts this order.
                 self.orders[order.order_id] = order
-                o = self.sell_orders.setdefault(order.price_tick, Dict.empty(int64, order_ladder_ty))
+                o = self.sell_orders.setdefault(
+                    order.price_tick,
+                    Dict.empty(int64, order_ladder_ty)
+                )
                 o[order.order_id] = order
                 # Initialize the order's queue position.
                 self.queue_model.new(order, self)
@@ -310,7 +314,7 @@ class NoPartialFillExch_(Proc):
         return local_recv_timestamp
 
 
-def NoPartialFillExch(
+def NoPartialFillExchange(
         reader,
         orders_to_local,
         orders_from_local,
@@ -325,7 +329,7 @@ def NoPartialFillExch(
             ('buy_orders', DictType(int64, order_ladder_ty)),
             ('queue_model', typeof(queue_model))
         ]
-    )(NoPartialFillExch_)
+    )(NoPartialFillExchange_)
     return jitted(
         reader,
         orders_to_local,
