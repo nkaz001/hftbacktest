@@ -23,16 +23,13 @@ class State_:
         self.asset_type = asset_type
 
     def apply_fill(self, order):
-        fee = self.maker_fee if order.limit else self.taker_fee
-        fill_qty = order.qty * order.side
-        amount = self.asset_type.amount(order.exec_price, order.qty)
-        fill_amount = amount * order.side
-        fee_amount = amount * fee
-        self.position += fill_qty
-        self.balance -= fill_amount
-        self.fee += fee_amount
+        fee = self.maker_fee if order.maker else self.taker_fee
+        amount = self.asset_type.amount(order.exec_price, order.exec_qty)
+        self.position += (order.exec_qty * order.side)
+        self.balance -= (amount * order.side)
+        self.fee += (amount * fee)
         self.trade_num += 1
-        self.trade_qty += order.qty
+        self.trade_qty += order.exec_qty
         self.trade_amount += amount
 
     def equity(self, mid):

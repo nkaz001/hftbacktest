@@ -13,14 +13,21 @@ NEW = 1
 EXPIRED = 2
 FILLED = 3
 CANCELED = 4
+PARTIALLY_FILLED = 5
 
 GTC = 0  # Good 'till cancel
 GTX = 1  # Post only
+FOK = 2  # Fill or kill
+IOC = 3  # Immediate or cancel
+
+LIMIT = 0
+MARKET = 1
 
 
 @jitclass
 class Order:
     qty: float64
+    leaves_qty: float64
     price_tick: int64
     tick_size: float64
     side: int8
@@ -30,9 +37,11 @@ class Order:
     local_timestamp: int64
     req: int8
     exec_price_tick: int64
+    exec_qty: float64
     order_id: int64
     q: float64[:]
-    limit: boolean
+    maker: boolean
+    order_type: int8
 
     def __init__(
             self,
@@ -41,9 +50,11 @@ class Order:
             tick_size,
             qty,
             side,
-            time_in_force
+            time_in_force,
+            order_type
     ):
         self.qty = qty
+        self.leaves_qty = qty
         self.price_tick = price_tick
         self.tick_size = tick_size
         self.side = side
@@ -53,9 +64,16 @@ class Order:
         self.local_timestamp = 0
         self.req = NONE
         self.exec_price_tick = 0
+        self.exec_qty = 0.0
         self.order_id = order_id
         self.q = np.zeros(2, float64)
-        self.limit = False
+        self.maker = False
+        self.order_type = order_type
+
+    @property
+    def limit(self):
+        # compatibility <= 1.3
+        return self.maker
 
     @property
     def price(self):
@@ -76,16 +94,19 @@ class Order:
             self.tick_size,
             self.qty,
             self.side,
-            self.time_in_force
+            self.time_in_force,
+            self.order_type
         )
+        order.leaves_qty = self.leaves_qty
         order.exch_timestamp = self.exch_timestamp
         order.status = self.status
         order.local_timestamp = self.local_timestamp
         order.req = self.req
         order.exec_price_tick = self.exec_price_tick
+        order.exec_qty = self.exec_qty
         order.order_id = self.order_id
-        order.q = self.q
-        order.limit = self.limit
+        order.q[:] = self.q[:]
+        order.maker = self.maker
         return order
 
 

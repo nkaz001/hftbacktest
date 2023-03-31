@@ -5,10 +5,11 @@ from .assettype import Linear, Inverse
 from .reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, \
     DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DataReader, Cache
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
-from .backtest import SingleInstHftBacktest
+from .backtest import SingleAssetHftBacktest
 from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
 from .proc.local import Local
-from .proc.exchange import NoPartialFillExch
+from .proc.nopartialfillexchange import NoPartialFillExchange
+from .proc.partialfillexchange import PartialFillExchange
 from .marketdepth import MarketDepth
 from .state import State
 from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
@@ -21,13 +22,14 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'NONE', 'NEW', 'EXPIRED', 'FILLED', 'CANCELED',
            'GTC', 'GTX',
            'Order', 'HftBacktest',
+           'NoPartialFillExchange', 'PartialFillExchange',
            'ConstantLatency', 'FeedLatency', 'ForwardFeedLatency', 'BackwardFeedLatency', 'IntpOrderLatency',
            'Linear', 'Inverse',
            'RiskAverseQueueModel', 'LogProbQueueModel', 'IdentityProbQueueModel', 'SquareProbQueueModel',
            'Stat',
            'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct',)
 
-__version__ = '1.3.1'
+__version__ = '1.4.0'
 
 
 def HftBacktest(
@@ -43,7 +45,8 @@ def HftBacktest(
         start_position=0,
         start_balance=0,
         start_fee=0,
-        trade_list_size=0
+        trade_list_size=0,
+        exchange_model=None
 ):
     cache = Cache()
 
@@ -160,7 +163,11 @@ def HftBacktest(
         order_latency,
         trade_list_size
     )
-    exch = NoPartialFillExch(
+
+    if exchange_model is None:
+        exchange_model = NoPartialFillExchange
+
+    exch = exchange_model(
         exch_reader,
         exch_to_local_orders,
         local_to_exch_orders,
@@ -170,4 +177,4 @@ def HftBacktest(
         queue_model
     )
 
-    return SingleInstHftBacktest(local, exch)
+    return SingleAssetHftBacktest(local, exch)
