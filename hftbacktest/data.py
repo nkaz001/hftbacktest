@@ -68,18 +68,6 @@ def _validate_data(
         if local_timestamp != -1:
             prev_local_timestamp = local_timestamp
 
-        # Rows of the same event type must be correctly ordered.
-
-        # All depth events must have valid timestamp.
-        if event in [
-            DEPTH_EVENT,
-            DEPTH_CLEAR_EVENT,
-            DEPTH_SNAPSHOT_EVENT
-        ]:
-            if local_timestamp == -1 or exch_timestamp == -1:
-                print('All depth events must have valid timestamp.')
-                return -1
-
     return num_reversed_exch_timestamp
 
 
