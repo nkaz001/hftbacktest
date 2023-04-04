@@ -1,7 +1,5 @@
 import gzip
 import json
-import os
-import sys
 
 import numpy as np
 
@@ -23,84 +21,79 @@ local_timestamp raw_stream
 1660228023149748 {"stream":"btcusdt@trade","data":{"e":"trade","E":1660228024088,"T":1660228024081,"s":"BTCUSDT","t":2691833667,"p":"24671.00","q":"0.063","X":"MARKET","m":false}}
 """
 
-base_latency = int(os.environ.get("BASE_LATENCY", 0))
-
-input_filename = sys.argv[1]
-output_filename = sys.argv[2]
-opt = sys.argv[3] if len(sys.argv) > 3 else ''
-
-rows = []
-with gzip.open(input_filename, 'r') as f:
-    while True:
-        line = f.readline()
-        if not line:
-            break
-        local_timestamp = int(line[:16])
-        message = json.loads(line[17:])
-        data = message.get('data')
-        if data is not None:
-            evt = data['e']
-            if evt == 'trade':
-                # event_time = data['E']
-                transaction_time = data['T']
-                price = data['p']
-                qty = data['q']
-                side = -1 if data['m'] else 1  # trade initiator's side
+def convert(input_filename, output_filename, opt='', base_latency=0):
+    rows = []
+    with gzip.open(input_filename, 'r') as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            local_timestamp = int(line[:16])
+            message = json.loads(line[17:])
+            data = message.get('data')
+            if data is not None:
+                evt = data['e']
+                if evt == 'trade':
+                    # event_time = data['E']
+                    transaction_time = data['T']
+                    price = data['p']
+                    qty = data['q']
+                    side = -1 if data['m'] else 1  # trade initiator's side
+                    exch_timestamp = int(transaction_time) * 1000
+                    rows.append([2, exch_timestamp, local_timestamp, side, float(price), float(qty)])
+                elif evt == 'depthUpdate':
+                    # event_time = data['E']
+                    transaction_time = data['T']
+                    bids = data['b']
+                    asks = data['a']
+                    exch_timestamp = int(transaction_time) * 1000
+                    rows += [[1, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
+                    rows += [[1, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
+                elif evt == 'markPriceUpdate' and 'm' in opt:
+                    # event_time = data['E']
+                    transaction_time = data['T']
+                    index = data['i']
+                    mark_price = data['p']
+                    # est_settle_price = data['P']
+                    funding_rate = data['r']
+                    rows.append([100, -1, local_timestamp, 0, float(index), 0])
+                    rows.append([101, -1, local_timestamp, 0, float(mark_price), 0])
+                    rows.append([102, -1, local_timestamp, 0, float(funding_rate), 0])
+                elif evt == 'bookTicker' and 't' in opt:
+                    # event_time = data['E']
+                    transaction_time = data['T']
+                    bid_price = data['b']
+                    bid_qty = data['B']
+                    ask_price = data['a']
+                    ask_qty = data['A']
+                    exch_timestamp = int(transaction_time) * 1000
+                    rows.append([103, exch_timestamp, local_timestamp, 1, float(bid_price), float(bid_qty)])
+                    rows.append([104, exch_timestamp, local_timestamp, -1, float(ask_price), float(ask_qty)])
+            else:
+                # snapshot
+                # event_time = msg['E']
+                transaction_time = message['T']
+                bids = message['bids']
+                asks = message['asks']
+                bid_clear_upto = float(bids[-1][0])
+                ask_clear_upto = float(asks[-1][0])
                 exch_timestamp = int(transaction_time) * 1000
-                rows.append([2, exch_timestamp, local_timestamp, side, float(price), float(qty)])
-            elif evt == 'depthUpdate':
-                # event_time = data['E']
-                transaction_time = data['T']
-                bids = data['b']
-                asks = data['a']
-                exch_timestamp = int(transaction_time) * 1000
-                rows += [[1, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
-                rows += [[1, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
-            elif evt == 'markPriceUpdate' and 'm' in opt:
-                # event_time = data['E']
-                transaction_time = data['T']
-                index = data['i']
-                mark_price = data['p']
-                # est_settle_price = data['P']
-                funding_rate = data['r']
-                rows.append([100, -1, local_timestamp, 0, float(index), 0])
-                rows.append([101, -1, local_timestamp, 0, float(mark_price), 0])
-                rows.append([102, -1, local_timestamp, 0, float(funding_rate), 0])
-            elif evt == 'bookTicker' and 't' in opt:
-                # event_time = data['E']
-                transaction_time = data['T']
-                bid_price = data['b']
-                bid_qty = data['B']
-                ask_price = data['a']
-                ask_qty = data['A']
-                exch_timestamp = int(transaction_time) * 1000
-                rows.append([103, exch_timestamp, local_timestamp, 1, float(bid_price), float(bid_qty)])
-                rows.append([104, exch_timestamp, local_timestamp, -1, float(ask_price), float(ask_qty)])
-        else:
-            # snapshot
-            # event_time = msg['E']
-            transaction_time = message['T']
-            bids = message['bids']
-            asks = message['asks']
-            bid_clear_upto = float(bids[-1][0])
-            ask_clear_upto = float(asks[-1][0])
-            exch_timestamp = int(transaction_time) * 1000
-            # clear the existing market depth upto the prices in the snapshot.
-            rows.append([3, exch_timestamp, local_timestamp, 1, bid_clear_upto, 0])
-            rows.append([3, exch_timestamp, local_timestamp, -1, ask_clear_upto, 0])
-            # insert the snapshot.
-            rows += [[4, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
-            rows += [[4, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
+                # clear the existing market depth upto the prices in the snapshot.
+                rows.append([3, exch_timestamp, local_timestamp, 1, bid_clear_upto, 0])
+                rows.append([3, exch_timestamp, local_timestamp, -1, ask_clear_upto, 0])
+                # insert the snapshot.
+                rows += [[4, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
+                rows += [[4, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
 
-data = np.asarray(rows, np.float64)
-data = correct(data, base_latency=base_latency)
+    data = np.asarray(rows, np.float64)
+    data = correct(data, base_latency=base_latency)
 
-# Validate again.
-num_corr = validate_data(data)
-if num_corr < 0:
-    raise ValueError
+    # Validate again.
+    num_corr = validate_data(data)
+    if num_corr < 0:
+        raise ValueError
 
-print('Saving to %s' % output_filename)
-np.savez(output_filename, data=data)
+    print('Saving to %s' % output_filename)
+    np.savez(output_filename, data=data)
 
-print('Done')
+    print('Done')

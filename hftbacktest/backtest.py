@@ -17,12 +17,26 @@ class SingleAssetHftBacktest_:
     @property
     def start_timestamp(self):
         # fixme: deprecated.
-        return self.local.data[0, COL_LOCAL_TIMESTAMP]
+        # it returns the timestamp of the first row of the data that is currently processed.
+        if len(self.local.data) > 0:
+            return self.local.data[0, COL_LOCAL_TIMESTAMP]
+        else:
+            if len(self.local.next_data) > 0:
+                return self.local.next_data[0, COL_LOCAL_TIMESTAMP]
+            else:
+                return 0
 
     @property
     def last_timestamp(self):
         # fixme: deprecated.
-        return UNTIL_END_OF_DATA
+        # it returns the timestamp of the last row of the data that is currently processed.
+        if len(self.local.data) > 0:
+            return self.local.data[-1, COL_LOCAL_TIMESTAMP]
+        else:
+            if len(self.local.next_data) > 0:
+                return self.local.next_data[-1, COL_LOCAL_TIMESTAMP]
+            else:
+                return 0
 
     @property
     def position(self):
