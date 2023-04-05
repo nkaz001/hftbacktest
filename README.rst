@@ -40,7 +40,7 @@ Or you can clone the latest development version from the Git repository with:
 Data Source & Format
 --------------------
 
-Please see https://github.com/nkaz001/collect-binancefutures regarding collecting and converting the feed data or `datautils <https://github.com/nkaz001/hftbacktest/tree/master/datautils>`_ directory.
+Please see `Data <https://github.com/nkaz001/hftbacktest/wiki/Data>`_ or `Data Preparation <https://github.com/nkaz001/hftbacktest/blob/master/examples/Data%20Preparation.ipynb>`_.
 
 A Quick Example
 ---------------
