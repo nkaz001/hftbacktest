@@ -5,7 +5,12 @@ import numpy as np
 from .. import merge_on_local_timestamp, correct, validate_data
 
 
-def convert(input_files, output_filename, buffer_size=100_000_000, base_latency=0):
+def convert(
+        input_files,
+        output_filename=None,
+        buffer_size=100_000_000,
+        base_latency=0
+):
     TRADE = 0
     DEPTH = 1
 
@@ -27,12 +32,30 @@ def convert(input_files, output_filename, buffer_size=100_000_000, base_latency=
                     break
                 cols = line.decode().strip().split(',')
                 if len(cols) < 8:
-                    print('error', cols, line)
+                    print('Warning: Invalid Data Row', cols, line)
                     continue
                 if file_type is None:
-                    if cols == ['exchange', 'symbol', 'timestamp', 'local_timestamp', 'id', 'side', 'price', 'amount']:
+                    if cols == [
+                        'exchange',
+                        'symbol',
+                        'timestamp',
+                        'local_timestamp',
+                        'id',
+                        'side',
+                        'price',
+                        'amount'
+                    ]:
                         file_type = TRADE
-                    elif cols == ['exchange', 'symbol', 'timestamp', 'local_timestamp', 'is_snapshot', 'side', 'price', 'amount']:
+                    elif cols == [
+                        'exchange',
+                        'symbol',
+                        'timestamp',
+                        'local_timestamp',
+                        'is_snapshot',
+                        'side',
+                        'price',
+                        'amount'
+                    ]:
                         file_type = DEPTH
                 elif file_type == TRADE:
                     # Insert TRADE_EVENT
@@ -116,7 +139,6 @@ def convert(input_files, output_filename, buffer_size=100_000_000, base_latency=
         sets.append(tmp[:row_num])
 
     print('Merging')
-
     data = sets[0]
     del sets[0]
     while len(sets) > 0:
@@ -130,7 +152,8 @@ def convert(input_files, output_filename, buffer_size=100_000_000, base_latency=
     if num_corr < 0:
         raise ValueError
 
-    print('Saving to %s' % output_filename)
-    np.savez(output_filename, data=data)
+    if output_filename is not None:
+        print('Saving to %s' % output_filename)
+        np.savez(output_filename, data=data)
 
-    print('Done')
+    return data
