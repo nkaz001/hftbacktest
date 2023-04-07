@@ -1,7 +1,7 @@
 from numba import njit
 import pandas as pd
 
-from hftbacktest import NONE, NEW, HftBacktest, GTX, FeedLatency, BUY, SELL, Linear
+from hftbacktest import NONE, NEW, HftBacktest, GTX, BUY, SELL, Linear, IntpOrderLatency, SquareProbQueueModel
 
 
 @njit
@@ -101,15 +101,25 @@ if __name__ == '__main__':
     # https://github.com/nkaz001/collect-binancefutures
 
     # This backtest assumes market maker rebates.
-    # https://www.binance.com/en/support/announcement/5d3a662d3ace4132a95e77f6ab0f5422
-    snapshot_df = pd.read_pickle('../../btcusdt_20220830.snapshot.pkl', compression='gzip')
+    # https://www.binance.com/kz/support/announcement/binance-upgrades-usd%E2%93%A2-margined-futures-liquidity-provider-program-2023-04-04-01007356e6514df3811b0c80ab8c83bf
 
-    hbt = HftBacktest(['../../btcusdt_20220831.pkl', '../../btcusdt_20220901.pkl'],
-                      tick_size=0.1,
-                      lot_size=0.001,
-                      maker_fee=-0.00005,
-                      taker_fee=0.0007,
-                      order_latency=FeedLatency(1),
-                      asset_type=Linear,
-                      snapshot=snapshot_df)
+    latency_data1 = np.load('order_latency_20220831.npz')['data']
+    latency_data2 = np.load('order_latency_20220901.npz')['data']
+    latency_data = np.concatenate([latency_data1, latency_data2], axis=0)
+
+    hbt = HftBacktest(
+        [
+            '../../btcusdt_20220831.npz',
+            '../../btcusdt_20220901.npz'
+        ],
+        tick_size=0.1,
+        lot_size=0.001,
+        maker_fee=-0.00005,
+        taker_fee=0.0007,
+        order_latency=IntpOrderLatency(latency_data),
+        queue_model=SquareProbQueueModel(),
+        asset_type=Linear,
+        snapshot='../../btcusdt_20220830_eod.npz'
+    )
     market_making_algo(hbt)
+
