@@ -29,7 +29,7 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'Stat',
            'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct',)
 
-__version__ = '1.4.2'
+__version__ = '1.5.0'
 
 
 def HftBacktest(
@@ -50,79 +50,31 @@ def HftBacktest(
 ):
     cache = Cache()
 
-    if isinstance(data, pd.DataFrame):
+    if isinstance(data, list):
         local_reader = DataReader(cache)
-        local_reader.add_data(data.to_numpy())
-
         exch_reader = DataReader(cache)
-        exch_reader.add_data(data.to_numpy())
-    elif isinstance(data, np.ndarray):
-        local_reader = DataReader(cache)
-        local_reader.add_data(data)
-
-        exch_reader = DataReader(cache)
-        exch_reader.add_data(data)
+        for item in data:
+            if isinstance(item, str):
+                local_reader.add_file(item)
+                exch_reader.add_file(item)
+            elif isinstance(item, pd.DataFrame) or isinstance(item, np.ndarray):
+                local_reader.add_data(item)
+                exch_reader.add_data(item)
+            else:
+                raise ValueError('Unsupported data type')
     elif isinstance(data, str):
         local_reader = DataReader(cache)
         local_reader.add_file(data)
 
         exch_reader = DataReader(cache)
         exch_reader.add_file(data)
-    elif isinstance(data, list):
+    else:
+        data = __load_data(data)
         local_reader = DataReader(cache)
-        exch_reader = DataReader(cache)
-        for filepath in data:
-            if isinstance(filepath, str):
-                local_reader.add_file(filepath)
-                exch_reader.add_file(filepath)
-            elif isinstance(filepath, pd.DataFrame) or isinstance(filepath, np.ndarray):
-                local_reader.add_data(filepath)
-                exch_reader.add_data(filepath)
-            else:
-                raise ValueError('Unsupported data type')
-    else:
-        raise ValueError('Unsupported data type')
+        local_reader.add_data(data)
 
-    if isinstance(snapshot, pd.DataFrame):
-        assert (snapshot.columns[:6] == [
-            'event',
-            'exch_timestamp',
-            'local_timestamp',
-            'side',
-            'price',
-            'qty'
-        ]).all()
-        snapshot = snapshot.to_numpy()
-    elif isinstance(snapshot, np.ndarray):
-        assert snapshot.shape[1] >= 6
-    elif isinstance(snapshot, str):
-        if snapshot.endswith('.npy'):
-            snapshot = np.load(snapshot)
-        elif snapshot.endswith('.npz'):
-            tmp = np.load(snapshot)
-            if 'data' in tmp:
-                snapshot = tmp['data']
-                assert snapshot.shape[1] >= 6
-            else:
-                k = list(tmp.keys())[0]
-                print("Snapshot is loaded from %s instead of 'data'" % k)
-                snapshot = tmp[k]
-                assert snapshot.shape[1] >= 6
-        else:
-            df = pd.read_pickle(snapshot, compression='gzip')
-            assert (df.columns[:6] == [
-                'event',
-                'exch_timestamp',
-                'local_timestamp',
-                'side',
-                'price',
-                'qty'
-            ]).all()
-            snapshot = df.to_numpy()
-    elif snapshot is None:
-        pass
-    else:
-        raise ValueError('Unsupported snapshot type')
+        exch_reader = DataReader(cache)
+        exch_reader.add_data(data)
 
     if queue_model is None:
         queue_model = RiskAverseQueueModel()
@@ -131,6 +83,7 @@ def HftBacktest(
     exch_market_depth = MarketDepth(tick_size, lot_size)
 
     if snapshot is not None:
+        snapshot = __load_data(snapshot)
         local_market_depth.apply_snapshot(snapshot)
         exch_market_depth.apply_snapshot(snapshot)
 
@@ -178,3 +131,103 @@ def HftBacktest(
     )
 
     return SingleAssetHftBacktest(local, exch)
+
+
+def reset(
+        hbt,
+        data,
+        tick_size=None,
+        lot_size=None,
+        maker_fee=None,
+        taker_fee=None,
+        snapshot=None,
+        start_position=0,
+        start_balance=0,
+        start_fee=0,
+        trade_list_size=None,
+):
+    cache = Cache()
+
+    if isinstance(data, list):
+        local_reader = DataReader(cache)
+        exch_reader = DataReader(cache)
+        for item in data:
+            if isinstance(item, str):
+                local_reader.add_file(item)
+                exch_reader.add_file(item)
+            elif isinstance(item, pd.DataFrame) or isinstance(item, np.ndarray):
+                local_reader.add_data(item)
+                exch_reader.add_data(item)
+            else:
+                raise ValueError('Unsupported data type')
+    elif isinstance(data, str):
+        local_reader = DataReader(cache)
+        local_reader.add_file(data)
+
+        exch_reader = DataReader(cache)
+        exch_reader.add_file(data)
+    else:
+        data = __load_data(data)
+        local_reader = DataReader(cache)
+        local_reader.add_data(data)
+
+        exch_reader = DataReader(cache)
+        exch_reader.add_data(data)
+
+    snapshot = __load_data(snapshot) if snapshot is not None else None
+
+    hbt.reset(
+        local_reader,
+        exch_reader,
+        start_position,
+        start_balance,
+        start_fee,
+        maker_fee,
+        taker_fee,
+        tick_size,
+        lot_size,
+        snapshot,
+        trade_list_size,
+    )
+
+
+def __load_data(data):
+    if isinstance(data, pd.DataFrame):
+        assert (data.columns[:6] == [
+            'event',
+            'exch_timestamp',
+            'local_timestamp',
+            'side',
+            'price',
+            'qty'
+        ]).all()
+        data = data.to_numpy()
+    elif isinstance(data, np.ndarray):
+        assert data.shape[1] >= 6
+    elif isinstance(data, str):
+        if data.endswith('.npy'):
+            data = np.load(data)
+        elif data.endswith('.npz'):
+            tmp = np.load(data)
+            if 'data' in tmp:
+                data = tmp['data']
+                assert data.shape[1] >= 6
+            else:
+                k = list(tmp.keys())[0]
+                print("Data is loaded from %s instead of 'data'" % k)
+                data = tmp[k]
+                assert data.shape[1] >= 6
+        else:
+            df = pd.read_pickle(data, compression='gzip')
+            assert (df.columns[:6] == [
+                'event',
+                'exch_timestamp',
+                'local_timestamp',
+                'side',
+                'price',
+                'qty'
+            ]).all()
+            data = df.to_numpy()
+    else:
+        raise ValueError('Unsupported data type')
+    return data

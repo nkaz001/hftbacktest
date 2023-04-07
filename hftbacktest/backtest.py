@@ -217,6 +217,46 @@ class SingleAssetHftBacktest_:
             return False
         return True
 
+    def reset(
+            self,
+            local_reader,
+            exch_reader,
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot,
+            trade_list_size,
+    ):
+        self.local.reader = local_reader
+        self.exch.reader = exch_reader
+
+        self.local.reset(
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot,
+            trade_list_size,
+        )
+        self.exch.reset(
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot
+        )
+        self.current_timestamp = self.local.next_data[0, COL_LOCAL_TIMESTAMP]
+        self.run = True
 
 def SingleAssetHftBacktest(local, exch):
     jitted = jitclass(spec=[

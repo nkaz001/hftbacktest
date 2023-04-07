@@ -147,6 +147,11 @@ class OrderBus:
                 return recv_timestamp
         raise KeyError
 
+    def reset(self):
+        self.order_list.clear()
+        self.orders.clear()
+        self.frontmost_timestamp = 0
+
     def __getitem__(self, key):
         return self.order_list[key]
 

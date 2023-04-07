@@ -31,6 +31,35 @@ class Local_(Proc):
         self.last_trades = np.full((trade_list_size, self.data.shape[1]), np.nan, np.float64)
         self.user_data = np.full((20, self.data.shape[1]), np.nan, np.float64)
 
+    def reset(
+            self,
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot,
+            trade_list_size,
+    ):
+        self._proc_reset(
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot
+        )
+        self.trade_len = 0
+        if trade_list_size is not None:
+            self.last_trades = np.full((trade_list_size, self.data.shape[1]), np.nan, np.float64)
+        else:
+            self.last_trades[:, :] = np.nan
+        self.user_data[:, :] = np.nan
+
     def _next_data_timestamp(self):
         return self._next_data_timestamp_column(COL_LOCAL_TIMESTAMP)
 

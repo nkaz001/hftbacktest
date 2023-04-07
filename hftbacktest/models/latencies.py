@@ -19,6 +19,9 @@ class ConstantLatency:
     def response(self, timestamp, order, proc):
         return self.response_latency
 
+    def reset(self):
+        pass
+
 
 @jitclass
 class FeedLatency:
@@ -71,6 +74,9 @@ class FeedLatency:
     def response(self, timestamp, order, proc):
         return self.response_latency + self.resp_latency_mul * self.__latency(proc)
 
+    def reset(self):
+        pass
+
 
 @jitclass
 class ForwardFeedLatency:
@@ -105,6 +111,9 @@ class ForwardFeedLatency:
     def response(self, timestamp, order, proc):
         return self.response_latency + self.resp_latency_mul * self.__latency(proc)
 
+    def reset(self):
+        pass
+
 
 @jitclass
 class BackwardFeedLatency:
@@ -138,6 +147,9 @@ class BackwardFeedLatency:
 
     def response(self, timestamp, order, proc):
         return self.response_latency + self.resp_latency_mul * self.__latency(proc)
+
+    def reset(self):
+        pass
 
 
 @jitclass
@@ -199,3 +211,7 @@ class IntpOrderLatency:
                 lat2 = next_resp_local_timestamp - next_exch_timestamp
                 return self.__intp(timestamp, exch_timestamp, lat1, next_exch_timestamp, lat2)
         raise ValueError
+
+    def reset(self):
+        self.entry_rn = 0
+        self.resp_rn = 0

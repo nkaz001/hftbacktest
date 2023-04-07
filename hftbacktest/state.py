@@ -35,6 +35,18 @@ class State_:
     def equity(self, mid):
         return self.asset_type.equity(mid, self.balance, self.position, self.fee)
 
+    def reset(self, start_position, start_balance, start_fee, maker_fee, taker_fee):
+        self.position = start_position
+        self.balance = start_balance
+        self.fee = start_fee
+        self.trade_num = 0
+        self.trade_qty = 0
+        self.trade_amount = 0
+        if maker_fee is not None:
+            self.maker_fee = maker_fee
+        if taker_fee is not None:
+            self.taker_fee = taker_fee
+
 
 def State(
         start_position,

@@ -26,6 +26,41 @@ class Proc:
         self.state = state
         self.order_latency = order_latency
 
+    def _proc_reset(
+            self,
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot
+    ):
+        self.next_data = self.reader.next()
+        self.data = np.empty((0, self.next_data.shape[1]), self.next_data.dtype)
+        self.row_num = 0
+        self.next_row_num = 0
+
+        self.orders.clear()
+
+        self.orders_to.reset()
+        self.orders_from.reset()
+
+        self.depth.clear_depth(0, 0)
+
+        if tick_size is not None:
+            self.depth.tick_size = tick_size
+
+        if lot_size is not None:
+            self.depth.lot_size = lot_size
+
+        if snapshot is not None:
+            self.depth.apply_snapshot(snapshot)
+
+        self.state.reset(start_position, start_balance, start_fee, maker_fee, taker_fee)
+        self.order_latency.reset()
+
     def next_timestamp(self):
         next_data_timestamp = self._next_data_timestamp()
         next_recv_order_timestamp = self.orders_from.frontmost_timestamp

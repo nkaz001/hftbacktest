@@ -33,6 +33,31 @@ class NoPartialFillExchange_(Proc):
         self.buy_orders = Dict.empty(int64, order_ladder_ty)
         self.queue_model = queue_model
 
+    def reset(
+            self,
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot
+    ):
+        self._proc_reset(
+            start_position,
+            start_balance,
+            start_fee,
+            maker_fee,
+            taker_fee,
+            tick_size,
+            lot_size,
+            snapshot
+        )
+        self.sell_orders.clear()
+        self.buy_orders.clear()
+        self.queue_model.reset()
+
     def _next_data_timestamp(self):
         return self._next_data_timestamp_column(COL_EXCH_TIMESTAMP)
 
