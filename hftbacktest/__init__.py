@@ -29,7 +29,7 @@ __all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE',
            'Stat',
            'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct',)
 
-__version__ = '1.4.1'
+__version__ = '1.4.2'
 
 
 def HftBacktest(

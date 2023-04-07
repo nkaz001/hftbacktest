@@ -205,6 +205,9 @@ class NoPartialFillExchange_(Proc):
                         self.__fill(order, timestamp, True)
 
     def __ack_new(self, order, timestamp):
+        if order.order_id in self.orders:
+            raise KeyError('order_id already exists')
+
         if order.side == BUY:
             # Check if the buy order price is greater than or equal to the current best ask.
             if order.price_tick >= self.depth.best_ask_tick:
@@ -268,7 +271,8 @@ class NoPartialFillExchange_(Proc):
             order.status = EXPIRED
             order.exch_timestamp = timestamp
             local_recv_timestamp = timestamp + self.order_latency.response(timestamp, order, self)
-            self.orders_to.append(order.copy(), local_recv_timestamp)
+            # It can overwrite another existing order on the local side if order_id is the same. So, commented out.
+            # self.orders_to.append(order.copy(), local_recv_timestamp)
             return local_recv_timestamp
 
         # Delete the order.
@@ -293,6 +297,11 @@ class NoPartialFillExchange_(Proc):
             exec_price_tick=0,
             delete_order=True
     ):
+        if order.status == EXPIRED \
+                or order.status == CANCELED \
+                or order.status == FILLED:
+            raise ValueError('status')
+
         order.maker = maker
         order.exec_price_tick = order.price_tick if maker else exec_price_tick
         order.exec_qty = order.leaves_qty

@@ -79,6 +79,9 @@ class Local_(Proc):
         return 0
 
     def submit_order(self, order_id, side, price, qty, order_type, time_in_force, current_timestamp):
+        if order_id in self.orders:
+            raise KeyError('Duplicate order_id')
+
         price_tick = round(price / self.depth.tick_size)
         order = Order(order_id, price_tick, self.depth.tick_size, qty, side, time_in_force, order_type)
         order.req = NEW
