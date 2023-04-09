@@ -88,6 +88,7 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
             # Clear cancelled, filled or expired orders.
             hbt.clear_inactive_orders()
 
+	    last_order_id = -1
             if hbt.position < max_position:
                 # Submit a new post-only limit bid order.
                 order_id += 1
