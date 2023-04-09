@@ -56,9 +56,7 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
         skew = 1
         order_qty = 0.1 
         last_order_id = -1
-
-        bid_order_price_tick_as_id = -1
-        ask_order_price_tick_as_id = -1
+        order_id = 0
 
         while hbt.run:
             # Check every 0.1s
@@ -72,42 +70,45 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
             mid_price = (hbt.best_bid + hbt.best_ask) / 2.0
             reservation_price = mid_price - skew * hbt.position * hbt.tick_size
 
-            bid_order_price = reservation_price - half_spread
-            ask_order_price = reservation_price + half_spread
+            buy_order_price = reservation_price - half_spread
+            sell_order_price = reservation_price + half_spread
 
-            # Cancel the existing bid order.
-            existing_bid_order = hbt.orders.get(bid_order_price_tick_as_id)
-            if existing_bid_order is not None and existing_bid_order.cancellable:
-                hbt.cancel(existing_bid_order.order_id)
-                last_order_id = existing_bid_order.order_id
-
-            # Cancel the existing ask order.
-            existing_ask_order = hbt.orders.get(ask_order_price_tick_as_id)
-            if existing_ask_order is not None and existing_ask_order.cancellable:
-                hbt.cancel(existing_ask_order.order_id)
-                last_order_id = existing_ask_order.order_id
+            last_order_id = -1
+            # Cancel all outstanding orders
+            for order in hbt.orders.values():
+                if order.cancellable:
+                    hbt.cancel(order.order_id)
+                    last_order_id = order.order_id    
+			
+            # All order requests are considered to be requested at the same time.
+            # Wait until one of the order cancellation responses is received.
+            if last_order_id >= 0:
+                hbt.wait_order_response(last_order_id)
+				
+            # Clear cancelled, filled or expired orders.
+            hbt.clear_inactive_orders()
 
             if hbt.position < max_position:
                 # Submit a new post-only limit bid order.
-                bid_order_price_tick_as_id = round(bid_order_price / hbt.tick_size)
+                order_id += 1
                 hbt.submit_buy_order(
-                    bid_order_price_tick_as_id,
-                    bid_order_price,
+                    order_id,
+                    buy_order_price,
                     order_qty,
                     GTX
                 )
-                last_order_id = bid_order_price_tick_as_id
+                last_order_id = order_id
 
             if hbt.position > -max_position:
                 # Submit a new post-only limit ask order.
-                ask_order_price_tick_as_id = round(ask_order_price / hbt.tick_size)
+                order_id += 1
                 hbt.submit_sell_order(
-                    ask_order_price_tick_as_id,
-                    ask_order_price,
+                    order_id,
+                    sell_order_price,
                     order_qty,
                     GTX
                 )
-                last_order_id = ask_order_price_tick_as_id
+                last_order_id = order_id
 
             # All order requests are considered to be requested at the same time.
             # Wait until one of the order responses is received.
