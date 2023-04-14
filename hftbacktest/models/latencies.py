@@ -4,8 +4,18 @@ from numba.experimental import jitclass
 from ..reader import COL_LOCAL_TIMESTAMP, COL_EXCH_TIMESTAMP
 
 
-@jitclass
-class ConstantLatency:
+class ConstantLatency_:
+    r"""
+    JIT'ed class name: **ConstantLatency**
+
+    Provides constant order latency. The units of the arguments should match the timestamp units of your
+    data.
+
+    Args:
+        entry_latency: Order entry latency.
+        response_latency: Order response latency.
+    """
+
     entry_latency: float64
     response_latency: float64
 
@@ -23,8 +33,32 @@ class ConstantLatency:
         pass
 
 
-@jitclass
-class FeedLatency:
+class FeedLatency_:
+    r"""
+    JIT'ed class name: **FeedLatency**
+
+    Provides order latency based on feed latency. The units of the arguments should match the timestamp units of your
+    data.
+
+    Order latency is computed as follows:
+
+    * feed_latency is calculated as the average latency between the latest feed's latency and the subsequent feed's
+      latency(by forward-looking).
+
+    * If either of these values is unavailable, the available value is used as the sole feed latency.
+
+    .. code-block::
+
+        entry_latency = feed_latency * entry_latency_mul + entry_latency
+        response_latency = feed_latency * resp_latency_mul + response_latency
+
+    Args:
+        entry_latency_mul: Multiplier for feed latency to compute order entry latency.
+        resp_latency_mul: Multiplier for feed latency to compute order response latency.
+        entry_latency: Offset for order entry latency.
+        response_latency: Offset for order response latency.
+    """
+
     entry_latency_mul: float64
     resp_latency_mul: float64
     entry_latency: float64
@@ -78,8 +112,29 @@ class FeedLatency:
         pass
 
 
-@jitclass
-class ForwardFeedLatency:
+class ForwardFeedLatency_:
+    r"""
+    JIT'ed class name: **ForwardFeedLatency**
+
+    Provides order latency based on feed latency. The units of the arguments should match the timestamp units of your
+    data.
+
+    Order latency is computed as follows:
+
+    * the subsequent feed's latency(by forward-looking) is used as the feed latency.
+
+    .. code-block::
+
+        entry_latency = feed_latency * entry_latency_mul + entry_latency
+        response_latency = feed_latency * resp_latency_mul + response_latency
+
+    Args:
+        entry_latency_mul: Multiplier for feed latency to compute order entry latency.
+        resp_latency_mul: Multiplier for feed latency to compute order response latency.
+        entry_latency: Offset for order entry latency.
+        response_latency: Offset for order response latency.
+    """
+
     entry_latency_mul: float64
     resp_latency_mul: float64
     entry_latency: float64
@@ -115,8 +170,28 @@ class ForwardFeedLatency:
         pass
 
 
-@jitclass
-class BackwardFeedLatency:
+class BackwardFeedLatency_:
+    r"""
+    JIT'ed class name: **BackwardFeedLatency**
+
+    Provides order latency based on feed latency. The units of the arguments should match the timestamp units of your
+    data.
+
+    Order latency is computed as follows:
+    * the latest feed's latency is used as the feed latency.
+
+    .. code-block::
+
+        entry_latency = feed_latency * entry_latency_mul + entry_latency
+        response_latency = feed_latency * resp_latency_mul + response_latency
+
+    Args:
+        entry_latency_mul: Multiplier for feed latency to compute order entry latency.
+        resp_latency_mul: Multiplier for feed latency to compute order response latency.
+        entry_latency: Offset for order entry latency.
+        response_latency: Offset for order response latency.
+    """
+
     entry_latency_mul: float64
     resp_latency_mul: float64
     entry_latency: float64
@@ -152,8 +227,18 @@ class BackwardFeedLatency:
         pass
 
 
-@jitclass
-class IntpOrderLatency:
+class IntpOrderLatency_:
+    r"""
+    JIT'ed class name: **IntpOrderLatency**
+
+    Provides order latency by interpolating the actual historical order latency. This model provides the most accurate
+    results. The units of the historical latency data should match the timestamp units of your feed data.
+
+    Args:
+        data (array): An (n, 3) array consisting of three columns: local timestamp when the request was made, exchange
+            timestamp, and local timestamp when the response was received.
+    """
+
     entry_rn: int64
     resp_rn: int64
     data: float64[:]
@@ -161,14 +246,6 @@ class IntpOrderLatency:
     def __init__(self, data):
         self.entry_rn = 0
         self.resp_rn = 0
-        # req_local_timestamp: local timestamp at requesting (submit, cancel)
-        # exch_timestamp: exchange timestamp in the order response
-        # resp_local_timestamp: local timestamp at receiving the response.
-        #
-        # data is numpy array (n x 3)
-        # req_local_timestamp, exch_timestamp, resp_local_timestamp
-        # ..
-        # ..
         self.data = data
 
     def __intp(self, x, x1, y1, x2, y2):
@@ -215,3 +292,10 @@ class IntpOrderLatency:
     def reset(self):
         self.entry_rn = 0
         self.resp_rn = 0
+
+
+ConstantLatency = jitclass()(ConstantLatency_)
+FeedLatency = jitclass()(FeedLatency_)
+ForwardFeedLatency = jitclass()(ForwardFeedLatency_)
+BackwardFeedLatency = jitclass()(BackwardFeedLatency_)
+IntpOrderLatency = jitclass()(IntpOrderLatency_)

@@ -1,12 +1,19 @@
-from numba import int64, boolean, typeof
+from numba import int64, boolean, typeof, float64
 from numba.experimental import jitclass
 
-from . import BUY
-from .order import LIMIT, SELL
+from .order import LIMIT, BUY, SELL
 from .reader import WAIT_ORDER_RESPONSE_NONE, COL_LOCAL_TIMESTAMP, UNTIL_END_OF_DATA
 
 
 class SingleAssetHftBacktest_:
+    r"""
+    JIT'ed class name: **SingleAssetHftBacktest**
+
+    Args:
+        local: Local processor.
+        exch: Exchange processor.
+    """
+
     def __init__(self, local, exch):
         self.local = local
         self.exch = exch
@@ -125,28 +132,108 @@ class SingleAssetHftBacktest_:
     def local_timestamp(self):
         return self.current_timestamp
 
-    def submit_buy_order(self, order_id, price, qty, time_in_force, order_type=LIMIT, wait=False):
+    def submit_buy_order(
+            self,
+            order_id: int64,
+            price: float64,
+            qty: float64,
+            time_in_force: int64,
+            order_type: int64 = LIMIT,
+            wait: boolean = False
+    ):
+        r"""
+        Places a buy order.
+
+        Args:
+            order_id: The unique order ID; there should not be any existing order with the same ID on both local and
+                      exchange sides.
+            price: Order price.
+            qty: Quantity to sell.
+            time_in_force: Available Time-In-Force options vary depending on the exchange model. See to the exchange
+                           model for details.
+             - ``GTX``: Post-only
+             - ``GTC``: Good 'till Cancel
+             - ``FOK``: Fill or Kill
+             - ``IOC``: Immediate or Cancel
+            order_type: Currently, only ``LIMIT`` is supported. To simulate a ``MARKET`` order, set the price very high.
+            wait: If ``True``, wait until the order placement response is received.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
         self.local.submit_order(order_id, BUY, price, qty, order_type, time_in_force, self.current_timestamp)
 
         if wait:
             return self.goto(UNTIL_END_OF_DATA, wait_order_response=order_id)
         return True
 
-    def submit_sell_order(self, order_id, price, qty, time_in_force, order_type=LIMIT, wait=False):
+    def submit_sell_order(
+            self,
+            order_id: int64,
+            price: float64,
+            qty: float64,
+            time_in_force: int64,
+            order_type: int64 = LIMIT,
+            wait: boolean = False
+    ):
+        r"""
+        Places a sell order.
+
+        Args:
+            order_id: The unique order ID; there should not be any existing order with the same ID on both local and
+                      exchange sides.
+            price: Order price.
+            qty: Quantity to sell.
+            time_in_force: Available Time-In-Force options vary depending on the exchange model. See to the exchange
+                           model for details.
+             - ``GTX``: Post-only
+             - ``GTC``: Good 'till Cancel
+             - ``FOK``: Fill or Kill
+             - ``IOC``: Immediate or Cancel
+            order_type: Currently, only ``LIMIT`` is supported. To simulate a ``MARKET`` order, set the price very low.
+            wait: If ``True``, wait until the order placement response is received.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
         self.local.submit_order(order_id, SELL, price, qty, order_type, time_in_force, self.current_timestamp)
 
         if wait:
             return self.goto(UNTIL_END_OF_DATA, wait_order_response=order_id)
         return True
 
-    def cancel(self, order_id, wait=False):
+    def cancel(self, order_id: int64, wait: boolean = False):
+        r"""
+        Cancel the specified order.
+
+        Args:
+            order_id: Order ID to cancel.
+            wait: If ``True``, wait until the order placement response is received.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
         self.local.cancel(order_id, self.current_timestamp)
 
         if wait:
             return self.goto(UNTIL_END_OF_DATA, wait_order_response=order_id)
         return True
 
-    def wait_order_response(self, order_id, timeout=-1):
+    def wait_order_response(self, order_id: int64, timeout: int64 = -1):
+        r"""
+        Wait for the specified order response by order ID.
+
+        Args:
+            order_id: The order ID to wait for.
+            timeout: Maximum waiting time; The default value of `-1` indicates no timeout.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
         if self.local.orders_from.__contains__(order_id):
             timestamp = self.local.orders_from.get(order_id)
             return self.goto(timestamp)
@@ -166,18 +253,61 @@ class SingleAssetHftBacktest_:
     #     raise NotImplementedError
 
     def clear_inactive_orders(self):
+        r"""
+        Clear inactive(``CANCELED``, ``FILLED``, or ``EXPIRED``) orders from the local ``orders`` dictionary.
+        """
         self.local.clear_inactive_orders()
 
     def clear_last_trades(self):
+        r"""
+        Clears the last trades(market trades) from the buffer.
+        """
         self.local.clear_last_trades()
 
-    def get_user_data(self, event):
+    def get_user_data(self, event: int64):
+        r"""
+        Retrieve custom user event data.
+
+        Args:
+            event: Event identifier. Refer to the data documentation for details on incorporating custom user data with
+                   the market feed data.
+
+        Returns:
+            The latest event data for the specified event.
+        """
         return self.local.get_user_data(event)
 
-    def elapse(self, duration):
+    def elapse(self, duration: float64):
+        r"""
+        Elapses the specified duration.
+
+        Args:
+            duration: Duration to elapse. Unit should be the same as the feed data's timestamp unit.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
         return self.goto(self.current_timestamp + duration)
 
-    def goto(self, timestamp, wait_order_response=WAIT_ORDER_RESPONSE_NONE):
+    def goto(self, timestamp: float64, wait_order_response: int64 = WAIT_ORDER_RESPONSE_NONE):
+        r"""
+        Goes to a specified timestamp.
+
+        This method moves to the specified timestamp, updating the backtesting state to match the corresponding time. If
+        ``wait_order_response`` is provided, the method will stop and return when it receives the response for the
+        specified order.
+
+        Args:
+            timestamp: The target timestamp to go to. The timestamp unit should be the same as the feed data's timestamp
+                       unit.
+            wait_order_response: Order ID to wait for; the default value is ``WAIT_ORDER_RESPONSE_NONE``, which means
+                                 not waiting for any order response.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
         found_order_resp_timestamp = False
         while True:
             # Select which side will be processed next.

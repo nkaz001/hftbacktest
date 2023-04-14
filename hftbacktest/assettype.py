@@ -2,8 +2,16 @@ from numba import int64
 from numba.experimental import jitclass
 
 
-@jitclass
-class LinearAsset:
+class LinearAsset_:
+    r"""
+    JIT'ed class name: **LinearAsset**
+
+    Linear asset: the common type of asset.
+
+    Args:
+        contract_size: Contract size of the asset.
+    """
+
     contract_size: int64
 
     def __init__(self, contract_size=1):
@@ -16,8 +24,16 @@ class LinearAsset:
         return balance + self.contract_size * position * price - fee
 
 
-@jitclass
-class InverseAsset:
+class InverseAsset_:
+    r"""
+    JIT'ed class name: **InverseAsset**
+
+    Inverse asset: the contract's notional value is denominated in the quote currency.
+
+    Args:
+        contract_size: Contract size of the asset.
+    """
+
     contract_size: int64
 
     def __init__(self, contract_size=1):
@@ -29,6 +45,9 @@ class InverseAsset:
     def equity(self, price, balance, position, fee):
         return -balance - self.contract_size * position / price - fee
 
+
+LinearAsset = jitclass()(LinearAsset_)
+InverseAsset = jitclass()(InverseAsset_)
 
 Linear = LinearAsset()
 Inverse = InverseAsset()

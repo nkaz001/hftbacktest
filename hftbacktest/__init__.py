@@ -1,53 +1,122 @@
+from typing import Union, List, Optional
+
 import numpy as np
 import pandas as pd
 
 from .assettype import Linear, Inverse
-from .reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, \
-    DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DataReader, Cache
-from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
 from .backtest import SingleAssetHftBacktest
 from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
+from .marketdepth import MarketDepth
+from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
+from .models.queue import RiskAverseQueueModel, LogProbQueueModel, IdentityProbQueueModel, SquareProbQueueModel
+from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
 from .proc.local import Local
 from .proc.nopartialfillexchange import NoPartialFillExchange
 from .proc.partialfillexchange import PartialFillExchange
-from .marketdepth import MarketDepth
-from .state import State
-from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
-from .models.queue import RiskAverseQueueModel, LogProbQueueModel, IdentityProbQueueModel, SquareProbQueueModel
+from .reader import (
+    COL_EVENT,
+    COL_EXCH_TIMESTAMP,
+    COL_LOCAL_TIMESTAMP,
+    COL_SIDE,
+    COL_PRICE,
+    COL_QTY,
+    DEPTH_EVENT,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    TRADE_EVENT,
+    DataReader,
+    Cache
+)
 from .stat import Stat
+from .state import State
 
-__all__ = ('COL_EVENT', 'COL_EXCH_TIMESTAMP', 'COL_LOCAL_TIMESTAMP', 'COL_SIDE', 'COL_PRICE', 'COL_QTY',
-           'DEPTH_EVENT', 'TRADE_EVENT', 'DEPTH_CLEAR_EVENT', 'DEPTH_SNAPSHOT_EVENT',
-           'BUY', 'SELL',
-           'NONE', 'NEW', 'EXPIRED', 'FILLED', 'CANCELED',
-           'GTC', 'GTX',
-           'Order', 'HftBacktest',
-           'NoPartialFillExchange', 'PartialFillExchange',
-           'ConstantLatency', 'FeedLatency', 'ForwardFeedLatency', 'BackwardFeedLatency', 'IntpOrderLatency',
-           'Linear', 'Inverse',
-           'RiskAverseQueueModel', 'LogProbQueueModel', 'IdentityProbQueueModel', 'SquareProbQueueModel',
-           'Stat',
-           'validate_data', 'correct_local_timestamp', 'correct_exch_timestamp', 'correct',)
+__all__ = (
+    'COL_EVENT',
+    'COL_EXCH_TIMESTAMP',
+    'COL_LOCAL_TIMESTAMP',
+    'COL_SIDE',
+    'COL_PRICE',
+    'COL_QTY',
+    'DEPTH_EVENT',
+    'TRADE_EVENT',
+    'DEPTH_CLEAR_EVENT',
+    'DEPTH_SNAPSHOT_EVENT',
+    'BUY',
+    'SELL',
+    'NONE',
+    'NEW',
+    'EXPIRED',
+    'FILLED',
+    'CANCELED',
+    'GTC',
+    'GTX',
+    'Order',
+    'HftBacktest',
+    'NoPartialFillExchange',
+    'PartialFillExchange',
+    'ConstantLatency',
+    'FeedLatency',
+    'ForwardFeedLatency',
+    'BackwardFeedLatency',
+    'IntpOrderLatency',
+    'Linear',
+    'Inverse',
+    'RiskAverseQueueModel',
+    'LogProbQueueModel',
+    'IdentityProbQueueModel',
+    'SquareProbQueueModel',
+    'Stat',
+    'validate_data',
+    'correct_local_timestamp',
+    'correct_exch_timestamp',
+    'correct'
+)
 
-__version__ = '1.5.0'
+__version__ = '1.5.1'
+
+from .typing import Data, ExchangeModelInitiator, AssetType, OrderLatencyModel, QueueModel, DataCollection
 
 
 def HftBacktest(
-        data,
-        tick_size,
-        lot_size,
-        maker_fee,
-        taker_fee,
-        order_latency,
-        asset_type,
-        queue_model=None,
-        snapshot=None,
-        start_position=0,
-        start_balance=0,
-        start_fee=0,
-        trade_list_size=0,
-        exchange_model=None
+        data: DataCollection,
+        tick_size: float,
+        lot_size: float,
+        maker_fee: float,
+        taker_fee: float,
+        order_latency: OrderLatencyModel,
+        asset_type: AssetType,
+        queue_model: Optional[QueueModel] = None,
+        snapshot: Optional[Data] = None,
+        start_position: float = 0,
+        start_balance: float = 0,
+        start_fee: float = 0,
+        trade_list_size: int = 0,
+        exchange_model: ExchangeModelInitiator = None
 ):
+    r"""
+    Create a HftBacktest instance.
+
+    Args:
+        data: Data to be fed.
+        tick_size: Minimum price increment for the given asset.
+        lot_size: Minimum order quantity for the given asset.
+        maker_fee: Maker fee rate; a negative value indicates rebates.
+        taker_fee: Taker fee rate; a negative value indicates rebates.
+        order_latency: Order latency model. See :mod:`.models.latencies`.
+        asset_type: Either ``Linear`` or ``Inverse``. See :mod:`.assettype`.
+        queue_model: Queue model with default set as ``RiskAverseQueueModel``. See the :mod:`.models.queue`.
+        snapshot: The initial market depth snapshot.
+        start_position: Starting position.
+        start_balance: Starting balance.
+        start_fee: Starting cumulative fees.
+        trade_list_size: Buffer size for storing market trades; the default value of ``0`` indicates that market trades
+                         will not be stored in the buffer.
+        exchange_model: Exchange model with default set as ``NoPartialFillExchange``.
+
+    Returns:
+         JIT'ed :class:`.backtest.SingleAssetHftBacktest_`
+    """
+
     cache = Cache()
 
     if isinstance(data, list):
@@ -135,17 +204,35 @@ def HftBacktest(
 
 def reset(
         hbt,
-        data,
-        tick_size=None,
-        lot_size=None,
-        maker_fee=None,
-        taker_fee=None,
-        snapshot=None,
-        start_position=0,
-        start_balance=0,
-        start_fee=0,
-        trade_list_size=None,
+        data: Union[List[Data], Data],
+        tick_size: Optional[float] = None,
+        lot_size: Optional[float] = None,
+        maker_fee: Optional[float] = None,
+        taker_fee: Optional[float] = None,
+        snapshot: Optional[Data] = None,
+        start_position: Optional[float] = 0,
+        start_balance: Optional[float] = 0,
+        start_fee: Optional[float] = 0,
+        trade_list_size: Optional[int] = None,
 ):
+    """
+    Reset the HftBacktest for reuse. This can help reduce Ahead-of-Time (AOT) compilation time by using the
+    ``cache=True`` option in the ``@njit`` decorator.
+
+    Args:
+        hbt: HftBacktest instance to be reset.
+        data: Data to be fed.
+        tick_size: Minimum price increment for the given asset.
+        lot_size: Minimum order quantity for the given asset.
+        maker_fee: Maker fee rate; a negative value indicates rebates.
+        taker_fee: Taker fee rate; a negative value indicates rebates.
+        snapshot: The initial market depth snapshot.
+        start_position: Starting position.
+        start_balance: Starting balance.
+        start_fee: Starting cumulative fees.
+        trade_list_size: Buffer size for storing market trades; the default value of ``0`` indicates that market trades
+                         will not be stored in the buffer.
+    """
     cache = Cache()
 
     if isinstance(data, list):

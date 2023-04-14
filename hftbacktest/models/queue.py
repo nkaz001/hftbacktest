@@ -1,14 +1,16 @@
-# These models are implemented as described in
-# https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
-# http://www.math.ualberta.ca/~cfrei/PIMS/Almgren5.pdf
-
 from numba.experimental import jitclass
 
 import numpy as np
 
 
-@jitclass
-class RiskAverseQueueModel:
+class RiskAverseQueueModel_:
+    r"""
+    JIT'ed class name: **RiskAverseQueueModel**
+
+    Provides a conservative queue position model, where your order's queue position advances only when trades occur at
+    the same price level.
+    """
+
     def __init__(self):
         pass
 
@@ -32,6 +34,16 @@ class RiskAverseQueueModel:
 
 
 class ProbQueueModel:
+    r"""
+    Provides a probability-based queue position model as described in
+    https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book.
+
+    Your order's queue position advances when a trade occurs at the same price level or the quantity at the level
+    decreases. The advancement in queue position depends on the probability based on the relative queue position. To
+    avoid double counting the quantity decrease caused by trades, all trade quantities occurring at the level before
+    the book quantity changes will be subtracted from the book quantity changes.
+    """
+
     def __init__(self):
         pass
 
@@ -76,19 +88,40 @@ class ProbQueueModel:
         pass
 
 
-@jitclass
-class LogProbQueueModel(ProbQueueModel):
+class LogProbQueueModel_(ProbQueueModel):
+    r"""
+    JIT'ed class name: **LogProbQueueModel**
+
+    This model uses a logarithmic function ``log(1 + x)`` to adjust the probability.
+    """
+
     def f(self, x):
         return np.log(1 + x)
 
 
-@jitclass
-class IdentityProbQueueModel(ProbQueueModel):
+class IdentityProbQueueModel_(ProbQueueModel):
+    r"""
+    JIT'ed class name: **IdentityProbQueueModel**
+
+    This model uses an identity function ``x`` to adjust the probability.
+    """
+
     def f(self, x):
         return x
 
 
-@jitclass
-class SquareProbQueueModel(ProbQueueModel):
+class SquareProbQueueModel_(ProbQueueModel):
+    r"""
+    JIT'ed class name: **SquareProbQueueModel**
+
+    This model uses a square function ``x ** 2`` to adjust the probability.
+    """
+
     def f(self, x):
         return x ** 2
+
+
+RiskAverseQueueModel = jitclass()(RiskAverseQueueModel_)
+LogProbQueueModel = jitclass()(LogProbQueueModel_)
+IdentityProbQueueModel = jitclass()(IdentityProbQueueModel_)
+SquareProbQueueModel = jitclass()(SquareProbQueueModel_)
