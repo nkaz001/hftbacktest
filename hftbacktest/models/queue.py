@@ -1,12 +1,8 @@
-from numba.experimental import jitclass
-
 import numpy as np
 
 
-class RiskAverseQueueModel_:
+class RiskAverseQueueModel:
     r"""
-    JIT'ed class name: **RiskAverseQueueModel**
-
     Provides a conservative queue position model, where your order's queue position advances only when trades occur at
     the same price level.
     """
@@ -88,10 +84,8 @@ class ProbQueueModel:
         pass
 
 
-class LogProbQueueModel_(ProbQueueModel):
+class LogProbQueueModel(ProbQueueModel):
     r"""
-    JIT'ed class name: **LogProbQueueModel**
-
     This model uses a logarithmic function ``log(1 + x)`` to adjust the probability.
     """
 
@@ -99,10 +93,8 @@ class LogProbQueueModel_(ProbQueueModel):
         return np.log(1 + x)
 
 
-class IdentityProbQueueModel_(ProbQueueModel):
+class IdentityProbQueueModel(ProbQueueModel):
     r"""
-    JIT'ed class name: **IdentityProbQueueModel**
-
     This model uses an identity function ``x`` to adjust the probability.
     """
 
@@ -110,18 +102,10 @@ class IdentityProbQueueModel_(ProbQueueModel):
         return x
 
 
-class SquareProbQueueModel_(ProbQueueModel):
+class SquareProbQueueModel(ProbQueueModel):
     r"""
-    JIT'ed class name: **SquareProbQueueModel**
-
     This model uses a square function ``x ** 2`` to adjust the probability.
     """
 
     def f(self, x):
         return x ** 2
-
-
-RiskAverseQueueModel = jitclass()(RiskAverseQueueModel_)
-LogProbQueueModel = jitclass()(LogProbQueueModel_)
-IdentityProbQueueModel = jitclass()(IdentityProbQueueModel_)
-SquareProbQueueModel = jitclass()(SquareProbQueueModel_)

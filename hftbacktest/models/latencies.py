@@ -1,13 +1,10 @@
 from numba import float64, int64
-from numba.experimental import jitclass
 
 from ..reader import COL_LOCAL_TIMESTAMP, COL_EXCH_TIMESTAMP
 
 
-class ConstantLatency_:
+class ConstantLatency:
     r"""
-    JIT'ed class name: **ConstantLatency**
-
     Provides constant order latency. The units of the arguments should match the timestamp units of your
     data.
 
@@ -33,10 +30,8 @@ class ConstantLatency_:
         pass
 
 
-class FeedLatency_:
+class FeedLatency:
     r"""
-    JIT'ed class name: **FeedLatency**
-
     Provides order latency based on feed latency. The units of the arguments should match the timestamp units of your
     data.
 
@@ -112,10 +107,8 @@ class FeedLatency_:
         pass
 
 
-class ForwardFeedLatency_:
+class ForwardFeedLatency:
     r"""
-    JIT'ed class name: **ForwardFeedLatency**
-
     Provides order latency based on feed latency. The units of the arguments should match the timestamp units of your
     data.
 
@@ -170,14 +163,13 @@ class ForwardFeedLatency_:
         pass
 
 
-class BackwardFeedLatency_:
+class BackwardFeedLatency:
     r"""
-    JIT'ed class name: **BackwardFeedLatency**
-
     Provides order latency based on feed latency. The units of the arguments should match the timestamp units of your
     data.
 
     Order latency is computed as follows:
+
     * the latest feed's latency is used as the feed latency.
 
     .. code-block::
@@ -227,10 +219,8 @@ class BackwardFeedLatency_:
         pass
 
 
-class IntpOrderLatency_:
+class IntpOrderLatency:
     r"""
-    JIT'ed class name: **IntpOrderLatency**
-
     Provides order latency by interpolating the actual historical order latency. This model provides the most accurate
     results. The units of the historical latency data should match the timestamp units of your feed data.
 
@@ -292,10 +282,3 @@ class IntpOrderLatency_:
     def reset(self):
         self.entry_rn = 0
         self.resp_rn = 0
-
-
-ConstantLatency = jitclass()(ConstantLatency_)
-FeedLatency = jitclass()(FeedLatency_)
-ForwardFeedLatency = jitclass()(ForwardFeedLatency_)
-BackwardFeedLatency = jitclass()(BackwardFeedLatency_)
-IntpOrderLatency = jitclass()(IntpOrderLatency_)

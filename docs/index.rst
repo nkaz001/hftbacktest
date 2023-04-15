@@ -133,9 +133,9 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
 
 Documentation
 =============
-* `Data <https://github.com/nkaz001/hftbacktest/wiki/Data>`_
-* `Latency model <https://github.com/nkaz001/hftbacktest/wiki/Latency-model>`_
-* `Order fill <https://github.com/nkaz001/hftbacktest/wiki/Order-fill>`_
+* `Data`_
+* `Latency Models`_
+* `Order Fill`_
 
 .. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
     :alt: |Python Version
@@ -163,18 +163,22 @@ Documentation
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Tutorials
+   :hidden:
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents
+   :hidden:
+
+   Data <data>
+   Latency Models <latency_models>
+   Order Fill <order_fill>
 
 .. toctree::
    :maxdepth: 4
    :caption: Reference
+   :hidden:
 
    Modules <reference/modules>
    Index <genindex>
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

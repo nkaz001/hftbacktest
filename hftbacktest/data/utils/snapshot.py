@@ -1,16 +1,35 @@
+from typing import Optional
+
 import numpy as np
+from numpy.typing import NDArray
 
 from ... import HftBacktest, Linear, ConstantLatency
+from ...typing import DataCollection, Data
 from ...reader import UNTIL_END_OF_DATA
 
 
 def create_last_snapshot(
-        data,
-        tick_size,
-        lot_size,
-        initial_snapshot=None,
-        output_snapshot_filename=None
-):
+        data: DataCollection,
+        tick_size: float,
+        lot_size: float,
+        initial_snapshot: Optional[Data] = None,
+        output_snapshot_filename: Optional[str] = None
+) -> NDArray:
+    r"""
+    Creates a snapshot of the last market depth for the specified data, which can be used as the initial snapshot data
+    for subsequent data.
+
+    Args:
+         data: Data to be processed to obtain the last market depth snapshot.
+         tick_size: Minimum price increment for the given asset.
+         lot_size: Minimum order quantity for the given asset.
+         initial_snapshot: The initial market depth snapshot.
+         output_snapshot_filename: If provided, the snapshot data will be saved to the specified filename in ``npz``
+                                   format.
+
+    Returns:
+        Snapshot of the last market depth compatible with HftBacktest.
+    """
     # Just to reconstruct order book from the given snapshot to the end of the given data.
     hbt = HftBacktest(
         data,

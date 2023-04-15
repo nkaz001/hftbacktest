@@ -1,11 +1,26 @@
 import sys
+from typing import Optional, Union, Literal
 
 import numpy as np
 import pandas as pd
 from numba import njit
+from numpy.typing import NDArray
+from pandas import DataFrame
 
-from ..reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP, COL_PRICE, COL_QTY, TRADE_EVENT, \
-    DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT
+from ..reader import (
+    COL_EVENT,
+    COL_EXCH_TIMESTAMP,
+    COL_LOCAL_TIMESTAMP,
+    COL_PRICE,
+    COL_QTY,
+    TRADE_EVENT,
+    DEPTH_EVENT,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT
+)
+
+
+Data = Union[NDArray, DataFrame]
 
 
 @njit
@@ -72,11 +87,30 @@ def _validate_data(
 
 
 def validate_data(
-        data,
-        tick_size=None,
-        lot_size=None,
-        err_bound=1e-8
-):
+        data: Data,
+        tick_size: Optional[float] = None,
+        lot_size: Optional[float] = None,
+        err_bound: float = 1e-8
+) -> int:
+    r"""
+    Validates the specified data for the following aspects, excluding user events. Validation results will be printed out:
+
+        - Ensures data's price aligns with tick_size.
+        - Ensures data's quantity aligns with lot_size.
+        - Ensures data's local timestamp is ordered.
+        - Ensures data's exchange timestamp is ordered.
+
+    Args:
+        data: Data to be validated.
+        tick_size: Minimum price increment for the given asset.
+        lot_size: Minimum order quantity for the given asset.
+        err_bound: Error bound used to verify if the specified ``tick_size`` or ``lot_size`` aligns with the price and
+                   quantity.
+
+    Returns:
+        The number of rows with reversed exchange timestamps.
+    """
+
     if isinstance(data, pd.DataFrame):
         num_reversed_exch_timestamp = _validate_data(data.to_numpy(), tick_size, lot_size, err_bound)
     elif isinstance(data, np.ndarray):
@@ -106,7 +140,26 @@ def _correct_local_timestamp(data, base_latency):
     return data
 
 
-def correct_local_timestamp(data, base_latency):
+def correct_local_timestamp(data: Data, base_latency: float) -> Data:
+    r"""
+    Adjusts the local timestamp if the feed latency is negative by offsetting the maximum negative latency value as
+    follows:
+
+    .. code-block::
+
+        feed_latency = local_timestamp - exch_timestamp
+        adjusted_local_timestamp = local_timestamp + min(feed_latency, 0) + base_latency
+
+    Args:
+        data: Data to be corrected.
+        base_latency: Due to discrepancies in system time between the exchange and the local machine, latency may be
+                      measured inaccurately, resulting in negative latency values. The conversion process automatically
+                      adjusts for positive latency but may still produce zero latency cases. By adding ``base_latency``,
+                      more realistic values can be obtained. Unit should be the same as the feed data's timestamp unit.
+
+    Returns:
+        Adjusted data with corrected timestamps
+    """
     if isinstance(data, pd.DataFrame):
         df_corr = pd.DataFrame(_correct_local_timestamp(data.to_numpy(), base_latency), columns=data.columns)
         for col in df_corr.columns:
@@ -149,7 +202,19 @@ def _correct_exch_timestamp(data, num_corr):
     return corr[:out_row_num, :]
 
 
-def correct_exch_timestamp(data, num_corr):
+def correct_exch_timestamp(data: Data, num_corr: int) -> Data:
+    r"""
+    Corrects exchange timestamps that are reversed by splitting each row into separate events, ordered by both exchange
+    and local timestamps, through duplication. See ``data`` for details.
+
+    Args:
+        data: Data to be corrected.
+        num_corr: The number of rows to be corrected.
+
+    Returns:
+        Adjusted data with corrected exchange timestamps.
+    """
+
     if isinstance(data, pd.DataFrame):
         df_corr = pd.DataFrame(_correct_exch_timestamp(data.to_numpy(), num_corr), columns=data.columns)
         for col in df_corr.columns:
@@ -173,7 +238,19 @@ def _correct_exch_timestamp_adjust(data):
     return sorted_data
 
 
-def correct_exch_timestamp_adjust(data):
+def correct_exch_timestamp_adjust(data: Data) -> Data:
+    r"""
+    Corrects reversed exchange timestamps by adjusting the local timestamp value for proper ordering. It sorts the data
+    by exchange timestamp and fixes out-of-order local timestamps by setting their value to the previous value, ensuring
+    correct ordering.
+
+    Args:
+        data: Data to be corrected.
+
+    Returns:
+        Adjusted data with corrected exchange timestamps.
+    """
+
     if isinstance(data, pd.DataFrame):
         df_corr = pd.DataFrame(_correct_exch_timestamp_adjust(data.to_numpy()), columns=data.columns)
         for col in df_corr.columns:
@@ -186,13 +263,33 @@ def correct_exch_timestamp_adjust(data):
 
 
 def correct(
-        data,
-        base_latency,
-        tick_size=None,
-        lot_size=None,
-        err_bound=1e-8,
-        method='separate'
-):
+        data: Data,
+        base_latency: float,
+        tick_size: Optional[float] = None,
+        lot_size: Optional[float] = None,
+        err_bound: float = 1e-8,
+        method: Literal['separate', 'adjust'] = 'separate'
+) -> Data:
+    r"""
+    Validates the specified data and automatically corrects negative latency and unordered rows.
+    See :func:`.validate_data`, :func:`.correct_local_timestamp`, :func:`.correct_exch_timestamp`, and
+    :func:`.correct_exch_timestamp_adjust`.
+
+    Args:
+        data: Data to be checked and corrected.
+        base_latency: The value to be added to the feed latency. See :func:`.correct_local_timestamp`.
+        tick_size: Minimum price increment for the specified data.
+        lot_size: Minimum order quantity for the specified data.
+        err_bound: Error bound used to verify if the specified ``tick_size`` or ``lot_size`` aligns with the price and
+                   quantity.
+        method: The method to correct reversed exchange timestamp events.
+
+                    - ``separate``: Use :func:`.correct_local_timestamp`.
+                    - ``adjust``: Use :func:`.correct_exch_timestamp_adjust`.
+
+    Returns:
+        Corrected data
+    """
     data = correct_local_timestamp(data, base_latency)
     num_corr = validate_data(
         data,

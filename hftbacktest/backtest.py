@@ -1,13 +1,12 @@
-from numba import int64, boolean, typeof, float64
-from numba.experimental import jitclass
+from numba import int64, boolean, float64
 
 from .order import LIMIT, BUY, SELL
 from .reader import WAIT_ORDER_RESPONSE_NONE, COL_LOCAL_TIMESTAMP, UNTIL_END_OF_DATA
 
 
-class SingleAssetHftBacktest_:
+class SingleAssetHftBacktest:
     r"""
-    JIT'ed class name: **SingleAssetHftBacktest**
+    Single Asset HftBacktest. This has to be constructed by :func:`.HftBacktest`.
 
     Args:
         local: Local processor.
@@ -151,10 +150,11 @@ class SingleAssetHftBacktest_:
             qty: Quantity to sell.
             time_in_force: Available Time-In-Force options vary depending on the exchange model. See to the exchange
                            model for details.
-             - ``GTX``: Post-only
-             - ``GTC``: Good 'till Cancel
-             - ``FOK``: Fill or Kill
-             - ``IOC``: Immediate or Cancel
+
+                           - ``GTX``: Post-only
+                           - ``GTC``: Good 'till Cancel
+                           - ``FOK``: Fill or Kill
+                           - ``IOC``: Immediate or Cancel
             order_type: Currently, only ``LIMIT`` is supported. To simulate a ``MARKET`` order, set the price very high.
             wait: If ``True``, wait until the order placement response is received.
 
@@ -187,10 +187,11 @@ class SingleAssetHftBacktest_:
             qty: Quantity to sell.
             time_in_force: Available Time-In-Force options vary depending on the exchange model. See to the exchange
                            model for details.
-             - ``GTX``: Post-only
-             - ``GTC``: Good 'till Cancel
-             - ``FOK``: Fill or Kill
-             - ``IOC``: Immediate or Cancel
+
+                           - ``GTX``: Post-only
+                           - ``GTC``: Good 'till Cancel
+                           - ``FOK``: Fill or Kill
+                           - ``IOC``: Immediate or Cancel
             order_type: Currently, only ``LIMIT`` is supported. To simulate a ``MARKET`` order, set the price very low.
             wait: If ``True``, wait until the order placement response is received.
 
@@ -387,12 +388,3 @@ class SingleAssetHftBacktest_:
         )
         self.current_timestamp = self.local.next_data[0, COL_LOCAL_TIMESTAMP]
         self.run = True
-
-def SingleAssetHftBacktest(local, exch):
-    jitted = jitclass(spec=[
-        ('run', boolean),
-        ('current_timestamp', int64),
-        ('local', typeof(local)),
-        ('exch', typeof(exch)),
-    ])(SingleAssetHftBacktest_)
-    return jitted(local, exch)

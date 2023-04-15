@@ -1,16 +1,32 @@
 import gzip
+from typing import List, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .. import merge_on_local_timestamp, correct, validate_data
 
 
 def convert(
-        input_files,
-        output_filename=None,
-        buffer_size=100_000_000,
-        base_latency=0
-):
+        input_files: List[str],
+        output_filename: Optional[str] = None,
+        buffer_size: int = 100_000_000,
+        base_latency: float = 0
+) -> NDArray:
+    r"""
+    Converts Tardis.dev data files into a format compatible with HftBacktest.
+
+    Args:
+        input_files: Input filenames for both incremental book and trades files,
+                     e.g. ['incremental_book.csv', 'trades.csv'].
+        output_filename: If provided, the converted data will be saved to the specified filename in ``npz`` format.
+        buffer_size: Sets a preallocated row size for the buffer.
+        base_latency: The value to be added to the feed latency.
+                      See :func:`.correct_local_timestamp`.
+
+    Returns:
+        Converted data compatible with HftBacktest.
+    """
     TRADE = 0
     DEPTH = 1
 

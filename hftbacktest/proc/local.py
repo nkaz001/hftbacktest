@@ -3,9 +3,19 @@ from numba import int64, float64
 from numba.experimental import jitclass
 
 from .proc import Proc, proc_spec
-from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, NONE, Order, LIMIT
-from ..reader import COL_EVENT, COL_LOCAL_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, \
-    DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, USER_DEFINED_EVENT
+from ..order import BUY, NEW, CANCELED, FILLED, EXPIRED, NONE, Order
+from ..reader import (
+    COL_EVENT,
+    COL_LOCAL_TIMESTAMP,
+    COL_SIDE,
+    COL_PRICE,
+    COL_QTY,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    TRADE_EVENT,
+    USER_DEFINED_EVENT
+)
 
 
 class Local_(Proc):

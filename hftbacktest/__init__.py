@@ -2,13 +2,35 @@ from typing import Union, List, Optional
 
 import numpy as np
 import pandas as pd
+from numba import boolean, int64, typeof
+from numba.experimental import jitclass
 
-from .assettype import Linear, Inverse
-from .backtest import SingleAssetHftBacktest
-from .data import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
+from .assettype import (
+    LinearAsset as LinearAsset_,
+    InverseAsset as InverseAsset_,
+)
+from .backtest import SingleAssetHftBacktest as SingleAssetHftBacktest_
+from .data import (
+    validate_data,
+    correct_local_timestamp,
+    correct_exch_timestamp,
+    correct_exch_timestamp_adjust,
+    correct,
+)
 from .marketdepth import MarketDepth
-from .models.latencies import FeedLatency, ConstantLatency, ForwardFeedLatency, BackwardFeedLatency, IntpOrderLatency
-from .models.queue import RiskAverseQueueModel, LogProbQueueModel, IdentityProbQueueModel, SquareProbQueueModel
+from .models.latencies import (
+    FeedLatency as FeedLatency_,
+    ConstantLatency as ConstantLatency_,
+    ForwardFeedLatency as ForwardFeedLatency_,
+    BackwardFeedLatency as BackwardFeedLatency_,
+    IntpOrderLatency as IntpOrderLatency_
+)
+from .models.queue import (
+    RiskAverseQueueModel as RiskAverseQueueModel_,
+    LogProbQueueModel as LogProbQueueModel_,
+    IdentityProbQueueModel as IdentityProbQueueModel_,
+    SquareProbQueueModel as SquareProbQueueModel_
+)
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
 from .proc.local import Local
 from .proc.nopartialfillexchange import NoPartialFillExchange
@@ -29,52 +51,104 @@ from .reader import (
 )
 from .stat import Stat
 from .state import State
+from .typing import Data, ExchangeModelInitiator, AssetType, OrderLatencyModel, QueueModel, DataCollection
+
 
 __all__ = (
+    # Columns
     'COL_EVENT',
     'COL_EXCH_TIMESTAMP',
     'COL_LOCAL_TIMESTAMP',
     'COL_SIDE',
     'COL_PRICE',
     'COL_QTY',
+
+    # Event types
     'DEPTH_EVENT',
     'TRADE_EVENT',
     'DEPTH_CLEAR_EVENT',
     'DEPTH_SNAPSHOT_EVENT',
+
+    # Side
     'BUY',
     'SELL',
+
+    # Order status
     'NONE',
     'NEW',
     'EXPIRED',
     'FILLED',
     'CANCELED',
+
+    # Time-In-Force
     'GTC',
     'GTX',
-    'Order',
-    'HftBacktest',
+
+    # Exchange models
     'NoPartialFillExchange',
     'PartialFillExchange',
+
+    # Latency models
     'ConstantLatency',
     'FeedLatency',
     'ForwardFeedLatency',
     'BackwardFeedLatency',
     'IntpOrderLatency',
+
+    # Asset types
+    'LinearAsset',
+    'InverseAsset',
     'Linear',
     'Inverse',
+
+    # Queue models
     'RiskAverseQueueModel',
     'LogProbQueueModel',
     'IdentityProbQueueModel',
     'SquareProbQueueModel',
+
+    'HftBacktest',
+    'Order',
     'Stat',
     'validate_data',
     'correct_local_timestamp',
     'correct_exch_timestamp',
+    'correct_exch_timestamp_adjust',
     'correct'
 )
 
 __version__ = '1.5.1'
 
-from .typing import Data, ExchangeModelInitiator, AssetType, OrderLatencyModel, QueueModel, DataCollection
+
+# JIT'ed latency models
+ConstantLatency = jitclass()(ConstantLatency_)
+FeedLatency = jitclass()(FeedLatency_)
+ForwardFeedLatency = jitclass()(ForwardFeedLatency_)
+BackwardFeedLatency = jitclass()(BackwardFeedLatency_)
+IntpOrderLatency = jitclass()(IntpOrderLatency_)
+
+# JIT'ed queue models
+RiskAverseQueueModel = jitclass()(RiskAverseQueueModel_)
+LogProbQueueModel = jitclass()(LogProbQueueModel_)
+IdentityProbQueueModel = jitclass()(IdentityProbQueueModel_)
+SquareProbQueueModel = jitclass()(SquareProbQueueModel_)
+
+# JIT'ed asset types
+LinearAsset = jitclass()(LinearAsset_)
+InverseAsset = jitclass()(InverseAsset_)
+
+Linear = LinearAsset()
+Inverse = InverseAsset()
+
+# JIT'ed HftBacktest
+def SingleAssetHftBacktest(local, exch):
+    jitted = jitclass(spec=[
+        ('run', boolean),
+        ('current_timestamp', int64),
+        ('local', typeof(local)),
+        ('exch', typeof(exch)),
+    ])(SingleAssetHftBacktest_)
+    return jitted(local, exch)
 
 
 def HftBacktest(
@@ -102,9 +176,9 @@ def HftBacktest(
         lot_size: Minimum order quantity for the given asset.
         maker_fee: Maker fee rate; a negative value indicates rebates.
         taker_fee: Taker fee rate; a negative value indicates rebates.
-        order_latency: Order latency model. See :mod:`.models.latencies`.
-        asset_type: Either ``Linear`` or ``Inverse``. See :mod:`.assettype`.
-        queue_model: Queue model with default set as ``RiskAverseQueueModel``. See the :mod:`.models.queue`.
+        order_latency: Order latency model. See `Order Latency Models`_.
+        asset_type: Either ``Linear`` or ``Inverse``. See `Asset Types`_.
+        queue_model: Queue model with default set as :class:`.models.queue.RiskAverseQueueModel`. See `Queue Models`_.
         snapshot: The initial market depth snapshot.
         start_position: Starting position.
         start_balance: Starting balance.
@@ -114,7 +188,7 @@ def HftBacktest(
         exchange_model: Exchange model with default set as ``NoPartialFillExchange``.
 
     Returns:
-         JIT'ed :class:`.backtest.SingleAssetHftBacktest_`
+         JIT'ed :class:`.SingleAssetHftBacktest`
     """
 
     cache = Cache()

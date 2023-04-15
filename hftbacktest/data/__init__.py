@@ -1,11 +1,28 @@
 import numpy as np
 from numba import njit
+from numpy.typing import NDArray
 
-from .validation import validate_data, correct_local_timestamp, correct_exch_timestamp, correct
+from .validation import (
+    validate_data,
+    correct_local_timestamp,
+    correct_exch_timestamp,
+    correct_exch_timestamp_adjust,
+    correct
+)
 
 
 @njit
-def merge_on_local_timestamp(a, b):
+def merge_on_local_timestamp(a: NDArray, b: NDArray) -> NDArray:
+    r"""
+    Merges two data based on local timestamp.
+
+    Args:
+        a: First data to be merged.
+        b: Second data to be merged.
+
+    Returns:
+        Combined data.
+    """
     a_shape = a.shape
     b_shape = b.shape
     assert a_shape[1] == b_shape[1]

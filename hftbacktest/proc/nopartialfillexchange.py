@@ -6,8 +6,17 @@ from numba.types import DictType
 from .proc import Proc, proc_spec
 from ..marketdepth import INVALID_MAX, INVALID_MIN
 from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, GTX, NONE, order_ladder_ty
-from ..reader import COL_EVENT, COL_EXCH_TIMESTAMP, COL_SIDE, COL_PRICE, COL_QTY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, \
-    DEPTH_SNAPSHOT_EVENT, TRADE_EVENT
+from ..reader import (
+    COL_EVENT,
+    COL_EXCH_TIMESTAMP,
+    COL_SIDE,
+    COL_PRICE,
+    COL_QTY,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    TRADE_EVENT
+)
 
 
 class NoPartialFillExchange_(Proc):
