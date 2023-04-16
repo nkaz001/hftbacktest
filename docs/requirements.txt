@@ -1,3 +1,4 @@
 Sphinx>=5.3.0
 sphinx_rtd_theme>=1.1.1
 nbsphinx>=0.8.11
+jupyter>=1.0.0
