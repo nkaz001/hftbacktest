@@ -2,7 +2,7 @@
 HftBacktest
 ===========
 
-|codacy| |codeql| |pypi| |downloads| |license|
+|codacy| |codeql| |pypi| |downloads| |license| |docs|
 
 High-Frequency Trading Backtesting Tool in Python
 ====================================================================
@@ -40,7 +40,7 @@ Or you can clone the latest development version from the Git repository with:
 Data Source & Format
 --------------------
 
-Please see `Data <https://github.com/nkaz001/hftbacktest/wiki/Data>`_ or `Data Preparation <https://github.com/nkaz001/hftbacktest/blob/master/examples/Data%20Preparation.ipynb>`_.
+Please see `Data <https://hftbacktest.readthedocs.io/en/latest/data.html>`_ or `Data Preparation <https://hftbacktest.readthedocs.io/en/latest/tutorials/Data%20Preparation.html>`_.
 
 A Quick Example
 ---------------
@@ -155,3 +155,8 @@ See `here <https://hftbacktest.readthedocs.io/en/latest/>`_.
 .. |license| image:: https://img.shields.io/badge/License-MIT-green.svg
     :alt: |License
     :target: https://github.com/nkaz001/hftbacktest/blob/master/LICENSE
+    
+.. |docs| image:: https://readthedocs.org/projects/hftbacktest/badge/?version=latest
+    :target: https://hftbacktest.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
