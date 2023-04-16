@@ -128,9 +128,9 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
 
 Documentation
 =============
-* `Data <https://github.com/nkaz001/hftbacktest/wiki/Data>`_
-* `Latency model <https://github.com/nkaz001/hftbacktest/wiki/Latency-model>`_
-* `Order fill <https://github.com/nkaz001/hftbacktest/wiki/Order-fill>`_
+
+See `here <https://hftbacktest.readthedocs.io/en/latest/>`_.
+
 
 .. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
     :alt: |Python Version
