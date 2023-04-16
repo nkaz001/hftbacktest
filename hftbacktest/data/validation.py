@@ -179,7 +179,13 @@ def _correct_exch_timestamp(data, num_corr):
     out_row_num = 0
     for row_num in range(len(data)):
         exch_timestamp = data[row_num, COL_EXCH_TIMESTAMP]
-        if exch_timestamp < prev_exch_timestamp:
+        event = data[row_num, COL_EVENT]
+        if exch_timestamp < prev_exch_timestamp and event in [
+            TRADE_EVENT,
+            DEPTH_EVENT,
+            DEPTH_CLEAR_EVENT,
+            DEPTH_SNAPSHOT_EVENT
+        ]:
             # This new row should be inserted ahead.
             found = False
             for i in range(out_row_num - 1, -1, -1):

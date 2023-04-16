@@ -11,6 +11,7 @@ from .assettype import (
 )
 from .backtest import SingleAssetHftBacktest as SingleAssetHftBacktest_
 from .data import (
+    merge_on_local_timestamp,
     validate_data,
     correct_local_timestamp,
     correct_exch_timestamp,
@@ -51,8 +52,15 @@ from .reader import (
 )
 from .stat import Stat
 from .state import State
-from .typing import Data, ExchangeModelInitiator, AssetType, OrderLatencyModel, QueueModel, DataCollection
-
+from .typing import (
+    Data,
+    ExchangeModelInitiator,
+    AssetType,
+    OrderLatencyModel,
+    QueueModel,
+    DataCollection,
+    HftBacktestType
+)
 
 __all__ = (
     # Columns
@@ -110,6 +118,8 @@ __all__ = (
     'HftBacktest',
     'Order',
     'Stat',
+
+    'merge_on_local_timestamp',
     'validate_data',
     'correct_local_timestamp',
     'correct_exch_timestamp',
@@ -176,9 +186,9 @@ def HftBacktest(
         lot_size: Minimum order quantity for the given asset.
         maker_fee: Maker fee rate; a negative value indicates rebates.
         taker_fee: Taker fee rate; a negative value indicates rebates.
-        order_latency: Order latency model. See `Order Latency Models`_.
-        asset_type: Either ``Linear`` or ``Inverse``. See `Asset Types`_.
-        queue_model: Queue model with default set as :class:`.models.queue.RiskAverseQueueModel`. See `Queue Models`_.
+        order_latency: Order latency model. See :doc:`Order Latency Models <order_latency_models>`.
+        asset_type: Either ``Linear`` or ``Inverse``. See :doc:`Asset types <asset_types>`.
+        queue_model: Queue model with default set as :class:`.models.queue.RiskAverseQueueModel`. See :doc:`Queue Models <queue_models>`.
         snapshot: The initial market depth snapshot.
         start_position: Starting position.
         start_balance: Starting balance.
@@ -277,7 +287,7 @@ def HftBacktest(
 
 
 def reset(
-        hbt,
+        hbt: HftBacktestType,
         data: Union[List[Data], Data],
         tick_size: Optional[float] = None,
         lot_size: Optional[float] = None,

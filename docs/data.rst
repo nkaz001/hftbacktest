@@ -1,7 +1,7 @@
 Data
 ====
 
-Please see https://github.com/nkaz001/collect-binancefutures or `Data Preparation <https://github.com/nkaz001/hftbacktest/blob/master/examples/Data%20Preparation.ipynb>`_ regarding collecting and converting the feed data.
+Please see https://github.com/nkaz001/collect-binancefutures or :doc:`Data Preparation <tutorials/Data Preparation>` regarding collecting and converting the feed data.
 
 Format
 ------

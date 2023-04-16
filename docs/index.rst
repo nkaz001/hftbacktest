@@ -45,7 +45,7 @@ Or you can clone the latest development version from the Git repository with:
 Data Source & Format
 --------------------
 
-Please see `Data <https://github.com/nkaz001/hftbacktest/wiki/Data>`_ or `Data Preparation <https://github.com/nkaz001/hftbacktest/blob/master/examples/Data%20Preparation.ipynb>`_.
+Please see :doc:`Data <data>` or :doc:`Data Preparation <tutorials/Data Preparation>`.
 
 A Quick Example
 ---------------
@@ -131,12 +131,6 @@ Examples
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory.
 
-Documentation
-=============
-* `Data`_
-* `Latency Models`_
-* `Order Fill`_
-
 .. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
     :alt: |Python Version
     :target: https://badge.fury.io/py/tensorflow
@@ -162,13 +156,18 @@ Documentation
     :target: https://github.com/nkaz001/hftbacktest/blob/master/LICENSE
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Tutorials
    :hidden:
 
+   tutorials/Data Preparation
+   tutorials/Getting Started
+   tutorials/Working with Market Depth and Trades
+   tutorials/examples
+
 .. toctree::
    :maxdepth: 2
-   :caption: Contents
+   :caption: User Guide
    :hidden:
 
    Data <data>
@@ -176,9 +175,16 @@ Documentation
    Order Fill <order_fill>
 
 .. toctree::
-   :maxdepth: 4
-   :caption: Reference
+   :maxdepth: 2
+   :caption: API Reference
    :hidden:
 
-   Modules <reference/modules>
+   Initialization <reference/initialization>
+   Backtester <reference/backtester>
+   Asset Types <reference/asset_types>
+   Order Latency Models <reference/order_latency_models>
+   Queue Models <reference/queue_models>
+   Stat <reference/stat>
+   Data Validation <reference/data_validation>
+   Data Utilities <reference/data_utilities>
    Index <genindex>

@@ -67,6 +67,7 @@ html_extra_path = ['_html']
 
 add_module_names = False
 autosummary_generate = True
+autodoc_typehints = 'description'
 keep_warnings = False
 
 python_version = '.'.join(map(str, sys.version_info[0:2]))

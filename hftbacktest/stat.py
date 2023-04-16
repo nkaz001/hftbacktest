@@ -1,3 +1,5 @@
+from typing import Literal, Optional
+
 from numba.experimental import jitclass
 from numba.typed import List
 from numba.types import ListType
@@ -6,8 +8,9 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
 
+from .typing import HftBacktestType
 
-@jitclass
+
 class Recorder:
     timestamp: ListType(int64)
     mid: ListType(float64)
@@ -29,6 +32,12 @@ class Recorder:
         self.trade_amount = trade_amount
 
     def record(self, hbt):
+        """
+        Records the current stats.
+
+        Args:
+            hbt: An instance of the HftBacktest class.
+        """
         self.timestamp.append(hbt.current_timestamp)
         self.mid.append((hbt.best_bid + hbt.best_ask) / 2.0)
         self.balance.append(hbt.balance)
@@ -40,7 +49,23 @@ class Recorder:
 
 
 class Stat:
-    def __init__(self, hbt, utc=True, unit='us', allocated=100000):
+    r"""
+    Calculates performance statistics and generates a summary of performance metrics.
+
+    Args:
+        hbt: An instance of the HftBacktest class.
+        utc: If ``True``, timestamps are in UTC.
+        unit: The unit of the timestamp.
+        allocated: The preallocated size of recorded time series.
+    """
+
+    def __init__(
+            self,
+            hbt: HftBacktestType,
+            utc: bool = True,
+            unit: Literal['s', 'ms', 'us', 'ns'] = 'us',
+            allocated: int = 100_000
+    ):
         self.hbt = hbt
         self.utc = utc
         self.unit = unit
@@ -55,7 +80,10 @@ class Stat:
 
     @property
     def recorder(self):
-        return Recorder(
+        r"""
+        Returns a ``Recorder`` instance to record performance statistics.
+        """
+        return jitclass()(Recorder)(
             self.timestamp,
             self.mid,
             self.balance,
@@ -67,9 +95,25 @@ class Stat:
         )
 
     def datetime(self):
+        r"""
+        Converts and returns a DateTime series from the timestamp.
+
+        Returns:
+            DateTime series by converting from the timestamp.
+        """
         return pd.to_datetime(np.asarray(self.timestamp), utc=self.utc, unit=self.unit)
 
-    def equity(self, resample=None, include_fee=True):
+    def equity(self, resample: Optional[str] = None, include_fee: bool = True):
+        r"""
+        Calculates equity values.
+
+        Args:
+            resample: If provided, equity values will be resampled based on the specified period.
+            include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+
+        Returns:
+            the calculated equity values.
+        """
         if include_fee:
             equity = pd.Series(
                 self.hbt.local.state.asset_type.equity(
@@ -95,28 +139,78 @@ class Stat:
         else:
             return equity.resample(resample).last()
 
-    def sharpe(self, resample, include_fee=True, trading_days=365):
+    def sharpe(self, resample: str, include_fee: bool = True, trading_days: int = 365):
+        r"""
+        Calculates the Sharpe Ratio without considering benchmark rates.
+
+        Args:
+            resample: The resampling period, such as '1s', '5min'.
+            include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+            trading_days: The number of trading days per year used for annualisation.
+
+        Returns:
+            The calculated Sharpe Ratio.
+        """
         pnl = self.equity(resample, include_fee=include_fee).diff()
         c = (24 * 60 * 60 * 1e9) / (pnl.index[1] - pnl.index[0]).value
         std = pnl.std()
         return np.divide(pnl.mean(), std) * np.sqrt(c * trading_days)
 
-    def sortino(self, resample, include_fee=True, trading_days=365):
+    def sortino(self, resample: str, include_fee: bool = True, trading_days: int = 365):
+        r"""
+        Calculates Sortino Ratio.
+
+        Args:
+            resample: The resampling period, such as '1s', '5min'.
+            include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+            trading_days: The number of trading days per year used for annualisation.
+        Returns:
+            Sortino Ratio
+        """
         pnl = self.equity(resample, include_fee=include_fee).diff()
         std = pnl[pnl < 0].std()
         c = (24 * 60 * 60 * 1e9) / (pnl.index[1] - pnl.index[0]).value
         return np.divide(pnl.mean(), std) * np.sqrt(c * trading_days)
 
-    def riskreturnratio(self, include_fee=True):
+    def riskreturnratio(self, include_fee: bool = True):
+        r"""
+        Calculates Risk-Return Ratio, which is Annualized Return / Maximum Draw Down over the entire period.
+
+        Args:
+            include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+
+        Returns:
+            Risk-Return Ratio
+        """
         return self.annualised_return(include_fee=include_fee) / self.maxdrawdown(include_fee=include_fee)
 
-    def drawdown(self, resample=None, include_fee=True):
+    def drawdown(self, resample: Optional[str] = None, include_fee: bool = True):
+        r"""
+        Retrieves Draw Down time-series.
+
+        Args:
+            resample: The resampling period, such as '1s', '5min'.
+            include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+
+        Returns:
+            Draw down time-series.
+        """
         equity = self.equity(resample, include_fee=include_fee)
         max_equity = equity.cummax()
         drawdown = equity - max_equity
         return drawdown
 
-    def maxdrawdown(self, denom=None, include_fee=True):
+    def maxdrawdown(self, denom: Optional[float] = None, include_fee: bool = True):
+        r"""
+        Retrieves Maximum Draw Down.
+
+        Args:
+            denom: If provided, MDD will be calculated in percentage terms by dividing by the specified denominator.
+            include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+
+        Returns:
+            Maximum Draw Down.
+        """
         mdd = -self.drawdown(None, include_fee=include_fee).min()
         if denom is None:
             return mdd
@@ -124,15 +218,45 @@ class Stat:
             return mdd / denom
 
     def daily_trade_num(self):
+        r"""
+        Retrieves the average number of daily trades.
+
+        Returns:
+            Average number of daily trades.
+        """
         return pd.Series(self.trade_num, index=self.datetime()).diff().rolling('1d').sum().mean()
 
     def daily_trade_volume(self):
+        r"""
+        Retrieves the average quantity of daily trades.
+
+        Returns:
+            Average quantity of daily trades.
+        """
         return pd.Series(self.trade_qty, index=self.datetime()).diff().rolling('1d').sum().mean()
 
     def daily_trade_amount(self):
+        r"""
+        Retrieves the average value of daily trades.
+
+        Returns:
+            Average value of daily trades.
+        """
         return pd.Series(self.trade_amount, index=self.datetime()).diff().rolling('1d').sum().mean()
 
-    def annualised_return(self, denom=None, include_fee=True, trading_days=365):
+    def annualised_return(self, denom: Optional[float] = None, include_fee: bool = True, trading_days: int = 365):
+        r"""
+        Calculates annualised return.
+
+        Args:
+            denom: If provided, annualised return will be calculated in percentage terms by dividing by the specified
+                   denominator.
+            include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+            trading_days: The number of trading days per year used for annualisation.
+
+        Returns:
+            Annaulised return.
+        """
         equity = self.equity(None, include_fee=include_fee)
         c = (24 * 60 * 60 * 1e9) / (equity.index[-1] - equity.index[0]).value
         if denom is None:
@@ -140,7 +264,17 @@ class Stat:
         else:
             return equity[-1] * c * trading_days / denom
 
-    def summary(self, capital=None, resample='5min', trading_days=365):
+    def summary(self, capital: Optional[float] = None, resample: str = '5min', trading_days: int = 365):
+        r"""
+        Generates a summary of performance metrics.
+
+        Args:
+            capital: The initial capital investment for the strategy. If provided, it is used as the denominator
+                     to calculate annualized return and MDD in percentage terms. Otherwise, absolute values are
+                     displayed.
+            resample: The resampling period, such as '1s', '5min'.
+            trading_days: The number of trading days per year used for annualisation.
+        """
         dt_index = self.datetime()
         raw_equity = self.hbt.local.state.asset_type.equity(
             np.asarray(self.mid),

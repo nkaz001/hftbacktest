@@ -8,6 +8,7 @@ from pandas import DataFrame
 Data = Union[str, NDArray, DataFrame]
 DataCollection = Union[Data, List[Data]]
 
+HftBacktestType = NewType('HftBacktest', JitClassType)
 Reader = NewType('Reader', JitClassType)
 OrderBus = NewType('OrderBus', JitClassType)
 MarketDepth = NewType('MarketDepth', JitClassType)

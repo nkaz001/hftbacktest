@@ -6,7 +6,10 @@ from .reader import WAIT_ORDER_RESPONSE_NONE, COL_LOCAL_TIMESTAMP, UNTIL_END_OF_
 
 class SingleAssetHftBacktest:
     r"""
-    Single Asset HftBacktest. This has to be constructed by :func:`.HftBacktest`.
+    Single Asset HftBacktest.
+
+    .. warning::
+        This has to be constructed by :func:`.HftBacktest`.
 
     Args:
         local: Local processor.
@@ -17,7 +20,9 @@ class SingleAssetHftBacktest:
         self.local = local
         self.exch = exch
 
+        #: Whether a backtest has finished.
         self.run = True
+        #: Current timestamp
         self.current_timestamp = self.local.next_data[0, COL_LOCAL_TIMESTAMP]
 
     @property
@@ -46,10 +51,17 @@ class SingleAssetHftBacktest:
 
     @property
     def position(self):
+        """
+        Current position.
+        """
+        #
         return self.local.state.position
 
     @property
     def balance(self):
+        """
+        Current balance..
+        """
         return self.local.state.balance
 
     @property
@@ -70,54 +82,93 @@ class SingleAssetHftBacktest:
 
     @property
     def orders(self):
+        """
+        Orders dictionary.
+        """
         return self.local.orders
 
     @property
     def tick_size(self):
+        """
+        Tick size
+        """
         return self.local.depth.tick_size
 
     @property
     def high_ask_tick(self):
+        """
+        The highest ask price in the market depth in tick.
+        """
         return self.local.depth.high_ask_tick
 
     @property
     def low_bid_tick(self):
+        """
+        The lowest bid price in the market depth in tick.
+        """
         return self.local.depth.low_bid_tick
 
     @property
     def best_bid_tick(self):
+        """
+        The best bid price in tick.
+        """
         return self.local.depth.best_bid_tick
 
     @property
     def best_ask_tick(self):
+        """
+        The best ask price in tick.
+        """
         return self.local.depth.best_ask_tick
 
     @property
     def best_bid(self):
+        """
+        The best bid price.
+        """
         return self.best_bid_tick * self.tick_size
 
     @property
     def best_ask(self):
+        """
+        The best ask price.
+        """
         return self.best_ask_tick * self.tick_size
 
     @property
     def bid_depth(self):
+        """
+        Bid market depth.
+        """
         return self.local.depth.bid_depth
 
     @property
     def ask_depth(self):
+        """
+        Ask market depth.
+        """
         return self.local.depth.ask_depth
 
     @property
     def mid(self):
+        """
+        Mid-price of BBO.
+        """
         return (self.best_bid + self.best_ask) / 2.0
 
     @property
     def equity(self):
+        """
+        Current equity value.
+        """
         return self.local.state.equity(self.mid)
 
     @property
     def last_trade(self):
+        """
+        Last market trade. If ``None``, no last market trade.
+        """
         if self.local.trade_len > 0:
             return self.last_trades[self.local.trade_len - 1]
         else:
@@ -125,6 +176,9 @@ class SingleAssetHftBacktest:
 
     @property
     def last_trades(self):
+        """
+        An array of last market trades.
+        """
         return self.local.last_trades[:self.local.trade_len]
 
     @property
