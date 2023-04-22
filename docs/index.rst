@@ -163,6 +163,7 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
    tutorials/Data Preparation
    tutorials/Getting Started
    tutorials/Working with Market Depth and Trades
+   tutorials/GLFT Market Making Model and Grid Trading
    tutorials/examples
 
 .. toctree::
