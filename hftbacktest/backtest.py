@@ -201,7 +201,7 @@ class SingleAssetHftBacktest:
             order_id: The unique order ID; there should not be any existing order with the same ID on both local and
                       exchange sides.
             price: Order price.
-            qty: Quantity to sell.
+            qty: Quantity to buy.
             time_in_force: Available Time-In-Force options vary depending on the exchange model. See to the exchange
                            model for details.
 
@@ -303,9 +303,27 @@ class SingleAssetHftBacktest:
 
         return self.goto(timestamp, wait_order_response=order_id)
 
-    # todo: implement
-    # def wait_next_feed(self, include_order_resp, timeout=-1):
-    #     raise NotImplementedError
+    def wait_next_feed(self, include_order_resp: bool, timeout: int = -1):
+        """
+        Waits until the next feed is received.
+
+        Args:
+            include_order_resp: Whether to include order responses in the feed to wait for.
+            timeout: Maximum waiting time; The default value of `-1` indicates no timeout.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
+        if include_order_resp:
+            timestamp = self.local.next_timestamp()
+        else:
+            timestamp = self.local._next_data_timestamp()
+        if timestamp == -1:
+            return False
+        if timeout >= 0:
+            timestamp = min(timestamp, self.current_timestamp + timeout)
+        return self.goto(timestamp)
 
     def clear_inactive_orders(self):
         r"""
@@ -368,8 +386,6 @@ class SingleAssetHftBacktest:
             # Select which side will be processed next.
             next_local_timestamp = self.local.next_timestamp()
             next_exch_timestamp = self.exch.next_timestamp()
-
-            # print(next_local_timestamp, next_exch_timestamp)
 
             # Local will be processed.
             if (0 < next_local_timestamp < next_exch_timestamp) \
