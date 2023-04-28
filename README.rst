@@ -18,6 +18,10 @@ Key Features
 * Backtest accounting for both feed and order latency, using provided models or your own custom model.
 * Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 
+Documentation
+=============
+
+See `full document here <https://hftbacktest.readthedocs.io/en/latest/>`_.
 
 Getting started
 ===============
@@ -59,14 +63,14 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
         order_id = 0
 
         while hbt.run:
-            # Check every 0.1s
+            # Checks every 0.1s
             if not hbt.elapse(0.1 * 1e6):
                 return False
 
-            # Clear cancelled, filled or expired orders.
+            # Clears cancelled, filled or expired orders.
             hbt.clear_inactive_orders()
 
-            # Obtain the current mid-price and compute the reservation price.
+            # Obtains the current mid-price and computes the reservation price.
             mid_price = (hbt.best_bid + hbt.best_ask) / 2.0
             reservation_price = mid_price - skew * hbt.position * hbt.tick_size
 
@@ -81,16 +85,16 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
                     last_order_id = order.order_id    
 			
             # All order requests are considered to be requested at the same time.
-            # Wait until one of the order cancellation responses is received.
+            # Waits until one of the order cancellation responses is received.
             if last_order_id >= 0:
                 hbt.wait_order_response(last_order_id)
 				
-            # Clear cancelled, filled or expired orders.
+            # Clears cancelled, filled or expired orders.
             hbt.clear_inactive_orders()
 
 	    last_order_id = -1
             if hbt.position < max_position:
-                # Submit a new post-only limit bid order.
+                # Submits a new post-only limit bid order.
                 order_id += 1
                 hbt.submit_buy_order(
                     order_id,
@@ -101,7 +105,7 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
                 last_order_id = order_id
 
             if hbt.position > -max_position:
-                # Submit a new post-only limit ask order.
+                # Submits a new post-only limit ask order.
                 order_id += 1
                 hbt.submit_sell_order(
                     order_id,
@@ -112,11 +116,11 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
                 last_order_id = order_id
 
             # All order requests are considered to be requested at the same time.
-            # Wait until one of the order responses is received.
+            # Waits until one of the order responses is received.
             if last_order_id >= 0:
                 hbt.wait_order_response(last_order_id)
 
-            # Record the current state for stat calculation.
+            # Records the current state for stat calculation.
             stat.record(hbt)
         return True
 
@@ -125,11 +129,6 @@ Examples
 ========
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory.
-
-Documentation
-=============
-
-See `here <https://hftbacktest.readthedocs.io/en/latest/>`_.
 
 
 .. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
