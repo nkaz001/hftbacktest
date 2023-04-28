@@ -1,6 +1,7 @@
 Sphinx==6.2.0
 sphinx_rtd_theme==1.2.0
 nbsphinx==0.9.1
+ipython==8.12
 jupyter>=1.0.0
 numba~=0.56
 numpy<1.24,>=1.18

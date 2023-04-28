@@ -31,7 +31,7 @@ release = '1.5.3'
 # ones.
 extensions = [
     'nbsphinx',
-    #'IPython.sphinxext.ipython_console_highlighting',
+    'IPython.sphinxext.ipython_console_highlighting',
     'sphinx.ext.autodoc',
     'sphinx.ext.autodoc.typehints',
     'sphinx.ext.autosummary',
