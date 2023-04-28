@@ -203,7 +203,8 @@ def _correct_exch_timestamp(data, num_corr):
             corr[out_row_num, COL_EXCH_TIMESTAMP] = -1
         else:
             corr[out_row_num, :] = data[row_num, :]
-            prev_exch_timestamp = exch_timestamp
+            if exch_timestamp > 0:
+                prev_exch_timestamp = exch_timestamp
         out_row_num += 1
     return corr[:out_row_num, :]
 
