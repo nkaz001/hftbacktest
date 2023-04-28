@@ -12,7 +12,8 @@ def convert(
         input_filename: str,
         output_filename: Optional[str] = None,
         opt: Literal['', 'm', 't', 'mt'] = '',
-        base_latency: float = 0
+        base_latency: float = 0,
+        method: Literal['separate', 'adjust'] = 'separate'
 ) -> NDArray:
     r"""
     Converts raw Binance Futures feed stream file into a format compatible with HftBacktest.
@@ -51,6 +52,7 @@ def convert(
 
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
+        method: The method to correct reversed exchange timestamp events. See :func:`..validation.correct`.
     Returns:
         Converted data compatible with HftBacktest.
     """
@@ -118,7 +120,7 @@ def convert(
                 rows += [[4, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
 
     data = np.asarray(rows, np.float64)
-    data = correct(data, base_latency=base_latency)
+    data = correct(data, base_latency=base_latency, method=method)
 
     # Validate again.
     num_corr = validate_data(data)

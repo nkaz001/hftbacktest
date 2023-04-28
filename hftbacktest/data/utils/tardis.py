@@ -1,5 +1,5 @@
 import gzip
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,7 +11,8 @@ def convert(
         input_files: List[str],
         output_filename: Optional[str] = None,
         buffer_size: int = 100_000_000,
-        base_latency: float = 0
+        base_latency: float = 0,
+        method: Literal['separate', 'adjust'] = 'separate'
 ) -> NDArray:
     r"""
     Converts Tardis.dev data files into a format compatible with HftBacktest.
@@ -23,6 +24,7 @@ def convert(
         buffer_size: Sets a preallocated row size for the buffer.
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
+        method: The method to correct reversed exchange timestamp events. See :func:`..validation.correct`.
 
     Returns:
         Converted data compatible with HftBacktest.
@@ -161,7 +163,7 @@ def convert(
         data = merge_on_local_timestamp(data, sets[0])
         del sets[0]
 
-    data = correct(data, base_latency=base_latency)
+    data = correct(data, base_latency=base_latency, method=method)
 
     # Validate again.
     num_corr = validate_data(data)
