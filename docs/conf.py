@@ -21,7 +21,7 @@ copyright = '2023, nkaz001'
 author = 'nkaz001'
 
 # The full version, including alpha/beta/rc tags
-release = '1.5.1'
+release = '1.5.3'
 
 
 # -- General configuration ---------------------------------------------------
@@ -31,7 +31,7 @@ release = '1.5.1'
 # ones.
 extensions = [
     'nbsphinx',
-    'IPython.sphinxext.ipython_console_highlighting',
+    #'IPython.sphinxext.ipython_console_highlighting',
     'sphinx.ext.autodoc',
     'sphinx.ext.autodoc.typehints',
     'sphinx.ext.autosummary',
