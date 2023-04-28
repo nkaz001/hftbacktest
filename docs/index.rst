@@ -30,7 +30,7 @@ Getting started
 Installation
 ------------
 
-hftbacktest supports Python 3.7+. You can install hftbacktest using ``pip``:
+hftbacktest supports Python 3.8+. You can install hftbacktest using ``pip``:
 
 .. code-block:: console
 
@@ -163,6 +163,7 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
    tutorials/Data Preparation
    tutorials/Getting Started
    tutorials/Working with Market Depth and Trades
+   tutorials/Integrating Custom Data
    tutorials/GLFT Market Making Model and Grid Trading
    tutorials/examples
 
@@ -174,6 +175,7 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
    Data <data>
    Latency Models <latency_models>
    Order Fill <order_fill>
+   JIT Compilation Overhead <jit_compilation_overhead>
 
 .. toctree::
    :maxdepth: 2
