@@ -62,11 +62,8 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
         last_order_id = -1
         order_id = 0
 
-        while hbt.run:
-            # Checks every 0.1s
-            if not hbt.elapse(0.1 * 1e6):
-                return False
-
+        # Checks every 0.1s
+        while hbt.elapse(100_000):
             # Clears cancelled, filled or expired orders.
             hbt.clear_inactive_orders()
 
@@ -92,7 +89,7 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
             # Clears cancelled, filled or expired orders.
             hbt.clear_inactive_orders()
 
-	    last_order_id = -1
+	        last_order_id = -1
             if hbt.position < max_position:
                 # Submits a new post-only limit bid order.
                 order_id += 1
@@ -122,7 +119,6 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
 
             # Records the current state for stat calculation.
             stat.record(hbt)
-        return True
 
     
 Examples

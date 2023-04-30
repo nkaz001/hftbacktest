@@ -6,10 +6,8 @@ from hftbacktest import NONE, NEW, HftBacktest, GTX, BUY, SELL, Linear, IntpOrde
 
 @njit
 def market_making_algo(hbt):
-    while hbt.run:
-        # in microseconds
-        if not hbt.elapse(0.1 * 1e6):
-            return False
+    # in microseconds
+    while hbt.elapse(0.1 * 1e6):
         hbt.clear_inactive_orders()
 
         """
@@ -101,7 +99,7 @@ if __name__ == '__main__':
     # https://github.com/nkaz001/collect-binancefutures
 
     # This backtest assumes market maker rebates.
-    # https://www.binance.com/kz/support/announcement/binance-upgrades-usd%E2%93%A2-margined-futures-liquidity-provider-program-2023-04-04-01007356e6514df3811b0c80ab8c83bf
+    # https://www.binance.com/en/support/announcement/binance-upgrades-usd%E2%93%A2-margined-futures-liquidity-provider-program-2023-04-04-01007356e6514df3811b0c80ab8c83bf
 
     latency_data1 = np.load('order_latency_20220831.npz')['data']
     latency_data2 = np.load('order_latency_20220901.npz')['data']
@@ -122,4 +120,3 @@ if __name__ == '__main__':
         snapshot='../../btcusdt_20220830_eod.npz'
     )
     market_making_algo(hbt)
-
