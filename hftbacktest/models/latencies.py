@@ -231,7 +231,7 @@ class IntpOrderLatency:
 
     entry_rn: int64
     resp_rn: int64
-    data: float64[:]
+    data: float64[:, :]
     
     def __init__(self, data):
         self.entry_rn = 0
