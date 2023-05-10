@@ -158,7 +158,7 @@ class OrderBus:
     def __len__(self):
         return len(self.order_list)
 
-    def __delitem__(self, key):
+    def delitem(self, key):
         order, _ = self.order_list[key]
         del self.order_list[key]
         self.orders[order.order_id] -= 1
