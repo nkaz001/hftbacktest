@@ -114,7 +114,7 @@ class Proc:
             while i < self.orders_from.__len__():
                 order, recv_timestamp = self.orders_from[i]
                 if self.orders_from.frontmost_timestamp == recv_timestamp:
-                    self.orders_from.__delitem__(i)
+                    self.orders_from.delitem(i)
 
                     next_timestamp = self._process_recv_order(
                         order,
