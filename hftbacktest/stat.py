@@ -340,13 +340,14 @@ class Stat:
             ((mid / mid[0] - 1).resample(resample).last() * 100).plot(ax=axs[0], style='grey', alpha=0.5)
             (rs_equity / capital * 100).plot(ax=axs[0])
             (rs_equity_wo_fee / capital * 100).plot(ax=axs[0])
+            axs[0].set_ylabel('Cumulative Returns (%)')
         else:
             mid.resample(resample).last().plot(ax=axs[0], style='grey', alpha=0.5)
             (rs_equity * 100).plot(ax=axs[0])
             (rs_equity_wo_fee * 100).plot(ax=axs[0])
+            axs[0].set_ylabel('Cumulative Returns')
 
         # axs[0].set_title('Equity')
-        axs[0].set_ylabel('Cumulative Returns (%)')
         axs[0].grid()
         axs[0].legend(['Trading asset', 'Strategy incl. fee', 'Strategy excl. fee'])
 
