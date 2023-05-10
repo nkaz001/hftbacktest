@@ -21,7 +21,7 @@ Key Features
 Documentation
 =============
 
-See `full document here <https://hftbacktest.readthedocs.io/en/latest/>`_.
+See `full document here <https://hftbacktest.readthedocs.io/>`_.
 
 Getting started
 ===============
