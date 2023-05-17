@@ -259,6 +259,31 @@ class SingleAssetHftBacktest:
             return self.goto(UNTIL_END_OF_DATA, wait_order_response=order_id)
         return True
 
+    def modify(self, order_id: int64, price: float64, qty: float64, wait: boolean = False):
+        r"""
+        Modify the specified order.
+
+        - If the adjusted total quantity(leaves_qty + executed_qty) is less than or equal to
+        the quantity already executed, the order will be considered expired. Be aware that this adjustment doesn't
+        - affect the remaining quantity in the market, it only changes the total quantity.
+        Modified orders will be reordered in the match queue.
+
+        Args:
+            order_id: Order ID to modify.
+            price: Order price.
+            qty: Quantity to sell.
+            wait: If ``True``, wait until the order placement response is received.
+
+        Returns:
+            ``True`` if the method reaches the specified timestamp within the data. If the end of the data is reached
+            before the specified timestamp, it returns ``False``.
+        """
+        self.local.modify_order(order_id, price, qty, self.current_timestamp)
+
+        if wait:
+            return self.goto(UNTIL_END_OF_DATA, wait_order_response=order_id)
+        return True
+
     def cancel(self, order_id: int64, wait: boolean = False):
         r"""
         Cancel the specified order.

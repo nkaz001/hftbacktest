@@ -5,7 +5,7 @@ from numba.types import DictType
 
 from .proc import Proc, proc_spec
 from ..marketdepth import INVALID_MAX, INVALID_MIN
-from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, GTX, NONE, order_ladder_ty
+from ..order import BUY, SELL, NEW, CANCELED, FILLED, EXPIRED, GTX, NONE, MODIFY, order_ladder_ty
 from ..reader import (
     COL_EVENT,
     COL_EXCH_TIMESTAMP,
@@ -75,6 +75,11 @@ class NoPartialFillExchange_(Proc):
         if order.req == NEW:
             order.req = NONE
             resp_timestamp = self.__ack_new(order, recv_timestamp)
+
+        # Process a modify order.
+        if order.req == MODIFY:
+            order.req = NONE
+            resp_timestamp = self.__ack_modify(order, recv_timestamp)
 
         # Process a cancel order.
         elif order.req == CANCELED:
@@ -295,6 +300,92 @@ class NoPartialFillExchange_(Proc):
         order.exch_timestamp = timestamp
         local_recv_timestamp = timestamp + self.order_latency.response(timestamp, order, self)
         self.orders_to.append(order.copy(), local_recv_timestamp)
+        return local_recv_timestamp
+
+    def __ack_modify(self, order, timestamp):
+        exch_order = self.orders.get(order.order_id)
+
+        # The order can be already deleted due to fill or expiration.
+        if exch_order is None:
+            order.status = EXPIRED
+            order.exch_timestamp = timestamp
+            local_recv_timestamp = timestamp + self.order_latency.response(timestamp, order, self)
+            # It can overwrite another existing order on the local side if order_id is the same. So, commented out.
+            # self.orders_to.append(order.copy(), local_recv_timestamp)
+            return local_recv_timestamp
+
+        prev_price_tick = exch_order.price_tick
+        exch_order.price_tick = order.price_tick
+        # No partial fill occurs.
+        exch_order.qty = order.qty
+        # The initialization of the order queue position may not occur when the modified quantity is smaller than
+        # the previous quantity, depending on the exchanges. It may need to implement exchange-specific
+        # specialization.
+        init_q_pos = True
+
+        if exch_order.side == BUY:
+            # Check if the buy order price is greater than or equal to the current best ask.
+            if exch_order.price_tick >= self.depth.best_ask_tick:
+                if exch_order.time_in_force == GTX:
+                    exch_order.status = EXPIRED
+                    del self.buy_orders[prev_price_tick][exch_order.order_id]
+                    del self.orders[exch_order.order_id]
+                else:
+                    # Take the market.
+                    return self.__fill(
+                        exch_order,
+                        timestamp,
+                        False,
+                        exec_price_tick=self.depth.best_ask_tick,
+                        delete_order=True
+                    )
+            else:
+                # The exchange accepts this order.
+                self.orders[exch_order.order_id] = exch_order
+                if prev_price_tick != exch_order.price_tick:
+                    del self.buy_orders[prev_price_tick][exch_order.order_id]
+                    o = self.buy_orders.setdefault(
+                        exch_order.price_tick,
+                        Dict.empty(int64, order_ladder_ty)
+                    )
+                    o[exch_order.order_id] = exch_order
+                if init_q_pos or prev_price_tick != exch_order.price_tick:
+                    # Initialize the order's queue position.
+                    self.queue_model.new(exch_order, self)
+                exch_order.status = NEW
+        else:
+            # Check if the sell order price is less than or equal to the current best bid.
+            if exch_order.price_tick <= self.depth.best_bid_tick:
+                if exch_order.time_in_force == GTX:
+                    exch_order.status = EXPIRED
+                    del self.sell_orders[prev_price_tick][exch_order.order_id]
+                    del self.orders[exch_order.order_id]
+                else:
+                    # Take the market.
+                    return self.__fill(
+                        exch_order,
+                        timestamp,
+                        False,
+                        exec_price_tick=self.depth.best_bid_tick,
+                        delete_order=True
+                    )
+            else:
+                # The exchange accepts this order.
+                self.orders[exch_order.order_id] = order
+                if prev_price_tick != exch_order.price_tick:
+                    del self.sell_orders[prev_price_tick][exch_order.order_id]
+                    o = self.sell_orders.setdefault(
+                        exch_order.price_tick,
+                        Dict.empty(int64, order_ladder_ty)
+                    )
+                    o[exch_order.order_id] = exch_order
+                if init_q_pos or prev_price_tick != exch_order.price_tick:
+                    # Initialize the order's queue position.
+                    self.queue_model.new(exch_order, self)
+                exch_order.status = NEW
+        exch_order.exch_timestamp = timestamp
+        local_recv_timestamp = timestamp + self.order_latency.response(timestamp, exch_order, self)
+        self.orders_to.append(exch_order.copy(), local_recv_timestamp)
         return local_recv_timestamp
 
     def __ack_cancel(self, order, timestamp):
