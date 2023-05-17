@@ -3,7 +3,7 @@ from numba import int64, float64
 from numba.experimental import jitclass
 
 from .proc import Proc, proc_spec
-from ..order import BUY, NEW, CANCELED, FILLED, EXPIRED, NONE, Order
+from ..order import BUY, NEW, CANCELED, FILLED, EXPIRED, NONE, MODIFY, Order
 from ..reader import (
     COL_EVENT,
     COL_LOCAL_TIMESTAMP,
@@ -129,13 +129,29 @@ class Local_(Proc):
         self.orders[order.order_id] = order
         self.orders_to.append(order.copy(), exch_recv_timestamp)
 
+    def modify_order(self, order_id, price, qty, current_timestamp):
+        order = self.orders.get(order_id)
+
+        if order is None:
+            raise KeyError('the given order_id does not exist.')
+        if order.req != NONE:
+            raise ValueError('the given order cannot be modified because there is a ongoing request.')
+
+        order.price_tick = round(price / self.depth.tick_size)
+        order.qty = qty
+        order.req = MODIFY
+        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
+
+        self.orders[order.order_id] = order
+        self.orders_to.append(order.copy(), exch_recv_timestamp)
+
     def cancel(self, order_id, current_timestamp):
         order = self.orders.get(order_id)
 
         if order is None:
             raise KeyError('the given order_id does not exist.')
         if order.req != NONE:
-            raise ValueError('the given order cannot be cancelled because there is a ongoing request.')
+            raise ValueError('the given order cannot be canceled because there is a ongoing request.')
 
         order.req = CANCELED
         exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
