@@ -264,9 +264,9 @@ class SingleAssetHftBacktest:
         Modify the specified order.
 
         - If the adjusted total quantity(leaves_qty + executed_qty) is less than or equal to
-        the quantity already executed, the order will be considered expired. Be aware that this adjustment doesn't
-        - affect the remaining quantity in the market, it only changes the total quantity.
-        Modified orders will be reordered in the match queue.
+          the quantity already executed, the order will be considered expired. Be aware that this adjustment doesn't
+          affect the remaining quantity in the market, it only changes the total quantity.
+        - Modified orders will be reordered in the match queue.
 
         Args:
             order_id: Order ID to modify.

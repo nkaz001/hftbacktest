@@ -137,13 +137,14 @@ class Local_(Proc):
         if order.req != NONE:
             raise ValueError('the given order cannot be modified because there is a ongoing request.')
 
+        order.req = MODIFY
+
+        order = order.copy()
         order.price_tick = round(price / self.depth.tick_size)
         order.qty = qty
-        order.req = MODIFY
         exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
 
-        self.orders[order.order_id] = order
-        self.orders_to.append(order.copy(), exch_recv_timestamp)
+        self.orders_to.append(order, exch_recv_timestamp)
 
     def cancel(self, order_id, current_timestamp):
         order = self.orders.get(order_id)

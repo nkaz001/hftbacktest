@@ -32,7 +32,7 @@ from .models.queue import (
     IdentityProbQueueModel as IdentityProbQueueModel_,
     SquareProbQueueModel as SquareProbQueueModel_
 )
-from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, GTC, GTX, Order, OrderBus
+from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, MODIFY, GTC, GTX, Order, OrderBus
 from .proc.local import Local
 from .proc.nopartialfillexchange import NoPartialFillExchange
 from .proc.partialfillexchange import PartialFillExchange
@@ -87,6 +87,7 @@ __all__ = (
     'EXPIRED',
     'FILLED',
     'CANCELED',
+    'MODIFY',
 
     # Time-In-Force
     'GTC',
