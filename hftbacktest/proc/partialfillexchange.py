@@ -17,6 +17,7 @@ from ..order import (
     PARTIALLY_FILLED,
     MODIFY,
     GTX,
+    GTC,
     FOK,
     IOC,
     NONE,
@@ -93,7 +94,7 @@ class PartialFillExchange_(Proc):
             resp_timestamp = self.__ack_new(order, recv_timestamp)
 
         # Process a modify order.
-        if order.req == MODIFY:
+        elif order.req == MODIFY:
             order.req = NONE
             resp_timestamp = self.__ack_modify(order, recv_timestamp)
 
@@ -514,22 +515,38 @@ class PartialFillExchange_(Proc):
             if exch_order.side == BUY:
                 # Check if the buy order price is greater than or equal to the current best ask.
                 if exch_order.price_tick >= self.depth.best_ask_tick:
+                    del self.buy_orders[prev_price_tick][exch_order.order_id]
+                    del self.orders[exch_order.order_id]
+
                     if exch_order.time_in_force == GTX:
                         exch_order.status = EXPIRED
-                        del self.buy_orders[prev_price_tick][exch_order.order_id]
-                        del self.orders[exch_order.order_id]
-                    else:
+                    elif exch_order.time_in_force == GTC:
                         # Take the market.
+                        for t in range(self.depth.best_ask_tick, exch_order.price_tick):
+                            exec_qty = min(self.depth.ask_depth[t], exch_order.qty)
+                            local_recv_timestamp = self.__fill(
+                                exch_order,
+                                exec_qty,
+                                timestamp,
+                                False,
+                                exec_price_tick=t,
+                                delete_order=False
+                            )
+                            if exch_order.status == FILLED:
+                                return local_recv_timestamp
+                        # The buy order cannot remain in the ask book, as it cannot affect the market depth during
+                        # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
+                        # size is not small enough, it introduces unreality.
                         return self.__fill(
                             exch_order,
+                            exch_order.leaves_qty,
                             timestamp,
                             False,
-                            exec_price_tick=self.depth.best_ask_tick,
-                            delete_order=True
+                            exec_price_tick=exch_order.price_tick,
+                            delete_order=False
                         )
                 else:
                     # The exchange accepts this order.
-                    self.orders[exch_order.order_id] = exch_order
                     if prev_price_tick != exch_order.price_tick:
                         del self.buy_orders[prev_price_tick][exch_order.order_id]
                         o = self.buy_orders.setdefault(
@@ -544,22 +561,38 @@ class PartialFillExchange_(Proc):
             else:
                 # Check if the sell order price is less than or equal to the current best bid.
                 if exch_order.price_tick <= self.depth.best_bid_tick:
+                    del self.sell_orders[prev_price_tick][exch_order.order_id]
+                    del self.orders[exch_order.order_id]
+
                     if exch_order.time_in_force == GTX:
                         exch_order.status = EXPIRED
-                        del self.sell_orders[prev_price_tick][exch_order.order_id]
-                        del self.orders[exch_order.order_id]
-                    else:
+                    elif exch_order.time_in_force == GTC:
                         # Take the market.
+                        for t in range(self.depth.best_bid_tick, exch_order.price_tick, -1):
+                            exec_qty = min(self.depth.bid_depth[t], exch_order.qty)
+                            local_recv_timestamp = self.__fill(
+                                exch_order,
+                                exec_qty,
+                                timestamp,
+                                False,
+                                exec_price_tick=t,
+                                delete_order=False
+                            )
+                            if exch_order.status == FILLED:
+                                return local_recv_timestamp
+                        # The sell order cannot remain in the bid book, as it cannot affect the market depth during
+                        # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
+                        # size is not small enough, it introduces unreality.
                         return self.__fill(
                             exch_order,
+                            exch_order.leaves_qty,
                             timestamp,
                             False,
-                            exec_price_tick=self.depth.best_bid_tick,
-                            delete_order=True
+                            exec_price_tick=exch_order.price_tick,
+                            delete_order=False
                         )
                 else:
                     # The exchange accepts this order.
-                    self.orders[exch_order.order_id] = order
                     if prev_price_tick != exch_order.price_tick:
                         del self.sell_orders[prev_price_tick][exch_order.order_id]
                         o = self.sell_orders.setdefault(

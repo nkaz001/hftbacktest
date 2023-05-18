@@ -77,7 +77,7 @@ class NoPartialFillExchange_(Proc):
             resp_timestamp = self.__ack_new(order, recv_timestamp)
 
         # Process a modify order.
-        if order.req == MODIFY:
+        elif order.req == MODIFY:
             order.req = NONE
             resp_timestamp = self.__ack_modify(order, recv_timestamp)
 
@@ -326,10 +326,11 @@ class NoPartialFillExchange_(Proc):
         if exch_order.side == BUY:
             # Check if the buy order price is greater than or equal to the current best ask.
             if exch_order.price_tick >= self.depth.best_ask_tick:
+                del self.buy_orders[prev_price_tick][exch_order.order_id]
+                del self.orders[exch_order.order_id]
+
                 if exch_order.time_in_force == GTX:
                     exch_order.status = EXPIRED
-                    del self.buy_orders[prev_price_tick][exch_order.order_id]
-                    del self.orders[exch_order.order_id]
                 else:
                     # Take the market.
                     return self.__fill(
@@ -337,11 +338,10 @@ class NoPartialFillExchange_(Proc):
                         timestamp,
                         False,
                         exec_price_tick=self.depth.best_ask_tick,
-                        delete_order=True
+                        delete_order=False
                     )
             else:
                 # The exchange accepts this order.
-                self.orders[exch_order.order_id] = exch_order
                 if prev_price_tick != exch_order.price_tick:
                     del self.buy_orders[prev_price_tick][exch_order.order_id]
                     o = self.buy_orders.setdefault(
@@ -356,10 +356,11 @@ class NoPartialFillExchange_(Proc):
         else:
             # Check if the sell order price is less than or equal to the current best bid.
             if exch_order.price_tick <= self.depth.best_bid_tick:
+                del self.sell_orders[prev_price_tick][exch_order.order_id]
+                del self.orders[exch_order.order_id]
+
                 if exch_order.time_in_force == GTX:
                     exch_order.status = EXPIRED
-                    del self.sell_orders[prev_price_tick][exch_order.order_id]
-                    del self.orders[exch_order.order_id]
                 else:
                     # Take the market.
                     return self.__fill(
@@ -367,11 +368,10 @@ class NoPartialFillExchange_(Proc):
                         timestamp,
                         False,
                         exec_price_tick=self.depth.best_bid_tick,
-                        delete_order=True
+                        delete_order=False
                     )
             else:
                 # The exchange accepts this order.
-                self.orders[exch_order.order_id] = order
                 if prev_price_tick != exch_order.price_tick:
                     del self.sell_orders[prev_price_tick][exch_order.order_id]
                     o = self.sell_orders.setdefault(
