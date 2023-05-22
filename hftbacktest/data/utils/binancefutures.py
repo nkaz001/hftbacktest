@@ -68,6 +68,8 @@ def convert(
             if data is not None:
                 evt = data['e']
                 if evt == 'trade':
+                    if data['X'] != 'MARKET':
+                        continue
                     # event_time = data['E']
                     transaction_time = data['T']
                     price = data['p']
