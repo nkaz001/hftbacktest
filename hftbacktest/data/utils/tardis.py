@@ -11,6 +11,7 @@ def convert(
         input_files: List[str],
         output_filename: Optional[str] = None,
         buffer_size: int = 100_000_000,
+        ss_buffer_size: int = 1_000,
         base_latency: float = 0,
         method: Literal['separate', 'adjust'] = 'separate'
 ) -> NDArray:
@@ -91,8 +92,8 @@ def convert(
                         # Prepare to insert DEPTH_SNAPSHOT_EVENT
                         if not is_snapshot:
                             is_snapshot = True
-                            ss_bid = np.empty((1000, 6), np.float64)
-                            ss_ask = np.empty((1000, 6), np.float64)
+                            ss_bid = np.empty((ss_buffer_size, 6), np.float64)
+                            ss_ask = np.empty((ss_buffer_size, 6), np.float64)
                             ss_bid_rn = 0
                             ss_ask_rn = 0
                         if cols[5] == 'bid':
