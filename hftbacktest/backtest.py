@@ -95,6 +95,13 @@ class SingleAssetHftBacktest:
         return self.local.depth.tick_size
 
     @property
+    def lot_size(self):
+        """
+        Lot size
+        """
+        return self.local.depth.lot_size
+
+    @property
     def high_ask_tick(self):
         """
         The highest ask price in the market depth in tick.
