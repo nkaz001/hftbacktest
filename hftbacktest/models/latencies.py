@@ -255,6 +255,18 @@ class IntpOrderLatency:
                 exch_timestamp = self.data[row_num, 1]
                 next_exch_timestamp = self.data[row_num + 1, 1]
 
+                # The exchange may reject an order request due to technical issues such congestion, this is particularly
+                # common in crypto markets. A timestamp of zero on the exchange represents the occurrence of those kinds
+                # of errors at that time.
+                if exch_timestamp <= 0 or next_exch_timestamp <= 0:
+                    resp_timestamp = self.data[row_num, 2]
+                    next_resp_timestamp = self.data[row_num + 1, 2]
+                    lat1 = resp_timestamp - req_local_timestamp
+                    lat2 = next_resp_timestamp - next_req_local_timestamp
+                    # Negative latency indicates that the order is rejected for technical reasons, and its value
+                    # represents the latency that the local experiences when receiving the rejection notification
+                    return -self.__intp(timestamp, req_local_timestamp, lat1, next_req_local_timestamp, lat2)
+
                 lat1 = exch_timestamp - req_local_timestamp
                 lat2 = next_exch_timestamp - next_req_local_timestamp
                 return self.__intp(timestamp, req_local_timestamp, lat1, next_req_local_timestamp, lat2)
@@ -276,7 +288,18 @@ class IntpOrderLatency:
 
                 lat1 = resp_local_timestamp - exch_timestamp
                 lat2 = next_resp_local_timestamp - next_exch_timestamp
-                return self.__intp(timestamp, exch_timestamp, lat1, next_exch_timestamp, lat2)
+
+                if exch_timestamp <= 0 and next_exch_timestamp <= 0:
+                    raise ValueError
+                elif exch_timestamp <= 0:
+                    return lat2
+                else:
+                    return lat1
+
+                lat = self.__intp(timestamp, exch_timestamp, lat1, next_exch_timestamp, lat2)
+                if lat < 0:
+                    raise ValueError('Response latency cannot be negative.')
+                return lat
         raise ValueError
 
     def reset(self):
