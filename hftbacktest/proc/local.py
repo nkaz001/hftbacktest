@@ -3,7 +3,7 @@ from numba import int64, float64
 from numba.experimental import jitclass
 
 from .proc import Proc, proc_spec
-from ..order import BUY, NEW, CANCELED, FILLED, EXPIRED, NONE, MODIFY, Order
+from ..order import BUY, NEW, CANCELED, FILLED, EXPIRED, NONE, MODIFY, Order, REJECTED
 from ..reader import (
     COL_EVENT,
     COL_LOCAL_TIMESTAMP,
@@ -75,6 +75,12 @@ class Local_(Proc):
 
     def _process_recv_order(self, order, recv_timestamp, wait_resp, next_timestamp):
         # Apply the received order response to the local orders.
+        if order.req == REJECTED:
+            existing_order = self.orders.get(order.order_id)
+            if existing_order is not None:
+                existing_order.req = NONE
+            return next_timestamp
+
         self.orders[order.order_id] = order
         if order.status == FILLED:
             self.state.apply_fill(order)
@@ -124,10 +130,23 @@ class Local_(Proc):
         price_tick = round(price / self.depth.tick_size)
         order = Order(order_id, price_tick, self.depth.tick_size, qty, side, time_in_force, order_type)
         order.req = NEW
-        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
 
         self.orders[order.order_id] = order
-        self.orders_to.append(order.copy(), exch_recv_timestamp)
+
+        order = order.copy()
+
+        lat = self.order_latency.entry(current_timestamp, order, self)
+        # Negative latency indicates that the order is rejected for technical reasons, and its value represents the
+        # latency that the local experiences when receiving the rejection notification
+        if lat < 0:
+            # Rejects the order.
+            order.status = REJECTED
+            self.orders_from.append(order, current_timestamp - lat)
+            return
+
+        exch_recv_timestamp = current_timestamp + lat
+
+        self.orders_to.append(order, exch_recv_timestamp)
 
     def modify_order(self, order_id, price, qty, current_timestamp):
         order = self.orders.get(order_id)
@@ -140,9 +159,20 @@ class Local_(Proc):
         order.req = MODIFY
 
         order = order.copy()
+
+        lat = self.order_latency.entry(current_timestamp, order, self)
+        # Negative latency indicates that the order is rejected for technical reasons, and its value represents the
+        # latency that the local experiences when receiving the rejection notification
+        if lat < 0:
+            # Rejects the order.
+            order.req = REJECTED
+            self.orders_from.append(order, current_timestamp - lat)
+            return
+
         order.price_tick = round(price / self.depth.tick_size)
         order.qty = qty
-        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
+
+        exch_recv_timestamp = current_timestamp + lat
 
         self.orders_to.append(order, exch_recv_timestamp)
 
@@ -155,15 +185,28 @@ class Local_(Proc):
             raise ValueError('the given order cannot be canceled because there is a ongoing request.')
 
         order.req = CANCELED
-        exch_recv_timestamp = current_timestamp + self.order_latency.entry(current_timestamp, order, self)
 
-        self.orders_to.append(order.copy(), exch_recv_timestamp)
+        order = order.copy()
+
+        lat = self.order_latency.entry(current_timestamp, order, self)
+        # Negative latency indicates that the order is rejected for technical reasons, and its value represents the
+        # latency that the local experiences when receiving the rejection notification
+        if lat < 0:
+            # Rejects the order.
+            order.req = REJECTED
+            self.orders_from.append(order, current_timestamp - lat)
+            return
+
+        exch_recv_timestamp = current_timestamp + lat
+
+        self.orders_to.append(order, exch_recv_timestamp)
 
     def clear_inactive_orders(self):
         for order in list(self.orders.values()):
             if order.status == EXPIRED \
                     or order.status == FILLED \
-                    or order.status == CANCELED:
+                    or order.status == CANCELED \
+                    or order.status == REJECTED:
                 del self.orders[order.order_id]
 
     def clear_last_trades(self):
