@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 
 from ... import HftBacktest, Linear, ConstantLatency
 from ...typing import DataCollection, Data
-from ...reader import UNTIL_END_OF_DATA
+from ...reader import UNTIL_END_OF_DATA, DEPTH_SNAPSHOT_EVENT
 
 
 def create_last_snapshot(
@@ -47,7 +47,7 @@ def create_last_snapshot(
 
     snapshot = []
     snapshot += [[
-        4,
+        DEPTH_SNAPSHOT_EVENT,
         hbt.last_timestamp,
         -1,
         1,
@@ -55,7 +55,7 @@ def create_last_snapshot(
         float(qty)
     ] for bid, qty in sorted(hbt.bid_depth.items(), key=lambda v: -float(v[0]))]
     snapshot += [[
-        4,
+        DEPTH_SNAPSHOT_EVENT,
         hbt.last_timestamp,
         -1,
         -1,
