@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .. import correct, validate_data
+from ... import DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT
 
 
 def convert(
@@ -76,15 +77,15 @@ def convert(
                     qty = data['q']
                     side = -1 if data['m'] else 1  # trade initiator's side
                     exch_timestamp = int(transaction_time) * 1000
-                    rows.append([2, exch_timestamp, local_timestamp, side, float(price), float(qty)])
+                    rows.append([TRADE_EVENT, exch_timestamp, local_timestamp, side, float(price), float(qty)])
                 elif evt == 'depthUpdate':
                     # event_time = data['E']
                     transaction_time = data['T']
                     bids = data['b']
                     asks = data['a']
                     exch_timestamp = int(transaction_time) * 1000
-                    rows += [[1, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
-                    rows += [[1, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
+                    rows += [[DEPTH_EVENT, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
+                    rows += [[DEPTH_EVENT, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
                 elif evt == 'markPriceUpdate' and 'm' in opt:
                     # event_time = data['E']
                     transaction_time = data['T']
@@ -115,11 +116,11 @@ def convert(
                 ask_clear_upto = float(asks[-1][0])
                 exch_timestamp = int(transaction_time) * 1000
                 # clear the existing market depth upto the prices in the snapshot.
-                rows.append([3, exch_timestamp, local_timestamp, 1, bid_clear_upto, 0])
-                rows.append([3, exch_timestamp, local_timestamp, -1, ask_clear_upto, 0])
+                rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, 1, bid_clear_upto, 0])
+                rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, -1, ask_clear_upto, 0])
                 # insert the snapshot.
-                rows += [[4, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
-                rows += [[4, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
+                rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
+                rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
 
     data = np.asarray(rows, np.float64)
     data = correct(data, base_latency=base_latency, method=method)

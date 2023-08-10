@@ -4,6 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .. import merge_on_local_timestamp, correct, validate_data
+from ... import DEPTH_EVENT, TRADE_EVENT, DEPTH_SNAPSHOT_EVENT
 
 
 def convert_snapshot(
@@ -49,7 +50,7 @@ def convert_snapshot(
 
             if side == 1:
                 ss_bid.append([
-                    4,
+                    DEPTH_SNAPSHOT_EVENT,
                     exch_timestamp,
                     loc_timestamp,
                     side,
@@ -58,7 +59,7 @@ def convert_snapshot(
                 ])
             else:
                 ss_ask.append([
-                    4,
+                    DEPTH_SNAPSHOT_EVENT,
                     exch_timestamp,
                     loc_timestamp,
                     side,
@@ -129,7 +130,7 @@ def convert(
 
             # Insert DEPTH_EVENT
             tmp_depth[row_num] = [
-                1,
+                DEPTH_EVENT,
                 exch_timestamp,
                 loc_timestamp,
                 side,
@@ -161,7 +162,7 @@ def convert(
 
             # Insert TRADE_EVENT
             tmp_trades[row_num] = [
-                2,
+                TRADE_EVENT,
                 exch_timestamp,
                 loc_timestamp,
                 side,
