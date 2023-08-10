@@ -149,6 +149,9 @@ def convert(
             if line is None or line == '':
                 break
             cols = line.strip().split(',')
+            # Checks if it's a header.
+            if cols[0] == 'id':
+                continue
 
             exch_timestamp = int(cols[4])
             loc_timestamp = exch_timestamp + feed_latency
