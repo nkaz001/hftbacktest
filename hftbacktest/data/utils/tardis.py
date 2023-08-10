@@ -5,6 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .. import merge_on_local_timestamp, correct, validate_data
+from ... import DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DEPTH_EVENT
 
 
 def convert(
@@ -79,7 +80,7 @@ def convert(
                 elif file_type == TRADE:
                     # Insert TRADE_EVENT
                     tmp[row_num] = [
-                        2,
+                        TRADE_EVENT,
                         int(cols[2]),
                         int(cols[3]),
                         1 if cols[5] == 'buy' else -1,
@@ -98,7 +99,7 @@ def convert(
                             ss_ask_rn = 0
                         if cols[5] == 'bid':
                             ss_bid[ss_bid_rn] = [
-                                4,
+                                DEPTH_SNAPSHOT_EVENT,
                                 int(cols[2]),
                                 int(cols[3]),
                                 1,
@@ -108,7 +109,7 @@ def convert(
                             ss_bid_rn += 1
                         else:
                             ss_ask[ss_ask_rn] = [
-                                4,
+                                DEPTH_SNAPSHOT_EVENT,
                                 int(cols[2]),
                                 int(cols[3]),
                                 -1,
@@ -123,7 +124,7 @@ def convert(
                             # Add DEPTH_CLEAR_EVENT before refreshing the market depth by the snapshot.
                             # Clear the bid market depth within the snapshot bid range.
                             tmp[row_num] = [
-                                3,
+                                DEPTH_CLEAR_EVENT,
                                 ss_bid[0, 1],
                                 ss_bid[0, 2],
                                 1,
@@ -132,10 +133,14 @@ def convert(
                             ]
                             row_num += 1
                             # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
+                            ss_bid = ss_bid[:ss_bid_rn]
                             tmp[row_num:row_num + len(ss_bid)] = ss_bid[:]
+                            row_num += len(ss_bid)
+                            ss_bid = None
+
                             # Clear the ask market depth within the snapshot ask range.
                             tmp[row_num] = [
-                                3,
+                                DEPTH_CLEAR_EVENT,
                                 ss_ask[0, 1],
                                 ss_ask[0, 2],
                                 -1,
@@ -144,10 +149,13 @@ def convert(
                             ]
                             row_num += 1
                             # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
+                            ss_ask = ss_ask[:ss_ask_rn]
                             tmp[row_num:row_num + len(ss_ask)] = ss_ask[:]
+                            row_num += len(ss_ask)
+                            ss_ask = None
                         # Insert DEPTH_EVENT
                         tmp[row_num] = [
-                            1,
+                            DEPTH_EVENT,
                             int(cols[2]),
                             int(cols[3]),
                             1 if cols[5] == 'bid' else -1,
