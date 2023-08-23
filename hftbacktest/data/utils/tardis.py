@@ -12,7 +12,7 @@ def convert(
         input_files: List[str],
         output_filename: Optional[str] = None,
         buffer_size: int = 100_000_000,
-        ss_buffer_size: int = 1_000,
+        ss_buffer_size: int = 10_000,
         base_latency: float = 0,
         method: Literal['separate', 'adjust'] = 'separate'
 ) -> NDArray:
@@ -121,7 +121,10 @@ def convert(
                         if is_snapshot:
                             # End of the snapshot.
                             is_snapshot = False
+
                             # Add DEPTH_CLEAR_EVENT before refreshing the market depth by the snapshot.
+
+                            ss_bid = ss_bid[:ss_bid_rn]
                             # Clear the bid market depth within the snapshot bid range.
                             tmp[row_num] = [
                                 DEPTH_CLEAR_EVENT,
@@ -133,11 +136,11 @@ def convert(
                             ]
                             row_num += 1
                             # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
-                            ss_bid = ss_bid[:ss_bid_rn]
                             tmp[row_num:row_num + len(ss_bid)] = ss_bid[:]
                             row_num += len(ss_bid)
                             ss_bid = None
 
+                            ss_ask = ss_ask[:ss_ask_rn]
                             # Clear the ask market depth within the snapshot ask range.
                             tmp[row_num] = [
                                 DEPTH_CLEAR_EVENT,
@@ -149,7 +152,6 @@ def convert(
                             ]
                             row_num += 1
                             # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
-                            ss_ask = ss_ask[:ss_ask_rn]
                             tmp[row_num:row_num + len(ss_ask)] = ss_ask[:]
                             row_num += len(ss_ask)
                             ss_ask = None
