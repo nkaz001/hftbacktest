@@ -293,7 +293,7 @@ class IntpOrderLatency:
                     raise ValueError
                 elif exch_timestamp <= 0:
                     return lat2
-                else:
+                elif next_exch_timestamp <= 0:
                     return lat1
 
                 lat = self.__intp(timestamp, exch_timestamp, lat1, next_exch_timestamp, lat2)
