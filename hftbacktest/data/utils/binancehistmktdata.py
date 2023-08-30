@@ -268,6 +268,13 @@ def convert(
             row_num += 1
     tmp_trades = tmp_trades[:row_num]
 
+    # A mingled exchange timestamp is frequently observed on Binance.
+    # But, because the data doesn't have a local timestamp, there's difficulty in preserving the received order while
+    # keeping the local timestamp in sequence.
+    # A simple solution is to sort by the derived local timestamp to resolve the issue.
+    tmp_depth = tmp_depth[tmp_depth[:, 2].argsort()]
+    tmp_trades = tmp_trades[tmp_trades[:, 2].argsort()]
+
     print('Merging')
     data = merge_on_local_timestamp(tmp_depth, tmp_trades)
     data = correct(data, base_latency=base_latency, method=method)
