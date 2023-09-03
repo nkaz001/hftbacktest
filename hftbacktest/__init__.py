@@ -128,7 +128,7 @@ __all__ = (
     'correct'
 )
 
-__version__ = '1.6.4'
+__version__ = '1.6.5'
 
 
 # JIT'ed latency models

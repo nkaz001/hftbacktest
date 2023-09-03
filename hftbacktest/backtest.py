@@ -23,31 +23,35 @@ class SingleAssetHftBacktest:
         #: Whether a backtest has finished.
         self.run = True
         #: Current timestamp
-        self.current_timestamp = self.local.next_data[0, COL_LOCAL_TIMESTAMP]
+        self.current_timestamp = self.start_timestamp
 
     @property
     def start_timestamp(self):
         # fixme: deprecated.
         # it returns the timestamp of the first row of the data that is currently processed.
-        if len(self.local.data) > 0:
-            return self.local.data[0, COL_LOCAL_TIMESTAMP]
-        else:
-            if len(self.local.next_data) > 0:
-                return self.local.next_data[0, COL_LOCAL_TIMESTAMP]
-            else:
-                return 0
+        for i in range(len(self.local.data)):
+            timestamp = self.local.data[i, COL_LOCAL_TIMESTAMP]
+            if timestamp > 0:
+                return timestamp
+        for i in range(len(self.local.next_data)):
+            timestamp = self.local.next_data[i, COL_LOCAL_TIMESTAMP]
+            if timestamp > 0:
+                return timestamp
+        return 0
 
     @property
     def last_timestamp(self):
         # fixme: deprecated.
         # it returns the timestamp of the last row of the data that is currently processed.
-        if len(self.local.data) > 0:
-            return self.local.data[-1, COL_LOCAL_TIMESTAMP]
-        else:
-            if len(self.local.next_data) > 0:
-                return self.local.next_data[-1, COL_LOCAL_TIMESTAMP]
-            else:
-                return 0
+        for i in range(len(self.local.data) - 1, -1, -1):
+            timestamp = self.local.data[i, COL_LOCAL_TIMESTAMP]
+            if timestamp > 0:
+                return timestamp
+        for i in range(len(self.local.next_data) - 1, -1, -1):
+            timestamp = self.local.next_data[i, COL_LOCAL_TIMESTAMP]
+            if timestamp > 0:
+                return timestamp
+        return 0
 
     @property
     def position(self):
@@ -488,5 +492,5 @@ class SingleAssetHftBacktest:
             lot_size,
             snapshot
         )
-        self.current_timestamp = self.local.next_data[0, COL_LOCAL_TIMESTAMP]
+        self.current_timestamp = self.start_timestamp
         self.run = True
