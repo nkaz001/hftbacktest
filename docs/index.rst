@@ -3,6 +3,9 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+.. meta::
+   :google-site-verification: IJcyhIoS28HF0lp6fGjBEOC65kVecelW6ZsFhbDaD-A
+
 ===========
 HftBacktest
 ===========
