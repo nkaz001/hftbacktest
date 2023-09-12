@@ -14,6 +14,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath('..'))
 
+import hftbacktest
+
 # -- Project information -----------------------------------------------------
 
 project = 'hftbacktest'
@@ -21,7 +23,7 @@ copyright = '2023, nkaz001'
 author = 'nkaz001'
 
 # The full version, including alpha/beta/rc tags
-release = '1.5.4'
+release = hftbacktest.__version__
 
 
 # -- General configuration ---------------------------------------------------
