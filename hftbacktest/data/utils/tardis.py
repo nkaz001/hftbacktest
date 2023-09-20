@@ -14,7 +14,8 @@ def convert(
         buffer_size: int = 100_000_000,
         ss_buffer_size: int = 10_000,
         base_latency: float = 0,
-        method: Literal['separate', 'adjust'] = 'separate'
+        method: Literal['separate', 'adjust'] = 'separate',
+        snapshot_mode: Literal['process', 'ignore_sod', 'ignore'] = 'process'
 ) -> NDArray:
     r"""
     Converts Tardis.dev data files into a format compatible with HftBacktest.
@@ -27,6 +28,14 @@ def convert(
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
         method: The method to correct reversed exchange timestamp events. See :func:`..validation.correct`.
+        snapshot_mode: - If this is set to 'ignore', all snapshots are ignored. The order book will converge to a
+                         complete order book over time.
+                       - If this is set to 'ignore_sod', the SOD (Start of Day) snapshot is ignored.
+                         Since Tardis intentionally adds the SOD snapshot, not due to a message ID gap or disconnection,
+                         there might not be a need to process SOD snapshot to build a complete order book.
+                         Please see https://docs.tardis.dev/historical-data-details#collected-order-book-data-details
+                         for more details.
+                       - Otherwise, all snapshot events will be processed.
 
     Returns:
         Converted data compatible with HftBacktest.
@@ -44,6 +53,7 @@ def convert(
         ss_ask = None
         ss_bid_rn = 0
         ss_ask_rn = 0
+        is_sod_snapshot = True
         print('Reading %s' % file)
         with gzip.open(file, 'r') as f:
             while True:
@@ -90,6 +100,8 @@ def convert(
                     row_num += 1
                 elif file_type == DEPTH:
                     if cols[4] == 'true':
+                        if (snapshot_mode == 'ignore') or (snapshot_mode == 'ignore_sod' and is_sod_snapshot):
+                            continue
                         # Prepare to insert DEPTH_SNAPSHOT_EVENT
                         if not is_snapshot:
                             is_snapshot = True
@@ -118,6 +130,7 @@ def convert(
                             ]
                             ss_ask_rn += 1
                     else:
+                        is_sod_snapshot = False
                         if is_snapshot:
                             # End of the snapshot.
                             is_snapshot = False
