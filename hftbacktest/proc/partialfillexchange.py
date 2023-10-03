@@ -321,13 +321,32 @@ class PartialFillExchange_(Proc):
                     execute = False
                     cum_qty = 0
                     for t in range(self.depth.best_ask_tick, order.price_tick + 1):
-                        cum_qty += self.depth.ask_depth[t]
-                        if round(cum_qty / self.depth.lot_size) >= round(order.qty / self.depth.lot_size):
-                            execute = True
-                            break
+                        if t in self.depth.ask_depth:
+                            cum_qty += self.depth.ask_depth[t]
+                            if round(cum_qty / self.depth.lot_size) >= round(order.qty / self.depth.lot_size):
+                                execute = True
+                                break
                     if execute:
                         for t in range(self.depth.best_ask_tick, order.price_tick + 1):
-                            exec_qty = min(self.depth.ask_depth[t], order.qty)
+                            if t in self.depth.ask_depth:
+                                exec_qty = min(self.depth.ask_depth[t], order.leaves_qty)
+                                local_recv_timestamp = self.__fill(
+                                    order,
+                                    exec_qty,
+                                    timestamp,
+                                    False,
+                                    exec_price_tick=t,
+                                    delete_order=False
+                                )
+                                if order.status == FILLED:
+                                    return local_recv_timestamp
+                    else:
+                        order.status = EXPIRED
+                elif order.time_in_force == IOC:
+                    # The order must be executed immediately
+                    for t in range(self.depth.best_ask_tick, order.price_tick + 1):
+                        if t in self.depth.ask_depth:
+                            exec_qty = min(self.depth.ask_depth[t], order.leaves_qty)
                             local_recv_timestamp = self.__fill(
                                 order,
                                 exec_qty,
@@ -338,38 +357,23 @@ class PartialFillExchange_(Proc):
                             )
                             if order.status == FILLED:
                                 return local_recv_timestamp
-                    else:
-                        order.status = EXPIRED
-                elif order.time_in_force == IOC:
-                    # The order must be executed immediately
-                    for t in range(self.depth.best_ask_tick, order.price_tick + 1):
-                        exec_qty = min(self.depth.ask_depth[t], order.qty)
-                        local_recv_timestamp = self.__fill(
-                            order,
-                            exec_qty,
-                            timestamp,
-                            False,
-                            exec_price_tick=t,
-                            delete_order=False
-                        )
-                        if order.status == FILLED:
-                            return local_recv_timestamp
                     order.status = EXPIRED
                 else:
                     # time_in_force == GTC
                     # Take the market.
                     for t in range(self.depth.best_ask_tick, order.price_tick):
-                        exec_qty = min(self.depth.ask_depth[t], order.qty)
-                        local_recv_timestamp = self.__fill(
-                            order,
-                            exec_qty,
-                            timestamp,
-                            False,
-                            exec_price_tick=t,
-                            delete_order=False
-                        )
-                        if order.status == FILLED:
-                            return local_recv_timestamp
+                        if t in self.depth.ask_depth:
+                            exec_qty = min(self.depth.ask_depth[t], order.leaves_qty)
+                            local_recv_timestamp = self.__fill(
+                                order,
+                                exec_qty,
+                                timestamp,
+                                False,
+                                exec_price_tick=t,
+                                delete_order=False
+                            )
+                            if order.status == FILLED:
+                                return local_recv_timestamp
                     # The buy order cannot remain in the ask book, as it cannot affect the market depth during
                     # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
                     # size is not small enough, it introduces unreality.
@@ -403,13 +407,32 @@ class PartialFillExchange_(Proc):
                     execute = False
                     cum_qty = 0
                     for t in range(self.depth.best_bid_tick, order.price_tick - 1, -1):
-                        cum_qty += self.depth.bid_depth[t]
-                        if round(cum_qty / self.depth.lot_size) >= round(order.qty / self.depth.lot_size):
-                            execute = True
-                            break
+                        if t in self.depth.bid_depth:
+                            cum_qty += self.depth.bid_depth[t]
+                            if round(cum_qty / self.depth.lot_size) >= round(order.qty / self.depth.lot_size):
+                                execute = True
+                                break
                     if execute:
                         for t in range(self.depth.best_bid_tick, order.price_tick - 1, -1):
-                            exec_qty = min(self.depth.bid_depth[t], order.qty)
+                            if t in self.depth.bid_depth:
+                                exec_qty = min(self.depth.bid_depth[t], order.leaves_qty)
+                                local_recv_timestamp = self.__fill(
+                                    order,
+                                    exec_qty,
+                                    timestamp,
+                                    False,
+                                    exec_price_tick=t,
+                                    delete_order=False
+                                )
+                                if order.status == FILLED:
+                                    return local_recv_timestamp
+                    else:
+                        order.status = EXPIRED
+                elif order.time_in_force == IOC:
+                    # The order must be executed immediately
+                    for t in range(self.depth.best_bid_tick, order.price_tick - 1, -1):
+                        if t in self.depth.bid_depth:
+                            exec_qty = min(self.depth.bid_depth[t], order.leaves_qty)
                             local_recv_timestamp = self.__fill(
                                 order,
                                 exec_qty,
@@ -420,38 +443,24 @@ class PartialFillExchange_(Proc):
                             )
                             if order.status == FILLED:
                                 return local_recv_timestamp
-                    else:
-                        order.status = EXPIRED
-                elif order.time_in_force == IOC:
-                    # The order must be executed immediately
-                    for t in range(self.depth.best_bid_tick, order.price_tick - 1, -1):
-                        exec_qty = min(self.depth.bid_depth[t], order.qty)
-                        local_recv_timestamp = self.__fill(
-                            order,
-                            exec_qty,
-                            timestamp,
-                            False,
-                            exec_price_tick=t,
-                            delete_order=False
-                        )
-                        if order.status == FILLED:
-                            return local_recv_timestamp
                     order.status = EXPIRED
                 else:
                     # time_in_force == GTC
                     # Take the market.
                     for t in range(self.depth.best_bid_tick, order.price_tick, -1):
-                        exec_qty = min(self.depth.bid_depth[t], order.qty)
-                        local_recv_timestamp = self.__fill(
-                            order,
-                            exec_qty,
-                            timestamp,
-                            False,
-                            exec_price_tick=t,
-                            delete_order=False
-                        )
-                        if order.status == FILLED:
-                            return local_recv_timestamp
+                        if t in self.depth.bid_depth:
+                            exec_qty = min(self.depth.bid_depth[t], order.leaves_qty)
+                            local_recv_timestamp = self.__fill(
+                                order,
+                                exec_qty,
+                                timestamp,
+                                False,
+                                exec_price_tick=t,
+                                delete_order=False
+                            )
+                            if order.status == FILLED:
+                                return local_recv_timestamp
+
                     # The sell order cannot remain in the bid book, as it cannot affect the market depth during
                     # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
                     # size is not small enough, it introduces unreality.
@@ -523,17 +532,18 @@ class PartialFillExchange_(Proc):
                     elif exch_order.time_in_force == GTC:
                         # Take the market.
                         for t in range(self.depth.best_ask_tick, exch_order.price_tick):
-                            exec_qty = min(self.depth.ask_depth[t], exch_order.qty)
-                            local_recv_timestamp = self.__fill(
-                                exch_order,
-                                exec_qty,
-                                timestamp,
-                                False,
-                                exec_price_tick=t,
-                                delete_order=False
-                            )
-                            if exch_order.status == FILLED:
-                                return local_recv_timestamp
+                            if t in self.depth.ask_depth:
+                                exec_qty = min(self.depth.ask_depth[t], exch_order.leaves_qty)
+                                local_recv_timestamp = self.__fill(
+                                    exch_order,
+                                    exec_qty,
+                                    timestamp,
+                                    False,
+                                    exec_price_tick=t,
+                                    delete_order=False
+                                )
+                                if exch_order.status == FILLED:
+                                    return local_recv_timestamp
                         # The buy order cannot remain in the ask book, as it cannot affect the market depth during
                         # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
                         # size is not small enough, it introduces unreality.
@@ -569,17 +579,18 @@ class PartialFillExchange_(Proc):
                     elif exch_order.time_in_force == GTC:
                         # Take the market.
                         for t in range(self.depth.best_bid_tick, exch_order.price_tick, -1):
-                            exec_qty = min(self.depth.bid_depth[t], exch_order.qty)
-                            local_recv_timestamp = self.__fill(
-                                exch_order,
-                                exec_qty,
-                                timestamp,
-                                False,
-                                exec_price_tick=t,
-                                delete_order=False
-                            )
-                            if exch_order.status == FILLED:
-                                return local_recv_timestamp
+                            if t in self.depth.bid_depth:
+                                exec_qty = min(self.depth.bid_depth[t], exch_order.leaves_qty)
+                                local_recv_timestamp = self.__fill(
+                                    exch_order,
+                                    exec_qty,
+                                    timestamp,
+                                    False,
+                                    exec_price_tick=t,
+                                    delete_order=False
+                                )
+                                if exch_order.status == FILLED:
+                                    return local_recv_timestamp
                         # The sell order cannot remain in the bid book, as it cannot affect the market depth during
                         # backtesting based on market-data replay. So, even though it simulates partial fill, if the order
                         # size is not small enough, it introduces unreality.
