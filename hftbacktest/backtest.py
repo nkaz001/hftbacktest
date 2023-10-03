@@ -59,30 +59,30 @@ class SingleAssetHftBacktest:
         Current position.
         """
         #
-        return self.local.state.position
+        return self.exch.state.position
 
     @property
     def balance(self):
         """
         Current balance..
         """
-        return self.local.state.balance
+        return self.exch.state.balance
 
     @property
     def fee(self):
-        return self.local.state.fee
+        return self.exch.state.fee
 
     @property
     def trade_num(self):
-        return self.local.state.trade_num
+        return self.exch.state.trade_num
 
     @property
     def trade_qty(self):
-        return self.local.state.trade_qty
+        return self.exch.state.trade_qty
 
     @property
     def trade_amount(self):
-        return self.local.state.trade_amount
+        return self.exch.state.trade_amount
 
     @property
     def orders(self):
@@ -173,7 +173,7 @@ class SingleAssetHftBacktest:
         """
         Current equity value.
         """
-        return self.local.state.equity(self.mid)
+        return self.exch.state.equity(self.mid)
 
     @property
     def last_trade(self):
