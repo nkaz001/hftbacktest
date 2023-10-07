@@ -3,7 +3,7 @@ from numba import int64, float64
 from numba.experimental import jitclass
 
 from .proc import Proc, proc_spec
-from ..order import BUY, NEW, CANCELED, FILLED, EXPIRED, NONE, MODIFY, Order, REJECTED
+from ..order import Order, BUY, NEW, CANCELED, FILLED, EXPIRED, NONE, MODIFY, REJECTED, PARTIALLY_FILLED
 from ..reader import (
     COL_EVENT,
     COL_LOCAL_TIMESTAMP,
@@ -82,7 +82,7 @@ class Local_(Proc):
             return next_timestamp
 
         self.orders[order.order_id] = order
-        if order.status == FILLED:
+        if order.status == FILLED or order.status == PARTIALLY_FILLED:
             self.state.apply_fill(order)
 
         # Bypass next_timestamp
