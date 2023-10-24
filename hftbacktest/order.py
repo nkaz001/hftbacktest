@@ -131,6 +131,12 @@ class OrderBus:
     def append(self, order, timestamp):
         timestamp = int(timestamp)
 
+        # Prevents the order sequence from being out of order.
+        if len(self.order_list) > 0:
+            _, latest_timestamp = self.order_list[-1]
+            if timestamp < latest_timestamp:
+                timestamp = latest_timestamp
+
         self.order_list.append((order, timestamp))
 
         if order.order_id in self.orders:
