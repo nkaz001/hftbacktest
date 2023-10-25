@@ -132,6 +132,9 @@ class OrderBus:
         timestamp = int(timestamp)
 
         # Prevents the order sequence from being out of order.
+        # In crypto exchanges that use REST APIs, it might be still possible for order requests sent later to reach the
+        # matching engine before order requests sent earlier. But, for the purpose of simplifying the backtesting
+        # process, all requests and responses are assumed to be in order.
         if len(self.order_list) > 0:
             _, latest_timestamp = self.order_list[-1]
             if timestamp < latest_timestamp:
