@@ -90,6 +90,9 @@ class Order:
         return self.status == NEW and self.req == NONE
 
     def copy(self):
+        """
+        Return copy of current instance of Order class with current attributes
+        """
         order = Order(
             self.order_id,
             self.price_tick,
