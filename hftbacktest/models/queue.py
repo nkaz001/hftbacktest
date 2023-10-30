@@ -109,3 +109,15 @@ class SquareProbQueueModel(ProbQueueModel):
 
     def f(self, x):
         return x ** 2
+
+
+class PowerProbQueueModel(ProbQueueModel):
+    r"""
+    This model uses a square function ``x ** n`` to adjust the probability.
+    """
+
+    def __init__(self, n):
+        self.n = n
+
+    def f(self, x):
+        return x ** self.n
