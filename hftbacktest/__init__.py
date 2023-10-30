@@ -30,7 +30,8 @@ from .models.queue import (
     RiskAverseQueueModel as RiskAverseQueueModel_,
     LogProbQueueModel as LogProbQueueModel_,
     IdentityProbQueueModel as IdentityProbQueueModel_,
-    SquareProbQueueModel as SquareProbQueueModel_
+    SquareProbQueueModel as SquareProbQueueModel_,
+    PowerProbQueueModel as PowerProbQueueModel_
 )
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, MODIFY, GTC, GTX, Order, OrderBus
 from .proc.local import Local
@@ -115,6 +116,7 @@ __all__ = (
     'LogProbQueueModel',
     'IdentityProbQueueModel',
     'SquareProbQueueModel',
+    'PowerProbQueueModel',
 
     'HftBacktest',
     'Order',
@@ -128,7 +130,7 @@ __all__ = (
     'correct'
 )
 
-__version__ = '1.6.6'
+__version__ = '1.7.0'
 
 
 # JIT'ed latency models
@@ -143,6 +145,7 @@ RiskAverseQueueModel = jitclass()(RiskAverseQueueModel_)
 LogProbQueueModel = jitclass()(LogProbQueueModel_)
 IdentityProbQueueModel = jitclass()(IdentityProbQueueModel_)
 SquareProbQueueModel = jitclass()(SquareProbQueueModel_)
+PowerProbQueueModel = jitclass()(PowerProbQueueModel_)
 
 # JIT'ed asset types
 LinearAsset = jitclass()(LinearAsset_)
