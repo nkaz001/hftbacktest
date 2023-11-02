@@ -363,7 +363,8 @@ class SingleAssetHftBacktest:
 
     def clear_inactive_orders(self):
         r"""
-        Clear inactive(``CANCELED``, ``FILLED``, or ``EXPIRED``) orders from the local ``orders`` dictionary.
+        Clear inactive(``CANCELED``, ``FILLED``, ``EXPIRED``, or ``REJECTED``) orders from the local ``orders``
+        dictionary.
         """
         self.local.clear_inactive_orders()
 

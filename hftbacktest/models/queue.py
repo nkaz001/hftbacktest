@@ -113,7 +113,7 @@ class SquareProbQueueModel(ProbQueueModel):
 
 class PowerProbQueueModel(ProbQueueModel):
     r"""
-    This model uses a square function ``x ** n`` to adjust the probability.
+    This model uses a power function ``x ** n`` to adjust the probability.
     """
 
     def __init__(self, n):
