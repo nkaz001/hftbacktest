@@ -15,6 +15,10 @@ Queue Models
     :members:
     :show-inheritance:
 
+.. autoclass:: hftbacktest.models.queue.PowerProbQueueModel
+    :members:
+    :show-inheritance:
+
 .. autoclass:: hftbacktest.models.queue.LogProbQueueModel
     :members:
     :show-inheritance:
