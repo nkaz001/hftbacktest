@@ -75,7 +75,7 @@ class Proc:
             return next_data_timestamp
 
     def _next_data_timestamp_column(self, column):
-        # Find the next valid timestamp
+        # Finds the next valid timestamp
         while True:
             if self.next_row_num < len(self.next_data):
                 timestamp = self.next_data[self.next_row_num, column]
@@ -107,14 +107,13 @@ class Proc:
         # otherwise, choose the valid one.
         if (0 < next_recv_order_timestamp < next_data_timestamp) \
                 or (next_data_timestamp <= 0 < next_recv_order_timestamp):
-            # Process the order part.
+            # Processes the order part.
             next_timestamp = 0
             next_frontmost_timestamp = 0
-            i = 0
-            while i < self.orders_from.__len__():
-                order, recv_timestamp = self.orders_from[i]
-                if self.orders_from.frontmost_timestamp == recv_timestamp:
-                    self.orders_from.delitem(i)
+            while self.orders_from.__len__() > 0:
+                order, recv_timestamp = self.orders_from[0]
+                if recv_timestamp <= self.orders_from.frontmost_timestamp:
+                    self.orders_from.delitem(0)
 
                     next_timestamp = self._process_recv_order(
                         order,
@@ -123,17 +122,15 @@ class Proc:
                         next_timestamp
                     )
                 else:
-                    i += 1
-                    # Find the next frontmost timestamp
-                    if next_frontmost_timestamp <= 0:
-                        next_frontmost_timestamp = recv_timestamp
-                    else:
-                        next_frontmost_timestamp = min(next_frontmost_timestamp, recv_timestamp)
+                    # Since we enforce the order of received timestamps to be sequential in OrderBus's append method,
+                    # the next received timestamp is the next frontmost timestamp.
+                    next_frontmost_timestamp = recv_timestamp
+                    break
             self.orders_from.frontmost_timestamp = next_frontmost_timestamp
             return next_timestamp
         else:
-            # Process the data part.
-            # Move to the next row.
+            # Processes the data part.
+            # Moves to the next row.
             self.row_num = self.next_row_num
             self.data = self.next_data
 
