@@ -210,6 +210,24 @@ SquareProbQueueModel
         asset_type=Linear
     )
 
+PowerProbQueueModel
+~~~~~~~~~~~~~~~~~~~
+
+..  code-block:: python
+
+    from hftbacktest import PowerProbQueueModel
+
+    hbt = HftBacktest(
+        data,
+        tick_size=0.01,
+        lot_size=0.001,
+        maker_fee=-0.00005,
+        taker_fee=0.0007,
+        order_latency=IntpOrderLatency(latency_data),
+        queue_model=PowerProbQueueModel(3)
+        asset_type=Linear
+    )
+
 Implement a custom probability queue position model
 ---------------------------------------------------
 
