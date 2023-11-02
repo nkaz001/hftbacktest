@@ -7,8 +7,8 @@ from numba import int64, float64, boolean
 spec = [
     ('bids', float64[:, :, :]),
     ('asks', float64[:, :, :]),
-    ('bid_delete_lvs', int64[:, :]),
-    ('ask_delete_lvs', int64[:, :]),
+    ('bid_delete_lvs', float64[:, :]),
+    ('ask_delete_lvs', float64[:, :]),
     ('ob', int64),
     ('update_bid_lv', int64),
     ('update_ask_lv', int64),
@@ -22,8 +22,9 @@ class DiffOrderBookSnapshot:
         # [num_levels, {current, next}, {price, qty, is_updated}]
         self.bids = np.zeros((num_levels, 2, 3), float64)
         self.asks = np.zeros((num_levels, 2, 3), float64)
-        self.bid_delete_lvs = np.zeros((num_levels, 2), int64)
-        self.ask_delete_lvs = np.zeros((num_levels, 2), int64)
+        # [num_levels, {price, delete_type}]
+        self.bid_delete_lvs = np.zeros((num_levels, 2), float64)
+        self.ask_delete_lvs = np.zeros((num_levels, 2), float64)
         self.ob = 0
         self.update_bid_lv = 0
         self.update_ask_lv = 0
