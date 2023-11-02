@@ -2,7 +2,7 @@
 HftBacktest
 ===========
 
-|codacy| |codeql| |pypi| |downloads| |license| |docs|
+|codacy| |codeql| |pypi| |downloads| |license| |docs| |github|
 
 High-Frequency Trading Backtesting Tool in Python
 ====================================================================
@@ -138,29 +138,33 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
 
 
 .. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
-    :alt: |Python Version
+    :alt: Python Version
     :target: https://badge.fury.io/py/tensorflow
 
 .. |codacy| image:: https://app.codacy.com/project/badge/Grade/e2cef673757a45b18abfc361779feada
-    :alt: |Codacy
+    :alt: Codacy
     :target: https://www.codacy.com/gh/nkaz001/hftbacktest/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=nkaz001/hftbacktest&amp;utm_campaign=Badge_Grade
 
 .. |codeql| image:: https://github.com/nkaz001/hftbacktest/actions/workflows/codeql.yml/badge.svg?branch=master&event=push
-    :alt: |CodeQL
+    :alt: CodeQL
     :target: https://github.com/nkaz001/hftbacktest/actions/workflows/codeql.yml
 
 .. |pypi| image:: https://badge.fury.io/py/hftbacktest.svg
-    :alt: |Package Version
+    :alt: Package Version
     :target: https://pypi.org/project/hftbacktest
 
 .. |downloads| image:: https://static.pepy.tech/badge/hftbacktest
-    :alt: |Downloads
+    :alt: Downloads
     :target: https://pepy.tech/project/hftbacktest
 
 .. |license| image:: https://img.shields.io/badge/License-MIT-green.svg
-    :alt: |License
+    :alt: License
     :target: https://github.com/nkaz001/hftbacktest/blob/master/LICENSE
 
 .. |docs| image:: https://readthedocs.org/projects/hftbacktest/badge/?version=latest
     :target: https://hftbacktest.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+
+.. |github| image:: https://img.shields.io/github/stars/nkaz001/hftbacktest?style=social
+    :target: https://github.com/nkaz001/hftbacktest
+    :alt: Github
