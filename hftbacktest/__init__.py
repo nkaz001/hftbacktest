@@ -2,7 +2,7 @@ from typing import Union, List, Optional
 
 import numpy as np
 import pandas as pd
-from numba import boolean, int64, typeof
+from numba import boolean, int64, float64, typeof
 from numba.experimental import jitclass
 
 from .assettype import (
@@ -145,7 +145,7 @@ RiskAverseQueueModel = jitclass()(RiskAverseQueueModel_)
 LogProbQueueModel = jitclass()(LogProbQueueModel_)
 IdentityProbQueueModel = jitclass()(IdentityProbQueueModel_)
 SquareProbQueueModel = jitclass()(SquareProbQueueModel_)
-PowerProbQueueModel = jitclass()(PowerProbQueueModel_)
+PowerProbQueueModel = jitclass(spec=[('n', float64)])(PowerProbQueueModel_)
 
 # JIT'ed asset types
 LinearAsset = jitclass()(LinearAsset_)
