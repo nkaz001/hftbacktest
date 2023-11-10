@@ -120,6 +120,8 @@ If an exchange doesn't provide Market-By-Order, you have to guess it by modeling
 HftBacktest currently only supports Market-By-Price that is most crypto exchanges provide and it provides the following
 queue position models for order fill simulation.
 
+Please refer to the details at :doc:`Queue Models <reference/queue_models>`.
+
 .. image:: images/liquidity-and-trade-activities.png
 
 RiskAverseQueueModel
@@ -153,8 +155,9 @@ Based on a probability model according to your current queue position, the decre
 and tail of the queue.
 So your queue position is also advanced according to the probability.
 This model is implemented as described in
-https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
 
+* https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
+* https://rigtorp.se/2013/06/08/estimating-order-queue-position.html
 
 LogProbQueueModel
 ~~~~~~~~~~~~~~~~~
@@ -225,6 +228,29 @@ PowerProbQueueModel
         taker_fee=0.0007,
         order_latency=IntpOrderLatency(latency_data),
         queue_model=PowerProbQueueModel(3)
+        asset_type=Linear
+    )
+
+ProbQueueModel2
+---------------
+This model is a variation of the `ProbQueueModel`_ that changes the probability calculation to
+f(back) / f(front + back) from f(back) / (f(front) + f(back)).
+
+LogProbQueueModel2
+~~~~~~~~~~~~~~~~~~
+
+..  code-block:: python
+
+    from hftbacktest import LogProbQueueModel2
+
+    hbt = HftBacktest(
+        data,
+        tick_size=0.01,
+        lot_size=0.001,
+        maker_fee=-0.00005,
+        taker_fee=0.0007,
+        order_latency=IntpOrderLatency(latency_data),
+        queue_model=LogProbQueueModel2()
         asset_type=Linear
     )
 
