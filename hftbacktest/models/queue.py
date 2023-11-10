@@ -121,3 +121,22 @@ class PowerProbQueueModel(ProbQueueModel):
 
     def f(self, x):
         return x ** self.n
+
+
+class ProbQueueModel2(ProbQueueModel):
+    r"""
+    This model is a variation of the :class:`.ProbQueueModel` that changes the probability calculation to
+    f(back) / f(front + back) from f(back) / (f(front) + f(back)).
+    """
+
+    def prob(self, front, back):
+        return np.divide(self.f(back), self.f(back + front))
+
+
+class LogProbQueueModel2(ProbQueueModel2):
+    r"""
+    This model uses a logarithmic function ``log(1 + x)`` to adjust the probability.
+    """
+
+    def f(self, x):
+        return np.log(1 + x)
