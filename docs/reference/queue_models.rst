@@ -22,3 +22,11 @@ Queue Models
 .. autoclass:: hftbacktest.models.queue.LogProbQueueModel
     :members:
     :show-inheritance:
+
+.. autoclass:: hftbacktest.models.queue.ProbQueueModel2
+    :members:
+    :show-inheritance:
+
+.. autoclass:: hftbacktest.models.queue.LogProbQueueModel2
+    :members:
+    :show-inheritance:
