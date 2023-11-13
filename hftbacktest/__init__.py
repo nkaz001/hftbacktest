@@ -32,7 +32,8 @@ from .models.queue import (
     IdentityProbQueueModel as IdentityProbQueueModel_,
     SquareProbQueueModel as SquareProbQueueModel_,
     PowerProbQueueModel as PowerProbQueueModel_,
-    LogProbQueueModel2 as LogProbQueueModel2_
+    LogProbQueueModel2 as LogProbQueueModel2_,
+    PowerProbQueueModel3 as PowerProbQueueModel3_
 )
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, MODIFY, GTC, GTX, Order, OrderBus
 from .proc.local import Local
@@ -119,6 +120,7 @@ __all__ = (
     'SquareProbQueueModel',
     'PowerProbQueueModel',
     'LogProbQueueModel2',
+    'PowerProbQueueModel3',
 
     'HftBacktest',
     'Order',
@@ -149,6 +151,7 @@ IdentityProbQueueModel = jitclass()(IdentityProbQueueModel_)
 SquareProbQueueModel = jitclass()(SquareProbQueueModel_)
 PowerProbQueueModel = jitclass(spec=[('n', float64)])(PowerProbQueueModel_)
 LogProbQueueModel2 = jitclass()(LogProbQueueModel2_)
+PowerProbQueueModel3 = jitclass(spec=[('n', float64)])(PowerProbQueueModel3_)
 
 # JIT'ed asset types
 LinearAsset = jitclass()(LinearAsset_)
