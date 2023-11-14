@@ -175,6 +175,7 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
    tutorials/Impact of Order Latency
    tutorials/GLFT Market Making Model and Grid Trading
    tutorials/Making Multiple Markets
+   tutorials/Probability Queue Models
    tutorials/examples
 
 .. toctree::
