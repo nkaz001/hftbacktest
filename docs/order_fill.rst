@@ -151,13 +151,34 @@ The order queue position will be advanced only if a trade happens at the price.
 
 ProbQueueModel
 --------------
-Based on a probability model according to your current queue position, the decrease in quantity happens at both the head
-and tail of the queue.
+Based on a probability model according to your current queue position, the decrease in quantity happens at both before
+and after the queue position.
 So your queue position is also advanced according to the probability.
 This model is implemented as described in
 
 * https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
 * https://rigtorp.se/2013/06/08/estimating-order-queue-position.html
+
+By default, three variations are provided. These three models have different probability profiles.
+
+.. image:: images/probqueuemodel.png
+
+The function f = log(1 + x) exhibits a different probability profile depending on the total quantity at the price level,
+unlike power functions.
+
+.. image:: images/probqueuemodel_log.png
+
+.. image:: images/probqueuemodel2.png
+.. image:: images/probqueuemodel3.png
+
+When you set the function f, it should be as follows.
+
+* The probability at 0 should be 0 because if the order is at the head of the queue, all decreases should happen after
+the order.
+* The probability at 1 should be 1 because if the order is at the tail of the queue, all decreases should happen before
+the order.
+
+You can see the comparison of the models :doc:`here <tutorials/Probability Queue Models>`.
 
 LogProbQueueModel
 ~~~~~~~~~~~~~~~~~
@@ -251,6 +272,29 @@ LogProbQueueModel2
         taker_fee=0.0007,
         order_latency=IntpOrderLatency(latency_data),
         queue_model=LogProbQueueModel2()
+        asset_type=Linear
+    )
+
+ProbQueueModel3
+---------------
+This model is a variation of the `ProbQueueModel`_ that changes the probability calculation to
+1 - f(front / (front + back)) from f(back) / (f(front) + f(back)).
+
+PowerProbQueueModel3
+~~~~~~~~~~~~~~~~~~~~
+
+..  code-block:: python
+
+    from hftbacktest import PowerProbQueueModel3
+
+    hbt = HftBacktest(
+        data,
+        tick_size=0.01,
+        lot_size=0.001,
+        maker_fee=-0.00005,
+        taker_fee=0.0007,
+        order_latency=IntpOrderLatency(latency_data),
+        queue_model=PowerProbQueueModel3(3)
         asset_type=Linear
     )
 
