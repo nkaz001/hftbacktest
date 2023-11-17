@@ -136,37 +136,38 @@ def convert(
                             is_snapshot = False
 
                             # Add DEPTH_CLEAR_EVENT before refreshing the market depth by the snapshot.
-
                             ss_bid = ss_bid[:ss_bid_rn]
-                            # Clear the bid market depth within the snapshot bid range.
-                            tmp[row_num] = [
-                                DEPTH_CLEAR_EVENT,
-                                ss_bid[0, 1],
-                                ss_bid[0, 2],
-                                1,
-                                ss_bid[-1, 4],
-                                0
-                            ]
-                            row_num += 1
-                            # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
-                            tmp[row_num:row_num + len(ss_bid)] = ss_bid[:]
-                            row_num += len(ss_bid)
+                            if len(ss_bid) > 0:
+                                # Clear the bid market depth within the snapshot bid range.
+                                tmp[row_num] = [
+                                    DEPTH_CLEAR_EVENT,
+                                    ss_bid[0, 1],
+                                    ss_bid[0, 2],
+                                    1,
+                                    ss_bid[-1, 4],
+                                    0
+                                ]
+                                row_num += 1
+                                # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
+                                tmp[row_num:row_num + len(ss_bid)] = ss_bid[:]
+                                row_num += len(ss_bid)
                             ss_bid = None
 
                             ss_ask = ss_ask[:ss_ask_rn]
-                            # Clear the ask market depth within the snapshot ask range.
-                            tmp[row_num] = [
-                                DEPTH_CLEAR_EVENT,
-                                ss_ask[0, 1],
-                                ss_ask[0, 2],
-                                -1,
-                                ss_ask[-1, 4],
-                                0
-                            ]
-                            row_num += 1
-                            # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
-                            tmp[row_num:row_num + len(ss_ask)] = ss_ask[:]
-                            row_num += len(ss_ask)
+                            if len(ss_ask) > 0:
+                                # Clear the ask market depth within the snapshot ask range.
+                                tmp[row_num] = [
+                                    DEPTH_CLEAR_EVENT,
+                                    ss_ask[0, 1],
+                                    ss_ask[0, 2],
+                                    -1,
+                                    ss_ask[-1, 4],
+                                    0
+                                ]
+                                row_num += 1
+                                # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
+                                tmp[row_num:row_num + len(ss_ask)] = ss_ask[:]
+                                row_num += len(ss_ask)
                             ss_ask = None
                         # Insert DEPTH_EVENT
                         tmp[row_num] = [
