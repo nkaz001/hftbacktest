@@ -112,15 +112,21 @@ def convert(
                 transaction_time = message['T']
                 bids = message['bids']
                 asks = message['asks']
-                bid_clear_upto = float(bids[-1][0])
-                ask_clear_upto = float(asks[-1][0])
                 exch_timestamp = int(transaction_time) * 1000
-                # clear the existing market depth upto the prices in the snapshot.
-                rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, 1, bid_clear_upto, 0])
-                rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, -1, ask_clear_upto, 0])
-                # insert the snapshot.
-                rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
-                rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
+                if len(bids) > 0:
+                    bid_clear_upto = float(bids[-1][0])
+                    # clears the existing market depth upto the prices in the snapshot.
+                    rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, 1, bid_clear_upto, 0])
+                    # inserts the snapshot.
+                    rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])]
+                             for bid in bids]
+                if len(asks) > 0:
+                    ask_clear_upto = float(asks[-1][0])
+                    # clears the existing market depth upto the prices in the snapshot.
+                    rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, -1, ask_clear_upto, 0])
+                    # inserts the snapshot.
+                    rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])]
+                             for ask in asks]
 
     data = np.asarray(rows, np.float64)
     data = correct(data, base_latency=base_latency, method=method)
