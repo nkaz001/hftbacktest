@@ -103,13 +103,15 @@ class Stat:
         """
         return pd.to_datetime(np.asarray(self.timestamp), utc=self.utc, unit=self.unit)
 
-    def equity(self, resample: Optional[str] = None, include_fee: bool = True):
+    def equity(self, resample: Optional[str] = None, include_fee: bool = True, datetime: bool = True):
         r"""
         Calculates equity values.
 
         Args:
             resample: If provided, equity values will be resampled based on the specified period.
             include_fee: If set to ``True``, fees will be included in the calculation; otherwise, fees will be excluded.
+            datetime: If set to ``True``, the timestamp is converted to a DateTime, which takes a long time. If you want
+                      fast computation, set it to ``False``.
 
         Returns:
             the calculated equity values.
@@ -122,7 +124,7 @@ class Stat:
                     np.asarray(self.position),
                     np.asarray(self.fee)
                 ),
-                index=self.datetime()
+                index=self.datetime() if datetime else np.asarray(self.timestamp)
             )
         else:
             equity = pd.Series(
@@ -132,7 +134,7 @@ class Stat:
                     np.asarray(self.position),
                     0
                 ),
-                index=self.datetime()
+                index=self.datetime() if datetime else np.asarray(self.timestamp)
             )
         if resample is None:
             return equity
