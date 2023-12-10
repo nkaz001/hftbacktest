@@ -243,9 +243,17 @@ class IntpOrderLatency:
 
     def entry(self, timestamp, order, proc):
         if timestamp < self.data[0, 0]:
-            return self.data[0, 1] - self.data[0, 0]
+            # Finds a valid latency.
+            for row_num in range(len(self.data)):
+                if self.data[row_num, 1] > 0 and self.data[row_num, 0] > 0:
+                    return self.data[row_num, 1] - self.data[row_num, 0]
+            raise ValueError
         if timestamp >= self.data[-1, 0]:
-            return self.data[-1, 1] - self.data[-1, 0]
+            # Finds a valid latency.
+            for row_num in range(len(self.data) - 1, -1, -1):
+                if self.data[row_num, 1] > 0 and self.data[row_num, 0] > 0:
+                    return self.data[row_num, 1] - self.data[row_num, 0]
+            raise ValueError
         for row_num in range(self.entry_rn, len(self.data) - 1):
             req_local_timestamp = self.data[row_num, 0]
             next_req_local_timestamp = self.data[row_num + 1, 0]
@@ -274,9 +282,17 @@ class IntpOrderLatency:
 
     def response(self, timestamp, order, proc):
         if timestamp < self.data[0, 1]:
-            return self.data[0, 2] - self.data[0, 1]
+            # Finds a valid latency.
+            for row_num in range(len(self.data)):
+                if self.data[row_num, 2] > 0 and self.data[row_num, 1] > 0:
+                    return self.data[row_num, 2] - self.data[row_num, 1]
+            raise ValueError
         if timestamp >= self.data[-1, 1]:
-            return self.data[-1, 2] - self.data[-1, 1]
+            # Finds a valid latency.
+            for row_num in range(len(self.data) -1, -1, -1):
+                if self.data[row_num, 2] > 0 and self.data[row_num, 1] > 0:
+                    return self.data[row_num, 2] - self.data[row_num, 1]
+            raise ValueError
         for row_num in range(self.resp_rn, len(self.data) - 1):
             exch_timestamp = self.data[row_num, 1]
             next_exch_timestamp = self.data[row_num + 1, 1]
