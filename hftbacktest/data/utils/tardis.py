@@ -188,6 +188,7 @@ def convert(
         data = merge_on_local_timestamp(data, sets[0])
         del sets[0]
 
+    data = data[np.argsort(data[:, 2])]
     data = correct(data, base_latency=base_latency, method=method)
 
     # Validate again.
