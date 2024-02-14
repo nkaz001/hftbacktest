@@ -275,6 +275,24 @@ LogProbQueueModel2
         asset_type=Linear
     )
 
+PowerProbQueueModel2
+~~~~~~~~~~~~~~~~~~~~
+
+..  code-block:: python
+
+    from hftbacktest import PowerProbQueueModel2
+
+    hbt = HftBacktest(
+        data,
+        tick_size=0.01,
+        lot_size=0.001,
+        maker_fee=-0.00005,
+        taker_fee=0.0007,
+        order_latency=IntpOrderLatency(latency_data),
+        queue_model=PowerProbQueueModel2(3)
+        asset_type=Linear
+    )
+
 ProbQueueModel3
 ---------------
 This model is a variation of the `ProbQueueModel`_ that changes the probability calculation to

@@ -187,6 +187,7 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
    Latency Models <latency_models>
    Order Fill <order_fill>
    JIT Compilation Overhead <jit_compilation_overhead>
+   Debugging Backtesting and Live Discrepancies <debugging_backtesting_and_live_discrepancies>
 
 .. toctree::
    :maxdepth: 2

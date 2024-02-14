@@ -31,6 +31,10 @@ Queue Models
     :members:
     :show-inheritance:
 
+.. autoclass:: hftbacktest.models.queue.PowerProbQueueModel2
+    :members:
+    :show-inheritance:
+
 .. autoclass:: hftbacktest.models.queue.ProbQueueModel3
     :members:
     :show-inheritance:
