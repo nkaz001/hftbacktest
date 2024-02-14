@@ -142,6 +142,18 @@ class LogProbQueueModel2(ProbQueueModel2):
         return np.log(1 + x)
 
 
+class PowerProbQueueModel2(ProbQueueModel2):
+    r"""
+    This model uses a power function ``x ** n`` to adjust the probability.
+    """
+
+    def __init__(self, n):
+        self.n = n
+        
+    def f(self, x):
+        return x ** self.n
+
+
 class ProbQueueModel3(ProbQueueModel):
     r"""
     This model is a variation of the :class:`.ProbQueueModel` that changes the probability calculation to

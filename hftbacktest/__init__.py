@@ -33,6 +33,7 @@ from .models.queue import (
     SquareProbQueueModel as SquareProbQueueModel_,
     PowerProbQueueModel as PowerProbQueueModel_,
     LogProbQueueModel2 as LogProbQueueModel2_,
+    PowerProbQueueModel2 as PowerProbQueueModel2_,
     PowerProbQueueModel3 as PowerProbQueueModel3_
 )
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, MODIFY, GTC, GTX, Order, OrderBus
@@ -120,6 +121,7 @@ __all__ = (
     'SquareProbQueueModel',
     'PowerProbQueueModel',
     'LogProbQueueModel2',
+    'PowerProbQueueModel2',
     'PowerProbQueueModel3',
 
     'HftBacktest',
@@ -134,7 +136,7 @@ __all__ = (
     'correct'
 )
 
-__version__ = '1.7.2'
+__version__ = '1.7.3'
 
 
 # JIT'ed latency models
@@ -151,6 +153,7 @@ IdentityProbQueueModel = jitclass()(IdentityProbQueueModel_)
 SquareProbQueueModel = jitclass()(SquareProbQueueModel_)
 PowerProbQueueModel = jitclass(spec=[('n', float64)])(PowerProbQueueModel_)
 LogProbQueueModel2 = jitclass()(LogProbQueueModel2_)
+PowerProbQueueModel2 = jitclass(spec=[('n', float64)])(PowerProbQueueModel2_)
 PowerProbQueueModel3 = jitclass(spec=[('n', float64)])(PowerProbQueueModel3_)
 
 # JIT'ed asset types
