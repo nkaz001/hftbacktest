@@ -176,6 +176,7 @@ You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/
    tutorials/GLFT Market Making Model and Grid Trading
    tutorials/Making Multiple Markets
    tutorials/Probability Queue Models
+   tutorials/Risk Mitigation through Price Protection in Extreme Market Conditions
    tutorials/examples
 
 .. toctree::
