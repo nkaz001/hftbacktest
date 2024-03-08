@@ -2,7 +2,7 @@
 pub struct Event {
     pub timestamp: i64,
     pub asset_no: usize,
-    pub ty: EventType
+    pub ty: EventType,
 }
 
 #[derive(Eq, PartialEq, Clone, Copy)]
@@ -10,7 +10,7 @@ pub enum EventType {
     LocalData,
     LocalOrder,
     ExchData,
-    ExchOrder
+    ExchOrder,
 }
 
 pub struct EventSet {
@@ -68,9 +68,7 @@ impl EventSet {
     }
 
     fn update(&mut self, evst_no: usize, timestamp: i64) {
-        let item = unsafe {
-            self.ev.get_unchecked_mut(evst_no)
-        };
+        let item = unsafe { self.ev.get_unchecked_mut(evst_no) };
         item.timestamp = timestamp;
     }
 
@@ -91,9 +89,7 @@ impl EventSet {
     }
 
     fn invalidate(&mut self, evst_no: usize) {
-        let item = unsafe {
-            self.ev.get_unchecked_mut(evst_no)
-        };
+        let item = unsafe { self.ev.get_unchecked_mut(evst_no) };
         item.timestamp = i64::MAX;
         self.invalid += 1;
     }

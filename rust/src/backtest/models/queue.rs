@@ -1,11 +1,16 @@
-use crate::depth::MarketDepth;
-use crate::order::{Order, Side};
+use crate::{
+    depth::hashmapbook::HashMapMarketDepth,
+    ty::{Order, Side},
+};
 
-pub trait QueueModel<Q> where Q: Clone {
-    fn new_order(&self, order: &mut Order<Q>, depth: &MarketDepth);
-    fn trade(&self, order: &mut Order<Q>, qty: f32, depth: &MarketDepth);
-    fn depth(&self, order: &mut Order<Q>, prev_qty: f32, new_qty: f32, depth: &MarketDepth);
-    fn is_filled(&self, order: &Order<Q>, depth: &MarketDepth) -> bool;
+pub trait QueueModel<Q>
+where
+    Q: Clone,
+{
+    fn new_order(&self, order: &mut Order<Q>, depth: &HashMapMarketDepth);
+    fn trade(&self, order: &mut Order<Q>, qty: f32, depth: &HashMapMarketDepth);
+    fn depth(&self, order: &mut Order<Q>, prev_qty: f32, new_qty: f32, depth: &HashMapMarketDepth);
+    fn is_filled(&self, order: &Order<Q>, depth: &HashMapMarketDepth) -> bool;
 }
 
 pub struct RiskAdverseQueueModel(());
@@ -17,7 +22,7 @@ impl RiskAdverseQueueModel {
 }
 
 impl QueueModel<f32> for RiskAdverseQueueModel {
-    fn new_order(&self, order: &mut Order<f32>, depth: &MarketDepth) {
+    fn new_order(&self, order: &mut Order<f32>, depth: &HashMapMarketDepth) {
         if order.side == Side::Buy {
             order.q = *depth.bid_depth.get(&order.price_tick).unwrap_or(&0.0);
         } else {
@@ -25,23 +30,38 @@ impl QueueModel<f32> for RiskAdverseQueueModel {
         }
     }
 
-    fn trade(&self, order: &mut Order<f32>, qty: f32, _depth: &MarketDepth) {
+    fn trade(&self, order: &mut Order<f32>, qty: f32, _depth: &HashMapMarketDepth) {
         order.q -= qty;
     }
 
-    fn depth(&self, order: &mut Order<f32>, _prev_qty: f32, new_qty: f32, _depth: &MarketDepth) {
+    fn depth(
+        &self,
+        order: &mut Order<f32>,
+        _prev_qty: f32,
+        new_qty: f32,
+        _depth: &HashMapMarketDepth,
+    ) {
         order.q = order.q.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order<f32>, depth: &MarketDepth) -> bool {
+    fn is_filled(&self, order: &Order<f32>, depth: &HashMapMarketDepth) -> bool {
         (order.q / depth.lot_size).round() < 0.0
     }
 }
 
 #[derive(Clone)]
-struct QueuePos {
+pub struct QueuePos {
     front: f32,
-    cum_trade_qty: f32
+    cum_trade_qty: f32,
+}
+
+impl Default for QueuePos {
+    fn default() -> Self {
+        Self {
+            front: 0.0,
+            cum_trade_qty: 0.0,
+        }
+    }
 }
 
 pub trait Probability {
@@ -49,18 +69,18 @@ pub trait Probability {
 }
 
 pub struct ProbQueueModel<P>
-    where P: Probability
+where
+    P: Probability,
 {
-    prob: P
+    prob: P,
 }
 
 impl<P> ProbQueueModel<P>
-    where P: Probability
+where
+    P: Probability,
 {
     pub fn new(prob: P) -> Self {
-        Self {
-            prob
-        }
+        Self { prob }
     }
 }
 
@@ -72,9 +92,10 @@ impl<P> ProbQueueModel<P>
 /// avoid double counting the quantity decrease caused by trades, all trade quantities occurring at the level before
 /// the book quantity changes will be subtracted from the book quantity changes.
 impl<P> QueueModel<QueuePos> for ProbQueueModel<P>
-    where P: Probability
+where
+    P: Probability,
 {
-    fn new_order(&self, order: &mut Order<QueuePos>, depth: &MarketDepth) {
+    fn new_order(&self, order: &mut Order<QueuePos>, depth: &HashMapMarketDepth) {
         if order.side == Side::Buy {
             order.q.front = *depth.bid_depth.get(&order.price_tick).unwrap_or(&0.0);
         } else {
@@ -82,14 +103,21 @@ impl<P> QueueModel<QueuePos> for ProbQueueModel<P>
         }
     }
 
-    fn trade(&self, order: &mut Order<QueuePos>, qty: f32, _depth: &MarketDepth) {
+    fn trade(&self, order: &mut Order<QueuePos>, qty: f32, _depth: &HashMapMarketDepth) {
         order.q.front -= qty;
         order.q.cum_trade_qty += qty;
     }
 
-    fn depth(&self, order: &mut Order<QueuePos>, prev_qty: f32, new_qty: f32, _depth: &MarketDepth) {
+    fn depth(
+        &self,
+        order: &mut Order<QueuePos>,
+        prev_qty: f32,
+        new_qty: f32,
+        _depth: &HashMapMarketDepth,
+    ) {
         let mut chg = prev_qty - new_qty;
-        // In order to avoid duplicate order queue position adjustment, subtract queue position change by trades.
+        // In order to avoid duplicate order queue position adjustment, subtract queue position
+        // change by trades.
         chg = chg - order.q.cum_trade_qty;
         // Reset, as quantity change by trade should be already reflected in qty.
         order.q.cum_trade_qty = 0.0;
@@ -111,20 +139,18 @@ impl<P> QueueModel<QueuePos> for ProbQueueModel<P>
         order.q.front = est_front.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order<QueuePos>, depth: &MarketDepth) -> bool {
+    fn is_filled(&self, order: &Order<QueuePos>, depth: &HashMapMarketDepth) -> bool {
         (order.q.front / depth.lot_size).round() < 0.0
     }
 }
 
 pub struct PowerProbQueueFunc {
-    n: f32
+    n: f32,
 }
 
 impl PowerProbQueueFunc {
     pub fn new(n: f32) -> Self {
-        Self {
-            n
-        }
+        Self { n }
     }
 
     fn f(&self, x: f32) -> f32 {
@@ -174,15 +200,33 @@ impl Probability for LogProbQueueFunc2 {
     }
 }
 
+pub struct PowerProbQueueFunc2 {
+    n: f32,
+}
+
+impl PowerProbQueueFunc2 {
+    pub fn new(n: f32) -> Self {
+        Self { n }
+    }
+
+    fn f(&self, x: f32) -> f32 {
+        x.powf(self.n)
+    }
+}
+
+impl Probability for PowerProbQueueFunc2 {
+    fn prob(&self, front: f32, back: f32) -> f32 {
+        self.f(back) / self.f(back + front)
+    }
+}
+
 pub struct PowerProbQueueFunc3 {
-    n: f32
+    n: f32,
 }
 
 impl PowerProbQueueFunc3 {
     pub fn new(n: f32) -> Self {
-        Self {
-            n
-        }
+        Self { n }
     }
 
     fn f(&self, x: f32) -> f32 {

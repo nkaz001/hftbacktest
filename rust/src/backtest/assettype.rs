@@ -3,15 +3,14 @@ pub trait AssetType {
     fn equity(&self, price: f32, balance: f64, position: f64, fee: f64) -> f64;
 }
 
+#[derive(Clone)]
 pub struct LinearAsset {
-    contract_size: f64
+    contract_size: f64,
 }
 
 impl LinearAsset {
     pub fn new(contract_size: f64) -> Self {
-        Self {
-            contract_size
-        }
+        Self { contract_size }
     }
 }
 
@@ -25,15 +24,14 @@ impl AssetType for LinearAsset {
     }
 }
 
+#[derive(Clone)]
 pub struct InverseAsset {
-    contract_size: f64
+    contract_size: f64,
 }
 
 impl InverseAsset {
     pub fn new(contract_size: f64) -> Self {
-        Self {
-            contract_size
-        }
+        Self { contract_size }
     }
 }
 

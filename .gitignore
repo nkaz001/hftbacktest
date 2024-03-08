@@ -3,3 +3,5 @@ build
 *.egg-info
 __pycache__
 docs/_build
+rust/Cargo.lock
+rust/target

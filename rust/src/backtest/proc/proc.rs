@@ -1,11 +1,16 @@
 use std::collections::HashMap;
-use crate::assettype::AssetType;
-use crate::depth::MarketDepth;
-use crate::Error;
-use crate::order::{Order, OrdType, Side, TimeInForce};
-use crate::state::State;
 
-pub trait LocalProcessor<AT: AssetType, Q: Clone> {
+use crate::{
+    backtest::{state::StateValues, Error},
+    depth::MarketDepth,
+    ty::{OrdType, Order, Row, Side, TimeInForce},
+};
+
+pub trait LocalProcessor<Q, MD>: Processor
+where
+    Q: Clone,
+    MD: MarketDepth,
+{
     fn submit_order(
         &mut self,
         order_id: i64,
@@ -14,14 +19,16 @@ pub trait LocalProcessor<AT: AssetType, Q: Clone> {
         qty: f32,
         order_type: OrdType,
         time_in_force: TimeInForce,
-        current_timestamp: i64
+        current_timestamp: i64,
     ) -> Result<(), Error>;
     fn cancel(&mut self, order_id: i64, current_timestamp: i64) -> Result<(), Error>;
     fn clear_inactive_orders(&mut self);
-
-    fn state(&self) -> &State<AT>;
-    fn depth(&self) -> &MarketDepth;
+    fn position(&self) -> f64;
+    fn state_values(&self) -> StateValues;
+    fn depth(&self) -> &MD;
     fn orders(&self) -> &HashMap<i64, Order<Q>>;
+    fn trade(&self) -> &Vec<Row>;
+    fn clear_last_trades(&mut self);
 }
 
 pub trait Processor {

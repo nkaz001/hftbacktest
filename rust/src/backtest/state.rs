@@ -1,10 +1,19 @@
-use crate::assettype::AssetType;
-use crate::order::Order;
+use crate::{backtest::assettype::AssetType, ty::Order};
+
+#[derive(Debug)]
+pub struct StateValues {
+    pub position: f64,
+    pub balance: f64,
+    pub fee: f64,
+    pub trade_num: i32,
+    pub trade_qty: f64,
+    pub trade_amount: f64,
+}
 
 #[derive(Debug)]
 pub struct State<AT>
-    where
-        AT: AssetType
+where
+    AT: AssetType,
 {
     pub position: f64,
     pub balance: f64,
@@ -17,7 +26,10 @@ pub struct State<AT>
     pub asset_type: AT,
 }
 
-impl<AT> State<AT> where AT: AssetType {
+impl<AT> State<AT>
+where
+    AT: AssetType,
+{
     pub fn new(asset_type: AT) -> Self {
         Self {
             position: 0.0,
@@ -28,7 +40,7 @@ impl<AT> State<AT> where AT: AssetType {
             trade_amount: 0.0,
             maker_fee: 0.0,
             taker_fee: 0.0,
-            asset_type
+            asset_type,
         }
     }
 
@@ -48,6 +60,7 @@ impl<AT> State<AT> where AT: AssetType {
     }
 
     pub fn equity(&self, mid: f32) -> f64 {
-        self.asset_type.equity(mid, self.balance, self.position, self.fee)
+        self.asset_type
+            .equity(mid, self.balance, self.position, self.fee)
     }
 }

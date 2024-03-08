@@ -1,37 +1,42 @@
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::mem;
-use std::rc::Rc;
-use crate::assettype::AssetType;
-use crate::depth::{INVALID_MAX, INVALID_MIN, MarketDepth};
-use crate::Error;
-use crate::models::{LatencyModel, QueueModel};
-use crate::order::{Order, OrderBus, Side, Status, TimeInForce};
-use crate::proc::proc::Processor;
-use crate::reader::{
-    BUY,
-    SELL,
-    EXCH_BID_DEPTH_CLEAR_EVENT,
-    EXCH_ASK_DEPTH_CLEAR_EVENT,
-    EXCH_BID_DEPTH_EVENT,
-    EXCH_ASK_DEPTH_EVENT,
-    EXCH_BID_DEPTH_SNAPSHOT_EVENT,
-    EXCH_ASK_DEPTH_SNAPSHOT_EVENT,
-    EXCH_BUY_TRADE_EVENT,
-    EXCH_SELL_TRADE_EVENT,
-    EXCH_EVENT,
-    Reader,
-    Data,
-    Row
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    mem,
+    rc::Rc,
 };
-use crate::state::State;
+
+use crate::{
+    backtest::{
+        assettype::AssetType,
+        models::{LatencyModel, QueueModel},
+        order::OrderBus,
+        proc::proc::Processor,
+        reader::{
+            Data,
+            Reader,
+            EXCH_ASK_DEPTH_CLEAR_EVENT,
+            EXCH_ASK_DEPTH_EVENT,
+            EXCH_ASK_DEPTH_SNAPSHOT_EVENT,
+            EXCH_BID_DEPTH_CLEAR_EVENT,
+            EXCH_BID_DEPTH_EVENT,
+            EXCH_BID_DEPTH_SNAPSHOT_EVENT,
+            EXCH_BUY_TRADE_EVENT,
+            EXCH_EVENT,
+            EXCH_SELL_TRADE_EVENT,
+        },
+        state::State,
+        Error,
+    },
+    depth::{hashmapbook::HashMapMarketDepth, MarketDepth as _, INVALID_MAX, INVALID_MIN},
+    ty::{Order, Row, Side, Status, TimeInForce, BUY, SELL},
+};
 
 pub struct NoPartialFillExchange<AT, Q, LM, QM>
-    where
-        AT: AssetType,
-        Q: Clone + Default,
-        LM: LatencyModel,
-        QM: QueueModel<Q>
+where
+    AT: AssetType,
+    Q: Clone + Default,
+    LM: LatencyModel,
+    QM: QueueModel<Q>,
 {
     reader: Reader<Row>,
     data: Data<Row>,
@@ -46,24 +51,24 @@ pub struct NoPartialFillExchange<AT, Q, LM, QM>
     orders_to: OrderBus<Q>,
     orders_from: OrderBus<Q>,
 
-    depth: MarketDepth,
+    depth: HashMapMarketDepth,
     state: State<AT>,
     order_latency: LM,
     queue_model: QM,
 
-    filled_orders: Vec<i64>
+    filled_orders: Vec<i64>,
 }
 
 impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
-    where
-        AT: AssetType,
-        Q: Clone + Default,
-        LM: LatencyModel,
-        QM: QueueModel<Q>
+where
+    AT: AssetType,
+    Q: Clone + Default,
+    LM: LatencyModel,
+    QM: QueueModel<Q>,
 {
     pub fn new(
         reader: Reader<Row>,
-        depth: MarketDepth,
+        depth: HashMapMarketDepth,
         state: State<AT>,
         order_latency: LM,
         queue_model: QM,
@@ -83,7 +88,7 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
             state,
             order_latency,
             queue_model,
-            filled_orders: Default::default()
+            filled_orders: Default::default(),
         }
     }
 
@@ -92,7 +97,7 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
         mut order: Order<Q>,
         recv_timestamp: i64,
         wait_resp: i64,
-        next_timestamp: i64
+        next_timestamp: i64,
     ) -> Result<i64, Error> {
         let order_id = order.order_id;
 
@@ -108,10 +113,9 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                     Ok(next_timestamp.min(resp_timestamp))
                 } else {
                     Ok(resp_timestamp)
-                }
+                };
             }
         }
-
         // Processes a cancel order.
         else if order.req == Status::Canceled {
             order.req = Status::None;
@@ -124,7 +128,7 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                     Ok(next_timestamp.min(resp_timestamp))
                 } else {
                     Ok(resp_timestamp)
-                }
+                };
             }
         } else {
             return Err(Error::InvalidOrderRequest);
@@ -139,7 +143,7 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
         order: &mut Order<Q>,
         price_tick: i32,
         qty: f32,
-        timestamp: i64
+        timestamp: i64,
     ) -> Result<i64, Error> {
         if order.price_tick < price_tick {
             self.filled_orders.push(order.order_id);
@@ -160,7 +164,7 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
         order: &mut Order<Q>,
         price_tick: i32,
         qty: f32,
-        timestamp: i64
+        timestamp: i64,
     ) -> Result<i64, Error> {
         if order.price_tick > price_tick {
             self.filled_orders.push(order.order_id);
@@ -181,11 +185,12 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
         order: &mut Order<Q>,
         timestamp: i64,
         maker: bool,
-        exec_price_tick: i32
+        exec_price_tick: i32,
     ) -> Result<i64, Error> {
         if order.status == Status::Expired
             || order.status == Status::Canceled
-            || order.status == Status::Filled {
+            || order.status == Status::Filled
+        {
             return Err(Error::InvalidOrderStatus);
         }
 
@@ -200,7 +205,8 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
         order.leaves_qty = 0.0;
         order.status = Status::Filled;
         order.exch_timestamp = timestamp;
-        let local_recv_timestamp = order.exch_timestamp + self.order_latency.response(timestamp, &order);
+        let local_recv_timestamp =
+            order.exch_timestamp + self.order_latency.response(timestamp, &order);
 
         self.state.apply_fill(order);
         self.orders_to.append(order.clone(), local_recv_timestamp);
@@ -213,9 +219,15 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
             for order_id in self.filled_orders.drain(..) {
                 let order = orders.remove(&order_id).unwrap();
                 if order.side == Side::Buy {
-                    self.buy_orders.get_mut(&order.price_tick).unwrap().remove(&order_id);
+                    self.buy_orders
+                        .get_mut(&order.price_tick)
+                        .unwrap()
+                        .remove(&order_id);
                 } else {
-                    self.sell_orders.get_mut(&order.price_tick).unwrap().remove(&order_id);
+                    self.sell_orders
+                        .get_mut(&order.price_tick)
+                        .unwrap()
+                        .remove(&order_id);
                 }
             }
         }
@@ -227,7 +239,8 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
             for order_id in order_ids.iter() {
                 let mut orders_borrowed = orders.borrow_mut();
                 let order = orders_borrowed.get_mut(order_id).unwrap();
-                self.queue_model.depth(order, prev_qty, new_qty, &self.depth);
+                self.queue_model
+                    .depth(order, prev_qty, new_qty, &self.depth);
             }
         }
     }
@@ -238,18 +251,26 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
             for order_id in order_ids.iter() {
                 let mut orders_borrowed = orders.borrow_mut();
                 let order = orders_borrowed.get_mut(order_id).unwrap();
-                self.queue_model.depth(order, prev_qty, new_qty, &self.depth);
+                self.queue_model
+                    .depth(order, prev_qty, new_qty, &self.depth);
             }
         }
     }
 
-    fn on_best_bid_update(&mut self, prev_best_tick: i32, new_best_tick: i32, timestamp: i64) -> Result<(), Error> {
-        // If the best has been significantly updated compared to the previous best, it would be better to iterate
-        // orders dict instead of order price ladder.
+    fn on_best_bid_update(
+        &mut self,
+        prev_best_tick: i32,
+        new_best_tick: i32,
+        timestamp: i64,
+    ) -> Result<(), Error> {
+        // If the best has been significantly updated compared to the previous best, it would be
+        // better to iterate orders dict instead of order price ladder.
         {
             let orders = self.orders.clone();
             let mut orders_borrowed = orders.borrow_mut();
-            if prev_best_tick == INVALID_MIN || (orders_borrowed.len() as i32) < new_best_tick - prev_best_tick {
+            if prev_best_tick == INVALID_MIN
+                || (orders_borrowed.len() as i32) < new_best_tick - prev_best_tick
+            {
                 for (_, order) in orders_borrowed.iter_mut() {
                     if order.side == Side::Sell && order.price_tick <= new_best_tick {
                         self.filled_orders.push(order.order_id);
@@ -257,7 +278,7 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                     }
                 }
             } else {
-                for t in (prev_best_tick + 1)..(new_best_tick + 1) {
+                for t in (prev_best_tick + 1)..=new_best_tick {
                     if let Some(order_ids) = self.sell_orders.get(&t) {
                         for order_id in order_ids.clone().iter() {
                             self.filled_orders.push(*order_id);
@@ -272,13 +293,20 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
         Ok(())
     }
 
-    fn on_best_ask_update(&mut self, prev_best_tick: i32, new_best_tick: i32, timestamp: i64) -> Result<(), Error> {
-        // If the best has been significantly updated compared to the previous best, it would be better to iterate
-        // orders dict instead of order price ladder.
+    fn on_best_ask_update(
+        &mut self,
+        prev_best_tick: i32,
+        new_best_tick: i32,
+        timestamp: i64,
+    ) -> Result<(), Error> {
+        // If the best has been significantly updated compared to the previous best, it would be
+        // better to iterate orders dict instead of order price ladder.
         {
             let orders = self.orders.clone();
             let mut orders_borrowed = orders.borrow_mut();
-            if prev_best_tick == INVALID_MAX || (orders_borrowed.len() as i32) < prev_best_tick - new_best_tick {
+            if prev_best_tick == INVALID_MAX
+                || (orders_borrowed.len() as i32) < prev_best_tick - new_best_tick
+            {
                 for (_, order) in orders_borrowed.iter_mut() {
                     if order.side == Side::Buy && order.price_tick >= new_best_tick {
                         self.filled_orders.push(order.order_id);
@@ -313,7 +341,8 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                     order.status = Status::Expired;
 
                     order.exch_timestamp = timestamp;
-                    let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &order);
+                    let local_recv_timestamp =
+                        timestamp + self.order_latency.response(timestamp, &order);
                     self.orders_to.append(order.clone(), local_recv_timestamp);
                     Ok(local_recv_timestamp)
                 } else {
@@ -325,10 +354,14 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                 self.queue_model.new_order(&mut order, &self.depth);
                 order.status = Status::New;
                 // The exchange accepts this order.
-                self.buy_orders.entry(order.price_tick).or_insert(HashSet::new()).insert(order.order_id);
+                self.buy_orders
+                    .entry(order.price_tick)
+                    .or_insert(HashSet::new())
+                    .insert(order.order_id);
 
                 order.exch_timestamp = timestamp;
-                let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &order);
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &order);
                 self.orders_to.append(order.clone(), local_recv_timestamp);
 
                 self.orders.borrow_mut().insert(order.order_id, order);
@@ -342,7 +375,8 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                     order.status = Status::Expired;
 
                     order.exch_timestamp = timestamp;
-                    let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &order);
+                    let local_recv_timestamp =
+                        timestamp + self.order_latency.response(timestamp, &order);
                     self.orders_to.append(order.clone(), local_recv_timestamp);
                     Ok(local_recv_timestamp)
                 } else {
@@ -354,10 +388,14 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                 self.queue_model.new_order(&mut order, &self.depth);
                 order.status = Status::New;
                 // The exchange accepts this order.
-                self.sell_orders.entry(order.price_tick).or_insert(HashSet::new()).insert(order.order_id);
+                self.sell_orders
+                    .entry(order.price_tick)
+                    .or_insert(HashSet::new())
+                    .insert(order.order_id);
 
                 order.exch_timestamp = timestamp;
-                let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &order);
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &order);
                 self.orders_to.append(order.clone(), local_recv_timestamp);
 
                 self.orders.borrow_mut().insert(order.order_id, order);
@@ -377,24 +415,32 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
             order.status = Status::Expired;
             order.exch_timestamp = timestamp;
             let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &order);
-            // It can overwrite another existing order on the local side if order_id is the same. So, commented out.
+            // It can overwrite another existing order on the local side if order_id is the same.
+            // So, commented out.
             // self.orders_to.append(order.copy(), local_recv_timestamp)
-            return Ok(local_recv_timestamp)
+            return Ok(local_recv_timestamp);
         }
 
         // Delete the order.
         let mut exch_order = exch_order.unwrap();
         if exch_order.side == Side::Buy {
-            self.buy_orders.get_mut(&exch_order.price_tick).unwrap().remove(&exch_order.order_id);
+            self.buy_orders
+                .get_mut(&exch_order.price_tick)
+                .unwrap()
+                .remove(&exch_order.order_id);
         } else {
-            self.sell_orders.get_mut(&exch_order.price_tick).unwrap().remove(&exch_order.order_id);
+            self.sell_orders
+                .get_mut(&exch_order.price_tick)
+                .unwrap()
+                .remove(&exch_order.order_id);
         }
 
         // Make the response.
         exch_order.status = Status::Canceled;
         exch_order.exch_timestamp = timestamp;
         let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
-        self.orders_to.append(exch_order.clone(), local_recv_timestamp);
+        self.orders_to
+            .append(exch_order.clone(), local_recv_timestamp);
         Ok(local_recv_timestamp)
     }
 
@@ -407,29 +453,33 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
             if exch_order.is_none() {
                 order.status = Status::Expired;
                 order.exch_timestamp = timestamp;
-                let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &order);
-                // It can overwrite another existing order on the local side if order_id is the same. So, commented out.
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &order);
+                // It can overwrite another existing order on the local side if order_id is the
+                // same. So, commented out.
                 // self.orders_to.append(order.copy(), local_recv_timestamp)
-                return Ok(local_recv_timestamp)
+                return Ok(local_recv_timestamp);
             }
 
             exch_order.unwrap()
         };
 
-
         let prev_price_tick = exch_order.price_tick;
         exch_order.price_tick = order.price_tick;
         // No partial fill occurs.
         exch_order.qty = order.qty;
-        // The initialization of the order queue position may not occur when the modified quantity is smaller than
-        // the previous quantity, depending on the exchanges. It may need to implement exchange-specific
-        // specialization.
+        // The initialization of the order queue position may not occur when the modified quantity
+        // is smaller than the previous quantity, depending on the exchanges. It may need to
+        // implement exchange-specific specialization.
         let init_q_pos = true;
 
         if exch_order.side == Side::Buy {
             // Check if the buy order price is greater than or equal to the current best ask.
             if exch_order.price_tick >= self.depth.best_ask_tick {
-                self.buy_orders.get_mut(&prev_price_tick).unwrap().remove(&exch_order.order_id);
+                self.buy_orders
+                    .get_mut(&prev_price_tick)
+                    .unwrap()
+                    .remove(&exch_order.order_id);
 
                 if exch_order.time_in_force == TimeInForce::GTX {
                     exch_order.status = Status::Expired;
@@ -439,13 +489,18 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                 }
 
                 exch_order.exch_timestamp = timestamp;
-                let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
-                self.orders_to.append(exch_order.clone(), local_recv_timestamp);
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &exch_order);
+                self.orders_to
+                    .append(exch_order.clone(), local_recv_timestamp);
                 Ok(local_recv_timestamp)
             } else {
                 // The exchange accepts this order.
                 if prev_price_tick != exch_order.price_tick {
-                    self.buy_orders.get_mut(&prev_price_tick).unwrap().remove(&exch_order.order_id);
+                    self.buy_orders
+                        .get_mut(&prev_price_tick)
+                        .unwrap()
+                        .remove(&exch_order.order_id);
                     self.buy_orders
                         .entry(exch_order.price_tick)
                         .or_insert(HashSet::new())
@@ -458,8 +513,10 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                 exch_order.status = Status::New;
 
                 exch_order.exch_timestamp = timestamp;
-                let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
-                self.orders_to.append(exch_order.clone(), local_recv_timestamp);
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &exch_order);
+                self.orders_to
+                    .append(exch_order.clone(), local_recv_timestamp);
 
                 let mut order_borrowed = self.orders.borrow_mut();
                 order_borrowed.insert(exch_order.order_id, exch_order);
@@ -469,7 +526,10 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
         } else {
             // Check if the sell order price is less than or equal to the current best bid.
             if exch_order.price_tick <= self.depth.best_bid_tick {
-                self.sell_orders.get_mut(&prev_price_tick).unwrap().remove(&exch_order.order_id);
+                self.sell_orders
+                    .get_mut(&prev_price_tick)
+                    .unwrap()
+                    .remove(&exch_order.order_id);
 
                 if exch_order.time_in_force == TimeInForce::GTX {
                     exch_order.status = Status::Expired;
@@ -479,13 +539,18 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                 }
 
                 exch_order.exch_timestamp = timestamp;
-                let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
-                self.orders_to.append(exch_order.clone(), local_recv_timestamp);
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &exch_order);
+                self.orders_to
+                    .append(exch_order.clone(), local_recv_timestamp);
                 Ok(local_recv_timestamp)
             } else {
                 // The exchange accepts this order.
                 if prev_price_tick != exch_order.price_tick {
-                    self.sell_orders.get_mut(&prev_price_tick).unwrap().remove(&exch_order.order_id);
+                    self.sell_orders
+                        .get_mut(&prev_price_tick)
+                        .unwrap()
+                        .remove(&exch_order.order_id);
                     self.sell_orders
                         .entry(exch_order.price_tick)
                         .or_insert(HashSet::new())
@@ -498,8 +563,10 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
                 exch_order.status = Status::New;
 
                 exch_order.exch_timestamp = timestamp;
-                let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
-                self.orders_to.append(exch_order.clone(), local_recv_timestamp);
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &exch_order);
+                self.orders_to
+                    .append(exch_order.clone(), local_recv_timestamp);
 
                 let mut order_borrowed = self.orders.borrow_mut();
                 order_borrowed.insert(exch_order.order_id, exch_order);
@@ -510,12 +577,12 @@ impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
     }
 }
 
-impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
-    where
-        Q: Clone + Default,
-        A: AssetType,
-        L: LatencyModel,
-        QM: QueueModel<Q>
+impl<AT, Q, LM, QM> Processor for NoPartialFillExchange<AT, Q, LM, QM>
+where
+    Q: Clone + Default,
+    AT: AssetType,
+    LM: LatencyModel,
+    QM: QueueModel<Q>,
 {
     fn initialize_data(&mut self) -> Result<i64, Error> {
         self.data = self.reader.next()?;
@@ -535,37 +602,29 @@ impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
         } else if self.data[row_num].ev & EXCH_ASK_DEPTH_CLEAR_EVENT == EXCH_ASK_DEPTH_CLEAR_EVENT {
             self.depth.clear_depth(SELL, self.data[row_num].px);
         } else if self.data[row_num].ev & EXCH_BID_DEPTH_EVENT == EXCH_BID_DEPTH_EVENT
-            || self.data[row_num].ev & EXCH_BID_DEPTH_SNAPSHOT_EVENT == EXCH_BID_DEPTH_SNAPSHOT_EVENT {
-            let (
-                price_tick,
-                prev_best_bid_tick,
-                best_bid_tick,
-                prev_qty,
-                new_qty,
-                timestamp
-            ) = self.depth.update_bid_depth(
-                self.data[row_num].px,
-                self.data[row_num].qty,
-                self.data[row_num].exch_ts
-            );
+            || self.data[row_num].ev & EXCH_BID_DEPTH_SNAPSHOT_EVENT
+                == EXCH_BID_DEPTH_SNAPSHOT_EVENT
+        {
+            let (price_tick, prev_best_bid_tick, best_bid_tick, prev_qty, new_qty, timestamp) =
+                self.depth.update_bid_depth(
+                    self.data[row_num].px,
+                    self.data[row_num].qty,
+                    self.data[row_num].exch_ts,
+                );
             self.on_bid_qty_chg(price_tick, prev_qty, new_qty);
             if best_bid_tick > prev_best_bid_tick {
                 self.on_best_bid_update(prev_best_bid_tick, best_bid_tick, timestamp)?;
             }
         } else if self.data[row_num].ev & EXCH_ASK_DEPTH_EVENT == EXCH_ASK_DEPTH_EVENT
-            || self.data[row_num].ev & EXCH_ASK_DEPTH_SNAPSHOT_EVENT == EXCH_ASK_DEPTH_SNAPSHOT_EVENT {
-            let (
-                price_tick,
-                prev_best_ask_tick,
-                best_ask_tick,
-                prev_qty,
-                new_qty,
-                timestamp
-            ) = self.depth.update_ask_depth(
-                self.data[row_num].px,
-                self.data[row_num].qty,
-                self.data[row_num].exch_ts
-            );
+            || self.data[row_num].ev & EXCH_ASK_DEPTH_SNAPSHOT_EVENT
+                == EXCH_ASK_DEPTH_SNAPSHOT_EVENT
+        {
+            let (price_tick, prev_best_ask_tick, best_ask_tick, prev_qty, new_qty, timestamp) =
+                self.depth.update_ask_depth(
+                    self.data[row_num].px,
+                    self.data[row_num].qty,
+                    self.data[row_num].exch_ts,
+                );
             self.on_ask_qty_chg(price_tick, prev_qty, new_qty);
             if best_ask_tick < prev_best_ask_tick {
                 self.on_best_ask_update(prev_best_ask_tick, best_ask_tick, timestamp)?;
@@ -577,19 +636,20 @@ impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
                 if self.depth.best_bid_tick == INVALID_MIN
-                    || (orders_borrowed.len() as i32) < price_tick - self.depth.best_bid_tick {
+                    || (orders_borrowed.len() as i32) < price_tick - self.depth.best_bid_tick
+                {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Sell {
                             self.check_if_sell_filled(
                                 order,
                                 price_tick,
                                 qty,
-                                self.data[row_num].exch_ts
+                                self.data[row_num].exch_ts,
                             )?;
                         }
                     }
                 } else {
-                    for t in (self.depth.best_bid_tick + 1)..(price_tick + 1) {
+                    for t in (self.depth.best_bid_tick + 1)..=price_tick {
                         if let Some(order_ids) = self.sell_orders.get(&t) {
                             for order_id in order_ids.clone().iter() {
                                 let order = orders_borrowed.get_mut(&order_id).unwrap();
@@ -597,7 +657,7 @@ impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
                                     order,
                                     price_tick,
                                     qty,
-                                    self.data[row_num].exch_ts
+                                    self.data[row_num].exch_ts,
                                 )?;
                             }
                         }
@@ -612,14 +672,15 @@ impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
                 if self.depth.best_ask_tick == INVALID_MAX
-                    || (orders_borrowed.len() as i32) < self.depth.best_ask_tick - price_tick {
+                    || (orders_borrowed.len() as i32) < self.depth.best_ask_tick - price_tick
+                {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Buy {
                             self.check_if_buy_filled(
                                 order,
                                 price_tick,
                                 qty,
-                                self.data[row_num].exch_ts
+                                self.data[row_num].exch_ts,
                             )?;
                         }
                     }
@@ -632,7 +693,7 @@ impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
                                     order,
                                     price_tick,
                                     qty,
-                                    self.data[row_num].exch_ts
+                                    self.data[row_num].exch_ts,
                                 )?;
                             }
                         }
@@ -653,9 +714,7 @@ impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
         }
 
         if next_ts <= 0 {
-            let next_data = unsafe {
-                self.reader.next()?
-            };
+            let next_data = self.reader.next()?;
             let next_row = &next_data[0];
             next_ts = next_row.exch_ts;
             let data = mem::replace(&mut self.data, next_data);
@@ -672,12 +731,8 @@ impl<A, Q, L, QM> Processor for NoPartialFillExchange<A, Q, L, QM>
             let recv_timestamp = self.orders_from.get_head_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let order = self.orders_from.remove(0);
-                next_timestamp = self.process_recv_order_(
-                    order,
-                    recv_timestamp,
-                    wait_resp,
-                    next_timestamp
-                )?;
+                next_timestamp =
+                    self.process_recv_order_(order, recv_timestamp, wait_resp, next_timestamp)?;
             } else {
                 assert!(recv_timestamp > timestamp);
                 break;
