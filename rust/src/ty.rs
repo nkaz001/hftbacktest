@@ -220,8 +220,8 @@ where
     }
 
     pub fn cancellable(&self) -> bool {
-        self.status == Status::New
-            && self.status == Status::PartiallyFilled
+        (self.status == Status::New
+            || self.status == Status::PartiallyFilled)
             && self.req == Status::None
     }
 
