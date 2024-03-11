@@ -87,7 +87,7 @@ class Order:
 
     @property
     def cancellable(self):
-        return self.status == NEW and self.req == NONE
+        return (self.status == NEW or self.status == PARTIALLY_FILLED) and self.req == NONE
 
     def copy(self):
         """
