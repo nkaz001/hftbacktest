@@ -33,6 +33,11 @@ where
         let position = hbt.position(0);
         let tick_size = depth.tick_size() as f64;
 
+        if depth.best_bid_tick() == INVALID_MIN || depth.best_ask_tick() == INVALID_MAX {
+            // Market depth is incomplete.
+            continue;
+        }
+
         info!(
             time = hbt.current_timestamp(),
             bid = depth.best_bid(),
