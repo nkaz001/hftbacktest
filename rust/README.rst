@@ -1,0 +1,2 @@
+This project is currently in its initial development stages, meaning that breaking changes may occur without prior notice.
+The live bot feature has not undergone comprehensive testing yet; therefore, it must be used at your own risk.
