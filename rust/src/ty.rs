@@ -21,6 +21,10 @@ pub const DEPTH_CLEAR_EVENT: i64 = 3;
 pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
 pub const USER_DEFINED_EVENT: i64 = 100;
 
+pub trait ToStr {
+    fn to_str(&self) -> &'static str;
+}
+
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C)]
 pub struct Row {
@@ -90,11 +94,11 @@ impl Side {
     }
 }
 
-impl ToString for Side {
-    fn to_string(&self) -> String {
+impl ToStr for Side {
+    fn to_str(&self) -> &'static str {
         match self {
-            Side::Buy => "BUY".to_string(),
-            Side::Sell => "SELL".to_string(),
+            Side::Buy => "BUY",
+            Side::Sell => "SELL",
             Side::Unsupported => panic!("Side::Unsupported"),
         }
     }
@@ -122,13 +126,13 @@ pub enum TimeInForce {
     Unsupported = 255,
 }
 
-impl ToString for TimeInForce {
-    fn to_string(&self) -> String {
+impl ToStr for TimeInForce {
+    fn to_str(&self) -> &'static str {
         match self {
-            TimeInForce::GTC => "GTC".to_string(),
-            TimeInForce::GTX => "GTX".to_string(),
-            TimeInForce::FOK => "FOK".to_string(),
-            TimeInForce::IOC => "IOC".to_string(),
+            TimeInForce::GTC => "GTC",
+            TimeInForce::GTX => "GTX",
+            TimeInForce::FOK => "FOK",
+            TimeInForce::IOC => "IOC",
             TimeInForce::Unsupported => panic!("TimeInForce::Unsupported"),
         }
     }
@@ -142,11 +146,11 @@ pub enum OrdType {
     Unsupported = 255,
 }
 
-impl ToString for OrdType {
-    fn to_string(&self) -> String {
+impl ToStr for OrdType {
+    fn to_str(&self) -> &'static str {
         match self {
-            OrdType::Limit => "LIMIT".to_string(),
-            OrdType::Market => "MARKET".to_string(),
+            OrdType::Limit => "LIMIT",
+            OrdType::Market => "MARKET",
             OrdType::Unsupported => panic!("OrdType::Unsupported"),
         }
     }
@@ -220,9 +224,12 @@ where
     }
 
     pub fn cancellable(&self) -> bool {
-        (self.status == Status::New
-            || self.status == Status::PartiallyFilled)
+        (self.status == Status::New || self.status == Status::PartiallyFilled)
             && self.req == Status::None
+    }
+
+    pub fn active(&self) -> bool {
+        self.status == Status::New || self.status == Status::PartiallyFilled
     }
 
     pub fn pending(&self) -> bool {
@@ -236,8 +243,15 @@ where
         self.tick_size = order.tick_size;
         self.side = order.side;
         self.time_in_force = order.time_in_force;
+
+        if order.exch_timestamp < self.exch_timestamp {
+            tracing::info!(?order, ?self, "order::update");
+        }
+
         assert!(order.exch_timestamp >= self.exch_timestamp);
-        self.exch_timestamp = order.exch_timestamp;
+        if order.exch_timestamp > 0 {
+            self.exch_timestamp = order.exch_timestamp;
+        }
         self.status = order.status;
         if order.local_timestamp > 0 {
             self.local_timestamp = order.local_timestamp;

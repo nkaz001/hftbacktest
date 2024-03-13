@@ -10,13 +10,17 @@ use tokio_tungstenite::{
 };
 use tracing::{error, info};
 
-use super::{msg::Stream, parse_client_order_id, rest::BinanceFuturesClient, BinanceFuturesError};
-use crate::{
-    connector::binancefutures::msg::Data,
-    live::AssetInfo,
-    ty,
-    ty::{Depth, Event, Order, OrderResponse, Position, Status, BUY, SELL},
+use super::{
+    msg::{Data, Stream},
+    rest::BinanceFuturesClient,
+    BinanceFuturesError,
+    OrderMgr,
 };
+use crate::{
+    live::AssetInfo,
+    ty::{self, Depth, Event, Order, OrderResponse, Position, Status, BUY, SELL},
+};
+use crate::connector::binancefutures::ordermanager::OrderManager;
 
 fn parse_depth(
     bids: Vec<(String, String)>,
@@ -42,6 +46,7 @@ pub async fn connect(
     ev_tx: Sender<Event>,
     assets: HashMap<String, AssetInfo>,
     prefix: &str,
+    orders: OrderMgr,
     client: BinanceFuturesClient,
 ) -> Result<(), anyhow::Error> {
     let mut request = url.into_client_request()?;
@@ -78,7 +83,7 @@ pub async fn connect(
                                             Event::Depth(
                                                 Depth {
                                                     asset_no: ai.asset_no,
-                                                    exch_ts: data.ev_timestamp * 1000,
+                                                    exch_ts: data.ev_timestamp * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
                                                     bids,
                                                     asks,
@@ -101,7 +106,7 @@ pub async fn connect(
                                             Event::Trade(
                                                 ty::Trade {
                                                     asset_no: asset_info.asset_no,
-                                                    exch_ts: data.ev_timestamp * 1000,
+                                                    exch_ts: data.ev_timestamp * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
                                                     side: {
                                                         if data.is_the_buyer_the_market_maker {
@@ -142,8 +147,8 @@ pub async fn connect(
                                 }
                             }
                             Data::OrderTradeUpdate(data) => {
-                                if let Some(order_id) = parse_client_order_id(&data.order.client_order_id, &prefix) {
-                                    if let Some(asset_info) = assets.get(&data.order.symbol) {
+                                if let Some(asset_info) = assets.get(&data.order.symbol) {
+                                    if let Some(order_id) = OrderManager::parse_client_order_id(&data.order.client_order_id, &prefix) {
                                         let order = Order {
                                             qty: data.order.original_qty,
                                             leaves_qty: data.order.original_qty - data.order.order_filled_accumulated_qty,
@@ -151,7 +156,7 @@ pub async fn connect(
                                             tick_size: asset_info.tick_size,
                                             side: data.order.side,
                                             time_in_force: data.order.time_in_force,
-                                            exch_timestamp: data.transaction_time * 1000,
+                                            exch_timestamp: data.transaction_time * 1_000_000,
                                             status: data.order.order_status,
                                             local_timestamp: 0,
                                             req: Status::None,
@@ -162,14 +167,21 @@ pub async fn connect(
                                             maker: false,
                                             order_type: data.order.order_type
                                         };
-                                        ev_tx.send(
-                                            Event::Order(
-                                                OrderResponse {
-                                                    asset_no: asset_info.asset_no,
-                                                    order
-                                                }
-                                            )
-                                        ).unwrap();
+
+                                        let order = orders
+                                            .lock()
+                                            .unwrap()
+                                            .update_from_ws(data.order.client_order_id, order);
+                                        if let Some(order) = order {
+                                            ev_tx.send(
+                                                Event::Order(
+                                                    OrderResponse {
+                                                        asset_no: asset_info.asset_no,
+                                                        order
+                                                    }
+                                                )
+                                            ).unwrap();
+                                        }
                                     }
                                 }
                             }
@@ -177,6 +189,9 @@ pub async fn connect(
                     }
                     Some(Ok(Message::Binary(_))) => {}
                     Some(Ok(Message::Ping(_))) => {
+                        orders.lock()
+                            .unwrap()
+                            .gc();
                         write.send(Message::Pong(Vec::new())).await?;
                     }
                     Some(Ok(Message::Pong(_))) => {}

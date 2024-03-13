@@ -44,6 +44,7 @@ sha2 = "0.11.0-pre.3"
 hmac = "0.13.0-pre.3"
 zip = "0.6.6"
 thiserror = "1.0.57"
+rand = "0.8.5"
 
 [profile.dev]
 opt-level = 0

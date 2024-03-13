@@ -10,7 +10,7 @@ use tokio::{
     select,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     backtest::{
@@ -176,7 +176,7 @@ impl Bot {
                     {
                         Entry::Occupied(mut entry) => {
                             let ex_order = entry.get_mut();
-                            if data.order.exch_timestamp > ex_order.exch_timestamp {
+                            if data.order.exch_timestamp >= ex_order.exch_timestamp {
                                 if ex_order.status == Status::Canceled
                                     || ex_order.status == Status::Expired
                                     || ex_order.status == Status::Filled
@@ -188,6 +188,7 @@ impl Bot {
                             }
                         }
                         Entry::Vacant(entry) => {
+                            warn!(?data, "Received an unmanaged order.");
                             entry.insert(data.order);
                         }
                     }
@@ -363,26 +364,15 @@ impl Interface<(), BTreeMapMarketDepth> for Bot {
     }
 
     fn clear_inactive_orders(&mut self, an: Option<usize>) {
-        let now = Utc::now().timestamp_nanos_opt().unwrap();
-        // fixme: due to the varying response times in REST and WebSocket, timing issues may arise, such as order
-        // cancellations occurring before other order messages are received.
         match an {
             Some(an) => {
                 if let Some(orders) = self.orders.get_mut(an) {
-                    orders.retain(|order_id, order| {
-                        order.status == Status::New
-                            || order.status == Status::PartiallyFilled
-                            || order.exch_timestamp >= now - 300_000_000_000
-                    });
+                    orders.retain(|order_id, order| order.active());
                 }
             }
             None => {
                 for orders in self.orders.iter_mut() {
-                    orders.retain(|order_id, order| {
-                        order.status == Status::New
-                            || order.status == Status::PartiallyFilled
-                            || order.exch_timestamp >= now - 300_000_000_000
-                    });
+                    orders.retain(|order_id, order| order.active());
                 }
             }
         }

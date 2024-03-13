@@ -10,52 +10,44 @@ use sha2::Sha256;
 use thiserror::Error;
 
 /// https://binance-docs.github.io/apidocs/futures/en/
-use super::{msg::PositionInformationV2, parse_client_order_id};
+use super::{msg::PositionInformationV2};
 use crate::{
-    connector::binancefutures::msg::{ListenKey, OrderResponse, OrderResponseResult},
+    connector::binancefutures::{
+        msg::{ListenKey, OrderResponse, OrderResponseResult},
+        ordermanager::OrderMgr,
+    },
     live::AssetInfo,
-    ty::{Order, Status},
+    ty::{OrdType, Order, Side, Status, TimeInForce, ToStr},
 };
+use crate::connector::binancefutures::ordermanager::OrderManager;
 
 #[derive(Error, Debug)]
-pub enum RequestError<T> {
-    InvalidRequest(T),
-    ReqError(reqwest::Error, T),
-    OrderError(Order<()>, i64, String),
-}
-
-pub type OrderRequestError = RequestError<Order<()>>;
-
-/// tick_size should not be a computed value.
-fn get_precision(tick_size: f32) -> usize {
-    let s = tick_size.to_string();
-    let mut prec = 0;
-    for (i, c) in s.chars().enumerate() {
-        if c == '.' {
-            prec = s.len() - i - 1;
-            break;
-        }
-    }
-    prec
+pub enum RequestError {
+    #[error("invalid request")]
+    InvalidRequest,
+    #[error("http error")]
+    ReqError(#[from] reqwest::Error),
+    #[error("order error")]
+    OrderError(i64, String),
 }
 
 #[derive(Clone)]
 pub struct BinanceFuturesClient {
     client: reqwest::Client,
     url: String,
-    prefix: String,
     api_key: String,
     secret: String,
+    orders: OrderMgr,
 }
 
 impl BinanceFuturesClient {
-    pub fn new(url: &str, prefix: &str, api_key: &str, secret: &str) -> Self {
+    pub fn new(url: &str, api_key: &str, secret: &str, orders: OrderMgr) -> Self {
         Self {
             client: reqwest::Client::new(),
             url: url.to_string(),
-            prefix: prefix.to_string(),
             api_key: api_key.to_string(),
             secret: secret.to_string(),
+            orders,
         }
     }
 
@@ -203,71 +195,50 @@ impl BinanceFuturesClient {
 
     pub async fn submit_order(
         &self,
+        client_order_id: &str,
         symbol: &str,
-        order: Order<()>,
-    ) -> Result<Order<()>, OrderRequestError> {
-        let prec = get_precision(order.tick_size);
+        side: Side,
+        price: f32,
+        price_prec: usize,
+        qty: f32,
+        order_type: OrdType,
+        time_in_force: TimeInForce,
+    ) -> Result<OrderResponse, RequestError> {
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");
-        body.push_str(&self.prefix);
-        body.push_str(&order.order_id.to_string());
+        body.push_str(&client_order_id);
         body.push_str("&symbol=");
         body.push_str(&symbol);
         body.push_str("&side=");
-        body.push_str(&order.side.to_string());
+        body.push_str(side.to_str());
         body.push_str("&price=");
-        body.push_str(&format!(
-            "{:.prec$}",
-            order.price_tick as f32 * order.tick_size,
-            prec = prec
-        ));
+        body.push_str(&format!("{:.prec$}", price, prec = price_prec));
         body.push_str("&quantity=");
-        body.push_str(&format!("{:.5}", order.qty));
+        body.push_str(&format!("{:.5}", qty));
         body.push_str("&type=");
-        body.push_str(&order.order_type.to_string());
+        body.push_str(order_type.to_str());
         body.push_str("&timeInForce=");
-        body.push_str(&order.time_in_force.to_string());
+        body.push_str(time_in_force.to_str());
 
         let resp: OrderResponseResult = self
             .post("/fapi/v1/order", body, &self.api_key, &self.secret)
-            .await
-            .map_err(|e| RequestError::ReqError(e, order.clone()))?;
+            .await?;
         match resp {
             OrderResponseResult::Ok(resp) => {
-                Ok(Order {
-                    qty: resp.orig_qty,
-                    leaves_qty: resp.orig_qty - resp.cum_qty,
-                    price_tick: (resp.price / order.tick_size).round() as i32,
-                    tick_size: order.tick_size,
-                    side: order.side,
-                    time_in_force: resp.time_in_force,
-                    exch_timestamp: resp.update_time * 1000,
-                    status: Status::New,
-                    local_timestamp: 0,
-                    req: Status::None,
-                    exec_price_tick: 0,
-                    exec_qty: resp.executed_qty,
-                    order_id: order.order_id,
-                    order_type: resp.type_,
-                    // Invalid information
-                    q: (),
-                    // Invalid information
-                    maker: false,
-                })
+                Ok(resp)
             }
             OrderResponseResult::Err(resp) => {
-                Err(RequestError::OrderError(order, resp.code, resp.msg))
+                Err(RequestError::OrderError(resp.code, resp.msg))
             }
         }
     }
 
     pub async fn submit_orders(
         &self,
-        symbol: &str,
-        orders: Vec<Order<()>>,
-    ) -> Result<Vec<Result<Order<()>, OrderRequestError>>, RequestError<Vec<Order<()>>>> {
+        orders: Vec<(String, String, Side, f32, usize, f32, OrdType, TimeInForce)>,
+    ) -> Result<Vec<Result<OrderResponse, RequestError>>, RequestError> {
         if orders.len() > 5 {
-            return Err(RequestError::InvalidRequest(orders));
+            return Err(RequestError::InvalidRequest);
         }
         let mut body = String::with_capacity(2000 * orders.len());
         body.push_str("{\"batchOrders\":[");
@@ -276,156 +247,94 @@ impl BinanceFuturesClient {
                 body.push_str(",");
             }
             body.push_str("{\"newClientOrderId\":\"");
-            body.push_str(&self.prefix);
-            body.push_str(&order.order_id.to_string());
+            body.push_str(&order.0);
             body.push_str("\",\"symbol\":\"");
-            body.push_str(&symbol);
+            body.push_str(&order.1);
             body.push_str("\",\"side\":\"");
-            body.push_str(&order.side.to_string());
+            body.push_str(order.2.to_str());
             body.push_str("\",\"price\":\"");
-            body.push_str(&format!("{:.5}", order.price_tick as f32 * order.tick_size));
+            body.push_str(&format!("{:.prec$}", order.3, prec = order.4));
             body.push_str("\",\"quantity\":\"");
-            body.push_str(&format!("{:.5}", order.qty));
+            body.push_str(&format!("{:.5}", order.5));
             body.push_str("\",\"type\":\"");
-            body.push_str(&order.order_type.to_string());
+            body.push_str(order.6.to_str());
             body.push_str("\",\"timeInForce\":\"");
-            body.push_str(&order.time_in_force.to_string());
+            body.push_str(order.7.to_str());
             body.push_str("\"}");
         }
         body.push_str("]}");
 
-        let resp_: Vec<OrderResponseResult> = self
+        let resp: Vec<OrderResponseResult> = self
             .post("/fapi/v1/batchOrders", body, &self.api_key, &self.secret)
-            .await
-            .map_err(|e| RequestError::ReqError(e, orders.clone()))?;
-        Ok(resp_
+            .await?;
+        Ok(resp
             .into_iter()
-            .zip(orders.into_iter())
-            .map(|(resp, order)| {
-                match resp {
-                    OrderResponseResult::Ok(resp) => {
-                        // todo: check if the order id is matched.
-                        Ok(Order {
-                            qty: resp.orig_qty,
-                            leaves_qty: resp.orig_qty - resp.cum_qty,
-                            price_tick: (resp.price / order.tick_size).round() as i32,
-                            tick_size: order.tick_size,
-                            side: order.side,
-                            time_in_force: resp.time_in_force,
-                            exch_timestamp: resp.update_time * 1000,
-                            status: Status::New,
-                            local_timestamp: 0,
-                            req: Status::None,
-                            exec_price_tick: 0,
-                            exec_qty: resp.executed_qty,
-                            order_id: order.order_id,
-                            order_type: resp.type_,
-                            // Invalid information
-                            q: (),
-                            // Invalid information
-                            maker: false,
-                        })
-                    }
-                    OrderResponseResult::Err(resp) => {
-                        Err(RequestError::OrderError(order, resp.code, resp.msg))
-                    }
+            .map(|resp| match resp {
+                OrderResponseResult::Ok(resp) => {
+                    Ok(resp)
+                }
+                OrderResponseResult::Err(resp) => {
+                    Err(RequestError::OrderError(resp.code, resp.msg))
                 }
             })
-            .collect())
+            .collect()
+        )
     }
 
     pub async fn modify_order(
         &self,
+        client_order_id: &str,
         symbol: &str,
-        order: Order<()>,
-    ) -> Result<Order<()>, OrderRequestError> {
+        side: Side,
+        price: f32,
+        price_prec: usize,
+        qty: f32,
+    ) -> Result<OrderResponse, RequestError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
         body.push_str(&symbol);
         body.push_str("&origClientOrderId=");
-        body.push_str(&self.prefix);
-        body.push_str(&order.order_id.to_string());
+        body.push_str(&client_order_id);
         body.push_str("&side=");
-        body.push_str(&order.side.to_string());
+        body.push_str(side.to_str());
         body.push_str("&price=");
-        body.push_str(&format!("{:.5}", order.price_tick as f32 * order.tick_size));
+        body.push_str(&format!("{:.prec$}", price, prec = price_prec));
         body.push_str("&quantity=");
-        body.push_str(&format!("{:.5}", order.qty));
+        body.push_str(&format!("{:.5}", qty));
 
         let resp: OrderResponseResult = self
             .put("/fapi/v1/order", body, &self.api_key, &self.secret)
-            .await
-            .map_err(|e| RequestError::ReqError(e, order.clone()))?;
+            .await?;
         match resp {
             OrderResponseResult::Ok(resp) => {
-                Ok(Order {
-                    qty: resp.orig_qty,
-                    leaves_qty: resp.orig_qty - resp.cum_qty,
-                    price_tick: (resp.price / order.tick_size).round() as i32,
-                    tick_size: order.tick_size,
-                    side: resp.side,
-                    time_in_force: resp.time_in_force,
-                    exch_timestamp: resp.update_time * 1000,
-                    status: resp.status,
-                    local_timestamp: 0,
-                    req: Status::None,
-                    exec_price_tick: 0,
-                    exec_qty: resp.executed_qty,
-                    order_id: order.order_id,
-                    order_type: resp.type_,
-                    // Invalid information
-                    q: (),
-                    // Invalid information
-                    maker: false,
-                })
+                Ok(resp)
             }
             OrderResponseResult::Err(resp) => {
-                Err(RequestError::OrderError(order, resp.code, resp.msg))
+                Err(RequestError::OrderError(resp.code, resp.msg))
             }
         }
     }
 
     pub async fn cancel_order(
         &self,
+        client_order_id: &str,
         symbol: &str,
-        order: Order<()>,
-    ) -> Result<Order<()>, OrderRequestError> {
+    ) -> Result<OrderResponse, RequestError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
         body.push_str(&symbol);
         body.push_str("&origClientOrderId=");
-        body.push_str(&self.prefix);
-        body.push_str(&order.order_id.to_string());
+        body.push_str(client_order_id);
 
         let resp: OrderResponseResult = self
             .delete("/fapi/v1/order", body, &self.api_key, &self.secret)
-            .await
-            .map_err(|e| RequestError::ReqError(e, order.clone()))?;
+            .await?;
         match resp {
             OrderResponseResult::Ok(resp) => {
-                Ok(Order {
-                    qty: resp.orig_qty,
-                    leaves_qty: resp.orig_qty - resp.cum_qty,
-                    price_tick: (resp.price / order.tick_size).round() as i32,
-                    tick_size: order.tick_size,
-                    side: resp.side,
-                    time_in_force: resp.time_in_force,
-                    exch_timestamp: resp.update_time * 1000,
-                    status: Status::Canceled,
-                    local_timestamp: 0,
-                    req: Status::None,
-                    exec_price_tick: 0,
-                    exec_qty: resp.executed_qty,
-                    order_id: order.order_id,
-                    order_type: resp.type_,
-                    // Invalid information
-                    q: (),
-                    // Invalid information
-                    maker: false,
-                })
+                Ok(resp)
             }
             OrderResponseResult::Err(resp) => {
-                Err(RequestError::OrderError(order, resp.code, resp.msg))
+                Err(RequestError::OrderError(resp.code, resp.msg))
             }
         }
     }
@@ -433,63 +342,39 @@ impl BinanceFuturesClient {
     pub async fn cancel_orders(
         &self,
         symbol: &str,
-        orders: Vec<Order<()>>,
-    ) -> Result<Vec<Result<Order<()>, OrderRequestError>>, RequestError<Vec<Order<()>>>> {
-        if orders.len() > 10 {
-            return Err(RequestError::InvalidRequest(orders));
+        client_order_ids: Vec<String>,
+    ) -> Result<Vec<Result<OrderResponse, RequestError>>, RequestError> {
+        if client_order_ids.len() > 10 {
+            return Err(RequestError::InvalidRequest);
         }
         let mut body = String::with_capacity(100);
         body.push_str("{\"symbol\":\"");
-        body.push_str(&symbol);
+        body.push_str(symbol);
         body.push_str("\",\"origClientOrderIdList\":[");
-        for (i, order) in orders.iter().enumerate() {
+        for (i, client_order_id) in client_order_ids.iter().enumerate() {
             if i > 0 {
                 body.push_str(",");
             }
             body.push_str("\"");
-            body.push_str(&self.prefix);
-            body.push_str(&order.order_id.to_string());
+            body.push_str(client_order_id);
             body.push_str("\"");
         }
         body.push_str("]}");
-        let resp_: Vec<OrderResponseResult> = self
+        let resp: Vec<OrderResponseResult> = self
             .post("/fapi/v1/batchOrders", body, &self.api_key, &self.secret)
-            .await
-            .map_err(|e| RequestError::ReqError(e, orders.clone()))?;
-        Ok(resp_
+            .await?;
+        Ok(resp
             .into_iter()
-            .zip(orders.into_iter())
-            .map(|(resp, order)| {
-                match resp {
-                    OrderResponseResult::Ok(resp) => {
-                        // todo: check if the order id is matched.
-                        Ok(Order {
-                            qty: resp.orig_qty,
-                            leaves_qty: resp.orig_qty - resp.cum_qty,
-                            price_tick: (resp.price / order.tick_size).round() as i32,
-                            tick_size: order.tick_size,
-                            side: resp.side,
-                            time_in_force: resp.time_in_force,
-                            exch_timestamp: resp.update_time * 1000,
-                            status: Status::Canceled,
-                            local_timestamp: 0,
-                            req: Status::None,
-                            exec_price_tick: 0,
-                            exec_qty: resp.executed_qty,
-                            order_id: order.order_id,
-                            order_type: resp.type_,
-                            // Invalid information
-                            q: (),
-                            // Invalid information
-                            maker: false,
-                        })
-                    }
-                    OrderResponseResult::Err(resp) => {
-                        Err(RequestError::OrderError(order, resp.code, resp.msg))
-                    }
+            .map(|resp| match resp {
+                OrderResponseResult::Ok(resp) => {
+                    Ok(resp)
+                }
+                OrderResponseResult::Err(resp) => {
+                    Err(RequestError::OrderError(resp.code, resp.msg))
                 }
             })
-            .collect())
+            .collect()
+        )
     }
 
     pub async fn cancel_all_orders(&self, symbol: &str) -> Result<(), reqwest::Error> {
@@ -534,32 +419,35 @@ impl BinanceFuturesClient {
             .iter()
             .map(|data| {
                 assets.get(&data.symbol).and_then(|asset_info| {
-                    parse_client_order_id(&data.client_order_id, &self.prefix).map(|order_id| {
-                        Order {
-                            qty: data.orig_qty,
-                            leaves_qty: data.orig_qty - data.cum_qty,
-                            price_tick: (data.price / asset_info.tick_size).round() as i32,
-                            tick_size: asset_info.tick_size,
-                            side: data.side,
-                            time_in_force: data.time_in_force,
-                            exch_timestamp: data.update_time * 1000,
-                            status: data.status,
-                            local_timestamp: 0,
-                            req: Status::None,
-                            exec_price_tick: 0,
-                            exec_qty: data.executed_qty,
-                            order_id,
-                            order_type: data.type_,
-                            // Invalid information
-                            q: (),
-                            // Invalid information
-                            maker: false,
-                        }
-                    })
+                    // fixme
+                    OrderManager::parse_client_order_id(&data.client_order_id, "prefix")
+                        .map(|order_id|
+                            Order {
+                                qty: data.orig_qty,
+                                leaves_qty: data.orig_qty - data.cum_qty,
+                                price_tick: (data.price / asset_info.tick_size).round() as i32,
+                                tick_size: asset_info.tick_size,
+                                side: data.side,
+                                time_in_force: data.time_in_force,
+                                exch_timestamp: data.update_time * 1_000_000,
+                                status: data.status,
+                                local_timestamp: 0,
+                                req: Status::None,
+                                exec_price_tick: 0,
+                                exec_qty: data.executed_qty,
+                                order_id,
+                                order_type: data.type_,
+                                // Invalid information
+                                q: (),
+                                // Invalid information
+                                maker: false,
+                            }
+                    )
                 })
             })
             .filter(|order| order.is_some())
             .map(|order| order.unwrap())
-            .collect())
+            .collect()
+        )
     }
 }
