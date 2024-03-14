@@ -1,26 +1,33 @@
-use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::mpsc::Sender,
+    time::Duration,
+};
 
 use anyhow::Error;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
-use tokio::{select, time};
+use tokio::{select, sync::mpsc::unbounded_channel, time};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message},
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use super::{
-    msg::{Data, Stream},
+    msg::stream::{Data, Stream},
     rest::BinanceFuturesClient,
     BinanceFuturesError,
     OrderMgr,
 };
 use crate::{
+    connector::binancefutures::{
+        msg::{rest, stream},
+        ordermanager::OrderManager,
+    },
     live::AssetInfo,
     ty::{self, Depth, Event, Order, OrderResponse, Position, Status, BUY, SELL},
 };
-use crate::connector::binancefutures::ordermanager::OrderManager;
 
 fn parse_depth(
     bids: Vec<(String, String)>,
@@ -41,6 +48,12 @@ fn parse_px_qty_tup(px: String, qty: String) -> Result<(f32, f32), anyhow::Error
     Ok((px.parse()?, qty.parse()?))
 }
 
+pub enum DepthManageMode {
+    WaitUntilGapFill,
+    GapFillOnTheFly,
+    NaturalRefresh,
+}
+
 pub async fn connect(
     url: &str,
     ev_tx: Sender<Event>,
@@ -52,15 +65,77 @@ pub async fn connect(
     let mut request = url.into_client_request()?;
     let _ = request.headers_mut();
 
+    let depth_mode = DepthManageMode::NaturalRefresh;
+    let mut pending_depth_messages: HashMap<String, Vec<stream::Depth>> = HashMap::new();
+    let mut prev_u: HashMap<String, i64> = HashMap::new();
+
     let (ws_stream, _) = connect_async(request).await?;
     let (mut write, mut read) = ws_stream.split();
     let mut interval = time::interval(Duration::from_secs(60 * 30));
+    let (rest_tx, mut rest_rx) = unbounded_channel::<(String, rest::Depth)>();
     loop {
         select! {
             _ = interval.tick() => {
-                if let Err(error) = client.keepalive_user_data_stream().await {
-                    error!(?error, "Failed keepalive user data stream.");
+                let client_ = client.clone();
+                tokio::spawn(async move {
+                    if let Err(error) = client_.keepalive_user_data_stream().await {
+                        error!(?error, "Failed keepalive user data stream.");
+                    }
+                });
+            }
+            Some((symbol, data)) = rest_rx.recv() => {
+                // Processes the REST depth.
+                match parse_depth(data.bids, data.asks) {
+                    Ok((bids, asks)) => {
+                        let ai = assets
+                            .get(&symbol)
+                            .ok_or(BinanceFuturesError::AssetNotFound)?;
+                        ev_tx.send(
+                            Event::Depth(
+                                Depth {
+                                    asset_no: ai.asset_no,
+                                    exch_ts: data.transaction_time * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    bids,
+                                    asks,
+                                }
+                            )
+                        ).unwrap();
+                    }
+                    Err(error) => {
+                        error!(?error, "Couldn't parse Depth response.");
+                    }
                 }
+
+                // fixme: waits for pending messages without blocking.
+                // prev_u.remove(&symbol);
+                // let mut new_prev_u: Option<i64> = None;
+                // while new_prev_u.is_none() {
+                //     if let Some(msg) = pending_depth_messages.get_mut(&symbol) {
+                //         for pending_depth in msg.into_iter() {
+                //             // https://binance-docs.github.io/apidocs/futures/en/#how-to-manage-a-local-order-book-correctly
+                //             // The first processed event should have U <= lastUpdateId AND u >= lastUpdateId
+                //             if (
+                //                 pending_depth.last_update_id < resp.last_update_id
+                //                 || pending_depth.first_update_id > resp.last_update_id
+                //             ) && new_prev_u.is_none() {
+                //                 continue;
+                //             }
+                //             if new_prev_u.is_some() && pending_depth.prev_update_id != *new_prev_u.as_ref().unwrap() {
+                //                 warn!(%symbol, ?pending_depth, "UpdateId does not match.");
+                //             }
+                //
+                //             // Processes a pending depth message
+                //             new_prev_u = Some(pending_depth.last_update_id);
+                //             *prev_u.entry(symbol.clone())
+                //                 .or_insert(pending_depth.last_update_id) = pending_depth.last_update_id;
+                //         }
+                //     }
+                //     if new_prev_u.is_none() {
+                //         // Waits for depth messages.
+                //         todo!()
+                //     }
+                // }
             }
             message = read.next() => {
                 match message {
@@ -74,6 +149,40 @@ pub async fn connect(
                         };
                         match stream.data {
                             Data::DepthUpdate(data) => {
+                                let mut prev_u_val = prev_u.get_mut(&data.symbol);
+                                if prev_u_val.is_none()
+                                    /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
+                                {
+                                    if !pending_depth_messages.contains_key(&data.symbol) {
+                                        let client_ = client.clone();
+                                        let symbol = data.symbol.clone();
+                                        let rest_tx_ = rest_tx.clone();
+                                        tokio::spawn(async move {
+                                            let resp = client_
+                                                .get_depth(&symbol)
+                                                .await;
+                                            match resp {
+                                                Ok(depth) => {
+                                                    rest_tx_.send((symbol, depth)).unwrap();
+                                                }
+                                                Err(error) => {
+                                                    error!(
+                                                        ?error,
+                                                        %symbol,
+                                                        "Failed to get depth through rest."
+                                                    )
+                                                }
+                                            }
+                                        });
+                                    }
+                                    pending_depth_messages
+                                        .entry(data.symbol.clone())
+                                        .or_insert(Vec::new())
+                                        .push(data);
+                                    continue;
+                                }
+                                *prev_u_val.unwrap() = data.last_update_id;
+
                                 match parse_depth(data.bids, data.asks) {
                                     Ok((bids, asks)) => {
                                         let ai = assets
@@ -83,7 +192,7 @@ pub async fn connect(
                                             Event::Depth(
                                                 Depth {
                                                     asset_no: ai.asset_no,
-                                                    exch_ts: data.ev_timestamp * 1_000_000,
+                                                    exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
                                                     bids,
                                                     asks,
@@ -106,7 +215,7 @@ pub async fn connect(
                                             Event::Trade(
                                                 ty::Trade {
                                                     asset_no: asset_info.asset_no,
-                                                    exch_ts: data.ev_timestamp * 1_000_000,
+                                                    exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
                                                     side: {
                                                         if data.is_the_buyer_the_market_maker {

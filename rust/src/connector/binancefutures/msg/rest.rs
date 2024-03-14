@@ -145,6 +145,18 @@ pub struct PositionInformationV2 {
     pub update_time: i64,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct Depth {
+    #[serde(rename = "lastUpdateId")]
+    pub last_update_id: i64,
+    #[serde(rename = "E")]
+    pub event_time: i64,
+    #[serde(rename = "T")]
+    pub transaction_time: i64,
+    pub bids: Vec<(String, String)>,
+    pub asks: Vec<(String, String)>,
+}
+
 /// https://binance-docs.github.io/apidocs/futures/en/#error-codes
 pub enum ErrorCode {
     Unknown,

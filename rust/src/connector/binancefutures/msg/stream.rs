@@ -34,17 +34,17 @@ pub enum Data {
 #[derive(Deserialize, Debug)]
 pub struct Depth {
     #[serde(rename = "T")]
-    pub ev_timestamp: i64,
+    pub transaction_time: i64,
     #[serde(rename = "E")]
-    pub send_timestamp: i64,
+    pub event_time: i64,
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "U")]
     pub first_update_id: i64,
     #[serde(rename = "u")]
     pub last_update_id: i64,
-    // #[serde(rename = "pu")]
-    // pub prev_update_id: i64,
+    #[serde(rename = "pu")]
+    pub prev_update_id: i64,
     #[serde(rename = "b")]
     pub bids: Vec<(String, String)>,
     #[serde(rename = "a")]
@@ -54,9 +54,9 @@ pub struct Depth {
 #[derive(Deserialize, Debug)]
 pub struct Trade {
     #[serde(rename = "T")]
-    pub ev_timestamp: i64,
+    pub transaction_time: i64,
     #[serde(rename = "E")]
-    pub send_timestamp: i64,
+    pub event_time: i64,
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "t")]
@@ -76,7 +76,7 @@ pub struct AccountUpdate {
     #[serde(rename = "E")]
     pub event_time: i64,
     #[serde(rename = "T")]
-    pub transaction_tim: i64,
+    pub transaction_time: i64,
     #[serde(rename = "a")]
     pub account: Account,
 }

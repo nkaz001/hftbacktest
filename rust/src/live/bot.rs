@@ -139,6 +139,8 @@ impl Bot {
             let timeout = Duration::from_nanos(remaining_duration as u64);
             match self.ev_rx.recv_timeout(timeout) {
                 Ok(Event::Depth(data)) => {
+                    // fixme: updates the depth only if exch_ts is greater than that of the existing
+                    //        level.
                     let depth = unsafe { self.depth.get_unchecked_mut(data.asset_no) };
                     depth.timestamp = data.exch_ts;
                     for (px, qty) in data.bids {

@@ -6,7 +6,14 @@ use std::{
 };
 
 use hftbacktest::{
-    depth::{btreebook::BTreeMapMarketDepth, hashmapbook::HashMapMarketDepth, MarketDepth},
+    depth::{
+        btreebook::BTreeMapMarketDepth,
+        hashmapbook::HashMapMarketDepth,
+        MarketDepth,
+        INVALID_MAX,
+        INVALID_MIN,
+    },
+    get_precision,
     ty::{OrdType, Side, TimeInForce},
     Interface,
 };
@@ -27,11 +34,13 @@ where
     let grid_num = 20;
     let max_position = grid_num as f64 * order_qty;
 
+    let tick_size = hbt.depth(0).tick_size() as f64;
+    let price_prec = get_precision(tick_size as f32);
+
     // Running interval in nanoseconds
     while hbt.elapse(100_000_000).unwrap() {
         let depth = hbt.depth(0);
         let position = hbt.position(0);
-        let tick_size = depth.tick_size() as f64;
 
         if depth.best_bid_tick() == INVALID_MIN || depth.best_ask_tick() == INVALID_MAX {
             // Market depth is incomplete.
@@ -40,8 +49,8 @@ where
 
         info!(
             time = hbt.current_timestamp(),
-            bid = depth.best_bid(),
-            ask = depth.best_ask(),
+            bid = format!("{:.prec$}", depth.best_bid(), prec = price_prec),
+            ask = format!("{:.prec$}", depth.best_ask(), prec = price_prec),
             position = position,
             "Run"
         );

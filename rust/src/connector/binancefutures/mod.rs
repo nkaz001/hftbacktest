@@ -5,28 +5,27 @@ mod ws;
 
 use std::{
     collections::HashMap,
-    sync::mpsc::Sender,
+    sync::{mpsc::Sender, Arc, Mutex},
     time::Duration,
 };
-use std::sync::{Arc, Mutex};
 
 use reqwest::StatusCode;
-use tracing::{debug, error};
 use thiserror::Error;
+use tracing::{debug, error, warn};
 
 use crate::{
     connector::{
         binancefutures::{
-            ordermanager::OrderMgr,
+            ordermanager::{OrderManager, OrderMgr},
             rest::{BinanceFuturesClient, RequestError},
             ws::connect,
         },
         Connector,
     },
+    get_precision,
     live::AssetInfo,
     ty::{EvError, Event, Order, OrderResponse, Position, Status},
 };
-use crate::connector::binancefutures::ordermanager::OrderManager;
 
 pub enum Endpoint {
     Public,
@@ -54,13 +53,7 @@ pub struct BinanceFutures {
 }
 
 impl BinanceFutures {
-    pub fn new(
-        stream_url: &str,
-        api_url: &str,
-        prefix: &str,
-        api_key: &str,
-        secret: &str
-    ) -> Self {
+    pub fn new(stream_url: &str, api_url: &str, prefix: &str, api_key: &str, secret: &str) -> Self {
         let orders: OrderMgr = Arc::new(Mutex::new(OrderManager::new(prefix)));
         Self {
             url: stream_url.to_string(),
@@ -188,6 +181,10 @@ impl Connector for BinanceFutures {
                     .collect();
                 let url = format!("{}{}/{}", &base_url, listen_key, streams.join("/"));
 
+                for symbol in assets.keys() {
+                    let res = client.get_depth(symbol).await;
+                }
+
                 if let Err(error) = connect(
                     &url,
                     ev_tx.clone(),
@@ -244,20 +241,18 @@ impl Connector for BinanceFutures {
                         .await
                     {
                         Ok(resp) => {
-                            let order = orders
-                                .lock()
-                                .unwrap()
-                                .update_submit_success(order, resp);
+                            let order = orders.lock().unwrap().update_submit_success(order, resp);
                             if let Some(order) = order {
                                 tx.send(Event::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
                         }
                         Err(error) => {
-                            let order = orders
-                                .lock()
-                                .unwrap()
-                                .update_submit_fail(order, error, client_order_id);
+                            let order = orders.lock().unwrap().update_submit_fail(
+                                order,
+                                error,
+                                client_order_id,
+                            );
                             if let Some(order) = order {
                                 tx.send(Event::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
@@ -269,7 +264,11 @@ impl Connector for BinanceFutures {
                     }
                 }
                 None => {
-                    error!("duplicate order id");
+                    warn!(
+                        ?order,
+                        "Coincidentally, creates a duplicated client order id. \
+                        This order request will be expired."
+                    );
                     order.req = Status::None;
                     order.status = Status::Expired;
                     tx.send(Event::Order(OrderResponse { asset_no, order }))
@@ -294,29 +293,24 @@ impl Connector for BinanceFutures {
         let client = self.client.clone();
         let orders = self.orders.clone();
         tokio::spawn(async move {
-            let client_order_id = orders
-                .lock()
-                .unwrap()
-                .get_client_order_id(order.order_id);
+            let client_order_id = orders.lock().unwrap().get_client_order_id(order.order_id);
 
             match client_order_id {
                 Some(client_order_id) => {
                     match client.cancel_order(&client_order_id, &symbol).await {
                         Ok(resp) => {
-                            let order = orders
-                                .lock()
-                                .unwrap()
-                                .update_cancel_success(order, resp);
+                            let order = orders.lock().unwrap().update_cancel_success(order, resp);
                             if let Some(order) = order {
                                 tx.send(Event::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
                         }
                         Err(error) => {
-                            let order = orders
-                                .lock()
-                                .unwrap()
-                                .update_cancel_fail(order, error, client_order_id);
+                            let order = orders.lock().unwrap().update_cancel_fail(
+                                order,
+                                error,
+                                client_order_id,
+                            );
                             if let Some(order) = order {
                                 tx.send(Event::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
@@ -342,17 +336,4 @@ impl Connector for BinanceFutures {
         });
         Ok(())
     }
-}
-
-/// tick_size should not be a computed value.
-fn get_precision(tick_size: f32) -> usize {
-    let s = tick_size.to_string();
-    let mut prec = 0;
-    for (i, c) in s.chars().enumerate() {
-        if c == '.' {
-            prec = s.len() - i - 1;
-            break;
-        }
-    }
-    prec
 }

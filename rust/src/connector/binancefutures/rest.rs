@@ -10,16 +10,18 @@ use sha2::Sha256;
 use thiserror::Error;
 
 /// https://binance-docs.github.io/apidocs/futures/en/
-use super::{msg::PositionInformationV2};
+use super::msg::{rest, rest::PositionInformationV2};
 use crate::{
     connector::binancefutures::{
-        msg::{ListenKey, OrderResponse, OrderResponseResult},
-        ordermanager::OrderMgr,
+        msg::{
+            rest::{OrderResponse, OrderResponseResult},
+            stream::ListenKey,
+        },
+        ordermanager::{OrderManager, OrderMgr},
     },
     live::AssetInfo,
     ty::{OrdType, Order, Side, Status, TimeInForce, ToStr},
 };
-use crate::connector::binancefutures::ordermanager::OrderManager;
 
 #[derive(Error, Debug)]
 pub enum RequestError {
@@ -224,12 +226,8 @@ impl BinanceFuturesClient {
             .post("/fapi/v1/order", body, &self.api_key, &self.secret)
             .await?;
         match resp {
-            OrderResponseResult::Ok(resp) => {
-                Ok(resp)
-            }
-            OrderResponseResult::Err(resp) => {
-                Err(RequestError::OrderError(resp.code, resp.msg))
-            }
+            OrderResponseResult::Ok(resp) => Ok(resp),
+            OrderResponseResult::Err(resp) => Err(RequestError::OrderError(resp.code, resp.msg)),
         }
     }
 
@@ -270,15 +268,12 @@ impl BinanceFuturesClient {
         Ok(resp
             .into_iter()
             .map(|resp| match resp {
-                OrderResponseResult::Ok(resp) => {
-                    Ok(resp)
-                }
+                OrderResponseResult::Ok(resp) => Ok(resp),
                 OrderResponseResult::Err(resp) => {
                     Err(RequestError::OrderError(resp.code, resp.msg))
                 }
             })
-            .collect()
-        )
+            .collect())
     }
 
     pub async fn modify_order(
@@ -306,12 +301,8 @@ impl BinanceFuturesClient {
             .put("/fapi/v1/order", body, &self.api_key, &self.secret)
             .await?;
         match resp {
-            OrderResponseResult::Ok(resp) => {
-                Ok(resp)
-            }
-            OrderResponseResult::Err(resp) => {
-                Err(RequestError::OrderError(resp.code, resp.msg))
-            }
+            OrderResponseResult::Ok(resp) => Ok(resp),
+            OrderResponseResult::Err(resp) => Err(RequestError::OrderError(resp.code, resp.msg)),
         }
     }
 
@@ -330,12 +321,8 @@ impl BinanceFuturesClient {
             .delete("/fapi/v1/order", body, &self.api_key, &self.secret)
             .await?;
         match resp {
-            OrderResponseResult::Ok(resp) => {
-                Ok(resp)
-            }
-            OrderResponseResult::Err(resp) => {
-                Err(RequestError::OrderError(resp.code, resp.msg))
-            }
+            OrderResponseResult::Ok(resp) => Ok(resp),
+            OrderResponseResult::Err(resp) => Err(RequestError::OrderError(resp.code, resp.msg)),
         }
     }
 
@@ -366,15 +353,12 @@ impl BinanceFuturesClient {
         Ok(resp
             .into_iter()
             .map(|resp| match resp {
-                OrderResponseResult::Ok(resp) => {
-                    Ok(resp)
-                }
+                OrderResponseResult::Ok(resp) => Ok(resp),
                 OrderResponseResult::Err(resp) => {
                     Err(RequestError::OrderError(resp.code, resp.msg))
                 }
             })
-            .collect()
-        )
+            .collect())
     }
 
     pub async fn cancel_all_orders(&self, symbol: &str) -> Result<(), reqwest::Error> {
@@ -420,34 +404,44 @@ impl BinanceFuturesClient {
             .map(|data| {
                 assets.get(&data.symbol).and_then(|asset_info| {
                     // fixme
-                    OrderManager::parse_client_order_id(&data.client_order_id, "prefix")
-                        .map(|order_id|
-                            Order {
-                                qty: data.orig_qty,
-                                leaves_qty: data.orig_qty - data.cum_qty,
-                                price_tick: (data.price / asset_info.tick_size).round() as i32,
-                                tick_size: asset_info.tick_size,
-                                side: data.side,
-                                time_in_force: data.time_in_force,
-                                exch_timestamp: data.update_time * 1_000_000,
-                                status: data.status,
-                                local_timestamp: 0,
-                                req: Status::None,
-                                exec_price_tick: 0,
-                                exec_qty: data.executed_qty,
-                                order_id,
-                                order_type: data.type_,
-                                // Invalid information
-                                q: (),
-                                // Invalid information
-                                maker: false,
-                            }
+                    OrderManager::parse_client_order_id(&data.client_order_id, "prefix").map(
+                        |order_id| Order {
+                            qty: data.orig_qty,
+                            leaves_qty: data.orig_qty - data.cum_qty,
+                            price_tick: (data.price / asset_info.tick_size).round() as i32,
+                            tick_size: asset_info.tick_size,
+                            side: data.side,
+                            time_in_force: data.time_in_force,
+                            exch_timestamp: data.update_time * 1_000_000,
+                            status: data.status,
+                            local_timestamp: 0,
+                            req: Status::None,
+                            exec_price_tick: 0,
+                            exec_qty: data.executed_qty,
+                            order_id,
+                            order_type: data.type_,
+                            // Invalid information
+                            q: (),
+                            // Invalid information
+                            maker: false,
+                        },
                     )
                 })
             })
             .filter(|order| order.is_some())
             .map(|order| order.unwrap())
-            .collect()
-        )
+            .collect())
+    }
+
+    pub async fn get_depth(&self, symbol: &str) -> Result<rest::Depth, reqwest::Error> {
+        let resp: rest::Depth = self
+            .get(
+                "/fapi/v1/depth",
+                format!("symbol={}&limit=1000", symbol),
+                &self.api_key,
+                &self.secret,
+            )
+            .await?;
+        Ok(resp)
     }
 }

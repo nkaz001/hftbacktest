@@ -2,14 +2,13 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     sync::{Arc, Mutex},
 };
-use chrono::Utc;
-use rand::distributions::Alphanumeric;
-use rand::Rng;
 
+use chrono::Utc;
+use rand::{distributions::Alphanumeric, Rng};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    connector::binancefutures::{msg::OrderResponse, rest::RequestError},
+    connector::binancefutures::{msg::rest::OrderResponse, rest::RequestError},
     ty::{Order, Status},
 };
 
@@ -263,13 +262,17 @@ impl OrderManager {
             return None;
         }
 
-        self.order_id_map.insert(order.order_id, client_order_id.clone());
-        self.orders.insert(client_order_id.clone(), OrderWrapper {
-            order,
-            client_order_id: client_order_id.clone(),
-            removed_by_ws: false,
-            removed_by_rest: false,
-        });
+        self.order_id_map
+            .insert(order.order_id, client_order_id.clone());
+        self.orders.insert(
+            client_order_id.clone(),
+            OrderWrapper {
+                order,
+                client_order_id: client_order_id.clone(),
+                removed_by_ws: false,
+                removed_by_rest: false,
+            },
+        );
         Some(client_order_id)
     }
 
@@ -280,7 +283,8 @@ impl OrderManager {
     pub fn gc(&mut self) {
         let now = Utc::now().timestamp_nanos_opt().unwrap();
         let stale_ts = now - 300_000_000_000;
-        let stale_ids: Vec<(_, _)> = self.orders
+        let stale_ids: Vec<(_, _)> = self
+            .orders
             .iter()
             .filter(|&(_, wrapper)| {
                 wrapper.order.status != Status::New
@@ -288,9 +292,7 @@ impl OrderManager {
                     && wrapper.order.status != Status::Unsupported
                     && wrapper.order.exch_timestamp < stale_ts
             })
-            .map(|(client_order_id, wrapper)|
-                (client_order_id.clone(), wrapper.order.order_id)
-            )
+            .map(|(client_order_id, wrapper)| (client_order_id.clone(), wrapper.order.order_id))
             .collect();
         for (client_order_id, order_id) in stale_ids.iter() {
             if self.order_id_map.contains_key(order_id) {

@@ -6,11 +6,8 @@ use serde::{
 
 use crate::ty::{OrdType, Side, Status, TimeInForce};
 
-mod rest;
-mod stream;
-
-pub use rest::*;
-pub use stream::*;
+pub mod rest;
+pub mod stream;
 
 fn from_str_to_f32<'de, D>(deserializer: D) -> Result<f32, D::Error>
 where

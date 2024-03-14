@@ -8,10 +8,11 @@ use crate::{
 pub mod backtest;
 pub mod connector;
 pub mod depth;
-mod error;
+pub mod error;
 pub mod live;
 pub mod ty;
 
+/// Provides an interface for a backtester or a bot.
 pub trait Interface<Q, MD>
 where
     Q: Sized + Clone,
@@ -60,7 +61,27 @@ where
 
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error>;
 
+    /// Elapses time only in backtesting. In live mode, it is ignored.
+    ///
+    /// The "elapse" method exclusively manages time during backtesting, meaning that factors such
+    /// as computing time are not properly accounted for. So, this method can be utilized to
+    /// simulate such processing times.
     fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error>;
 
     fn close(&mut self) -> Result<(), Self::Error>;
+}
+
+/// Gets price precision.
+///
+/// `tick_size` should not be a computed value.
+pub fn get_precision(tick_size: f32) -> usize {
+    let s = tick_size.to_string();
+    let mut prec = 0;
+    for (i, c) in s.chars().enumerate() {
+        if c == '.' {
+            prec = s.len() - i - 1;
+            break;
+        }
+    }
+    prec
 }
