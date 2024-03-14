@@ -13,7 +13,7 @@ HftBacktest
 |codacy| |codeql| |pypi| |downloads| |license| |docs| |github|
 
 High-Frequency Trading Backtesting Tool in Python
-====================================================================
+=================================================
 
 This Python framework is designed for developing high-frequency trading and market-making strategies. It focuses on accounting for both feed and order latencies, as well as the order queue position for order fill simulation. The framework aims to provide more accurate market replay-based backtesting, based on full order book and trade tick feed data.
 
@@ -130,9 +130,22 @@ Examples
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory.
 
+Contributing
+============
+
+Thank you for considering contributing to hftbacktest! Welcome any and all help to improve the project. If you have an
+idea for an enhancement or a bug fix, please open an issue or discussion on GitHub to discuss it.
+
+The following items are examples of contributions you can make to this project:
+
+* Improve performance statistics reporting
+* Implement test code
+* Add additional queue or exchange models
+* Update documentation and examples
+
 .. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
     :alt: Python Version
-    :target: https://badge.fury.io/py/tensorflow
+    :target: https://badge.fury.io/py/hftbacktest
 
 .. |codacy| image:: https://app.codacy.com/project/badge/Grade/e2cef673757a45b18abfc361779feada
     :alt: Codacy
