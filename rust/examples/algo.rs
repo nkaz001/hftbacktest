@@ -7,8 +7,8 @@ use std::{
 
 use hftbacktest::{
     depth::{
-        btreebook::BTreeMapMarketDepth,
-        hashmapbook::HashMapMarketDepth,
+        btreemarketdepth::BTreeMarketDepth,
+        hashmapmarketdepth::HashMapMarketDepth,
         MarketDepth,
         INVALID_MAX,
         INVALID_MIN,

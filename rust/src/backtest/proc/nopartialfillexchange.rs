@@ -27,7 +27,7 @@ use crate::{
         state::State,
         Error,
     },
-    depth::{hashmapbook::HashMapMarketDepth, MarketDepth as _, INVALID_MAX, INVALID_MIN},
+    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth as _, INVALID_MAX, INVALID_MIN},
     ty::{Order, Row, Side, Status, TimeInForce, BUY, SELL},
 };
 

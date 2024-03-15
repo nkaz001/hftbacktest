@@ -22,7 +22,7 @@ use crate::{
         reader::{Cache, Reader},
         state::State,
     },
-    depth::hashmapbook::HashMapMarketDepth,
+    depth::hashmapmarketdepth::HashMapMarketDepth,
     error::BuildError,
     ty::Row,
 };

@@ -1,5 +1,5 @@
 use crate::{
-    depth::hashmapbook::HashMapMarketDepth,
+    depth::hashmapmarketdepth::HashMapMarketDepth,
     ty::{Order, Side},
 };
 

@@ -153,7 +153,7 @@ pub async fn connect(
                                 if prev_u_val.is_none()
                                     /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
                                 {
-                                    if !pending_depth_messages.contains_key(&data.symbol) {
+                                    // if !pending_depth_messages.contains_key(&data.symbol) {
                                         let client_ = client.clone();
                                         let symbol = data.symbol.clone();
                                         let rest_tx_ = rest_tx.clone();
@@ -174,14 +174,16 @@ pub async fn connect(
                                                 }
                                             }
                                         });
-                                    }
-                                    pending_depth_messages
-                                        .entry(data.symbol.clone())
-                                        .or_insert(Vec::new())
-                                        .push(data);
-                                    continue;
+                                    // }
+                                    // pending_depth_messages
+                                    //     .entry(data.symbol.clone())
+                                    //     .or_insert(Vec::new())
+                                    //     .push(data);
+                                    // continue;
                                 }
-                                *prev_u_val.unwrap() = data.last_update_id;
+                                // *prev_u_val.unwrap() = data.last_update_id;
+                                // fixme: currently supports natural refresh only.
+                                *prev_u.entry(data.symbol.clone()).or_insert(data.last_update_id) = data.last_update_id;
 
                                 match parse_depth(data.bids, data.asks) {
                                     Ok((bids, asks)) => {

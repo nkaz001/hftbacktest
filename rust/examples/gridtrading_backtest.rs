@@ -8,12 +8,9 @@ use hftbacktest::{
         BtBuilder,
         DataSource,
     },
-    connector::binancefutures::BinanceFutures,
-    depth::hashmapbook::HashMapMarketDepth,
-    live::{bot::Bot, LiveBuilder},
+    depth::hashmapmarketdepth::HashMapMarketDepth,
     Interface,
 };
-use tracing::info;
 
 mod algo;
 
