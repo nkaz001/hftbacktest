@@ -18,11 +18,12 @@ use crate::{
         Error,
     },
     connector::Connector,
-    depth::{btreebook::BTreeMapMarketDepth, MarketDepth},
+    depth::{btreemarketdepth::BTreeMarketDepth, MarketDepth},
     live::{AssetInfo, LiveBuilder},
     ty::{Event, OrdType, Order, Request, Row, Side, Status, TimeInForce, BUY, SELL},
     Interface,
 };
+use crate::depth::hashmapmarketdepth::HashMapMarketDepth;
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum BotError {
@@ -81,7 +82,7 @@ pub struct Bot {
     req_rx: Option<UnboundedReceiver<Request>>,
     ev_tx: Option<Sender<Event>>,
     ev_rx: Receiver<Event>,
-    pub depth: Vec<BTreeMapMarketDepth>,
+    pub depth: Vec<HashMapMarketDepth>,
     pub orders: Vec<HashMap<i64, Order<()>>>,
     pub position: Vec<f64>,
     trade: Vec<Vec<Row>>,
@@ -100,7 +101,7 @@ impl Bot {
         let depth = assets
             .iter()
             .map(|(_, asset_info)| {
-                BTreeMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size)
+                HashMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size)
             })
             .collect();
 
@@ -257,7 +258,7 @@ impl Bot {
     }
 }
 
-impl Interface<(), BTreeMapMarketDepth> for Bot {
+impl Interface<(), HashMapMarketDepth> for Bot {
     type Error = BotError;
 
     fn current_timestamp(&self) -> i64 {
@@ -279,7 +280,7 @@ impl Interface<(), BTreeMapMarketDepth> for Bot {
         }
     }
 
-    fn depth(&self, asset_no: usize) -> &BTreeMapMarketDepth {
+    fn depth(&self, asset_no: usize) -> &HashMapMarketDepth {
         self.depth.get(asset_no).unwrap()
     }
 
