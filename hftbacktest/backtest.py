@@ -455,6 +455,45 @@ class SingleAssetHftBacktest:
             return False
         return True
 
+    def elapse_event(self, num_events: int):
+        count = 0
+        found_order_resp_timestamp = False
+        while True:
+            # Select which side will be processed next.
+            next_local_timestamp = self.local.next_timestamp()
+            next_exch_timestamp = self.exch.next_timestamp()
+
+            # Local will be processed.
+            if (0 < next_local_timestamp < next_exch_timestamp) \
+                    or (next_local_timestamp > 0 >= next_exch_timestamp):
+                if next_local_timestamp > timestamp:
+                    break
+                resp_timestamp = self.local.process(WAIT_ORDER_RESPONSE_NONE)
+
+            # Exchange will be processed.
+            elif (0 < next_exch_timestamp <= next_local_timestamp) \
+                    or (next_exch_timestamp > 0 >= next_local_timestamp):
+                if next_exch_timestamp > timestamp:
+                    break
+                resp_timestamp = self.exch.process(
+                    wait_order_response if not found_order_resp_timestamp else WAIT_ORDER_RESPONSE_NONE
+                )
+
+            # No more data or orders to be processed.
+            else:
+                self.run = False
+                break
+
+            if resp_timestamp > 0:
+                found_order_resp_timestamp = True
+                timestamp = resp_timestamp
+
+        self.current_timestamp = timestamp
+
+        if not self.run:
+            return False
+        return True
+
     def reset(
             self,
             local_reader,

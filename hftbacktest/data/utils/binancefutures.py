@@ -6,7 +6,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .. import correct, validate_data
-from ... import DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT
+from ..validation import correct_event_order, convert_to_struct_arr
+from ... import DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, correct_local_timestamp, \
+    COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP
 
 
 def convert(
@@ -14,7 +16,8 @@ def convert(
         output_filename: Optional[str] = None,
         opt: Literal['', 'm', 't', 'mt'] = '',
         base_latency: float = 0,
-        method: Literal['separate', 'adjust'] = 'separate'
+        compress: bool = False,
+        structured_array: bool = False
 ) -> NDArray:
     r"""
     Converts raw Binance Futures feed stream file into a format compatible with HftBacktest.
@@ -53,7 +56,9 @@ def convert(
 
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
-        method: The method to correct reversed exchange timestamp events. See :func:`..validation.correct`.
+        compress: If this is set to True, the output file will be compressed.
+        structured_array: If this is set to True, the output is converted into the new format.
+
     Returns:
         Converted data compatible with HftBacktest.
     """
@@ -129,15 +134,29 @@ def convert(
                              for ask in asks]
 
     data = np.asarray(rows, np.float64)
-    data = correct(data, base_latency=base_latency, method=method)
+
+    print('Correcting the latency')
+    merged = correct_local_timestamp(data, base_latency)
+
+    print('Correcting the event order')
+    sorted_exch_ts = merged[np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort')]
+    sorted_local_ts = merged[np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort')]
+
+    data = correct_event_order(sorted_exch_ts, sorted_local_ts, structured_array)
 
     # Validate again.
     num_corr = validate_data(data)
     if num_corr < 0:
         raise ValueError
 
+    if structured_array:
+        data = convert_to_struct_arr(data)
+
     if output_filename is not None:
         print('Saving to %s' % output_filename)
-        np.savez(output_filename, data=data)
+        if compress:
+            np.savez_compressed(output_filename, data=data)
+        else:
+            np.savez(output_filename, data=data)
 
     return data

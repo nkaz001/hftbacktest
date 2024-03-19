@@ -4,8 +4,10 @@ from typing import List, Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from .. import merge_on_local_timestamp, correct, validate_data
-from ... import DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DEPTH_EVENT
+from .. import validate_data
+from ..validation import correct_event_order, convert_to_struct_arr
+from ... import DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DEPTH_EVENT, COL_LOCAL_TIMESTAMP, \
+    correct_local_timestamp, COL_EXCH_TIMESTAMP
 
 
 def convert(
@@ -14,8 +16,9 @@ def convert(
         buffer_size: int = 100_000_000,
         ss_buffer_size: int = 10_000,
         base_latency: float = 0,
-        method: Literal['separate', 'adjust'] = 'separate',
-        snapshot_mode: Literal['process', 'ignore_sod', 'ignore'] = 'process'
+        snapshot_mode: Literal['process', 'ignore_sod', 'ignore'] = 'process',
+        compress: bool = False,
+        structured_array: bool = False
 ) -> NDArray:
     r"""
     Converts Tardis.dev data files into a format compatible with HftBacktest.
@@ -27,7 +30,6 @@ def convert(
         buffer_size: Sets a preallocated row size for the buffer.
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
-        method: The method to correct reversed exchange timestamp events. See :func:`..validation.correct`.
         snapshot_mode: - If this is set to 'ignore', all snapshots are ignored. The order book will converge to a
                          complete order book over time.
                        - If this is set to 'ignore_sod', the SOD (Start of Day) snapshot is ignored.
@@ -36,6 +38,8 @@ def convert(
                          Please see https://docs.tardis.dev/historical-data-details#collected-order-book-data-details
                          for more details.
                        - Otherwise, all snapshot events will be processed.
+        compress: If this is set to True, the output file will be compressed.
+        structured_array: If this is set to True, the output is converted into the new format.
 
     Returns:
         Converted data compatible with HftBacktest.
@@ -182,22 +186,30 @@ def convert(
         sets.append(tmp[:row_num])
 
     print('Merging')
-    data = sets[0]
-    del sets[0]
-    while len(sets) > 0:
-        data = merge_on_local_timestamp(data, sets[0])
-        del sets[0]
+    merged = np.concatenate(sets)
 
-    data = data[np.argsort(data[:, 2])]
-    data = correct(data, base_latency=base_latency, method=method)
+    print('Correcting the latency')
+    merged = correct_local_timestamp(merged, base_latency)
+
+    print('Correcting the event order')
+    sorted_exch_ts = merged[np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort')]
+    sorted_local_ts = merged[np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort')]
+
+    data = correct_event_order(sorted_exch_ts, sorted_local_ts, structured_array)
 
     # Validate again.
     num_corr = validate_data(data)
     if num_corr < 0:
         raise ValueError
 
+    if structured_array:
+        data = convert_to_struct_arr(data)
+
     if output_filename is not None:
         print('Saving to %s' % output_filename)
-        np.savez(output_filename, data=data)
+        if compress:
+            np.savez_compressed(output_filename, data=data)
+        else:
+            np.savez(output_filename, data=data)
 
     return data

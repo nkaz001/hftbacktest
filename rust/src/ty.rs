@@ -13,7 +13,7 @@ pub enum Event {
 }
 
 pub const BUY: i64 = 1 << 29;
-pub const SELL: i64 = 0;
+pub const SELL: i64 = 1 << 28;
 
 pub const DEPTH_EVENT: i64 = 1;
 pub const TRADE_EVENT: i64 = 2;
@@ -28,9 +28,9 @@ pub trait ToStr {
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C)]
 pub struct Row {
+    pub ev: i64,
     pub exch_ts: i64,
     pub local_ts: i64,
-    pub ev: i64,
     pub px: f32,
     pub qty: f32,
 }

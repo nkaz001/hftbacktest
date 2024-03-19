@@ -25,6 +25,12 @@ WAIT_ORDER_RESPONSE_ANY = -2
 
 UNTIL_END_OF_DATA = sys.maxsize
 
+EXCH_EVENT = 1 << 31
+LOCAL_EVENT = 1 << 30
+
+BUY = 1 << 29
+SELL = 1 << 28
+
 
 @jitclass
 class Cache:

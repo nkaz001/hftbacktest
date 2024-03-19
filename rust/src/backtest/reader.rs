@@ -236,32 +236,3 @@ pub fn read_npz<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
         _d_marker: Default::default(),
     })
 }
-
-// pub fn save_npz<D: Sized>(filepath: &str, data: Data<D>) -> Result<(), IoError> {
-//     let mut zip = zip::ZipWriter::new(
-//         File::options()
-//             .create(true)
-//             .write(true)
-//             .open(filepath)?
-//     )?;
-//
-//     let options = zip::write::FileOptions::default()
-//         .compression_method(zip::CompressionMethod::Zstd);
-//
-//     let hd = [147u8, 78, 85, 77, 80, 89, 1, 0];
-//     let mut header = String::with_capacity(200);
-//     header.push_str("{'descr': [('ets', '<i8'), ('lts', '<i8')]");
-//     header.push_str(", 'fortran_order': False");
-//     header.push_str(", 'shape': (100,), }");
-//
-//     zip.start_file("arr_0", options)?;
-//     zip.write(&hd)?;
-//     zip.write(header.to_le_bytes())?;
-//     zip.finish();
-//
-//     Ok(Data {
-//         buf: Rc::new(buf),
-//         header_len: 10 + header_len,
-//         _d: Default::default(),
-//     })
-// }

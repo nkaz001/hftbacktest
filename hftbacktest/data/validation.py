@@ -11,12 +11,17 @@ from ..reader import (
     COL_EVENT,
     COL_EXCH_TIMESTAMP,
     COL_LOCAL_TIMESTAMP,
+    COL_SIDE,
     COL_PRICE,
     COL_QTY,
     TRADE_EVENT,
     DEPTH_EVENT,
     DEPTH_CLEAR_EVENT,
-    DEPTH_SNAPSHOT_EVENT
+    DEPTH_SNAPSHOT_EVENT,
+    EXCH_EVENT,
+    LOCAL_EVENT,
+    BUY,
+    SELL
 )
 
 
@@ -314,3 +319,130 @@ def correct(
         raise ValueError('Invalid method')
     print('Correction is done.')
     return data
+
+
+@njit
+def correct_event_order(
+        sorted_exch: np.ndarray,
+        sorted_local: np.ndarray,
+        add_exch_local_ev: bool
+) -> np.ndarray:
+    r"""
+    Corrects exchange timestamps that are reversed by splitting each row into separate events, ordered by both exchange
+    and local timestamps, through duplication. See ``data`` for details.
+
+    Args:
+        sorted_exch: Data sorted by exchange timestamp.
+        sorted_local: Data sorted by local timestamp.
+        add_exch_local_ev: If this is set to True, `EXCH_EVENT` and `LOCAL_EVENT` flags will be added to the event field
+                           based on the validity of each timestamp.
+
+    Returns:
+        Adjusted data with corrected exchange timestamps.
+    """
+    sorted_final = np.zeros((sorted_exch.shape[0] * 2, sorted_exch.shape[1]), np.float64)
+
+    out_rn = 0
+    exch_rn = 0
+    local_rn = 0
+    while True:
+        if (
+                exch_rn < len(sorted_exch)
+                and local_rn < len(sorted_local)
+                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] == sorted_local[local_rn, COL_EXCH_TIMESTAMP]
+                and sorted_exch[exch_rn, COL_LOCAL_TIMESTAMP] == sorted_local[local_rn, COL_LOCAL_TIMESTAMP]
+        ):
+            assert sorted_exch[exch_rn, COL_EVENT] == sorted_local[local_rn, COL_EVENT]
+            assert sorted_exch[exch_rn, COL_PRICE] == sorted_local[local_rn, COL_PRICE]
+            assert sorted_exch[exch_rn, COL_QTY] == sorted_local[local_rn, COL_QTY]
+
+            sorted_final[out_rn] = sorted_exch[exch_rn]
+            if add_exch_local_ev:
+                sorted_final[out_rn, COL_EVENT] = int(
+                    sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT | LOCAL_EVENT
+
+            out_rn += 1
+            exch_rn += 1
+            local_rn += 1
+        elif ((
+                exch_rn < len(sorted_exch)
+                and local_rn < len(sorted_local)
+                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] == sorted_local[local_rn, COL_EXCH_TIMESTAMP]
+                and sorted_exch[exch_rn, COL_LOCAL_TIMESTAMP] < sorted_local[local_rn, COL_LOCAL_TIMESTAMP]
+        ) or (
+                exch_rn < len(sorted_exch)
+                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] < sorted_local[local_rn, COL_EXCH_TIMESTAMP]
+        )):
+            # exchange
+            sorted_final[out_rn] = sorted_exch[exch_rn]
+            if add_exch_local_ev:
+                sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT
+            else:
+                sorted_final[out_rn, COL_LOCAL_TIMESTAMP] = -1
+
+            out_rn += 1
+            exch_rn += 1
+        elif ((
+                exch_rn < len(sorted_exch)
+                and local_rn < len(sorted_local)
+                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] == sorted_local[local_rn, COL_EXCH_TIMESTAMP]
+                and sorted_exch[exch_rn, COL_LOCAL_TIMESTAMP] > sorted_local[local_rn, COL_LOCAL_TIMESTAMP]
+        ) or (
+                local_rn < len(sorted_local)
+        )):
+            # local
+            sorted_final[out_rn] = sorted_local[local_rn]
+            if add_exch_local_ev:
+                sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | LOCAL_EVENT
+            else:
+                sorted_final[out_rn, COL_EXCH_TIMESTAMP] = -1
+
+            out_rn += 1
+            local_rn += 1
+        else:
+            assert exch_rn == len(sorted_exch)
+            assert local_rn == len(sorted_local)
+            break
+    return sorted_final[:out_rn]
+
+
+def convert_to_struct_arr(data: np.ndarray, add_exch_local_ev: bool = True) -> np.ndarray:
+    r"""
+    Converts the 2D ndarray currently used in Python hftbacktest into the structured array that can be used in Rust
+    hftbacktest.
+
+    Args:
+        data: 2D ndarray to be converted.
+        add_exch_local_ev: If this is set to True, `EXCH_EVENT` and `LOCAL_EVENT` flags will be added to the 'ev' event
+                           field based on the validity of each timestamp. Set to True only when converting existing data
+                           into the new format.
+
+    Returns:
+        Converted structured array.
+    """
+    ev = data[:, COL_EVENT].astype(int)
+    if add_exch_local_ev:
+        valid_exch_ts = data[:, COL_EXCH_TIMESTAMP] != -1
+        valid_local_ts = data[:, COL_LOCAL_TIMESTAMP] != -1
+        ev[valid_exch_ts] |= EXCH_EVENT
+        ev[valid_local_ts] |= LOCAL_EVENT
+
+    buy = data[:, COL_SIDE] == 1
+    sell = data[:, COL_SIDE] == -1
+    ev[buy] |= BUY
+    ev[sell] |= SELL
+
+    tup_list = [
+        (
+            ev[rn],
+            data[rn, COL_EXCH_TIMESTAMP],
+            data[rn, COL_LOCAL_TIMESTAMP],
+            data[rn, COL_PRICE],
+            data[rn, COL_QTY]
+        ) for rn in range(len(data))
+    ]
+
+    return np.array(
+        tup_list,
+        dtype=[('ev', 'i8'), ('exch_ts', 'i8'), ('local_ts', 'i8'), ('px', 'f4'), ('qty', 'f4')]
+    )
