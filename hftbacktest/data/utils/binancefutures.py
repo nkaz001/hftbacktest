@@ -5,10 +5,17 @@ from typing import Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from .. import correct, validate_data
+from .. import validate_data
 from ..validation import correct_event_order, convert_to_struct_arr
-from ... import DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, correct_local_timestamp, \
-    COL_EXCH_TIMESTAMP, COL_LOCAL_TIMESTAMP
+from ... import (
+    DEPTH_EVENT,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    TRADE_EVENT,
+    COL_EXCH_TIMESTAMP,
+    COL_LOCAL_TIMESTAMP,
+    correct_local_timestamp
+)
 
 
 def convert(
@@ -57,7 +64,7 @@ def convert(
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
         compress: If this is set to True, the output file will be compressed.
-        structured_array: If this is set to True, the output is converted into the new format.
+        structured_array: If this is set to True, the output is converted into the new format(currently only Rust impl).
 
     Returns:
         Converted data compatible with HftBacktest.

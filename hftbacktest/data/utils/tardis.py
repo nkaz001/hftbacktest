@@ -6,15 +6,22 @@ from numpy.typing import NDArray
 
 from .. import validate_data
 from ..validation import correct_event_order, convert_to_struct_arr
-from ... import DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, DEPTH_EVENT, COL_LOCAL_TIMESTAMP, \
-    correct_local_timestamp, COL_EXCH_TIMESTAMP
+from ... import (
+    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    TRADE_EVENT,
+    DEPTH_EVENT,
+    COL_LOCAL_TIMESTAMP,
+    COL_EXCH_TIMESTAMP,
+    correct_local_timestamp
+)
 
 
 def convert(
         input_files: List[str],
         output_filename: Optional[str] = None,
         buffer_size: int = 100_000_000,
-        ss_buffer_size: int = 10_000,
+        ss_buffer_size: int = 1_000_000,
         base_latency: float = 0,
         snapshot_mode: Literal['process', 'ignore_sod', 'ignore'] = 'process',
         compress: bool = False,
@@ -28,6 +35,7 @@ def convert(
                      e.g. ['incremental_book.csv', 'trades.csv'].
         output_filename: If provided, the converted data will be saved to the specified filename in ``npz`` format.
         buffer_size: Sets a preallocated row size for the buffer.
+        ss_buffer_size: Sets a preallocated row size for the snapshot.
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
         snapshot_mode: - If this is set to 'ignore', all snapshots are ignored. The order book will converge to a
@@ -39,7 +47,7 @@ def convert(
                          for more details.
                        - Otherwise, all snapshot events will be processed.
         compress: If this is set to True, the output file will be compressed.
-        structured_array: If this is set to True, the output is converted into the new format.
+        structured_array: If this is set to True, the output is converted into the new format(currently only Rust impl).
 
     Returns:
         Converted data compatible with HftBacktest.
