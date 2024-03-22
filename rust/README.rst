@@ -26,6 +26,11 @@ The following features are only provided in Rust implementation:
 * Backtesting of multi-asset and multi-exchange models
 * Deployment of a live trading bot using the same algo code
 
+Data Format
+===========
+The Rust implementation uses a different data format compared to the Python implementation. Please refer to the Python
+implementation data utils' `structured_array` option or see the source code.
+
 Contributing
 ============
 
