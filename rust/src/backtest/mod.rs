@@ -15,7 +15,7 @@ use thiserror::Error;
 use crate::{
     backtest::{
         assettype::AssetType,
-        backtest::HftBacktest,
+        backtest::MultiAssetMultiExchangeBacktest,
         models::{LatencyModel, QueueModel},
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, Processor},
@@ -210,7 +210,7 @@ where
         s
     }
 
-    pub fn build(self) -> Result<HftBacktest<Q, HashMapMarketDepth>, BuildError> {
-        Ok(HftBacktest::new(self.local, self.exch))
+    pub fn build(self) -> Result<MultiAssetMultiExchangeBacktest<Q, HashMapMarketDepth>, BuildError> {
+        Ok(MultiAssetMultiExchangeBacktest::new(self.local, self.exch))
     }
 }

@@ -1,7 +1,7 @@
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
-        backtest::HftBacktest,
+        backtest::MultiAssetMultiExchangeBacktest,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
         reader::read_npz,
         BtAssetBuilder,
@@ -16,7 +16,7 @@ mod algo;
 
 use algo::gridtrading;
 
-fn prepare_backtest() -> HftBacktest<QueuePos, HashMapMarketDepth> {
+fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
     let latency_model = IntpOrderLatency::new(read_npz("latency_20240215.npz").unwrap());
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
