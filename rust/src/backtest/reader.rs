@@ -8,6 +8,7 @@ use std::{
     ops::Index,
     rc::Rc,
 };
+use std::mem::forget;
 
 use crate::{
     backtest::Error,
@@ -46,7 +47,7 @@ pub const UNTIL_END_OF_DATA: i64 = i64::MAX;
 
 #[derive(Clone, Debug)]
 pub struct Data<D> {
-    buf: Rc<Vec<u8>>,
+    buf: Rc<Box<[u8]>>,
     header_len: usize,
     _d_marker: PhantomData<D>,
 }
@@ -186,15 +187,33 @@ where
     }
 }
 
+#[repr(C, align(64))]
+struct Align64([u8; 64]);
+
+fn aligned_vec(size: usize) -> Box<[u8]> {
+    let capacity = (size / size_of::<Align64>()) + 1;
+    let mut aligned: Vec<Align64> = Vec::with_capacity(capacity);
+
+    let ptr = aligned.as_mut_ptr();
+    let cap = aligned.capacity();
+
+    forget(aligned);
+
+    unsafe {
+        Vec::from_raw_parts(
+            ptr as *mut u8,
+            size,
+            cap * size_of::<Align64>(),
+        ).into_boxed_slice()
+    }
+}
+
 pub fn read_npy<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
     let mut file = File::open(filepath)?;
 
     file.sync_all()?;
     let size = file.metadata()?.len() as usize;
-    let mut buf = Vec::with_capacity(size);
-    unsafe {
-        buf.set_len(size);
-    }
+    let mut buf = aligned_vec(size);
 
     let mut read_size = 0;
     while read_size < size {
@@ -217,10 +236,7 @@ pub fn read_npz<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
     let mut file = archive.by_index(0)?;
 
     let size = file.size() as usize;
-    let mut buf = Vec::with_capacity(size);
-    unsafe {
-        buf.set_len(size);
-    }
+    let mut buf = aligned_vec(size);
 
     let mut read_size = 0;
     while read_size < size {
