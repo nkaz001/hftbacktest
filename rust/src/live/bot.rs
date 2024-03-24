@@ -24,13 +24,15 @@ use crate::{
     Interface,
 };
 use crate::depth::hashmapmarketdepth::HashMapMarketDepth;
+use crate::ty::ErrorEvent;
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
     AssetNotFound,
     OrderNotFound,
     DuplicateOrderId,
     InvalidOrderStatus,
+    Custom(String)
 }
 
 #[tokio::main(worker_threads = 2)]
@@ -88,6 +90,7 @@ pub struct Bot {
     trade: Vec<Vec<Row>>,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
     assets: Vec<(String, AssetInfo)>,
+    error_handler: Option<Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>>
 }
 
 impl Bot {
@@ -120,6 +123,7 @@ impl Bot {
             conns: Some(conns),
             assets,
             trade,
+            error_handler: None
         }
     }
 
@@ -199,7 +203,11 @@ impl Bot {
                 Ok(Event::Position(data)) => {
                     *(unsafe { self.position.get_unchecked_mut(data.asset_no) }) = data.qty;
                 }
-                Ok(Event::Error(code, _)) => {}
+                Ok(Event::Error(error)) => {
+                    if let Some(handler) = self.error_handler.as_mut() {
+                        handler(error)?;
+                    }
+                }
                 Err(RecvTimeoutError::Timeout) => {
                     return Ok(true);
                 }

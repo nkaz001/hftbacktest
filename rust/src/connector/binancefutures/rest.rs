@@ -20,8 +20,9 @@ use crate::{
         ordermanager::{OrderManager, OrderMgr},
     },
     live::AssetInfo,
-    ty::{OrdType, Order, Side, Status, TimeInForce, ToStr},
+    ty::{OrdType, Order, Side, Status, TimeInForce, AsStr},
 };
+use crate::ty::{ErrorEvent, EvError};
 
 #[derive(Error, Debug)]
 pub enum RequestError {
@@ -212,15 +213,15 @@ impl BinanceFuturesClient {
         body.push_str("&symbol=");
         body.push_str(&symbol);
         body.push_str("&side=");
-        body.push_str(side.to_str());
+        body.push_str(side.as_str());
         body.push_str("&price=");
         body.push_str(&format!("{:.prec$}", price, prec = price_prec));
         body.push_str("&quantity=");
         body.push_str(&format!("{:.5}", qty));
         body.push_str("&type=");
-        body.push_str(order_type.to_str());
+        body.push_str(order_type.as_str());
         body.push_str("&timeInForce=");
-        body.push_str(time_in_force.to_str());
+        body.push_str(time_in_force.as_str());
 
         let resp: OrderResponseResult = self
             .post("/fapi/v1/order", body, &self.api_key, &self.secret)
@@ -249,15 +250,15 @@ impl BinanceFuturesClient {
             body.push_str("\",\"symbol\":\"");
             body.push_str(&order.1);
             body.push_str("\",\"side\":\"");
-            body.push_str(order.2.to_str());
+            body.push_str(order.2.as_str());
             body.push_str("\",\"price\":\"");
             body.push_str(&format!("{:.prec$}", order.3, prec = order.4));
             body.push_str("\",\"quantity\":\"");
             body.push_str(&format!("{:.5}", order.5));
             body.push_str("\",\"type\":\"");
-            body.push_str(order.6.to_str());
+            body.push_str(order.6.as_str());
             body.push_str("\",\"timeInForce\":\"");
-            body.push_str(order.7.to_str());
+            body.push_str(order.7.as_str());
             body.push_str("\"}");
         }
         body.push_str("]}");
@@ -291,7 +292,7 @@ impl BinanceFuturesClient {
         body.push_str("&origClientOrderId=");
         body.push_str(&client_order_id);
         body.push_str("&side=");
-        body.push_str(side.to_str());
+        body.push_str(side.as_str());
         body.push_str("&price=");
         body.push_str(&format!("{:.prec$}", price, prec = price_prec));
         body.push_str("&quantity=");

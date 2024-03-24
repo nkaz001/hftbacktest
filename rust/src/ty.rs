@@ -4,12 +4,19 @@ use std::{
 };
 
 #[derive(Clone, Debug)]
+pub struct ErrorEvent {
+    pub code: i64,
+    pub error: String,
+    pub var: HashMap<&'static str, String>
+}
+
+#[derive(Clone, Debug)]
 pub enum Event {
     Depth(Depth),
     Trade(Trade),
     Order(OrderResponse),
     Position(Position),
-    Error(i64, Option<HashMap<&'static str, String>>),
+    Error(ErrorEvent),
 }
 
 pub const BUY: i64 = 1 << 29;
@@ -21,8 +28,8 @@ pub const DEPTH_CLEAR_EVENT: i64 = 3;
 pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
 pub const USER_DEFINED_EVENT: i64 = 100;
 
-pub trait ToStr {
-    fn to_str(&self) -> &'static str;
+pub trait AsStr {
+    fn as_str(&self) -> &'static str;
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -40,6 +47,7 @@ pub struct Row {
 pub enum EvError {
     ConnectionInterrupted = 0,
     CriticalConnectionError = 1,
+    OrderError = 2,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -94,8 +102,8 @@ impl Side {
     }
 }
 
-impl ToStr for Side {
-    fn to_str(&self) -> &'static str {
+impl AsStr for Side {
+    fn as_str(&self) -> &'static str {
         match self {
             Side::Buy => "BUY",
             Side::Sell => "SELL",
@@ -126,8 +134,8 @@ pub enum TimeInForce {
     Unsupported = 255,
 }
 
-impl ToStr for TimeInForce {
-    fn to_str(&self) -> &'static str {
+impl AsStr for TimeInForce {
+    fn as_str(&self) -> &'static str {
         match self {
             TimeInForce::GTC => "GTC",
             TimeInForce::GTX => "GTX",
@@ -146,8 +154,8 @@ pub enum OrdType {
     Unsupported = 255,
 }
 
-impl ToStr for OrdType {
-    fn to_str(&self) -> &'static str {
+impl AsStr for OrdType {
+    fn as_str(&self) -> &'static str {
         match self {
             OrdType::Limit => "LIMIT",
             OrdType::Market => "MARKET",
@@ -243,10 +251,6 @@ where
         self.tick_size = order.tick_size;
         self.side = order.side;
         self.time_in_force = order.time_in_force;
-
-        if order.exch_timestamp < self.exch_timestamp {
-            tracing::info!(?order, ?self, "order::update");
-        }
 
         assert!(order.exch_timestamp >= self.exch_timestamp);
         if order.exch_timestamp > 0 {

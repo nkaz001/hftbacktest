@@ -187,13 +187,13 @@ pub async fn connect(
 
                                 match parse_depth(data.bids, data.asks) {
                                     Ok((bids, asks)) => {
-                                        let ai = assets
+                                        let asset_info = assets
                                             .get(&data.symbol)
                                             .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
                                             Event::Depth(
                                                 Depth {
-                                                    asset_no: ai.asset_no,
+                                                    asset_no: asset_info.asset_no,
                                                     exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
                                                     bids,
