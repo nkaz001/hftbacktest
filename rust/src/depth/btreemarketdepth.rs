@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::reader::Data,
-    ty::{Row, BUY, SELL},
+    ty::{Event, BUY, SELL},
 };
 
 #[derive(Debug)]
@@ -132,7 +132,7 @@ impl MarketDepth for BTreeMarketDepth {
 }
 
 impl ApplySnapshot for BTreeMarketDepth {
-    fn apply_snapshot(&mut self, data: &Data<Row>) {
+    fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.bid_depth.clear();
         self.ask_depth.clear();
         for row_num in 0..data.len() {

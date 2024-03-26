@@ -25,7 +25,7 @@ use crate::{
         Error,
     },
     depth::MarketDepth,
-    ty::{OrdType, Order, Row, Side, Status, TimeInForce, BUY, SELL},
+    ty::{OrdType, Order, Event, Side, Status, TimeInForce, BUY, SELL},
 };
 
 pub struct Local<AT, Q, LM, MD>
@@ -35,8 +35,8 @@ where
     LM: LatencyModel,
     MD: MarketDepth,
 {
-    pub reader: Reader<Row>,
-    pub data: Data<Row>,
+    pub reader: Reader<Event>,
+    pub data: Data<Event>,
     pub row_num: usize,
     pub orders: HashMap<i64, Order<Q>>,
     pub orders_to: OrderBus<Q>,
@@ -44,7 +44,7 @@ where
     pub depth: MD,
     pub state: State<AT>,
     pub order_latency: LM,
-    pub trades: Vec<Row>,
+    pub trades: Vec<Event>,
     pub last_order_entry_latency: Option<i64>,
     pub last_roundtrip_order_latency: Option<i64>,
 }
@@ -57,7 +57,7 @@ where
     MD: MarketDepth,
 {
     pub fn new(
-        reader: Reader<Row>,
+        reader: Reader<Event>,
         depth: MD,
         state: State<AT>,
         order_latency: LM,
@@ -196,7 +196,7 @@ where
         &self.orders
     }
 
-    fn trade(&self) -> &Vec<Row> {
+    fn trade(&self) -> &Vec<Event> {
         &self.trades
     }
 

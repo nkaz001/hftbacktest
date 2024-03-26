@@ -1,4 +1,4 @@
-use crate::{backtest::reader::Data, ty::Row};
+use crate::{backtest::reader::Data, ty::Event};
 
 pub mod btreemarketdepth;
 pub mod hashmapmarketdepth;
@@ -37,5 +37,5 @@ pub trait MarketDepth {
 }
 
 pub trait ApplySnapshot {
-    fn apply_snapshot(&mut self, data: &Data<Row>);
+    fn apply_snapshot(&mut self, data: &Data<Event>);
 }

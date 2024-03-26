@@ -24,7 +24,7 @@ use crate::{
     },
     get_precision,
     live::AssetInfo,
-    ty::{Error, ErrorType, Event, Order, OrderResponse, Position, Status},
+    ty::{Error, ErrorType, LiveEvent, Order, OrderResponse, Position, Status},
 };
 
 pub enum Endpoint {
@@ -87,7 +87,7 @@ impl Connector for BinanceFutures {
         Ok(())
     }
 
-    fn run(&mut self, ev_tx: Sender<Event>) -> Result<(), anyhow::Error> {
+    fn run(&mut self, ev_tx: Sender<LiveEvent>) -> Result<(), anyhow::Error> {
         let assets = self.assets.clone();
         let base_url = self.url.clone();
         let prefix = self.prefix.clone();
@@ -107,7 +107,7 @@ impl Connector for BinanceFutures {
                     if let Err(error) = client.cancel_all_orders(symbol).await {
                         error!(?error, %symbol, "Couldn't cancel all open orders.");
                         ev_tx
-                            .send(Event::Error(Error::with(ErrorType::OrderError, error)))
+                            .send(LiveEvent::Error(Error::with(ErrorType::OrderError, error)))
                             .unwrap();
                         error_count += 1;
                         continue 'connection;
@@ -120,7 +120,7 @@ impl Connector for BinanceFutures {
                         positions.into_iter().for_each(|position| {
                             assets.get(&position.symbol).map(|asset_info| {
                                 ev_tx
-                                    .send(Event::Position(Position {
+                                    .send(LiveEvent::Position(Position {
                                         asset_no: asset_info.asset_no,
                                         symbol: position.symbol,
                                         qty: position.position_amount,
@@ -142,7 +142,7 @@ impl Connector for BinanceFutures {
                         error!(?error, "Couldn't start user data stream.");
                         // 1000 indicates user data stream starting error.
                         ev_tx
-                            .send(Event::Error(Error::with(ErrorType::Custom(1000), error)))
+                            .send(LiveEvent::Error(Error::with(ErrorType::Custom(1000), error)))
                             .unwrap();
                         continue 'connection;
                     }
@@ -173,14 +173,14 @@ impl Connector for BinanceFutures {
                 {
                     error!(?error, "A connection error occurred.");
                     ev_tx
-                        .send(Event::Error(Error::with(
+                        .send(LiveEvent::Error(Error::with(
                             ErrorType::ConnectionInterrupted,
                             error,
                         )))
                         .unwrap();
                 } else {
                     ev_tx
-                        .send(Event::Error(Error::new(ErrorType::ConnectionInterrupted)))
+                        .send(LiveEvent::Error(Error::new(ErrorType::ConnectionInterrupted)))
                         .unwrap();
                 }
                 error_count += 1;
@@ -193,7 +193,7 @@ impl Connector for BinanceFutures {
         &self,
         asset_no: usize,
         mut order: Order<()>,
-        tx: Sender<Event>,
+        tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
         let asset_info = self
             .inv_assets
@@ -226,7 +226,7 @@ impl Connector for BinanceFutures {
                         Ok(resp) => {
                             let order = orders.lock().unwrap().update_submit_success(order, resp);
                             if let Some(order) = order {
-                                tx.send(Event::Order(OrderResponse { asset_no, order }))
+                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
                         }
@@ -237,11 +237,11 @@ impl Connector for BinanceFutures {
                                 client_order_id,
                             );
                             if let Some(order) = order {
-                                tx.send(Event::Order(OrderResponse { asset_no, order }))
+                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
 
-                            tx.send(Event::Error(Error::with(ErrorType::OrderError, error)))
+                            tx.send(LiveEvent::Error(Error::with(ErrorType::OrderError, error)))
                                 .unwrap();
                         }
                     }
@@ -254,7 +254,7 @@ impl Connector for BinanceFutures {
                     );
                     order.req = Status::None;
                     order.status = Status::Expired;
-                    tx.send(Event::Order(OrderResponse { asset_no, order }))
+                    tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                         .unwrap();
                 }
             }
@@ -266,7 +266,7 @@ impl Connector for BinanceFutures {
         &self,
         asset_no: usize,
         mut order: Order<()>,
-        tx: Sender<Event>,
+        tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
         let asset_info = self
             .inv_assets
@@ -284,7 +284,7 @@ impl Connector for BinanceFutures {
                         Ok(resp) => {
                             let order = orders.lock().unwrap().update_cancel_success(order, resp);
                             if let Some(order) = order {
-                                tx.send(Event::Order(OrderResponse { asset_no, order }))
+                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
                         }
@@ -295,11 +295,11 @@ impl Connector for BinanceFutures {
                                 client_order_id,
                             );
                             if let Some(order) = order {
-                                tx.send(Event::Order(OrderResponse { asset_no, order }))
+                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
 
-                            tx.send(Event::Error(Error::with(ErrorType::OrderError, error)))
+                            tx.send(LiveEvent::Error(Error::with(ErrorType::OrderError, error)))
                                 .unwrap();
                         }
                     }

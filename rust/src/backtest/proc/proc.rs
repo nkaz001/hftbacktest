@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     backtest::{state::StateValues, Error},
     depth::MarketDepth,
-    ty::{OrdType, Order, Row, Side, TimeInForce},
+    ty::{OrdType, Order, Event, Side, TimeInForce},
 };
 
 pub trait LocalProcessor<Q, MD>: Processor
@@ -27,7 +27,7 @@ where
     fn state_values(&self) -> StateValues;
     fn depth(&self) -> &MD;
     fn orders(&self) -> &HashMap<i64, Order<Q>>;
-    fn trade(&self) -> &Vec<Row>;
+    fn trade(&self) -> &Vec<Event>;
     fn clear_last_trades(&mut self);
 }
 

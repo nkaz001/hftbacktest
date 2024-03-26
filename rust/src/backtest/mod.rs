@@ -24,7 +24,7 @@ use crate::{
     },
     depth::hashmapmarketdepth::HashMapMarketDepth,
     error::BuildError,
-    ty::Row,
+    ty::Event,
 };
 
 #[derive(Error, Debug)]
@@ -63,7 +63,7 @@ where
     asset_type: Option<AT>,
     queue_model: Option<QM>,
     depth_func: Option<F>,
-    reader: Reader<Row>,
+    reader: Reader<Event>,
     _q_marker: PhantomData<Q>,
 }
 

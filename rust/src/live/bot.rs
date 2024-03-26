@@ -24,7 +24,7 @@ use crate::{
         MarketDepth,
     },
     live::{AssetInfo, LiveBuilder},
-    ty::{Error as ErrorEvent, Event, OrdType, Order, Request, Row, Side, Status, TimeInForce, BUY, SELL},
+    ty::{Error as ErrorEvent, LiveEvent, OrdType, Order, Request, Event, Side, Status, TimeInForce, BUY, SELL},
     Interface,
 };
 
@@ -39,7 +39,7 @@ pub enum BotError {
 
 #[tokio::main(worker_threads = 2)]
 async fn thread_main(
-    ev_tx: Sender<Event>,
+    ev_tx: Sender<LiveEvent>,
     mut req_rx: UnboundedReceiver<Request>,
     mut conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     mapping: Vec<(String, AssetInfo)>,
@@ -84,12 +84,12 @@ async fn thread_main(
 pub struct Bot {
     req_tx: UnboundedSender<Request>,
     req_rx: Option<UnboundedReceiver<Request>>,
-    ev_tx: Option<Sender<Event>>,
-    ev_rx: Receiver<Event>,
+    ev_tx: Option<Sender<LiveEvent>>,
+    ev_rx: Receiver<LiveEvent>,
     pub depth: Vec<HashMapMarketDepth>,
     pub orders: Vec<HashMap<i64, Order<()>>>,
     pub position: Vec<f64>,
-    trade: Vec<Vec<Row>>,
+    trade: Vec<Vec<Event>>,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
     assets: Vec<(String, AssetInfo)>,
     error_handler: Option<Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>>,
@@ -145,7 +145,7 @@ impl Bot {
         loop {
             let timeout = Duration::from_nanos(remaining_duration as u64);
             match self.ev_rx.recv_timeout(timeout) {
-                Ok(Event::Depth(data)) => {
+                Ok(LiveEvent::Depth(data)) => {
                     // fixme: updates the depth only if exch_ts is greater than that of the existing
                     //        level.
                     let depth = unsafe { self.depth.get_unchecked_mut(data.asset_no) };
@@ -157,9 +157,9 @@ impl Bot {
                         depth.update_ask_depth(px, qty, 0);
                     }
                 }
-                Ok(Event::Trade(data)) => {
+                Ok(LiveEvent::Trade(data)) => {
                     let trade = unsafe { self.trade.get_unchecked_mut(data.asset_no) };
-                    trade.push(Row {
+                    trade.push(Event {
                         exch_ts: data.exch_ts,
                         local_ts: data.local_ts,
                         ev: {
@@ -175,7 +175,7 @@ impl Bot {
                         qty: data.qty,
                     });
                 }
-                Ok(Event::Order(data)) => {
+                Ok(LiveEvent::Order(data)) => {
                     debug!(?data, "Event::Order");
                     match self
                         .orders
@@ -202,10 +202,10 @@ impl Bot {
                         }
                     }
                 }
-                Ok(Event::Position(data)) => {
+                Ok(LiveEvent::Position(data)) => {
                     *(unsafe { self.position.get_unchecked_mut(data.asset_no) }) = data.qty;
                 }
-                Ok(Event::Error(error)) => {
+                Ok(LiveEvent::Error(error)) => {
                     if let Some(handler) = self.error_handler.as_mut() {
                         handler(error)?;
                     }
@@ -294,7 +294,7 @@ impl Interface<(), HashMapMarketDepth> for Bot {
         self.depth.get(asset_no).unwrap()
     }
 
-    fn trade(&self, asset_no: usize) -> &Vec<Row> {
+    fn trade(&self, asset_no: usize) -> &Vec<Event> {
         self.trade.get(asset_no).unwrap()
     }
 

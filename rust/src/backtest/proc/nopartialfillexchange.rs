@@ -28,7 +28,7 @@ use crate::{
         Error,
     },
     depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth as _, INVALID_MAX, INVALID_MIN},
-    ty::{Order, Row, Side, Status, TimeInForce, BUY, SELL},
+    ty::{Order, Event, Side, Status, TimeInForce, BUY, SELL},
 };
 
 pub struct NoPartialFillExchange<AT, Q, LM, QM>
@@ -38,8 +38,8 @@ where
     LM: LatencyModel,
     QM: QueueModel<Q>,
 {
-    reader: Reader<Row>,
-    data: Data<Row>,
+    reader: Reader<Event>,
+    data: Data<Event>,
     row_num: usize,
 
     // key: order_id, value: Order<Q>
@@ -67,7 +67,7 @@ where
     QM: QueueModel<Q>,
 {
     pub fn new(
-        reader: Reader<Row>,
+        reader: Reader<Event>,
         depth: HashMapMarketDepth,
         state: State<AT>,
         order_latency: LM,

@@ -14,7 +14,7 @@ pub enum ErrorType {
     Custom(i64),
 }
 
-/// Error conveyed by [`Event`].
+/// Error conveyed by [`LiveEvent`].
 #[derive(Clone, Debug)]
 pub struct Error {
     pub ty: ErrorType,
@@ -49,7 +49,7 @@ impl Error {
 
 /// Events that occur in a live bot sent by a connector.
 #[derive(Clone, Debug)]
-pub enum Event {
+pub enum LiveEvent {
     Depth(Depth),
     Trade(Trade),
     Order(OrderResponse),
@@ -73,7 +73,7 @@ pub trait AsStr {
 /// Exchange event data.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(32))]
-pub struct Row {
+pub struct Event {
     pub ev: i64,
     pub exch_ts: i64,
     pub local_ts: i64,

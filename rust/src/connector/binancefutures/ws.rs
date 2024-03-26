@@ -26,7 +26,7 @@ use crate::{
         ordermanager::OrderManager,
     },
     live::AssetInfo,
-    ty::{self, Depth, Event, Order, OrderResponse, Position, Status, BUY, SELL},
+    ty::{self, Depth, LiveEvent, Order, OrderResponse, Position, Status, BUY, SELL},
 };
 
 fn parse_depth(
@@ -56,7 +56,7 @@ pub enum DepthManageMode {
 
 pub async fn connect(
     url: &str,
-    ev_tx: Sender<Event>,
+    ev_tx: Sender<LiveEvent>,
     assets: HashMap<String, AssetInfo>,
     prefix: &str,
     orders: OrderMgr,
@@ -91,7 +91,7 @@ pub async fn connect(
                             .get(&symbol)
                             .ok_or(BinanceFuturesError::AssetNotFound)?;
                         ev_tx.send(
-                            Event::Depth(
+                            LiveEvent::Depth(
                                 Depth {
                                     asset_no: ai.asset_no,
                                     exch_ts: data.transaction_time * 1_000_000,
@@ -191,7 +191,7 @@ pub async fn connect(
                                             .get(&data.symbol)
                                             .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
-                                            Event::Depth(
+                                            LiveEvent::Depth(
                                                 Depth {
                                                     asset_no: asset_info.asset_no,
                                                     exch_ts: data.transaction_time * 1_000_000,
@@ -214,7 +214,7 @@ pub async fn connect(
                                             .get(&data.symbol)
                                         .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
-                                            Event::Trade(
+                                            LiveEvent::Trade(
                                                 ty::Trade {
                                                     asset_no: asset_info.asset_no,
                                                     exch_ts: data.transaction_time * 1_000_000,
@@ -246,7 +246,7 @@ pub async fn connect(
                                 for position in data.account.position {
                                     if let Some(asset_info) = assets.get(&position.symbol) {
                                         ev_tx.send(
-                                            Event::Position(
+                                            LiveEvent::Position(
                                                 Position {
                                                     asset_no: asset_info.asset_no,
                                                     symbol: position.symbol,
@@ -285,7 +285,7 @@ pub async fn connect(
                                             .update_from_ws(data.order.client_order_id, order);
                                         if let Some(order) = order {
                                             ev_tx.send(
-                                                Event::Order(
+                                                LiveEvent::Order(
                                                     OrderResponse {
                                                         asset_no: asset_info.asset_no,
                                                         order

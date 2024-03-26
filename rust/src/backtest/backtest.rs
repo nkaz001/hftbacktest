@@ -9,7 +9,7 @@ use crate::{
         Error,
     },
     depth::MarketDepth,
-    ty::{OrdType, Order, Row, Side, TimeInForce},
+    ty::{OrdType, Order, Event, Side, TimeInForce},
     Interface,
 };
 
@@ -156,7 +156,7 @@ where
         &self.local.get(asset_no).unwrap().depth()
     }
 
-    fn trade(&self, asset_no: usize) -> &Vec<Row> {
+    fn trade(&self, asset_no: usize) -> &Vec<Event> {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }
@@ -439,7 +439,7 @@ where
         &self.local.get(asset_no).unwrap().depth()
     }
 
-    fn trade(&self, asset_no: usize) -> &Vec<Row> {
+    fn trade(&self, asset_no: usize) -> &Vec<Event> {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }

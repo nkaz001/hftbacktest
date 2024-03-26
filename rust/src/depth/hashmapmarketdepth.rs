@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::reader::Data,
-    ty::{Row, BUY, SELL},
+    ty::{Event, BUY, SELL},
 };
 
 /// HashMap-based Market Depth
@@ -235,7 +235,7 @@ impl MarketDepth for HashMapMarketDepth {
 }
 
 impl ApplySnapshot for HashMapMarketDepth {
-    fn apply_snapshot(&mut self, data: &Data<Row>) {
+    fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.best_bid_tick = INVALID_MIN;
         self.best_ask_tick = INVALID_MAX;
         self.low_bid_tick = INVALID_MAX;

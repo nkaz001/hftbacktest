@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 use crate::{
     backtest::state::StateValues,
-    ty::{OrdType, Order, Row, TimeInForce},
+    ty::{OrdType, Order, Event, TimeInForce},
 };
 
 /// Defines backtesting features.
@@ -54,7 +54,7 @@ where
 
     fn depth(&self, asset_no: usize) -> &MD;
 
-    fn trade(&self, asset_no: usize) -> &Vec<Row>;
+    fn trade(&self, asset_no: usize) -> &Vec<Event>;
 
     fn clear_last_trades(&mut self, asset_no: Option<usize>);
 
