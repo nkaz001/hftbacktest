@@ -4,11 +4,10 @@ use std::{
     fs::File,
     io::{Error as IoError, ErrorKind, Read},
     marker::PhantomData,
-    mem::size_of,
+    mem::{forget, size_of},
     ops::Index,
     rc::Rc,
 };
-use std::mem::forget;
 
 use crate::{
     backtest::Error,
@@ -200,11 +199,7 @@ fn aligned_vec(size: usize) -> Box<[u8]> {
     forget(aligned);
 
     unsafe {
-        Vec::from_raw_parts(
-            ptr as *mut u8,
-            size,
-            cap * size_of::<Align64>(),
-        ).into_boxed_slice()
+        Vec::from_raw_parts(ptr as *mut u8, size, cap * size_of::<Align64>()).into_boxed_slice()
     }
 }
 

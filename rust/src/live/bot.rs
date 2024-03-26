@@ -18,13 +18,15 @@ use crate::{
         Error,
     },
     connector::Connector,
-    depth::{btreemarketdepth::BTreeMarketDepth, MarketDepth},
+    depth::{
+        btreemarketdepth::BTreeMarketDepth,
+        hashmapmarketdepth::HashMapMarketDepth,
+        MarketDepth,
+    },
     live::{AssetInfo, LiveBuilder},
-    ty::{Event, OrdType, Order, Request, Row, Side, Status, TimeInForce, BUY, SELL},
+    ty::{Error as ErrorEvent, Event, OrdType, Order, Request, Row, Side, Status, TimeInForce, BUY, SELL},
     Interface,
 };
-use crate::depth::hashmapmarketdepth::HashMapMarketDepth;
-use crate::ty::ErrorEvent;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -32,7 +34,7 @@ pub enum BotError {
     OrderNotFound,
     DuplicateOrderId,
     InvalidOrderStatus,
-    Custom(String)
+    Custom(String),
 }
 
 #[tokio::main(worker_threads = 2)]
@@ -90,7 +92,7 @@ pub struct Bot {
     trade: Vec<Vec<Row>>,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
     assets: Vec<(String, AssetInfo)>,
-    error_handler: Option<Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>>
+    error_handler: Option<Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>>,
 }
 
 impl Bot {
@@ -123,7 +125,7 @@ impl Bot {
             conns: Some(conns),
             assets,
             trade,
-            error_handler: None
+            error_handler: None,
         }
     }
 

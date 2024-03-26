@@ -120,7 +120,7 @@ impl OrderManager {
     pub fn update_submit_fail(
         &mut self,
         mut order: Order<()>,
-        error: RequestError,
+        error: &RequestError,
         client_order_id: String,
     ) -> Option<Order<()>> {
         match error {
@@ -180,7 +180,7 @@ impl OrderManager {
     pub fn update_cancel_fail(
         &mut self,
         mut order: Order<()>,
-        error: RequestError,
+        error: &RequestError,
         client_order_id: String,
     ) -> Option<Order<()>> {
         match error {

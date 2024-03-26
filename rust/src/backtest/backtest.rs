@@ -295,15 +295,15 @@ pub struct MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange> {
     local: Vec<Local>,
     exch: Vec<Exchange>,
     _q_marker: PhantomData<Q>,
-    _md_marker: PhantomData<MD>
+    _md_marker: PhantomData<MD>,
 }
 
 impl<Q, MD, Local, Exchange> MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange>
-    where
-        Q: Clone,
-        MD: MarketDepth,
-        Local: LocalProcessor<Q, MD>,
-        Exchange: Processor
+where
+    Q: Clone,
+    MD: MarketDepth,
+    Local: LocalProcessor<Q, MD>,
+    Exchange: Processor,
 {
     pub fn new(local: Vec<Local>, exch: Vec<Exchange>) -> Self {
         let num_assets = local.len();
@@ -316,7 +316,7 @@ impl<Q, MD, Local, Exchange> MultiAssetSingleExchangeBacktest<Q, MD, Local, Exch
             local,
             exch,
             _q_marker: Default::default(),
-            _md_marker: Default::default()
+            _md_marker: Default::default(),
         }
     }
 
@@ -413,12 +413,13 @@ impl<Q, MD, Local, Exchange> MultiAssetSingleExchangeBacktest<Q, MD, Local, Exch
     }
 }
 
-impl<Q, MD, Local, Exchange> Interface<Q, MD> for MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange>
-    where
-        Q: Clone,
-        MD: MarketDepth,
-        Local: LocalProcessor<Q, MD>,
-        Exchange: Processor
+impl<Q, MD, Local, Exchange> Interface<Q, MD>
+    for MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange>
+where
+    Q: Clone,
+    MD: MarketDepth,
+    Local: LocalProcessor<Q, MD>,
+    Exchange: Processor,
 {
     type Error = Error;
 

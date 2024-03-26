@@ -36,7 +36,7 @@ pub struct OrderLatencyRow {
     pub req_timestamp: i64,
     pub exch_timestamp: i64,
     pub resp_timestamp: i64,
-    pub reserved: i64
+    pub reserved: i64,
 }
 
 #[derive(Clone)]

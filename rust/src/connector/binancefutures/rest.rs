@@ -20,9 +20,8 @@ use crate::{
         ordermanager::{OrderManager, OrderMgr},
     },
     live::AssetInfo,
-    ty::{OrdType, Order, Side, Status, TimeInForce, AsStr},
+    ty::{AsStr, Error, ErrorType, OrdType, Order, Side, Status, TimeInForce},
 };
-use crate::ty::{ErrorEvent, EvError};
 
 #[derive(Error, Debug)]
 pub enum RequestError {

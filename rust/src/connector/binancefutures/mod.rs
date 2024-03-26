@@ -24,9 +24,8 @@ use crate::{
     },
     get_precision,
     live::AssetInfo,
-    ty::{EvError, Event, Order, OrderResponse, Position, Status},
+    ty::{Error, ErrorType, Event, Order, OrderResponse, Position, Status},
 };
-use crate::ty::ErrorEvent;
 
 pub enum Endpoint {
     Public,
@@ -108,15 +107,7 @@ impl Connector for BinanceFutures {
                     if let Err(error) = client.cancel_all_orders(symbol).await {
                         error!(?error, %symbol, "Couldn't cancel all open orders.");
                         ev_tx
-                            .send(Event::Error(
-                                ErrorEvent {
-                                    code: EvError::OrderError as i64,
-                                    error: format!("{error:?}"),
-                                    var: HashMap::from_iter([
-                                        ("status", format!("{:?}", error.status()))
-                                    ])
-                                }
-                            ))
+                            .send(Event::Error(Error::with(ErrorType::OrderError, error)))
                             .unwrap();
                         error_count += 1;
                         continue 'connection;
@@ -150,11 +141,9 @@ impl Connector for BinanceFutures {
                     Err(error) => {
                         error!(?error, "Couldn't start user data stream.");
                         // 1000 indicates user data stream starting error.
-                        ev_tx.send(Event::Error(ErrorEvent {
-                            code: 1000,
-                            error: format!("{error:?}"),
-                            var: HashMap::new()
-                        })).unwrap();
+                        ev_tx
+                            .send(Event::Error(Error::with(ErrorType::Custom(1000), error)))
+                            .unwrap();
                         continue 'connection;
                     }
                 };
@@ -184,19 +173,14 @@ impl Connector for BinanceFutures {
                 {
                     error!(?error, "A connection error occurred.");
                     ev_tx
-                        .send(Event::Error(ErrorEvent {
-                            code: EvError::ConnectionInterrupted as i64,
-                            error: format!("{error:?}"),
-                            var: HashMap::new()
-                        }))
+                        .send(Event::Error(Error::with(
+                            ErrorType::ConnectionInterrupted,
+                            error,
+                        )))
                         .unwrap();
                 } else {
                     ev_tx
-                        .send(Event::Error(ErrorEvent {
-                            code: EvError::ConnectionInterrupted as i64,
-                            error: String::new(),
-                            var: HashMap::new()
-                        }))
+                        .send(Event::Error(Error::new(ErrorType::ConnectionInterrupted)))
                         .unwrap();
                 }
                 error_count += 1;
@@ -247,10 +231,9 @@ impl Connector for BinanceFutures {
                             }
                         }
                         Err(error) => {
-                            let error_desc = format!("{error:?}");
                             let order = orders.lock().unwrap().update_submit_fail(
                                 order,
-                                error,
+                                &error,
                                 client_order_id,
                             );
                             if let Some(order) = order {
@@ -258,12 +241,8 @@ impl Connector for BinanceFutures {
                                     .unwrap();
                             }
 
-                            // fixme
-                            tx.send(Event::Error(ErrorEvent {
-                                code: EvError::OrderError as i64,
-                                error: error_desc,
-                                var: HashMap::new()
-                            })).unwrap();
+                            tx.send(Event::Error(Error::with(ErrorType::OrderError, error)))
+                                .unwrap();
                         }
                     }
                 }
@@ -310,10 +289,9 @@ impl Connector for BinanceFutures {
                             }
                         }
                         Err(error) => {
-                            let error_desc = format!("{error:?}");
                             let order = orders.lock().unwrap().update_cancel_fail(
                                 order,
-                                error,
+                                &error,
                                 client_order_id,
                             );
                             if let Some(order) = order {
@@ -321,12 +299,8 @@ impl Connector for BinanceFutures {
                                     .unwrap();
                             }
 
-                            // fixme
-                            tx.send(Event::Error(ErrorEvent {
-                                code: EvError::OrderError as i64,
-                                error: error_desc,
-                                var: HashMap::new()
-                            })).unwrap();
+                            tx.send(Event::Error(Error::with(ErrorType::OrderError, error)))
+                                .unwrap();
                         }
                     }
                 }

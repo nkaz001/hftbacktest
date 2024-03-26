@@ -1,3 +1,19 @@
+//! # HftBacktest
+//!
+//! This Rust framework is designed for developing and running high-frequency trading and
+//! market-making strategies. It focuses on accounting for both feed and order latencies, as well as
+//! the order queue position for order fill simulation. The framework aims to provide more accurate
+//! market replay-based backtesting, based on full order book and trade tick feed data. You can also
+//! run the live bot using the same algo code.
+//!
+//! ## Key Features
+//! - Complete tick-by-tick simulation with a variable time interval.
+//! - Full order book reconstruction based on L2 feeds(Market-By-Price).
+//! - Backtest accounting for both feed and order latency, using provided models or your own custom model.
+//! - Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
+//! - Backtesting of multi-asset and multi-exchange models
+//! - Deployment of a live trading bot using the same algo code
+//!
 use std::collections::HashMap;
 
 use crate::{
@@ -5,11 +21,22 @@ use crate::{
     ty::{OrdType, Order, Row, TimeInForce},
 };
 
+/// Defines backtesting features.
 pub mod backtest;
+
+/// Defines exchange connectors
 pub mod connector;
+
+/// Defines a market depth to build the order book from the feed data.
 pub mod depth;
+
+/// Defines errors.
 pub mod error;
+
+/// Defines live bot features.
 pub mod live;
+
+/// Defines types.
 pub mod ty;
 
 /// Provides an interface for a backtester or a bot.
@@ -63,7 +90,7 @@ where
 
     /// Elapses time only in backtesting. In live mode, it is ignored.
     ///
-    /// The "elapse" method exclusively manages time during backtesting, meaning that factors such
+    /// The [`elapse`] method exclusively manages time during backtesting, meaning that factors such
     /// as computing time are not properly accounted for. So, this method can be utilized to
     /// simulate such processing times.
     fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error>;
@@ -73,7 +100,7 @@ where
 
 /// Gets price precision.
 ///
-/// `tick_size` should not be a computed value.
+/// [`tick_size`] should not be a computed value.
 pub fn get_precision(tick_size: f32) -> usize {
     let s = tick_size.to_string();
     let mut prec = 0;

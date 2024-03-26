@@ -287,13 +287,7 @@ where
                 for (_, order) in orders_borrowed.iter_mut() {
                     if order.side == Side::Sell && order.price_tick <= new_best_tick {
                         self.filled_orders.push(order.order_id);
-                        self.fill(
-                            order,
-                            timestamp,
-                            true,
-                            order.price_tick,
-                            order.leaves_qty
-                        )?;
+                        self.fill(order, timestamp, true, order.price_tick, order.leaves_qty)?;
                     }
                 }
             } else {
@@ -302,13 +296,7 @@ where
                         for order_id in order_ids.clone().iter() {
                             self.filled_orders.push(*order_id);
                             let order = orders_borrowed.get_mut(order_id).unwrap();
-                            self.fill(
-                                order,
-                                timestamp,
-                                true,
-                                order.price_tick,
-                                order.leaves_qty
-                            )?;
+                            self.fill(order, timestamp, true, order.price_tick, order.leaves_qty)?;
                         }
                     }
                 }
@@ -335,13 +323,7 @@ where
                 for (_, order) in orders_borrowed.iter_mut() {
                     if order.side == Side::Buy && order.price_tick >= new_best_tick {
                         self.filled_orders.push(order.order_id);
-                        self.fill(
-                            order,
-                            timestamp,
-                            true,
-                            order.price_tick,
-                            order.leaves_qty
-                        )?;
+                        self.fill(order, timestamp, true, order.price_tick, order.leaves_qty)?;
                     }
                 }
             } else {
@@ -350,13 +332,7 @@ where
                         for order_id in order_ids.clone().iter() {
                             self.filled_orders.push(*order_id);
                             let order = orders_borrowed.get_mut(order_id).unwrap();
-                            self.fill(
-                                order,
-                                timestamp,
-                                true,
-                                order.price_tick,
-                                order.leaves_qty
-                            )?;
+                            self.fill(order, timestamp, true, order.price_tick, order.leaves_qty)?;
                         }
                     }
                 }
@@ -405,13 +381,8 @@ where
                                 let mut local_recv_timestamp = 0;
                                 if let Some(qty) = self.depth.ask_depth.get(&t) {
                                     let exec_qty = qty.min(order.leaves_qty);
-                                    local_recv_timestamp = self.fill(
-                                        &mut order,
-                                        timestamp,
-                                        false,
-                                        t,
-                                        exec_qty
-                                    )?;
+                                    local_recv_timestamp =
+                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
                                     if order.status == Status::Filled {
                                         assert_ne!(local_recv_timestamp, 0);
                                         return Ok(local_recv_timestamp);
@@ -435,13 +406,8 @@ where
                             let mut local_recv_timestamp = 0;
                             if let Some(qty) = self.depth.ask_depth.get(&t) {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp = self.fill(
-                                    &mut order,
-                                    timestamp,
-                                    false,
-                                    t,
-                                    exec_qty
-                                )?;
+                                local_recv_timestamp =
+                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
                                 assert_ne!(local_recv_timestamp, 0);
@@ -462,17 +428,12 @@ where
                             let mut local_recv_timestamp = 0;
                             if let Some(qty) = self.depth.ask_depth.get(&t) {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp = self.fill(
-                                    &mut order,
-                                    timestamp,
-                                    false,
-                                    t,
-                                    exec_qty
-                                )?;
+                                local_recv_timestamp =
+                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
                                 assert_ne!(local_recv_timestamp, 0);
-                                return Ok(local_recv_timestamp)
+                                return Ok(local_recv_timestamp);
                             }
                         }
 
@@ -481,13 +442,7 @@ where
                         // though it simulates partial fill, if the order size is not small enough,
                         // it introduces unreality.
                         let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
-                        self.fill(
-                            &mut order,
-                            timestamp,
-                            false,
-                            price_tick,
-                            leaves_qty
-                        )
+                        self.fill(&mut order, timestamp, false, price_tick, leaves_qty)
                     }
                     _ => {
                         unreachable!();
@@ -546,13 +501,8 @@ where
                                 let mut local_recv_timestamp = 0;
                                 if let Some(qty) = self.depth.bid_depth.get(&t) {
                                     let exec_qty = qty.min(order.leaves_qty);
-                                    local_recv_timestamp = self.fill(
-                                        &mut order,
-                                        timestamp,
-                                        false,
-                                        t,
-                                        exec_qty
-                                    )?;
+                                    local_recv_timestamp =
+                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
                                     if order.status == Status::Filled {
                                         assert_ne!(local_recv_timestamp, 0);
                                         return Ok(local_recv_timestamp);
@@ -576,13 +526,8 @@ where
                             let mut local_recv_timestamp = 0;
                             if let Some(qty) = self.depth.bid_depth.get(&t) {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp = self.fill(
-                                    &mut order,
-                                    timestamp,
-                                    false,
-                                    t,
-                                    exec_qty
-                                )?;
+                                local_recv_timestamp =
+                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
                                 assert_ne!(local_recv_timestamp, 0);
@@ -603,17 +548,12 @@ where
                             let mut local_recv_timestamp = 0;
                             if let Some(qty) = self.depth.bid_depth.get(&t) {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp = self.fill(
-                                    &mut order,
-                                    timestamp,
-                                    false,
-                                    t,
-                                    exec_qty
-                                )?;
+                                local_recv_timestamp =
+                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
                                 assert_ne!(local_recv_timestamp, 0);
-                                return Ok(local_recv_timestamp)
+                                return Ok(local_recv_timestamp);
                             }
                         }
 
@@ -622,13 +562,7 @@ where
                         // though it simulates partial fill, if the order size is not small enough,
                         // it introduces unreality.
                         let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
-                        self.fill(
-                            &mut order,
-                            timestamp,
-                            false,
-                            price_tick,
-                            leaves_qty
-                        )
+                        self.fill(&mut order, timestamp, false, price_tick, leaves_qty)
                     }
                     _ => {
                         unreachable!();

@@ -1,22 +1,60 @@
 use std::{
-    collections::HashMap,
+    any::Any,
     fmt::{Debug, Formatter},
+    sync::Arc,
 };
 
-#[derive(Clone, Debug)]
-pub struct ErrorEvent {
-    pub code: i64,
-    pub error: String,
-    pub var: HashMap<&'static str, String>
+/// Error type which is assigned to [`Error`].
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[repr(i64)]
+pub enum ErrorType {
+    ConnectionInterrupted = 0,
+    CriticalConnectionError = 1,
+    OrderError = 2,
+    Custom(i64),
 }
 
+/// Error conveyed by [`Event`].
+#[derive(Clone, Debug)]
+pub struct Error {
+    pub ty: ErrorType,
+    pub value: Option<Arc<Box<dyn Any + Send + Sync>>>,
+}
+
+impl Error {
+    pub fn new(ty: ErrorType) -> Error {
+        Self { ty, value: None }
+    }
+
+    pub fn with<T>(ty: ErrorType, value: T) -> Error
+    where
+        T: Send + Sync + 'static,
+    {
+        Self {
+            ty,
+            value: Some(Arc::new(Box::new(value))),
+        }
+    }
+
+    pub fn value_downcast_ref<T>(&self) -> Option<&T>
+    where
+        T: 'static,
+    {
+        self.value
+            .as_ref()
+            .map(|value| value.downcast_ref())
+            .flatten()
+    }
+}
+
+/// Events that occur in a live bot sent by a connector.
 #[derive(Clone, Debug)]
 pub enum Event {
     Depth(Depth),
     Trade(Trade),
     Order(OrderResponse),
     Position(Position),
-    Error(ErrorEvent),
+    Error(Error),
 }
 
 pub const BUY: i64 = 1 << 29;
@@ -32,6 +70,7 @@ pub trait AsStr {
     fn as_str(&self) -> &'static str;
 }
 
+/// Exchange event data.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C)]
 pub struct Row {
@@ -40,14 +79,6 @@ pub struct Row {
     pub local_ts: i64,
     pub px: f32,
     pub qty: f32,
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-#[repr(i64)]
-pub enum EvError {
-    ConnectionInterrupted = 0,
-    CriticalConnectionError = 1,
-    OrderError = 2,
 }
 
 #[derive(Clone, PartialEq, Debug)]

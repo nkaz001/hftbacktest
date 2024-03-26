@@ -210,7 +210,9 @@ where
         s
     }
 
-    pub fn build(self) -> Result<MultiAssetMultiExchangeBacktest<Q, HashMapMarketDepth>, BuildError> {
+    pub fn build(
+        self,
+    ) -> Result<MultiAssetMultiExchangeBacktest<Q, HashMapMarketDepth>, BuildError> {
         Ok(MultiAssetMultiExchangeBacktest::new(self.local, self.exch))
     }
 }
