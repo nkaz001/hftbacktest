@@ -31,7 +31,7 @@ impl LatencyModel for ConstantLatency {
 }
 
 #[derive(Clone, Debug)]
-#[repr(C, align(32)]
+#[repr(C, align(32))]
 pub struct OrderLatencyRow {
     pub req_timestamp: i64,
     pub exch_timestamp: i64,

@@ -72,7 +72,7 @@ pub trait AsStr {
 
 /// Exchange event data.
 #[derive(Clone, PartialEq, Debug)]
-#[repr(C, align(32)]
+#[repr(C, align(32))]
 pub struct Row {
     pub ev: i64,
     pub exch_ts: i64,
