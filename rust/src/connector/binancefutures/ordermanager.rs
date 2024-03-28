@@ -5,7 +5,7 @@ use std::{
 
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, Rng};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error};
 
 use crate::{
     connector::binancefutures::{msg::rest::OrderResponse, rest::RequestError},
@@ -15,12 +15,11 @@ use crate::{
 #[derive(Debug)]
 struct OrderWrapper {
     order: Order<()>,
-    client_order_id: String,
     removed_by_ws: bool,
     removed_by_rest: bool,
 }
 
-pub type OrderMgr = Arc<Mutex<OrderManager>>;
+pub type WrappedOrderManager = Arc<Mutex<OrderManager>>;
 
 /// Binance has separated channels for REST APIs and Websocket. Order responses are delivered
 /// through these channels, with no guaranteed order of transmission. To prevent duplicate handling
@@ -87,7 +86,6 @@ impl OrderManager {
                     removed_by_ws: order.status != Status::New
                         && order.status != Status::PartiallyFilled,
                     removed_by_rest: false,
-                    client_order_id,
                 });
                 if wrapper.removed_by_ws || wrapper.removed_by_rest {
                     self.order_id_map.remove(&order.order_id);
@@ -116,7 +114,7 @@ impl OrderManager {
             exec_price_tick: 0,
             exec_qty: resp.executed_qty,
             order_id: order.order_id,
-            order_type: resp.type_,
+            order_type: resp.ty,
             // Invalid information
             q: (),
             // Invalid information
@@ -176,7 +174,7 @@ impl OrderManager {
             exec_price_tick: 0,
             exec_qty: resp.executed_qty,
             order_id: order.order_id,
-            order_type: resp.type_,
+            order_type: resp.ty,
             // Invalid information
             q: (),
             // Invalid information
@@ -248,7 +246,6 @@ impl OrderManager {
                     removed_by_ws: false,
                     removed_by_rest: order.status != Status::New
                         && order.status != Status::PartiallyFilled,
-                    client_order_id,
                 });
                 if wrapper.removed_by_ws || wrapper.removed_by_rest {
                     self.order_id_map.remove(&order.order_id);
@@ -280,7 +277,6 @@ impl OrderManager {
             client_order_id.clone(),
             OrderWrapper {
                 order,
-                client_order_id: client_order_id.clone(),
                 removed_by_ws: false,
                 removed_by_rest: false,
             },

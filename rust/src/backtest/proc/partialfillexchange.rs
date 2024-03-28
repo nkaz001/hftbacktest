@@ -378,7 +378,7 @@ where
                         }
                         if execute {
                             for t in self.depth.best_ask_tick..=order.price_tick {
-                                let mut local_recv_timestamp = 0;
+                                let local_recv_timestamp;
                                 if let Some(qty) = self.depth.ask_depth.get(&t) {
                                     let exec_qty = qty.min(order.leaves_qty);
                                     local_recv_timestamp =
@@ -498,7 +498,7 @@ where
                         }
                         if execute {
                             for t in (order.price_tick..=self.depth.best_bid_tick).rev() {
-                                let mut local_recv_timestamp = 0;
+                                let local_recv_timestamp;
                                 if let Some(qty) = self.depth.bid_depth.get(&t) {
                                     let exec_qty = qty.min(order.leaves_qty);
                                     local_recv_timestamp =

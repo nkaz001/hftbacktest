@@ -11,20 +11,13 @@ use tokio::{
     select,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error};
 
 use crate::{
-    backtest::{
-        state::{State, StateValues},
-        Error,
-    },
+    backtest::state::StateValues,
     connector::Connector,
-    depth::{
-        btreemarketdepth::BTreeMarketDepth,
-        hashmapmarketdepth::HashMapMarketDepth,
-        MarketDepth,
-    },
-    live::{AssetInfo, LiveBuilder},
+    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
+    live::AssetInfo,
     ty::{
         Error as ErrorEvent,
         Event,
@@ -55,7 +48,7 @@ pub enum BotError {
     Custom(String),
 }
 
-#[tokio::main(worker_threads = 2)]
+#[tokio::main]
 async fn thread_main(
     ev_tx: Sender<LiveEvent>,
     mut req_rx: UnboundedReceiver<Request>,
@@ -155,7 +148,7 @@ impl Bot {
             conns: Some(conns),
             assets,
             trade,
-            error_handler: None,
+            error_handler,
         }
     }
 
@@ -410,16 +403,16 @@ impl Interface<(), HashMapMarketDepth> for Bot {
         Ok(true)
     }
 
-    fn clear_inactive_orders(&mut self, an: Option<usize>) {
-        match an {
+    fn clear_inactive_orders(&mut self, asset_no: Option<usize>) {
+        match asset_no {
             Some(an) => {
                 if let Some(orders) = self.orders.get_mut(an) {
-                    orders.retain(|order_id, order| order.active());
+                    orders.retain(|_, order| order.active());
                 }
             }
             None => {
                 for orders in self.orders.iter_mut() {
-                    orders.retain(|order_id, order| order.active());
+                    orders.retain(|_, order| order.active());
                 }
             }
         }

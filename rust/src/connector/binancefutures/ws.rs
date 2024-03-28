@@ -1,10 +1,6 @@
 /// Binance Futures Websocket module
 /// https://binance-docs.github.io/apidocs/futures/en/
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    sync::mpsc::Sender,
-    time::Duration,
-};
+use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
 
 use anyhow::Error;
 use chrono::Utc;
@@ -14,13 +10,13 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message},
 };
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use super::{
     msg::stream::{Data, Stream},
     rest::BinanceFuturesClient,
     BinanceFuturesError,
-    OrderMgr,
+    WrappedOrderManager,
 };
 use crate::{
     connector::binancefutures::{
@@ -61,7 +57,7 @@ pub async fn connect(
     ev_tx: Sender<LiveEvent>,
     assets: HashMap<String, AssetInfo>,
     prefix: &str,
-    orders: OrderMgr,
+    orders: WrappedOrderManager,
     client: BinanceFuturesClient,
 ) -> Result<(), anyhow::Error> {
     let mut request = url.into_client_request()?;
@@ -171,7 +167,7 @@ pub async fn connect(
                                                     error!(
                                                         ?error,
                                                         %symbol,
-                                                        "Failed to get depth through rest."
+                                                        "Couldn't get the market depth via REST."
                                                     )
                                                 }
                                             }

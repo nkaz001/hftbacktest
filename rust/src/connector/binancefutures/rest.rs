@@ -18,19 +18,19 @@ use crate::{
             rest::{OrderResponse, OrderResponseResult},
             stream::ListenKey,
         },
-        ordermanager::{OrderManager, OrderMgr},
+        ordermanager::{OrderManager, WrappedOrderManager},
     },
     live::AssetInfo,
-    ty::{AsStr, Error, ErrorType, OrdType, Order, Side, Status, TimeInForce},
+    ty::{AsStr, OrdType, Order, Side, Status, TimeInForce},
 };
 
 #[derive(Error, Debug)]
 pub enum RequestError {
     #[error("invalid request")]
     InvalidRequest,
-    #[error("http error")]
+    #[error("http error: {0:?}")]
     ReqError(#[from] reqwest::Error),
-    #[error("order error")]
+    #[error("error({1}) at order_id({0})")]
     OrderError(i64, String),
 }
 
@@ -40,17 +40,15 @@ pub struct BinanceFuturesClient {
     url: String,
     api_key: String,
     secret: String,
-    orders: OrderMgr,
 }
 
 impl BinanceFuturesClient {
-    pub fn new(url: &str, api_key: &str, secret: &str, orders: OrderMgr) -> Self {
+    pub fn new(url: &str, api_key: &str, secret: &str) -> Self {
         Self {
             client: reqwest::Client::new(),
             url: url.to_string(),
             api_key: api_key.to_string(),
             secret: secret.to_string(),
-            orders,
         }
     }
 
@@ -420,7 +418,7 @@ impl BinanceFuturesClient {
                             exec_price_tick: 0,
                             exec_qty: data.executed_qty,
                             order_id,
-                            order_type: data.type_,
+                            order_type: data.ty,
                             // Invalid information
                             q: (),
                             // Invalid information

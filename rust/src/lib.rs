@@ -20,8 +20,7 @@ use thiserror::Error;
 
 use crate::{
     backtest::state::StateValues,
-    connector::Connector,
-    ty::{Event, OrdType, Order, Status, TimeInForce},
+    ty::{Event, OrdType, Order, TimeInForce},
 };
 
 /// Defines backtesting features.

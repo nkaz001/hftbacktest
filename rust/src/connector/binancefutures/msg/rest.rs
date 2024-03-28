@@ -64,6 +64,8 @@ pub struct OrderResponse {
     #[serde(rename = "closePosition")]
     pub close_position: bool,
     pub symbol: String,
+    // for Coin-M futures
+    // pub pair: String,
     /// Modify Order response only field
     #[serde(default)]
     pub pair: Option<String>,
@@ -72,7 +74,7 @@ pub struct OrderResponse {
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
     #[serde(deserialize_with = "from_str_to_type")]
-    pub type_: OrdType,
+    pub ty: OrdType,
     #[serde(rename = "origType")]
     #[serde(deserialize_with = "from_str_to_type")]
     pub orig_type: OrdType,

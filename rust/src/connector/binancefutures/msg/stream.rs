@@ -39,6 +39,9 @@ pub struct Depth {
     pub event_time: i64,
     #[serde(rename = "s")]
     pub symbol: String,
+    // for Coin-M futures
+    // #[serde(rename = "ps")]
+    // pub pair: String,
     #[serde(rename = "U")]
     pub first_update_id: i64,
     #[serde(rename = "u")]

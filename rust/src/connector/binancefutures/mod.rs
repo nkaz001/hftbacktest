@@ -9,15 +9,14 @@ use std::{
     time::Duration,
 };
 
-use reqwest::StatusCode;
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
 use crate::{
     connector::{
         binancefutures::{
-            ordermanager::{OrderManager, OrderMgr},
-            rest::{BinanceFuturesClient, RequestError},
+            ordermanager::{OrderManager, WrappedOrderManager},
+            rest::BinanceFuturesClient,
             ws::connect,
         },
         Connector,
@@ -44,26 +43,22 @@ pub enum BinanceFuturesError {
 pub struct BinanceFutures {
     url: String,
     prefix: String,
-    api_key: String,
-    secret: String,
     assets: HashMap<String, AssetInfo>,
     inv_assets: HashMap<usize, AssetInfo>,
-    orders: OrderMgr,
+    order_manager: WrappedOrderManager,
     client: BinanceFuturesClient,
 }
 
 impl BinanceFutures {
     pub fn new(stream_url: &str, api_url: &str, prefix: &str, api_key: &str, secret: &str) -> Self {
-        let orders: OrderMgr = Arc::new(Mutex::new(OrderManager::new(prefix)));
+        let order_manager: WrappedOrderManager = Arc::new(Mutex::new(OrderManager::new(prefix)));
         Self {
             url: stream_url.to_string(),
             prefix: prefix.to_string(),
-            api_key: api_key.to_string(),
-            secret: secret.to_string(),
             assets: Default::default(),
             inv_assets: Default::default(),
-            orders: orders.clone(),
-            client: BinanceFuturesClient::new(api_url, api_key, secret, orders),
+            order_manager,
+            client: BinanceFuturesClient::new(api_url, api_key, secret),
         }
     }
 }
@@ -92,7 +87,7 @@ impl Connector for BinanceFutures {
         let base_url = self.url.clone();
         let prefix = self.prefix.clone();
         let client = self.client.clone();
-        let orders = self.orders.clone();
+        let orders = self.order_manager.clone();
         let mut error_count = 0;
 
         let _ = tokio::spawn(async move {
@@ -206,7 +201,7 @@ impl Connector for BinanceFutures {
             .ok_or(BinanceFuturesError::AssetNotFound)?;
         let symbol = asset_info.symbol.clone();
         let client = self.client.clone();
-        let orders = self.orders.clone();
+        let orders = self.order_manager.clone();
         tokio::spawn(async move {
             let client_order_id = orders
                 .lock()
@@ -279,7 +274,7 @@ impl Connector for BinanceFutures {
             .ok_or(BinanceFuturesError::AssetNotFound)?;
         let symbol = asset_info.symbol.clone();
         let client = self.client.clone();
-        let orders = self.orders.clone();
+        let orders = self.order_manager.clone();
         tokio::spawn(async move {
             let client_order_id = orders.lock().unwrap().get_client_order_id(order.order_id);
 
