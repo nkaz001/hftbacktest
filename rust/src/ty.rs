@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-/// Error type which is assigned to [`Error`].
+/// Error type assigned to [`Error`].
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(i64)]
 pub enum ErrorType {
@@ -14,7 +14,7 @@ pub enum ErrorType {
     Custom(i64),
 }
 
-/// Error conveyed by [`LiveEvent`].
+/// Error conveyed through [`LiveEvent`].
 #[derive(Clone, Debug)]
 pub struct Error {
     pub ty: ErrorType,
@@ -47,7 +47,7 @@ impl Error {
     }
 }
 
-/// Events that occur in a live bot sent by a connector.
+/// Events occurring in a live bot sent by a [`Connector`].
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
     Depth(Depth),

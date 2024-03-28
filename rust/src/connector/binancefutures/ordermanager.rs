@@ -22,6 +22,10 @@ struct OrderWrapper {
 
 pub type OrderMgr = Arc<Mutex<OrderManager>>;
 
+/// Binance has separated channels for REST APIs and Websocket. Order responses are delivered
+/// through these channels, with no guaranteed order of transmission. To prevent duplicate handling
+/// of order responses, such as order deletion due to cancellation or fill, OrderManager manages the
+/// order states before transmitting the responses to a live bot.
 #[derive(Default, Debug)]
 pub struct OrderManager {
     prefix: String,
@@ -73,7 +77,11 @@ impl OrderManager {
                     return None;
                 }
 
-                debug!(%client_order_id, ?order, "Received an unmanaged order from WS.");
+                debug!(
+                    %client_order_id,
+                    ?order,
+                    "BinanceFutures OrderManager received an unmanaged order from WS."
+                );
                 let wrapper = entry.insert(OrderWrapper {
                     order: order.clone(),
                     removed_by_ws: order.status != Status::New
@@ -230,7 +238,11 @@ impl OrderManager {
                     return None;
                 }
 
-                debug!(%client_order_id, ?order, "Received an unmanaged order from REST.");
+                debug!(
+                    %client_order_id,
+                    ?order,
+                    "BinanceFutures OrderManager received an unmanaged order from REST."
+                );
                 let wrapper = entry.insert(OrderWrapper {
                     order: order.clone(),
                     removed_by_ws: false,

@@ -44,36 +44,45 @@ async fn thread_main(
     mut conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     mapping: Vec<(String, AssetInfo)>,
 ) {
-    for (_, conn) in conns.iter_mut() {
-        conn.run(ev_tx.clone());
-    }
+    conns
+        .iter_mut()
+        .for_each(|(_, conn)| conn.run(ev_tx.clone()).unwrap());
     loop {
         select! {
             req = req_rx.recv() => {
                 match req {
-                    Some(Request::Order((an, order))) => {
-                        if let Some((connector_name, _)) = mapping.get(an) {
+                    Some(Request::Order((asset_no, order))) => {
+                        if let Some((connector_name, _)) = mapping.get(asset_no) {
                             let conn_ = conns.get_mut(connector_name).unwrap();
                             let ev_tx_ = ev_tx.clone();
-                            match order.req{
+                            match order.req {
                                 Status::New => {
-                                    if let Err(error) = conn_.submit(an, order, ev_tx_) {
-                                        error!(?error, "submit error");
+                                    if let Err(error) = conn_.submit(asset_no, order, ev_tx_) {
+                                        error!(
+                                            %connector_name,
+                                            ?error,
+                                            "Unable to submit a new order due to an internal error in the connector."
+                                        );
                                     }
                                 }
                                 Status::Canceled => {
-                                    if let Err(error) = conn_.cancel(an, order, ev_tx_) {
-                                        error!(?error, "cancel error");
+                                    if let Err(error) = conn_.cancel(asset_no, order, ev_tx_) {
+                                        error!(
+                                            %connector_name,
+                                            ?error,
+                                            "Unable to cancel an open order due to an internal error in the connector."
+                                        );
                                     }
                                 }
                                 req => {
-                                    error!(?req, "invalid request.");
+                                    error!(%connector_name, ?req, "req_rx received an invalid request.");
                                 }
                             }
                         }
                     }
                     None => {
-
+                        debug!("req_rx channel is closed.");
+                        break;
                     }
                 }
             }
@@ -197,7 +206,11 @@ impl Bot {
                             }
                         }
                         Entry::Vacant(entry) => {
-                            warn!(?data, "Received an unmanaged order.");
+                            error!(
+                                ?data,
+                                "Bot received an unmanaged order. \
+                                This should be handled by a Connector."
+                            );
                             entry.insert(data.order);
                         }
                     }

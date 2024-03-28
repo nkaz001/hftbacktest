@@ -1,3 +1,5 @@
+/// Binance Futures Websocket module
+/// https://binance-docs.github.io/apidocs/futures/en/
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::mpsc::Sender,

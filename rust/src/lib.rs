@@ -20,6 +20,8 @@ use crate::{
     backtest::state::StateValues,
     ty::{OrdType, Order, Event, TimeInForce},
 };
+use crate::connector::Connector;
+use crate::ty::Status;
 
 /// Defines backtesting features.
 pub mod backtest;
@@ -46,20 +48,52 @@ where
 {
     type Error;
 
+    /// In backtesting, this timestamp reflects the time at which the backtesting is conducted
+    /// within the provided data. In a live bot, it's literally the current local timestamp.
     fn current_timestamp(&self) -> i64;
 
+    /// Retrieve the position you currently hold.
+    ///
+    /// * `asset_no` - Asset number from which the position will be retrieved.
     fn position(&self, asset_no: usize) -> f64;
 
     fn state_values(&self, asset_no: usize) -> StateValues;
 
+    /// Gets the market depth.
+    ///
+    /// * `asset_no` - Asset number from which the market depth will be retrieved.
     fn depth(&self, asset_no: usize) -> &MD;
 
+    /// Gets the last market trades.
+    ///
+    /// * `asset_no` - Asset number from which the last market trades will be retrieved.
     fn trade(&self, asset_no: usize) -> &Vec<Event>;
 
+    /// Clears the last market trades from the buffer.
+    ///
+    /// * `asset_no` - Asset number at which this command will be executed. If `None`, all last
+    ///                trades in any assets will be cleared.
     fn clear_last_trades(&mut self, asset_no: Option<usize>);
 
+    /// Gets [`Order`]s.
+    ///
+    /// * `asset_no` - Asset number from which orders will be retrieved.
     fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<Q>>;
 
+    /// Places a buy order.
+    ///
+    /// * `asset_no` - Asset number at which this command will be executed.
+    /// * `order_id` - The unique order ID; there should not be any existing order with the same ID
+    ///                on both local and exchange sides.
+    /// * `price` - Order price.
+    /// * `qty` - Quantity to buy.
+    /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
+    ///                     See to the exchange model for details.
+    ///
+    ///  * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
+    ///                   the exchange model for details.
+    ///
+    ///  * `wait` - If true, wait until the order placement response is received.
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
@@ -71,6 +105,20 @@ where
         wait: bool,
     ) -> Result<bool, Self::Error>;
 
+    /// Places a sell order.
+    ///
+    /// * `asset_no` - Asset number at which this command will be executed.
+    /// * `order_id` - The unique order ID; there should not be any existing order with the same ID
+    ///                on both local and exchange sides.
+    /// * `price` - Order price.
+    /// * `qty` - Quantity to buy.
+    /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
+    ///                     See to the exchange model for details.
+    ///
+    ///  * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
+    ///                   the exchange model for details.
+    ///
+    ///  * `wait` - If true, wait until the order placement response is received.
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
@@ -82,10 +130,26 @@ where
         wait: bool,
     ) -> Result<bool, Self::Error>;
 
+    /// Cancels the specified order.
+    ///
+    /// * `asset_no` - Asset number at which this command will be executed.
+    /// * `order_id` - Order ID to cancel.
+    /// * `wait` - If true, wait until the order placement response is received.
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error>;
 
+    /// Clears inactive orders from the local [`orders`] whose status is neither [`Status::New`] nor
+    /// [`Status::PartiallyFilled`].
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>);
 
+    /// Elapses the specified duration.
+    ///
+    /// Args:
+    /// * `duration` - Duration to elapse. Nanoseconds is the default unit. However, unit should be
+    ///                the same as the data's timestamp unit.
+    ///
+    /// Returns:
+    ///   `Ok(true)` if the method reaches the specified timestamp within the data. If the end of
+    ///   the data is reached before the specified timestamp, it returns `Ok(false)`.
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error>;
 
     /// Elapses time only in backtesting. In live mode, it is ignored.
@@ -93,14 +157,23 @@ where
     /// The [`elapse`] method exclusively manages time during backtesting, meaning that factors such
     /// as computing time are not properly accounted for. So, this method can be utilized to
     /// simulate such processing times.
+    ///
+    /// Args:
+    /// * `duration` - Duration to elapse. Nanoseconds is the default unit. However, unit should be
+    ///                the same as the data's timestamp unit.
+    ///
+    /// Returns:
+    ///   `Ok(true)` if the method reaches the specified timestamp within the data. If the end of
+    ///   the data is reached before the specified timestamp, it returns `Ok(false)`.
     fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error>;
 
+    /// Closes this backtester or bot.
     fn close(&mut self) -> Result<(), Self::Error>;
 }
 
 /// Gets price precision.
 ///
-/// [`tick_size`] should not be a computed value.
+/// * `tick_size` - This should not be a computed value.
 pub fn get_precision(tick_size: f32) -> usize {
     let s = tick_size.to_string();
     let mut prec = 0;

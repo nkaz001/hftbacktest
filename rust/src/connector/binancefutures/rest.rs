@@ -1,3 +1,5 @@
+/// Binance Futures REST API module
+/// https://binance-docs.github.io/apidocs/futures/en/
 use std::{
     collections::HashMap,
     fmt::{Debug, Write},
@@ -9,7 +11,6 @@ use serde::Deserialize;
 use sha2::Sha256;
 use thiserror::Error;
 
-/// https://binance-docs.github.io/apidocs/futures/en/
 use super::msg::{rest, rest::PositionInformationV2};
 use crate::{
     connector::binancefutures::{
