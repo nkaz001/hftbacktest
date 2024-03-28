@@ -142,7 +142,10 @@ impl Connector for BinanceFutures {
                         error!(?error, "Couldn't start user data stream.");
                         // 1000 indicates user data stream starting error.
                         ev_tx
-                            .send(LiveEvent::Error(Error::with(ErrorType::Custom(1000), error)))
+                            .send(LiveEvent::Error(Error::with(
+                                ErrorType::Custom(1000),
+                                error,
+                            )))
                             .unwrap();
                         continue 'connection;
                     }
@@ -180,7 +183,9 @@ impl Connector for BinanceFutures {
                         .unwrap();
                 } else {
                     ev_tx
-                        .send(LiveEvent::Error(Error::new(ErrorType::ConnectionInterrupted)))
+                        .send(LiveEvent::Error(Error::new(
+                            ErrorType::ConnectionInterrupted,
+                        )))
                         .unwrap();
                 }
                 error_count += 1;

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     backtest::{state::StateValues, Error},
     depth::MarketDepth,
-    ty::{OrdType, Order, Event, Side, TimeInForce},
+    ty::{Event, OrdType, Order, Side, TimeInForce},
 };
 
 pub trait LocalProcessor<Q, MD>: Processor

@@ -16,12 +16,13 @@
 //!
 use std::collections::HashMap;
 
+use thiserror::Error;
+
 use crate::{
     backtest::state::StateValues,
-    ty::{OrdType, Order, Event, TimeInForce},
+    connector::Connector,
+    ty::{Event, OrdType, Order, Status, TimeInForce},
 };
-use crate::connector::Connector;
-use crate::ty::Status;
 
 /// Defines backtesting features.
 pub mod backtest;
@@ -32,14 +33,23 @@ pub mod connector;
 /// Defines a market depth to build the order book from the feed data.
 pub mod depth;
 
-/// Defines errors.
-pub mod error;
-
 /// Defines live bot features.
 pub mod live;
 
 /// Defines types.
 pub mod ty;
+
+#[derive(Error, Debug)]
+pub enum BuildError {
+    #[error("`{0}` is required")]
+    BuilderIncomplete(&'static str),
+    #[error("`{0}/{1}` already exists")]
+    Duplicate(String, String),
+    #[error("`{0}` is not found")]
+    ConnectorNotFound(String),
+    #[error("{0:?}")]
+    Error(#[from] anyhow::Error),
+}
 
 /// Provides an interface for a backtester or a bot.
 pub trait Interface<Q, MD>

@@ -9,7 +9,7 @@ use crate::{
         Error,
     },
     depth::MarketDepth,
-    ty::{OrdType, Order, Event, Side, TimeInForce},
+    ty::{Event, OrdType, Order, Side, TimeInForce},
     Interface,
 };
 

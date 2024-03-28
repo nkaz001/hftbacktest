@@ -6,6 +6,7 @@ use std::{
 };
 
 use chrono::Utc;
+use thiserror::Error;
 use tokio::{
     select,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
@@ -24,16 +25,33 @@ use crate::{
         MarketDepth,
     },
     live::{AssetInfo, LiveBuilder},
-    ty::{Error as ErrorEvent, LiveEvent, OrdType, Order, Request, Event, Side, Status, TimeInForce, BUY, SELL},
+    ty::{
+        Error as ErrorEvent,
+        Event,
+        LiveEvent,
+        OrdType,
+        Order,
+        Request,
+        Side,
+        Status,
+        TimeInForce,
+        BUY,
+        SELL,
+    },
     Interface,
 };
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
+    #[error("asset not found")]
     AssetNotFound,
+    #[error("order not found")]
     OrderNotFound,
+    #[error("order id already exists")]
     DuplicateOrderId,
+    #[error("order status is invalid")]
     InvalidOrderStatus,
+    #[error("{0}")]
     Custom(String),
 }
 
@@ -90,6 +108,8 @@ async fn thread_main(
     }
 }
 
+pub type ErrorHandler = Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>;
+
 pub struct Bot {
     req_tx: UnboundedSender<Request>,
     req_rx: Option<UnboundedReceiver<Request>>,
@@ -101,13 +121,14 @@ pub struct Bot {
     trade: Vec<Vec<Event>>,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
     assets: Vec<(String, AssetInfo)>,
-    error_handler: Option<Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>>,
+    error_handler: Option<ErrorHandler>,
 }
 
 impl Bot {
     pub fn new(
         conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
         assets: Vec<(String, AssetInfo)>,
+        error_handler: Option<ErrorHandler>,
     ) -> Self {
         let (ev_tx, ev_rx) = channel();
         let (req_tx, req_rx) = unbounded_channel();

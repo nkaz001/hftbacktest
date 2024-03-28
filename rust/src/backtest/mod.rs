@@ -23,8 +23,8 @@ use crate::{
         state::State,
     },
     depth::hashmapmarketdepth::HashMapMarketDepth,
-    error::BuildError,
     ty::Event,
+    BuildError,
 };
 
 #[derive(Error, Debug)]
@@ -41,7 +41,7 @@ pub enum Error {
     InvalidOrderStatus,
     #[error("end of data")]
     EndOfData,
-    #[error("data error: {0}")]
+    #[error("data error: {0:?}")]
     DataError(#[from] IoError),
 }
 

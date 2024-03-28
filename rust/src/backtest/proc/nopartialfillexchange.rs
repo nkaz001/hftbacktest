@@ -28,7 +28,7 @@ use crate::{
         Error,
     },
     depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth as _, INVALID_MAX, INVALID_MIN},
-    ty::{Order, Event, Side, Status, TimeInForce, BUY, SELL},
+    ty::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
 };
 
 pub struct NoPartialFillExchange<AT, Q, LM, QM>

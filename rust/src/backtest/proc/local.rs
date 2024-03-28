@@ -25,7 +25,7 @@ use crate::{
         Error,
     },
     depth::MarketDepth,
-    ty::{OrdType, Order, Event, Side, Status, TimeInForce, BUY, SELL},
+    ty::{Event, OrdType, Order, Side, Status, TimeInForce, BUY, SELL},
 };
 
 pub struct Local<AT, Q, LM, MD>

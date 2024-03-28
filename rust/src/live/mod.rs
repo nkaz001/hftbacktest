@@ -1,6 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{connector::Connector, error::BuildError, live::bot::Bot};
+use crate::{
+    connector::Connector,
+    live::bot::{Bot, BotError, ErrorHandler},
+    ty::Error,
+    BuildError,
+};
 
 pub mod bot;
 
@@ -16,6 +21,7 @@ pub struct AssetInfo {
 pub struct LiveBuilder {
     conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     assets: Vec<(String, AssetInfo)>,
+    error_handler: Option<ErrorHandler>,
 }
 
 impl LiveBuilder {
@@ -24,6 +30,7 @@ impl LiveBuilder {
         Self {
             conns: HashMap::new(),
             assets: Vec::new(),
+            error_handler: None,
         }
     }
 
@@ -40,7 +47,8 @@ impl LiveBuilder {
 
     /// Adds an asset.
     ///
-    /// * `name` - Name of the [`Connector`] through which this asset will be traded.
+    /// * `name` - Name of the [`Connector`], which is registered by [`LiveBuilder::register`],
+    ///            through which this asset will be traded.
     /// * `symbol` - Symbol of the asset. You need to check with the [`Connector`] which symbology
     ///              is used.
     /// * `tick_size` - The minimum price fluctuation.
@@ -56,6 +64,15 @@ impl LiveBuilder {
                 lot_size,
             },
         ));
+        self
+    }
+
+    /// Registers the error handler to deal with an error from connectors.
+    pub fn error_handler<Handler>(mut self, handler: Handler) -> Self
+    where
+        Handler: FnMut(Error) -> Result<(), BotError> + 'static,
+    {
+        self.error_handler = Some(Box::new(handler));
         self
     }
 
@@ -81,7 +98,7 @@ impl LiveBuilder {
             )?;
         }
 
-        let con = Bot::new(conns, self.assets);
+        let con = Bot::new(conns, self.assets, self.error_handler);
         Ok(con)
     }
 }
