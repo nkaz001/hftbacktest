@@ -154,6 +154,7 @@ where
             if self.queue_model.is_filled(order, &self.depth) {
                 // fixme
                 // let q_qty = (-order.q[0] / self.depth.lot_size * self.depth.lot_size).ceil();
+                todo!()
                 let q_qty = 0f32;
                 let exec_qty = q_qty.min(qty).min(order.leaves_qty);
                 self.filled_orders.push(order.order_id);
@@ -179,6 +180,7 @@ where
             if self.queue_model.is_filled(order, &self.depth) {
                 // fixme
                 // let q_qty = (-order.q[0] / self.depth.lot_size * self.depth.lot_size).ceil();
+                todo!()
                 let q_qty = 0f32;
                 let exec_qty = q_qty.min(qty).min(order.leaves_qty);
                 self.filled_orders.push(order.order_id);
