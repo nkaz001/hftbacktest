@@ -273,6 +273,7 @@ impl Bot {
         let tick_size = self.assets.get(asset_no).unwrap().1.tick_size;
         let order = Order {
             order_id,
+            front_q_qty: 0.0,
             q: (),
             price_tick: (price / tick_size).round() as i32,
             qty,

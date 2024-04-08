@@ -116,8 +116,8 @@ impl OrderManager {
             order_id: order.order_id,
             order_type: resp.ty,
             // Invalid information
+            front_q_qty: 0.0,
             q: (),
-            // Invalid information
             maker: false,
         };
         self.update_from_rest(resp.client_order_id, order)
@@ -176,8 +176,8 @@ impl OrderManager {
             order_id: order.order_id,
             order_type: resp.ty,
             // Invalid information
+            front_q_qty: 0.0,
             q: (),
-            // Invalid information
             maker: false,
         };
         self.update_from_rest(resp.client_order_id, order)

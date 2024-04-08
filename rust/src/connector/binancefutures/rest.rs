@@ -18,7 +18,7 @@ use crate::{
             rest::{OrderResponse, OrderResponseResult},
             stream::ListenKey,
         },
-        ordermanager::{OrderManager, WrappedOrderManager},
+        ordermanager::OrderManager,
     },
     live::AssetInfo,
     ty::{AsStr, OrdType, Order, Side, Status, TimeInForce},
@@ -420,8 +420,8 @@ impl BinanceFuturesClient {
                             order_id,
                             order_type: data.ty,
                             // Invalid information
+                            front_q_qty: 0.0,
                             q: (),
-                            // Invalid information
                             maker: false,
                         },
                     )

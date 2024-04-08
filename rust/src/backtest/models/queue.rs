@@ -21,44 +21,42 @@ impl RiskAdverseQueueModel {
     }
 }
 
-impl QueueModel<f32> for RiskAdverseQueueModel {
-    fn new_order(&self, order: &mut Order<f32>, depth: &HashMapMarketDepth) {
+impl QueueModel<()> for RiskAdverseQueueModel {
+    fn new_order(&self, order: &mut Order<()>, depth: &HashMapMarketDepth) {
         if order.side == Side::Buy {
-            order.q = *depth.bid_depth.get(&order.price_tick).unwrap_or(&0.0);
+            order.front_q_qty = *depth.bid_depth.get(&order.price_tick).unwrap_or(&0.0);
         } else {
-            order.q = *depth.ask_depth.get(&order.price_tick).unwrap_or(&0.0);
+            order.front_q_qty = *depth.ask_depth.get(&order.price_tick).unwrap_or(&0.0);
         }
     }
 
-    fn trade(&self, order: &mut Order<f32>, qty: f32, _depth: &HashMapMarketDepth) {
-        order.q -= qty;
+    fn trade(&self, order: &mut Order<()>, qty: f32, _depth: &HashMapMarketDepth) {
+        order.front_q_qty -= qty;
     }
 
     fn depth(
         &self,
-        order: &mut Order<f32>,
+        order: &mut Order<()>,
         _prev_qty: f32,
         new_qty: f32,
         _depth: &HashMapMarketDepth,
     ) {
-        order.q = order.q.min(new_qty);
+        order.front_q_qty = order.front_q_qty.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order<f32>, depth: &HashMapMarketDepth) -> bool {
-        (order.q / depth.lot_size).round() < 0.0
+    fn is_filled(&self, order: &Order<()>, depth: &HashMapMarketDepth) -> bool {
+        (order.front_q_qty / depth.lot_size).round() < 0.0
     }
 }
 
 #[derive(Clone)]
 pub struct QueuePos {
-    front: f32,
     cum_trade_qty: f32,
 }
 
 impl Default for QueuePos {
     fn default() -> Self {
         Self {
-            front: 0.0,
             cum_trade_qty: 0.0,
         }
     }
@@ -97,14 +95,14 @@ where
 {
     fn new_order(&self, order: &mut Order<QueuePos>, depth: &HashMapMarketDepth) {
         if order.side == Side::Buy {
-            order.q.front = *depth.bid_depth.get(&order.price_tick).unwrap_or(&0.0);
+            order.front_q_qty = *depth.bid_depth.get(&order.price_tick).unwrap_or(&0.0);
         } else {
-            order.q.front = *depth.ask_depth.get(&order.price_tick).unwrap_or(&0.0);
+            order.front_q_qty = *depth.ask_depth.get(&order.price_tick).unwrap_or(&0.0);
         }
     }
 
     fn trade(&self, order: &mut Order<QueuePos>, qty: f32, _depth: &HashMapMarketDepth) {
-        order.q.front -= qty;
+        order.front_q_qty -= qty;
         order.q.cum_trade_qty += qty;
     }
 
@@ -123,11 +121,11 @@ where
         order.q.cum_trade_qty = 0.0;
         // For an increase of the quantity, front queue doesn't change by the quantity change.
         if chg < 0.0 {
-            order.q.front = order.q.front.min(new_qty);
+            order.front_q_qty = order.front_q_qty.min(new_qty);
             return;
         }
 
-        let front = order.q.front;
+        let front = order.front_q_qty;
         let back = prev_qty - front;
 
         let mut prob = self.prob.prob(front, back);
@@ -136,11 +134,11 @@ where
         }
 
         let est_front = front - (1.0 - prob) * chg + (back - prob * chg).min(0.0);
-        order.q.front = est_front.min(new_qty);
+        order.front_q_qty = est_front.min(new_qty);
     }
 
     fn is_filled(&self, order: &Order<QueuePos>, depth: &HashMapMarketDepth) -> bool {
-        (order.q.front / depth.lot_size).round() < 0.0
+        (order.front_q_qty / depth.lot_size).round() < 0.0
     }
 }
 

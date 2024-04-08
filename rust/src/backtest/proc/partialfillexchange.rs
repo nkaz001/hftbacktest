@@ -152,10 +152,10 @@ where
             // Update the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
             if self.queue_model.is_filled(order, &self.depth) {
-                // fixme
-                // let q_qty = (-order.q[0] / self.depth.lot_size * self.depth.lot_size).ceil();
-                todo!();
-                let q_qty = 0f32;
+                // q_ahead is negative since is_filled is true and its value represents the
+                // executable quantity of this order after execution in the queue ahead of this
+                // order.
+                let q_qty = (-order.front_q_qty / self.depth.lot_size).floor() * self.depth.lot_size;
                 let exec_qty = q_qty.min(qty).min(order.leaves_qty);
                 self.filled_orders.push(order.order_id);
                 return self.fill(order, timestamp, true, order.price_tick, exec_qty);
@@ -178,10 +178,10 @@ where
             // Update the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
             if self.queue_model.is_filled(order, &self.depth) {
-                // fixme
-                // let q_qty = (-order.q[0] / self.depth.lot_size * self.depth.lot_size).ceil();
-                todo!();
-                let q_qty = 0f32;
+                // q_ahead is negative since is_filled is true and its value represents the
+                // executable quantity of this order after execution in the queue ahead of this
+                // order.
+                let q_qty = (-order.front_q_qty / self.depth.lot_size).floor() * self.depth.lot_size;
                 let exec_qty = q_qty.min(qty).min(order.leaves_qty);
                 self.filled_orders.push(order.order_id);
                 return self.fill(order, timestamp, true, order.price_tick, exec_qty);

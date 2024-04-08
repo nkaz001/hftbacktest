@@ -272,9 +272,11 @@ pub async fn connect(
                                             exec_price_tick: (data.order.last_filled_price / asset_info.tick_size).round() as i32,
                                             exec_qty: data.order.order_last_filled_qty,
                                             order_id,
+                                            order_type: data.order.order_type,
+                                            // Invalid information
+                                            front_q_qty: 0.0,
                                             q: (),
-                                            maker: false,
-                                            order_type: data.order.order_type
+                                            maker: false
                                         };
 
                                         let order = orders

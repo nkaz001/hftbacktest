@@ -213,6 +213,7 @@ where
     pub exec_price_tick: i32,
     pub exec_qty: f32,
     pub order_id: i64,
+    pub front_q_qty: f32,
     pub q: Q,
     pub maker: bool,
     pub order_type: OrdType,
@@ -248,6 +249,7 @@ where
             exec_price_tick: 0,
             exec_qty: 0.0,
             order_id,
+            front_q_qty: 0.0,
             q: Q::default(),
             maker: false,
             order_type,
@@ -295,6 +297,7 @@ where
         self.exec_price_tick = order.exec_price_tick;
         self.exec_qty = order.exec_qty;
         self.order_id = order.order_id;
+        self.front_q_qty = order.front_q_qty;
         self.q = order.q.clone();
         self.maker = order.maker;
         self.order_type = order.order_type;
@@ -322,6 +325,7 @@ where
             .field("order_id", &self.order_id)
             .field("maker", &self.maker)
             .field("order_type", &self.order_type)
+            .field("q_ahead", &self.front_q_qty)
             .finish()
     }
 }
