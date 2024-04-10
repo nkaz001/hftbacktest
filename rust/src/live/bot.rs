@@ -161,7 +161,7 @@ impl Bot {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), BotError> {
         let ev_tx = self.ev_tx.take().unwrap();
         let req_rx = self.req_rx.take().unwrap();
         let conns = self.conns.take().unwrap();
@@ -169,6 +169,7 @@ impl Bot {
         let _ = thread::spawn(move || {
             thread_main(ev_tx, req_rx, conns, assets);
         });
+        Ok(())
     }
 
     fn elapse_(&mut self, duration: i64) -> Result<bool, BotError> {

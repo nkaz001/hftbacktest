@@ -27,7 +27,7 @@ fn prepare_live() -> Bot {
         .build()
         .unwrap();
 
-    hbt.run();
+    hbt.run().unwrap();
     hbt
 }
 
