@@ -8,24 +8,22 @@ use std::{
     sync::{mpsc::Sender, Arc, Mutex},
     time::Duration,
 };
+use std::collections::HashSet;
 
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
-use crate::{
-    connector::{
-        binancefutures::{
-            ordermanager::{OrderManager, WrappedOrderManager},
-            rest::BinanceFuturesClient,
-            ws::connect,
-        },
-        Connector,
+use crate::{BuildError, connector::{
+    binancefutures::{
+        ordermanager::{OrderManager, WrappedOrderManager},
+        rest::BinanceFuturesClient,
+        ws::connect,
     },
-    get_precision,
-    live::AssetInfo,
-    ty::{Error, ErrorType, LiveEvent, Order, OrderResponse, Position, Status},
-};
+    Connector,
+}, get_precision, live::AssetInfo, ty::{Error, ErrorType, LiveEvent, Order, OrderResponse, Position, Status}};
+use crate::live::bot::Bot;
 
+#[derive(Clone)]
 pub enum Endpoint {
     Public,
     Private,
@@ -34,10 +32,174 @@ pub enum Endpoint {
     Custom(String),
 }
 
+impl From<String> for Endpoint {
+    fn from(value: String) -> Self {
+        Endpoint::Custom(value)
+    }
+}
+
+impl From<&'static str> for Endpoint {
+    fn from(value: &'static str) -> Self {
+        Endpoint::Custom(value.to_string())
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum BinanceFuturesError {
     #[error("asset not found")]
     AssetNotFound,
+}
+
+/// Binance Futures USD-M connector [`BinanceFutures`] builder.
+pub struct BinanceFuturesBuilder {
+    stream_url: String,
+    api_url: String,
+    order_prefix: String,
+    api_key: String,
+    secret: String,
+    streams: HashSet<String>,
+}
+
+impl BinanceFuturesBuilder {
+    /// Sets an endpoint to connect.
+    pub fn endpoint(mut self, endpoint: Endpoint) -> Self {
+        if let Endpoint::Custom(_) = endpoint {
+            panic!("Use `stream_url` and `api_url` to set a custom endpoint instead");
+        }
+        self.stream_url(endpoint.clone())
+            .api_url(endpoint)
+    }
+
+    /// Sets the Websocket streams endpoint url.
+    pub fn stream_url<E: Into<Endpoint>>(self, endpoint: E) -> Self {
+        match endpoint.into() {
+            Endpoint::Public => {
+                Self {
+                    // wss://ws-fapi.binance.com/ws-fapi/v1
+                    stream_url: "wss://fstream.binance.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::Private => {
+                Self {
+                    stream_url: "wss://fstream-auth.binance.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::Testnet => {
+                Self {
+                    stream_url: "wss://fstream.binancefuture.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::LowLatency => {
+                Self {
+                    stream_url: "wss://fstream-mm.binance.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::Custom(stream_url) => {
+                Self {
+                    stream_url,
+                    ..self
+                }
+            }
+        }
+    }
+
+    /// Sets the REST APIs endpoint url.
+    pub fn api_url<E: Into<Endpoint>>(self, endpoint: E) -> Self {
+        match endpoint.into() {
+            Endpoint::Public => {
+                Self {
+                    api_url: "https://fapi.binance.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::Private => {
+                Self {
+                    api_url: "https://fapi.binance.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::Testnet => {
+                Self {
+                    api_url: "https://testnet.binancefuture.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::LowLatency => {
+                Self {
+                    api_url: "https://fapi-mm.binance.com".to_string(),
+                    ..self
+                }
+            }
+            Endpoint::Custom(api_url) => {
+                Self {
+                    api_url,
+                    ..self
+                }
+            }
+        }
+    }
+
+    /// Sets the API key
+    pub fn api_key(self, api_key: &str) -> Self {
+        Self {
+            api_key: api_key.to_string(),
+            ..self
+        }
+    }
+
+    /// Sets the secret key
+    pub fn secret(self, secret: &str) -> Self {
+        Self {
+            secret: secret.to_string(),
+            ..self
+        }
+    }
+
+    /// Sets the order prefix, which is used to differentiate the orders submitted through this
+    /// connector.
+    pub fn order_prefix(self, order_prefix: &str) -> Self {
+        Self {
+            order_prefix: order_prefix.to_string(),
+            ..self
+        }
+    }
+
+    /// Adds an additional stream to receive through the WebSocket connection.
+    pub fn add_stream(mut self, stream: &str) -> Self {
+        self.streams.insert(stream.to_string());
+        self
+    }
+
+    /// Builds [`BinanceFutures`] connector.
+    pub fn build(self) -> Result<BinanceFutures, BuildError> {
+        if self.stream_url.is_empty() {
+            return Err(BuildError::BuilderIncomplete("stream_url"));
+        }
+        if self.api_url.is_empty() {
+            return Err(BuildError::BuilderIncomplete("api_url"));
+        }
+        if self.api_key.is_empty() {
+            return Err(BuildError::BuilderIncomplete("api_key"));
+        }
+        if self.secret.is_empty() {
+            return Err(BuildError::BuilderIncomplete("secret"));
+        }
+
+        let order_manager: WrappedOrderManager = Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
+        Ok(BinanceFutures {
+            url: self.stream_url.to_string(),
+            prefix: self.order_prefix,
+            assets: Default::default(),
+            inv_assets: Default::default(),
+            order_manager,
+            client: BinanceFuturesClient::new(&self.api_url, &self.api_key, &self.secret),
+            streams: self.streams
+        })
+    }
 }
 
 pub struct BinanceFutures {
@@ -47,9 +209,22 @@ pub struct BinanceFutures {
     inv_assets: HashMap<usize, AssetInfo>,
     order_manager: WrappedOrderManager,
     client: BinanceFuturesClient,
+    streams: HashSet<String>
 }
 
 impl BinanceFutures {
+    /// Gets [`BinanceFuturesBuilder`] to build [`BinanceFutures`] connector.
+    pub fn builder() -> BinanceFuturesBuilder {
+        BinanceFuturesBuilder {
+            stream_url: "".to_string(),
+            api_url: "".to_string(),
+            order_prefix: "".to_string(),
+            api_key: "".to_string(),
+            secret: "".to_string(),
+            streams: Default::default(),
+        }
+    }
+
     pub fn new(stream_url: &str, api_url: &str, prefix: &str, api_key: &str, secret: &str) -> Self {
         let order_manager: WrappedOrderManager = Arc::new(Mutex::new(OrderManager::new(prefix)));
         Self {
@@ -59,6 +234,7 @@ impl BinanceFutures {
             inv_assets: Default::default(),
             order_manager,
             client: BinanceFuturesClient::new(api_url, api_key, secret),
+            streams: Default::default()
         }
     }
 }
@@ -88,6 +264,7 @@ impl Connector for BinanceFutures {
         let prefix = self.prefix.clone();
         let client = self.client.clone();
         let orders = self.order_manager.clone();
+        let add_streams = self.streams.clone();
         let mut error_count = 0;
 
         let _ = tokio::spawn(async move {
@@ -147,7 +324,7 @@ impl Connector for BinanceFutures {
                 };
 
                 // Prepares a URL that connects streams
-                let streams: Vec<String> = assets
+                let mut streams: Vec<String> = assets
                     .keys()
                     .map(|symbol| {
                         format!(
@@ -157,7 +334,8 @@ impl Connector for BinanceFutures {
                         )
                     })
                     .collect();
-                let url = format!("{}{}/{}", &base_url, listen_key, streams.join("/"));
+                streams.append(&mut add_streams.iter().cloned().collect::<Vec<_>>());
+                let url = format!("{}/stream?streams={}/{}", &base_url, listen_key, streams.join("/"));
 
                 if let Err(error) = connect(
                     &url,

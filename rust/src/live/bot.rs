@@ -33,6 +33,7 @@ use crate::{
     },
     Interface,
 };
+use crate::live::BotBuilder;
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -118,6 +119,14 @@ pub struct Bot {
 }
 
 impl Bot {
+    pub fn builder() -> BotBuilder {
+        BotBuilder {
+            conns: HashMap::new(),
+            assets: Vec::new(),
+            error_handler: None,
+        }
+    }
+
     pub fn new(
         conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
         assets: Vec<(String, AssetInfo)>,

@@ -18,24 +18,15 @@ pub struct AssetInfo {
 }
 
 /// Live [`Bot`] builder.
-pub struct LiveBuilder {
+pub struct BotBuilder {
     conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     assets: Vec<(String, AssetInfo)>,
     error_handler: Option<ErrorHandler>,
 }
 
-impl LiveBuilder {
-    /// Constructs [`LiveBuilder`].
-    pub fn new() -> Self {
-        Self {
-            conns: HashMap::new(),
-            assets: Vec::new(),
-            error_handler: None,
-        }
-    }
-
+impl BotBuilder {
     /// Registers a [`Connector`] with a specified name.
-    /// The specified name for this connector is used when using [`LiveBuilder::add`] to add an
+    /// The specified name for this connector is used when using [`BotBuilder::add`] to add an
     /// asset for trading through this connector.
     pub fn register<C>(mut self, name: &str, conn: C) -> Self
     where
@@ -47,7 +38,7 @@ impl LiveBuilder {
 
     /// Adds an asset.
     ///
-    /// * `name` - Name of the [`Connector`], which is registered by [`LiveBuilder::register`],
+    /// * `name` - Name of the [`Connector`], which is registered by [`BotBuilder::register`],
     ///            through which this asset will be traded.
     /// * `symbol` - Symbol of the asset. You need to check with the [`Connector`] which symbology
     ///              is used.
