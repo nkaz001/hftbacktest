@@ -203,7 +203,7 @@ class PartialFillExchange_(Proc):
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
             if self.queue_model.is_filled(order, self):
-                q_qty = np.ceil(-order.q[0] / self.depth.lot_size) * self.depth.lot_size
+                q_qty = np.floor(-order.q[0] / self.depth.lot_size) * self.depth.lot_size
                 exec_qty = min(q_qty, qty, order.leaves_qty)
                 self.__fill(
                     order,
@@ -224,7 +224,7 @@ class PartialFillExchange_(Proc):
             # Update the order's queue position.
             self.queue_model.trade(order, qty, self)
             if self.queue_model.is_filled(order, self):
-                q_qty = np.ceil(-order.q[0] / self.depth.lot_size) * self.depth.lot_size
+                q_qty = np.floor(-order.q[0] / self.depth.lot_size) * self.depth.lot_size
                 exec_qty = min(q_qty, qty, order.leaves_qty)
                 self.__fill(
                     order,
