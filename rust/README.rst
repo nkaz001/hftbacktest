@@ -26,10 +26,30 @@ The following features are only provided in Rust implementation:
 * Backtesting of multi-asset and multi-exchange models
 * Deployment of a live trading bot using the same algo code
 
+Getting started
+===============
+
 Data Format
-===========
+-----------
+
 The Rust implementation uses a different data format compared to the Python implementation. Please refer to the Python
 implementation data utils' `structured_array` option or see the source code.
+
+Examples
+--------
+
+Please see `examples <https://github.com/nkaz001/hftbacktest/tree/master/rust/examples>`_.
+
+Roadmap
+=======
+
+The following features are planned to be developed after API stabilization:
+
+* Backtesting and live support for L3 feeds (Market-By-Order).
+* Support for external connectors through sockets and/or IPC for multiple bots via a unified connection.
+* Addition of more connectors, including DataBento.
+* Implementing data fusion to obtain the finest granularity and up-to-date market depth information from various
+  conflated market depth streams.
 
 Contributing
 ============

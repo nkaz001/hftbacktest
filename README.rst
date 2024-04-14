@@ -4,10 +4,21 @@ HftBacktest
 
 |codacy| |codeql| |pypi| |downloads| |license| |docs| |github|
 
-High-Frequency Trading Backtesting Tool in Python
-=================================================
+High-Frequency Trading Backtesting Tool
+=======================================
 
-This Python framework is designed for developing high-frequency trading and market-making strategies. It focuses on accounting for both feed and order latencies, as well as the order queue position for order fill simulation. The framework aims to provide more accurate market replay-based backtesting, based on full order book and trade tick feed data.
+This framework is designed for developing high-frequency trading and market-making strategies. It focuses on accounting for both feed and order latencies, as well as the order queue position for order fill simulation. The framework aims to provide more accurate market replay-based backtesting, based on full order book and trade tick feed data.
+
+Rust implementation with experimental features
+==============================================
+
+The experimental features are currently in the early stages of development, having been completely rewritten in Rust to
+support the following features.
+
+* Backtesting of multi-asset and multi-exchange models
+* Deployment of a live trading bot using the same algo code.
+
+Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ directory.
 
 Key Features
 ============
@@ -136,17 +147,6 @@ Examples
 ========
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory.
-
-Experimental features
-=====================
-
-The experimental features are currently in the early stages of development, having been completely rewritten in Rust to
-support the following features.
-
-* Backtesting of multi-asset and multi-exchange models
-* Deployment of a live trading bot using the same algo code.
-
-Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ directory.
 
 Contributing
 ============
