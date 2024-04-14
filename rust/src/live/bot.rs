@@ -17,7 +17,7 @@ use crate::{
     backtest::state::StateValues,
     connector::Connector,
     depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
-    live::AssetInfo,
+    live::{AssetInfo, BotBuilder},
     ty::{
         Error as ErrorEvent,
         Event,
@@ -33,7 +33,6 @@ use crate::{
     },
     Interface,
 };
-use crate::live::BotBuilder;
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {

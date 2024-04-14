@@ -27,16 +27,17 @@ use crate::{
         state::State,
         Error,
     },
-    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth as _, INVALID_MAX, INVALID_MIN},
+    depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
     ty::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
 };
 
-pub struct NoPartialFillExchange<AT, Q, LM, QM>
+pub struct NoPartialFillExchange<AT, Q, LM, QM, MD>
 where
     AT: AssetType,
     Q: Clone + Default,
     LM: LatencyModel,
-    QM: QueueModel<Q>,
+    QM: QueueModel<Q, MD>,
+    MD: MarketDepth,
 {
     reader: Reader<Event>,
     data: Data<Event>,
@@ -51,7 +52,7 @@ where
     orders_to: OrderBus<Q>,
     orders_from: OrderBus<Q>,
 
-    depth: HashMapMarketDepth,
+    depth: MD,
     state: State<AT>,
     order_latency: LM,
     queue_model: QM,
@@ -59,16 +60,17 @@ where
     filled_orders: Vec<i64>,
 }
 
-impl<AT, Q, LM, QM> NoPartialFillExchange<AT, Q, LM, QM>
+impl<AT, Q, LM, QM, MD> NoPartialFillExchange<AT, Q, LM, QM, MD>
 where
     AT: AssetType,
     Q: Clone + Default,
     LM: LatencyModel,
-    QM: QueueModel<Q>,
+    QM: QueueModel<Q, MD>,
+    MD: MarketDepth,
 {
     pub fn new(
         reader: Reader<Event>,
-        depth: HashMapMarketDepth,
+        depth: MD,
         state: State<AT>,
         order_latency: LM,
         queue_model: QM,
@@ -336,7 +338,7 @@ where
 
         if order.side == Side::Buy {
             // Checks if the buy order price is greater than or equal to the current best ask.
-            if order.price_tick >= self.depth.best_ask_tick {
+            if order.price_tick >= self.depth.best_ask_tick() {
                 if order.time_in_force == TimeInForce::GTX {
                     order.status = Status::Expired;
 
@@ -347,7 +349,7 @@ where
                     Ok(local_recv_timestamp)
                 } else {
                     // Takes the market.
-                    self.fill(&mut order, timestamp, false, self.depth.best_ask_tick)
+                    self.fill(&mut order, timestamp, false, self.depth.best_ask_tick())
                 }
             } else {
                 // Initializes the order's queue position.
@@ -370,7 +372,7 @@ where
             }
         } else {
             // Checks if the sell order price is less than or equal to the current best bid.
-            if order.price_tick <= self.depth.best_bid_tick {
+            if order.price_tick <= self.depth.best_bid_tick() {
                 if order.time_in_force == TimeInForce::GTX {
                     order.status = Status::Expired;
 
@@ -381,7 +383,7 @@ where
                     Ok(local_recv_timestamp)
                 } else {
                     // Takes the market.
-                    self.fill(&mut order, timestamp, false, self.depth.best_bid_tick)
+                    self.fill(&mut order, timestamp, false, self.depth.best_bid_tick())
                 }
             } else {
                 // Initializes the order's queue position.
@@ -475,7 +477,7 @@ where
 
         if exch_order.side == Side::Buy {
             // Check if the buy order price is greater than or equal to the current best ask.
-            if exch_order.price_tick >= self.depth.best_ask_tick {
+            if exch_order.price_tick >= self.depth.best_ask_tick() {
                 self.buy_orders
                     .get_mut(&prev_price_tick)
                     .unwrap()
@@ -485,7 +487,12 @@ where
                     exch_order.status = Status::Expired;
                 } else {
                     // Take the market.
-                    return self.fill(&mut exch_order, timestamp, false, self.depth.best_ask_tick);
+                    return self.fill(
+                        &mut exch_order,
+                        timestamp,
+                        false,
+                        self.depth.best_ask_tick(),
+                    );
                 }
 
                 exch_order.exch_timestamp = timestamp;
@@ -525,7 +532,7 @@ where
             }
         } else {
             // Check if the sell order price is less than or equal to the current best bid.
-            if exch_order.price_tick <= self.depth.best_bid_tick {
+            if exch_order.price_tick <= self.depth.best_bid_tick() {
                 self.sell_orders
                     .get_mut(&prev_price_tick)
                     .unwrap()
@@ -535,7 +542,12 @@ where
                     exch_order.status = Status::Expired;
                 } else {
                     // Take the market.
-                    return self.fill(&mut exch_order, timestamp, false, self.depth.best_bid_tick);
+                    return self.fill(
+                        &mut exch_order,
+                        timestamp,
+                        false,
+                        self.depth.best_bid_tick(),
+                    );
                 }
 
                 exch_order.exch_timestamp = timestamp;
@@ -577,12 +589,13 @@ where
     }
 }
 
-impl<AT, Q, LM, QM> Processor for NoPartialFillExchange<AT, Q, LM, QM>
+impl<AT, Q, LM, QM, MD> Processor for NoPartialFillExchange<AT, Q, LM, QM, MD>
 where
     Q: Clone + Default,
     AT: AssetType,
     LM: LatencyModel,
-    QM: QueueModel<Q>,
+    QM: QueueModel<Q, MD>,
+    MD: MarketDepth,
 {
     fn initialize_data(&mut self) -> Result<i64, Error> {
         self.data = self.reader.next()?;
@@ -630,13 +643,13 @@ where
                 self.on_best_ask_update(prev_best_ask_tick, best_ask_tick, timestamp)?;
             }
         } else if self.data[row_num].ev & EXCH_BUY_TRADE_EVENT == EXCH_BUY_TRADE_EVENT {
-            let price_tick = (self.data[row_num].px / self.depth.tick_size).round() as i32;
+            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i32;
             let qty = self.data[row_num].qty;
             {
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
-                if self.depth.best_bid_tick == INVALID_MIN
-                    || (orders_borrowed.len() as i32) < price_tick - self.depth.best_bid_tick
+                if self.depth.best_bid_tick() == INVALID_MIN
+                    || (orders_borrowed.len() as i32) < price_tick - self.depth.best_bid_tick()
                 {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Sell {
@@ -649,7 +662,7 @@ where
                         }
                     }
                 } else {
-                    for t in (self.depth.best_bid_tick + 1)..=price_tick {
+                    for t in (self.depth.best_bid_tick() + 1)..=price_tick {
                         if let Some(order_ids) = self.sell_orders.get(&t) {
                             for order_id in order_ids.clone().iter() {
                                 let order = orders_borrowed.get_mut(&order_id).unwrap();
@@ -666,13 +679,13 @@ where
             }
             self.remove_filled_orders();
         } else if self.data[row_num].ev & EXCH_SELL_TRADE_EVENT == EXCH_SELL_TRADE_EVENT {
-            let price_tick = (self.data[row_num].px / self.depth.tick_size).round() as i32;
+            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i32;
             let qty = self.data[row_num].qty;
             {
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
-                if self.depth.best_ask_tick == INVALID_MAX
-                    || (orders_borrowed.len() as i32) < self.depth.best_ask_tick - price_tick
+                if self.depth.best_ask_tick() == INVALID_MAX
+                    || (orders_borrowed.len() as i32) < self.depth.best_ask_tick() - price_tick
                 {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Buy {
@@ -685,7 +698,7 @@ where
                         }
                     }
                 } else {
-                    for t in (price_tick..self.depth.best_ask_tick).rev() {
+                    for t in (price_tick..self.depth.best_ask_tick()).rev() {
                         if let Some(order_ids) = self.buy_orders.get(&t) {
                             for order_id in order_ids.clone().iter() {
                                 let order = orders_borrowed.get_mut(&order_id).unwrap();

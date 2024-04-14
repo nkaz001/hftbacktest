@@ -34,6 +34,10 @@ pub trait MarketDepth {
     fn tick_size(&self) -> f32;
 
     fn lot_size(&self) -> f32;
+
+    fn bid_qty_at_tick(&self, price_tick: i32) -> Option<f32>;
+
+    fn ask_qty_at_tick(&self, price_tick: i32) -> Option<f32>;
 }
 
 pub trait ApplySnapshot {

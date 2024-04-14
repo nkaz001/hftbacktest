@@ -42,6 +42,8 @@ pub mod ty;
 pub enum BuildError {
     #[error("`{0}` is required")]
     BuilderIncomplete(&'static str),
+    #[error("{0}")]
+    InvalidArgument(&'static str),
     #[error("`{0}/{1}` already exists")]
     Duplicate(String, String),
     #[error("`{0}` is not found")]

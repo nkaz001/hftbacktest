@@ -1,18 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Debug,
-    fs::File,
-    io::Write,
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use hftbacktest::{
-    depth::{
-        btreemarketdepth::BTreeMarketDepth,
-        hashmapmarketdepth::HashMapMarketDepth,
-        MarketDepth,
-        INVALID_MAX,
-        INVALID_MIN,
-    },
+    depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
     get_precision,
     ty::{OrdType, Side, TimeInForce},
     Interface,
@@ -65,7 +54,7 @@ where
         let bid_price = (mid_price - bid_depth).min(depth.best_bid() as f64);
         let ask_price = (mid_price + ask_depth).max(depth.best_ask() as f64);
 
-        let grid_interval = ((half_spread / tick_size).round() * tick_size).max(tick_size);
+        let grid_interval = ((grid_interval / tick_size).round() * tick_size).max(tick_size);
 
         let mut bid_price = (bid_price / grid_interval).floor() * grid_interval;
         let mut ask_price = (ask_price / grid_interval).ceil() * grid_interval;

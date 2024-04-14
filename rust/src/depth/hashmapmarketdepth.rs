@@ -232,6 +232,14 @@ impl MarketDepth for HashMapMarketDepth {
     fn lot_size(&self) -> f32 {
         self.lot_size
     }
+
+    fn bid_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
+        self.bid_depth.get(&price_tick).cloned()
+    }
+
+    fn ask_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
+        self.ask_depth.get(&price_tick).cloned()
+    }
 }
 
 impl ApplySnapshot for HashMapMarketDepth {

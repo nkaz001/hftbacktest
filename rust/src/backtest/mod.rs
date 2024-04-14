@@ -1,3 +1,21 @@
+use std::{io::Error as IoError, marker::PhantomData};
+
+use thiserror::Error;
+
+use crate::{
+    backtest::{
+        assettype::AssetType,
+        models::{LatencyModel, QueueModel},
+        order::OrderBus,
+        proc::{Local, LocalProcessor, NoPartialFillExchange, Processor},
+        reader::{Cache, Reader},
+        state::State,
+    },
+    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
+    ty::Event,
+    BuildError,
+};
+
 pub mod assettype;
 pub mod backtest;
 pub mod models;
@@ -7,25 +25,6 @@ pub mod reader;
 pub mod state;
 
 mod evs;
-
-use std::{io::Error as IoError, marker::PhantomData};
-
-use thiserror::Error;
-
-use crate::{
-    backtest::{
-        assettype::AssetType,
-        backtest::MultiAssetMultiExchangeBacktest,
-        models::{LatencyModel, QueueModel},
-        order::OrderBus,
-        proc::{Local, LocalProcessor, NoPartialFillExchange, Processor},
-        reader::{Cache, Reader},
-        state::State,
-    },
-    depth::hashmapmarketdepth::HashMapMarketDepth,
-    ty::Event,
-    BuildError,
-};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -50,14 +49,33 @@ pub enum DataSource {
     Array,
 }
 
-pub struct BtAsset<Q> {
-    local: Box<dyn LocalProcessor<Q, HashMapMarketDepth>>,
-    exch: Box<dyn Processor>,
+pub struct BacktestAsset<L: ?Sized, E: ?Sized> {
+    local: Box<L>,
+    exch: Box<E>,
 }
 
-pub struct BtAssetBuilder<Q, LM, AT, QM, F>
+impl<L, E> BacktestAsset<L, E> {
+    pub fn builder<Q, LM, AT, QM, F>() -> BacktestAssetBuilder<Q, LM, AT, QM, F>
+    where
+        F: Fn() -> HashMapMarketDepth,
+    {
+        let cache = Cache::new();
+        let reader = Reader::new(cache);
+
+        BacktestAssetBuilder {
+            latency_model: None,
+            asset_type: None,
+            queue_model: None,
+            depth_func: None,
+            reader,
+            _q_marker: Default::default(),
+        }
+    }
+}
+
+pub struct BacktestAssetBuilder<Q, LM, AT, QM, F, MD = HashMapMarketDepth>
 where
-    F: Fn() -> HashMapMarketDepth,
+    F: Fn() -> MD,
 {
     latency_model: Option<LM>,
     asset_type: Option<AT>,
@@ -67,13 +85,13 @@ where
     _q_marker: PhantomData<Q>,
 }
 
-impl<Q, LM, AT, QM, F> BtAssetBuilder<Q, LM, AT, QM, F>
+impl<Q, LM, AT, QM, F, MD> BacktestAssetBuilder<Q, LM, AT, QM, F, MD>
 where
-    F: Fn() -> HashMapMarketDepth,
+    F: Fn() -> MD,
     AT: AssetType + Clone + 'static,
-    Local<AT, Q, LM, HashMapMarketDepth>: LocalProcessor<Q, HashMapMarketDepth>,
+    MD: MarketDepth + 'static,
     Q: Clone + Default + 'static,
-    QM: QueueModel<Q> + 'static,
+    QM: QueueModel<Q, MD> + 'static,
     LM: LatencyModel + Clone + 'static,
 {
     pub fn new() -> Self {
@@ -132,7 +150,9 @@ where
         }
     }
 
-    pub fn build(self) -> Result<BtAsset<Q>, BuildError> {
+    pub fn build(
+        self,
+    ) -> Result<BacktestAsset<dyn LocalProcessor<Q, MD>, dyn Processor>, BuildError> {
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 
@@ -180,39 +200,68 @@ where
             ob_local_to_exch,
         );
 
-        Ok(BtAsset {
+        Ok(BacktestAsset {
             local: Box::new(local),
             exch: Box::new(exch),
         })
     }
-}
 
-pub struct BtBuilder<Q> {
-    local: Vec<Box<dyn LocalProcessor<Q, HashMapMarketDepth>>>,
-    exch: Vec<Box<dyn Processor>>,
-}
-
-impl<Q> BtBuilder<Q>
-where
-    Q: Clone,
-{
-    pub fn new() -> Self {
-        Self {
-            local: vec![],
-            exch: vec![],
-        }
-    }
-
-    pub fn add(self, asset: BtAsset<Q>) -> Self {
-        let mut s = Self { ..self };
-        s.local.push(asset.local);
-        s.exch.push(asset.exch);
-        s
-    }
-
-    pub fn build(
+    pub fn build_wip(
         self,
-    ) -> Result<MultiAssetMultiExchangeBacktest<Q, HashMapMarketDepth>, BuildError> {
-        Ok(MultiAssetMultiExchangeBacktest::new(self.local, self.exch))
+    ) -> Result<
+        BacktestAsset<Local<AT, Q, LM, MD>, NoPartialFillExchange<AT, Q, LM, QM, MD>>,
+        BuildError,
+    > {
+        let ob_local_to_exch = OrderBus::new();
+        let ob_exch_to_local = OrderBus::new();
+
+        let create_depth = self
+            .depth_func
+            .as_ref()
+            .ok_or(BuildError::BuilderIncomplete("depth"))?;
+        let order_latency = self
+            .latency_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
+        let asset_type = self
+            .asset_type
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+
+        let local = Local::new(
+            self.reader.clone(),
+            create_depth(),
+            State::new(asset_type),
+            order_latency,
+            1000,
+            ob_local_to_exch.clone(),
+            ob_exch_to_local.clone(),
+        );
+
+        let order_latency = self
+            .latency_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
+        let queue_model = self
+            .queue_model
+            .ok_or(BuildError::BuilderIncomplete("queue_model"))?;
+        let asset_type = self
+            .asset_type
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let exch = NoPartialFillExchange::new(
+            self.reader.clone(),
+            create_depth(),
+            State::new(asset_type),
+            order_latency,
+            queue_model,
+            ob_exch_to_local,
+            ob_local_to_exch,
+        );
+
+        Ok(BacktestAsset {
+            local: Box::new(local),
+            exch: Box::new(exch),
+        })
     }
 }

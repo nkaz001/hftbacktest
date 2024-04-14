@@ -4,24 +4,28 @@ mod rest;
 mod ws;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{mpsc::Sender, Arc, Mutex},
     time::Duration,
 };
-use std::collections::HashSet;
 
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
-use crate::{BuildError, connector::{
-    binancefutures::{
-        ordermanager::{OrderManager, WrappedOrderManager},
-        rest::BinanceFuturesClient,
-        ws::connect,
+use crate::{
+    connector::{
+        binancefutures::{
+            ordermanager::{OrderManager, WrappedOrderManager},
+            rest::BinanceFuturesClient,
+            ws::connect,
+        },
+        Connector,
     },
-    Connector,
-}, get_precision, live::AssetInfo, ty::{Error, ErrorType, LiveEvent, Order, OrderResponse, Position, Status}};
-use crate::live::bot::Bot;
+    get_precision,
+    live::AssetInfo,
+    ty::{Error, ErrorType, LiveEvent, Order, OrderResponse, Position, Status},
+    BuildError,
+};
 
 #[derive(Clone)]
 pub enum Endpoint {
@@ -62,12 +66,11 @@ pub struct BinanceFuturesBuilder {
 
 impl BinanceFuturesBuilder {
     /// Sets an endpoint to connect.
-    pub fn endpoint(mut self, endpoint: Endpoint) -> Self {
+    pub fn endpoint(self, endpoint: Endpoint) -> Self {
         if let Endpoint::Custom(_) = endpoint {
             panic!("Use `stream_url` and `api_url` to set a custom endpoint instead");
         }
-        self.stream_url(endpoint.clone())
-            .api_url(endpoint)
+        self.stream_url(endpoint.clone()).api_url(endpoint)
     }
 
     /// Sets the Websocket streams endpoint url.
@@ -80,66 +83,42 @@ impl BinanceFuturesBuilder {
                     ..self
                 }
             }
-            Endpoint::Private => {
-                Self {
-                    stream_url: "wss://fstream-auth.binance.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::Testnet => {
-                Self {
-                    stream_url: "wss://fstream.binancefuture.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::LowLatency => {
-                Self {
-                    stream_url: "wss://fstream-mm.binance.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::Custom(stream_url) => {
-                Self {
-                    stream_url,
-                    ..self
-                }
-            }
+            Endpoint::Private => Self {
+                stream_url: "wss://fstream-auth.binance.com".to_string(),
+                ..self
+            },
+            Endpoint::Testnet => Self {
+                stream_url: "wss://fstream.binancefuture.com".to_string(),
+                ..self
+            },
+            Endpoint::LowLatency => Self {
+                stream_url: "wss://fstream-mm.binance.com".to_string(),
+                ..self
+            },
+            Endpoint::Custom(stream_url) => Self { stream_url, ..self },
         }
     }
 
     /// Sets the REST APIs endpoint url.
     pub fn api_url<E: Into<Endpoint>>(self, endpoint: E) -> Self {
         match endpoint.into() {
-            Endpoint::Public => {
-                Self {
-                    api_url: "https://fapi.binance.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::Private => {
-                Self {
-                    api_url: "https://fapi.binance.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::Testnet => {
-                Self {
-                    api_url: "https://testnet.binancefuture.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::LowLatency => {
-                Self {
-                    api_url: "https://fapi-mm.binance.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::Custom(api_url) => {
-                Self {
-                    api_url,
-                    ..self
-                }
-            }
+            Endpoint::Public => Self {
+                api_url: "https://fapi.binance.com".to_string(),
+                ..self
+            },
+            Endpoint::Private => Self {
+                api_url: "https://fapi.binance.com".to_string(),
+                ..self
+            },
+            Endpoint::Testnet => Self {
+                api_url: "https://testnet.binancefuture.com".to_string(),
+                ..self
+            },
+            Endpoint::LowLatency => Self {
+                api_url: "https://fapi-mm.binance.com".to_string(),
+                ..self
+            },
+            Endpoint::Custom(api_url) => Self { api_url, ..self },
         }
     }
 
@@ -189,7 +168,8 @@ impl BinanceFuturesBuilder {
             return Err(BuildError::BuilderIncomplete("secret"));
         }
 
-        let order_manager: WrappedOrderManager = Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
+        let order_manager: WrappedOrderManager =
+            Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
         Ok(BinanceFutures {
             url: self.stream_url.to_string(),
             prefix: self.order_prefix,
@@ -197,7 +177,7 @@ impl BinanceFuturesBuilder {
             inv_assets: Default::default(),
             order_manager,
             client: BinanceFuturesClient::new(&self.api_url, &self.api_key, &self.secret),
-            streams: self.streams
+            streams: self.streams,
         })
     }
 }
@@ -209,7 +189,7 @@ pub struct BinanceFutures {
     inv_assets: HashMap<usize, AssetInfo>,
     order_manager: WrappedOrderManager,
     client: BinanceFuturesClient,
-    streams: HashSet<String>
+    streams: HashSet<String>,
 }
 
 impl BinanceFutures {
@@ -234,7 +214,7 @@ impl BinanceFutures {
             inv_assets: Default::default(),
             order_manager,
             client: BinanceFuturesClient::new(api_url, api_key, secret),
-            streams: Default::default()
+            streams: Default::default(),
         }
     }
 }
@@ -335,7 +315,12 @@ impl Connector for BinanceFutures {
                     })
                     .collect();
                 streams.append(&mut add_streams.iter().cloned().collect::<Vec<_>>());
-                let url = format!("{}/stream?streams={}/{}", &base_url, listen_key, streams.join("/"));
+                let url = format!(
+                    "{}/stream?streams={}/{}",
+                    &base_url,
+                    listen_key,
+                    streams.join("/")
+                );
 
                 if let Err(error) = connect(
                     &url,

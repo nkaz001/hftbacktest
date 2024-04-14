@@ -1,11 +1,11 @@
+use algo::gridtrading;
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
         backtest::MultiAssetMultiExchangeBacktest,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
         reader::read_npz,
-        BtAssetBuilder,
-        BtBuilder,
+        BacktestAssetBuilder,
         DataSource,
     },
     depth::hashmapmarketdepth::HashMapMarketDepth,
@@ -14,16 +14,14 @@ use hftbacktest::{
 
 mod algo;
 
-use algo::gridtrading;
-
 fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
     let latency_model = IntpOrderLatency::new(read_npz("latency_20240215.npz").unwrap());
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 
-    let mut hbt = BtBuilder::new()
+    let hbt = MultiAssetMultiExchangeBacktest::builder()
         .add(
-            BtAssetBuilder::new()
+            BacktestAssetBuilder::new()
                 .data(vec![DataSource::File("SOLUSDT_20240215.npz".to_string())])
                 .latency_model(latency_model)
                 .asset_type(asset_type)

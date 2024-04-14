@@ -1,10 +1,9 @@
 use algo::gridtrading;
 use hftbacktest::{
-    connector::binancefutures::BinanceFutures,
-    Interface,
+    connector::binancefutures::{BinanceFutures, Endpoint},
     live::bot::Bot,
+    Interface,
 };
-use hftbacktest::connector::binancefutures::Endpoint;
 
 mod algo;
 
