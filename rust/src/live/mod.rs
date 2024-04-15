@@ -6,6 +6,8 @@ use crate::{
     ty::Error,
     BuildError,
 };
+use crate::live::bot::OrderRecvHook;
+use crate::ty::Order;
 
 pub mod bot;
 
@@ -22,6 +24,7 @@ pub struct BotBuilder {
     conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     assets: Vec<(String, AssetInfo)>,
     error_handler: Option<ErrorHandler>,
+    order_hook: Option<OrderRecvHook>,
 }
 
 impl BotBuilder {
@@ -67,6 +70,15 @@ impl BotBuilder {
         self
     }
 
+    /// Registers the order response receive hook.
+    pub fn order_recv_hook<Hook>(mut self, hook: Hook) -> Self
+        where
+            Hook: FnMut(&Order<()>, &Order<()>) -> Result<(), BotError> + 'static,
+    {
+        self.order_hook = Some(Box::new(hook));
+        self
+    }
+
     /// Builds a live [`Bot`] based on the registered connectors and assets.
     pub fn build(self) -> Result<Bot, BuildError> {
         let mut dup = HashSet::new();
@@ -89,7 +101,7 @@ impl BotBuilder {
             )?;
         }
 
-        let con = Bot::new(conns, self.assets, self.error_handler);
+        let con = Bot::new(conns, self.assets, self.error_handler, self.order_hook);
         Ok(con)
     }
 }

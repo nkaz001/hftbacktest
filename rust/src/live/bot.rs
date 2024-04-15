@@ -102,6 +102,7 @@ async fn thread_main(
 }
 
 pub type ErrorHandler = Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>;
+pub type OrderRecvHook = Box<dyn FnMut(&Order<()>, &Order<()>) -> Result<(), BotError>>;
 
 pub struct Bot {
     req_tx: UnboundedSender<Request>,
@@ -115,6 +116,7 @@ pub struct Bot {
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
     assets: Vec<(String, AssetInfo)>,
     error_handler: Option<ErrorHandler>,
+    order_hook: Option<OrderRecvHook>,
 }
 
 impl Bot {
@@ -123,6 +125,7 @@ impl Bot {
             conns: HashMap::new(),
             assets: Vec::new(),
             error_handler: None,
+            order_hook: None,
         }
     }
 
@@ -130,6 +133,7 @@ impl Bot {
         conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
         assets: Vec<(String, AssetInfo)>,
         error_handler: Option<ErrorHandler>,
+        order_hook: Option<OrderRecvHook>
     ) -> Self {
         let (ev_tx, ev_rx) = channel();
         let (req_tx, req_rx) = unbounded_channel();
@@ -157,6 +161,7 @@ impl Bot {
             assets,
             trade,
             error_handler,
+            order_hook
         }
     }
 
@@ -217,6 +222,9 @@ impl Bot {
                     {
                         Entry::Occupied(mut entry) => {
                             let ex_order = entry.get_mut();
+                            if let Some(hook) = self.order_hook.as_mut() {
+                                hook(ex_order, &data.order)?;
+                            }
                             if data.order.exch_timestamp >= ex_order.exch_timestamp {
                                 if ex_order.status == Status::Canceled
                                     || ex_order.status == Status::Expired
