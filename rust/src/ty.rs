@@ -325,7 +325,7 @@ where
             .field("order_id", &self.order_id)
             .field("maker", &self.maker)
             .field("order_type", &self.order_type)
-            .field("q_ahead", &self.front_q_qty)
+            .field("front_q_qty", &self.front_q_qty)
             .finish()
     }
 }
