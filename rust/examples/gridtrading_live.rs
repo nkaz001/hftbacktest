@@ -4,6 +4,7 @@ use hftbacktest::{
     live::bot::Bot,
     Interface,
 };
+use hftbacktest::depth::hashmapmarketdepth::HashMapMarketDepth;
 
 mod algo;
 
@@ -11,7 +12,7 @@ const ORDER_PREFIX: &str = "prefix";
 const API_KEY: &str = "apikey";
 const SECRET: &str = "secret";
 
-fn prepare_live() -> Bot {
+fn prepare_live() -> Bot<HashMapMarketDepth> {
     let binance_futures = BinanceFutures::builder()
         .endpoint(Endpoint::Testnet)
         .api_key(API_KEY)
@@ -23,6 +24,7 @@ fn prepare_live() -> Bot {
     let mut hbt = Bot::builder()
         .register("binancefutures", binance_futures)
         .add("binancefutures", "SOLUSDT", 0.001, 1.0)
+        .depth_builder(|asset_info| HashMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size))
         .build()
         .unwrap();
 
