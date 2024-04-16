@@ -4,6 +4,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use std::collections::HashSet;
 
 use chrono::Utc;
 use thiserror::Error;
@@ -13,26 +14,20 @@ use tokio::{
 };
 use tracing::{debug, error};
 
-use crate::{
-    backtest::state::StateValues,
-    connector::Connector,
-    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
-    live::{AssetInfo, BotBuilder},
-    ty::{
-        Error as ErrorEvent,
-        Event,
-        LiveEvent,
-        OrdType,
-        Order,
-        Request,
-        Side,
-        Status,
-        TimeInForce,
-        BUY,
-        SELL,
-    },
-    Interface,
-};
+use crate::{backtest::state::StateValues, connector::Connector, depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth}, live::{AssetInfo}, ty::{
+    Error as ErrorEvent,
+    Event,
+    LiveEvent,
+    OrdType,
+    Order,
+    Request,
+    Side,
+    Status,
+    TimeInForce,
+    BUY,
+    SELL,
+}, Interface, BuildError};
+use crate::ty::Error;
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -104,12 +99,153 @@ async fn thread_main(
 pub type ErrorHandler = Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn FnMut(&Order<()>, &Order<()>) -> Result<(), BotError>>;
 
-pub struct Bot {
+/// Live [`Bot`] builder.
+pub struct BotBuilder<MD> {
+    conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
+    assets: Vec<(String, AssetInfo)>,
+    error_handler: Option<ErrorHandler>,
+    order_hook: Option<OrderRecvHook>,
+    depth_builder: Option<Box<dyn FnMut(&AssetInfo) -> MD>>
+}
+
+impl<MD> BotBuilder<MD> {
+    /// Registers a [`Connector`] with a specified name.
+    /// The specified name for this connector is used when using [`BotBuilder::add`] to add an
+    /// asset for trading through this connector.
+    pub fn register<C>(self, name: &str, conn: C) -> Self
+        where
+            C: Connector + Send + 'static,
+    {
+        Self {
+            conns: {
+                let mut conns = self.conns;
+                conns.insert(name.to_string(), Box::new(conn));
+                conns
+            },
+            ..self
+        }
+    }
+
+    /// Adds an asset.
+    ///
+    /// * `name` - Name of the [`Connector`], which is registered by [`BotBuilder::register`],
+    ///            through which this asset will be traded.
+    /// * `symbol` - Symbol of the asset. You need to check with the [`Connector`] which symbology
+    ///              is used.
+    /// * `tick_size` - The minimum price fluctuation.
+    /// * `lot_size` -  The minimum trade size.
+    pub fn add(self, name: &str, symbol: &str, tick_size: f32, lot_size: f32) -> Self {
+        Self {
+            assets: {
+                let asset_no = self.assets.len();
+                let mut assets = self.assets;
+                assets.push((
+                    name.to_string(),
+                    AssetInfo {
+                        asset_no,
+                        symbol: symbol.to_string(),
+                        tick_size,
+                        lot_size,
+                    },
+                ));
+                assets
+            },
+            ..self
+        }
+    }
+
+    /// Registers the error handler to deal with an error from connectors.
+    pub fn error_handler<Handler>(self, handler: Handler) -> Self
+        where
+            Handler: FnMut(Error) -> Result<(), BotError> + 'static,
+    {
+        Self {
+            error_handler: Some(Box::new(handler)),
+            ..self
+        }
+    }
+
+    /// Registers the order response receive hook.
+    pub fn order_recv_hook<Hook>(self, hook: Hook) -> Self
+        where
+            Hook: FnMut(&Order<()>, &Order<()>) -> Result<(), BotError> + 'static,
+    {
+        Self {
+            order_hook: Some(Box::new(hook)),
+            ..self
+        }
+    }
+
+    /// Sets [`MarketDepth`] build function.
+    pub fn depth_builder<Builder>(self, builder: Builder) -> Self
+        where
+            Builder: FnMut(&AssetInfo) -> MD + 'static
+    {
+        Self {
+            depth_builder: Some(Box::new(builder)),
+            ..self
+        }
+    }
+
+    /// Builds a live [`Bot`] based on the registered connectors and assets.
+    pub fn build(self) -> Result<Bot<MD>, BuildError> {
+        let mut dup = HashSet::new();
+        let mut conns = self.conns;
+        for (asset_no, (name, asset_info)) in self.assets.iter().enumerate() {
+            if !dup.insert(format!("{}/{}", name, asset_info.symbol)) {
+                Err(BuildError::Duplicate(
+                    name.clone(),
+                    asset_info.symbol.clone(),
+                ))?;
+            }
+            let conn = conns
+                .get_mut(name)
+                .ok_or(BuildError::ConnectorNotFound(name.to_string()))?;
+            conn.add(
+                asset_no,
+                asset_info.symbol.clone(),
+                asset_info.tick_size,
+                asset_info.lot_size,
+            )?;
+        }
+
+        let (ev_tx, ev_rx) = channel();
+        let (req_tx, req_rx) = unbounded_channel();
+
+        let mut depth_builder = self.depth_builder
+            .ok_or(BuildError::BuilderIncomplete("depth_builder"))?;
+        let depth = self.assets
+            .iter()
+            .map(|(_, asset_info)| depth_builder(asset_info))
+            .collect();
+
+        let orders = self.assets.iter().map(|_| HashMap::new()).collect();
+        let position = self.assets.iter().map(|_| 0.0).collect();
+        let trade = self.assets.iter().map(|_| Vec::new()).collect();
+
+        Ok(Bot {
+            ev_tx: Some(ev_tx),
+            ev_rx,
+            req_rx: Some(req_rx),
+            req_tx,
+            depth,
+            orders,
+            position,
+            conns: Some(conns),
+            assets: self.assets,
+            trade,
+            error_handler: self.error_handler,
+            order_hook: self.order_hook
+        })
+    }
+}
+
+pub struct Bot<MD> {
     req_tx: UnboundedSender<Request>,
     req_rx: Option<UnboundedReceiver<Request>>,
     ev_tx: Option<Sender<LiveEvent>>,
     ev_rx: Receiver<LiveEvent>,
-    pub depth: Vec<HashMapMarketDepth>,
+    pub depth: Vec<MD>,
     pub orders: Vec<HashMap<i64, Order<()>>>,
     pub position: Vec<f64>,
     trade: Vec<Vec<Event>>,
@@ -119,49 +255,14 @@ pub struct Bot {
     order_hook: Option<OrderRecvHook>,
 }
 
-impl Bot {
-    pub fn builder() -> BotBuilder {
+impl<MD> Bot<MD> where MD: MarketDepth {
+    pub fn builder() -> BotBuilder<MD> {
         BotBuilder {
             conns: HashMap::new(),
             assets: Vec::new(),
             error_handler: None,
             order_hook: None,
-        }
-    }
-
-    pub fn new(
-        conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
-        assets: Vec<(String, AssetInfo)>,
-        error_handler: Option<ErrorHandler>,
-        order_hook: Option<OrderRecvHook>
-    ) -> Self {
-        let (ev_tx, ev_rx) = channel();
-        let (req_tx, req_rx) = unbounded_channel();
-
-        let depth = assets
-            .iter()
-            .map(|(_, asset_info)| {
-                HashMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size)
-            })
-            .collect();
-
-        let orders = assets.iter().map(|_| HashMap::new()).collect();
-        let position = assets.iter().map(|_| 0.0).collect();
-        let trade = assets.iter().map(|_| Vec::new()).collect();
-
-        Self {
-            ev_tx: Some(ev_tx),
-            ev_rx,
-            req_rx: Some(req_rx),
-            req_tx,
-            depth,
-            orders,
-            position,
-            conns: Some(conns),
-            assets,
-            trade,
-            error_handler,
-            order_hook
+            depth_builder: None
         }
     }
 
@@ -186,7 +287,7 @@ impl Bot {
                     // fixme: updates the depth only if exch_ts is greater than that of the existing
                     //        level.
                     let depth = unsafe { self.depth.get_unchecked_mut(data.asset_no) };
-                    depth.timestamp = data.exch_ts;
+                    // depth.timestamp = data.exch_ts;
                     for (px, qty) in data.bids {
                         depth.update_bid_depth(px, qty, 0);
                     }
@@ -313,7 +414,7 @@ impl Bot {
     }
 }
 
-impl Interface<(), HashMapMarketDepth> for Bot {
+impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
     type Error = BotError;
 
     fn current_timestamp(&self) -> i64 {
