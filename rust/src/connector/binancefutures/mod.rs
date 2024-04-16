@@ -27,6 +27,8 @@ use crate::{
     BuildError,
 };
 
+pub use rest::RequestError;
+
 #[derive(Clone)]
 pub enum Endpoint {
     Public,

@@ -27,7 +27,7 @@ use crate::{
         state::State,
         Error,
     },
-    depth::{MarketDepth as _, MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
     ty::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
 };
 
