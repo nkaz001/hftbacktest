@@ -28,6 +28,7 @@ pub struct HashMapMarketDepth {
     pub high_ask_tick: i32,
 }
 
+#[inline(always)]
 fn depth_below(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
     for t in (end..start).rev() {
         if *depth.get(&t).unwrap_or(&0f32) > 0f32 {
@@ -37,6 +38,7 @@ fn depth_below(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
     return INVALID_MIN;
 }
 
+#[inline(always)]
 fn depth_above(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
     for t in (start + 1)..(end + 1) {
         if *depth.get(&t).unwrap_or(&0f32) > 0f32 {
@@ -209,34 +211,42 @@ impl MarketDepth for HashMapMarketDepth {
         }
     }
 
+    #[inline(always)]
     fn best_bid(&self) -> f32 {
         self.best_bid_tick as f32 * self.tick_size
     }
 
+    #[inline(always)]
     fn best_ask(&self) -> f32 {
         self.best_ask_tick as f32 * self.tick_size
     }
 
+    #[inline(always)]
     fn best_bid_tick(&self) -> i32 {
         self.best_bid_tick
     }
 
+    #[inline(always)]
     fn best_ask_tick(&self) -> i32 {
         self.best_ask_tick
     }
 
+    #[inline(always)]
     fn tick_size(&self) -> f32 {
         self.tick_size
     }
 
+    #[inline(always)]
     fn lot_size(&self) -> f32 {
         self.lot_size
     }
 
+    #[inline(always)]
     fn bid_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
         self.bid_depth.get(&price_tick).cloned()
     }
 
+    #[inline(always)]
     fn ask_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
         self.ask_depth.get(&price_tick).cloned()
     }

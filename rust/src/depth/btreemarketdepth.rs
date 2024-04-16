@@ -106,34 +106,42 @@ impl MarketDepth for BTreeMarketDepth {
         }
     }
 
+    #[inline(always)]
     fn best_bid(&self) -> f32 {
         self.best_bid_tick() as f32 * self.tick_size
     }
 
+    #[inline(always)]
     fn best_ask(&self) -> f32 {
         self.best_ask_tick() as f32 * self.tick_size
     }
 
+    #[inline(always)]
     fn best_bid_tick(&self) -> i32 {
         *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN)
     }
 
+    #[inline(always)]
     fn best_ask_tick(&self) -> i32 {
         *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX)
     }
 
+    #[inline(always)]
     fn tick_size(&self) -> f32 {
         self.tick_size
     }
 
+    #[inline(always)]
     fn lot_size(&self) -> f32 {
         self.lot_size
     }
 
+    #[inline(always)]
     fn bid_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
         self.bid_depth.get(&price_tick).cloned()
     }
 
+    #[inline(always)]
     fn ask_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
         self.ask_depth.get(&price_tick).cloned()
     }
