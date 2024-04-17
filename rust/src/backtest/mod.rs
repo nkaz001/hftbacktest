@@ -11,7 +11,7 @@ use crate::{
         reader::{Cache, Reader},
         state::State,
     },
-    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
+    depth::MarketDepth,
     ty::Event,
     BuildError,
 };
@@ -55,10 +55,7 @@ pub struct BacktestAsset<L: ?Sized, E: ?Sized> {
 }
 
 impl<L, E> BacktestAsset<L, E> {
-    pub fn builder<Q, LM, AT, QM, F>() -> BacktestAssetBuilder<Q, LM, AT, QM, F>
-    where
-        F: Fn() -> HashMapMarketDepth,
-    {
+    pub fn builder<Q, LM, AT, QM, MD>() -> BacktestAssetBuilder<Q, LM, AT, QM, MD> {
         let cache = Cache::new();
         let reader = Reader::new(cache);
 
@@ -66,28 +63,24 @@ impl<L, E> BacktestAsset<L, E> {
             latency_model: None,
             asset_type: None,
             queue_model: None,
-            depth_func: None,
+            depth_builder: None,
             reader,
             _q_marker: Default::default(),
         }
     }
 }
 
-pub struct BacktestAssetBuilder<Q, LM, AT, QM, F, MD = HashMapMarketDepth>
-where
-    F: Fn() -> MD,
-{
+pub struct BacktestAssetBuilder<Q, LM, AT, QM, MD> {
     latency_model: Option<LM>,
     asset_type: Option<AT>,
     queue_model: Option<QM>,
-    depth_func: Option<F>,
+    depth_builder: Option<Box<dyn Fn() -> MD>>,
     reader: Reader<Event>,
     _q_marker: PhantomData<Q>,
 }
 
-impl<Q, LM, AT, QM, F, MD> BacktestAssetBuilder<Q, LM, AT, QM, F, MD>
+impl<Q, LM, AT, QM, MD> BacktestAssetBuilder<Q, LM, AT, QM, MD>
 where
-    F: Fn() -> MD,
     AT: AssetType + Clone + 'static,
     MD: MarketDepth + 'static,
     Q: Clone + Default + 'static,
@@ -102,7 +95,7 @@ where
             latency_model: None,
             asset_type: None,
             queue_model: None,
-            depth_func: None,
+            depth_builder: None,
             reader,
             _q_marker: Default::default(),
         }
@@ -143,9 +136,12 @@ where
         }
     }
 
-    pub fn depth(self, depth_func: F) -> Self {
+    pub fn depth<Builder>(self, builder: Builder) -> Self
+    where
+        Builder: Fn() -> MD + 'static,
+    {
         Self {
-            depth_func: Some(depth_func),
+            depth_builder: Some(Box::new(builder)),
             ..self
         }
     }
@@ -157,7 +153,7 @@ where
         let ob_exch_to_local = OrderBus::new();
 
         let create_depth = self
-            .depth_func
+            .depth_builder
             .as_ref()
             .ok_or(BuildError::BuilderIncomplete("depth"))?;
         let order_latency = self
@@ -216,7 +212,7 @@ where
         let ob_exch_to_local = OrderBus::new();
 
         let create_depth = self
-            .depth_func
+            .depth_builder
             .as_ref()
             .ok_or(BuildError::BuilderIncomplete("depth"))?;
         let order_latency = self

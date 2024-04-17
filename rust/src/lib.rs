@@ -148,8 +148,8 @@ where
     /// * `wait` - If true, wait until the order placement response is received.
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error>;
 
-    /// Clears inactive orders from the local [`orders`] whose status is neither [`Status::New`] nor
-    /// [`Status::PartiallyFilled`].
+    /// Clears inactive orders from the local [`Self::orders()`] whose status is neither [`ty::Status::New`] nor
+    /// [`ty::Status::PartiallyFilled`].
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>);
 
     /// Elapses the specified duration.
@@ -165,7 +165,7 @@ where
 
     /// Elapses time only in backtesting. In live mode, it is ignored.
     ///
-    /// The [`elapse`] method exclusively manages time during backtesting, meaning that factors such
+    /// The [`Self::elapse()`] method exclusively manages time during backtesting, meaning that factors such
     /// as computing time are not properly accounted for. So, this method can be utilized to
     /// simulate such processing times.
     ///

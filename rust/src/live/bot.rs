@@ -1,10 +1,9 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
     sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender},
     thread,
     time::{Duration, Instant},
 };
-use std::collections::HashSet;
 
 use chrono::Utc;
 use thiserror::Error;
@@ -14,20 +13,28 @@ use tokio::{
 };
 use tracing::{debug, error};
 
-use crate::{backtest::state::StateValues, connector::Connector, depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth}, live::{AssetInfo}, ty::{
-    Error as ErrorEvent,
-    Event,
-    LiveEvent,
-    OrdType,
-    Order,
-    Request,
-    Side,
-    Status,
-    TimeInForce,
-    BUY,
-    SELL,
-}, Interface, BuildError};
-use crate::ty::Error;
+use crate::{
+    backtest::state::StateValues,
+    connector::Connector,
+    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
+    live::AssetInfo,
+    ty::{
+        Error as ErrorEvent,
+        Error,
+        Event,
+        LiveEvent,
+        OrdType,
+        Order,
+        Request,
+        Side,
+        Status,
+        TimeInForce,
+        BUY,
+        SELL,
+    },
+    BuildError,
+    Interface,
+};
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -96,8 +103,8 @@ async fn thread_main(
     }
 }
 
-pub type ErrorHandler = Box<dyn FnMut(ErrorEvent) -> Result<(), BotError>>;
-pub type OrderRecvHook = Box<dyn FnMut(&Order<()>, &Order<()>) -> Result<(), BotError>>;
+pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
+pub type OrderRecvHook = Box<dyn Fn(&Order<()>, &Order<()>) -> Result<(), BotError>>;
 
 /// Live [`Bot`] builder.
 pub struct BotBuilder<MD> {
@@ -105,7 +112,7 @@ pub struct BotBuilder<MD> {
     assets: Vec<(String, AssetInfo)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
-    depth_builder: Option<Box<dyn FnMut(&AssetInfo) -> MD>>
+    depth_builder: Option<Box<dyn FnMut(&AssetInfo) -> MD>>,
 }
 
 impl<MD> BotBuilder<MD> {
@@ -113,8 +120,8 @@ impl<MD> BotBuilder<MD> {
     /// The specified name for this connector is used when using [`BotBuilder::add`] to add an
     /// asset for trading through this connector.
     pub fn register<C>(self, name: &str, conn: C) -> Self
-        where
-            C: Connector + Send + 'static,
+    where
+        C: Connector + Send + 'static,
     {
         Self {
             conns: {
@@ -156,8 +163,8 @@ impl<MD> BotBuilder<MD> {
 
     /// Registers the error handler to deal with an error from connectors.
     pub fn error_handler<Handler>(self, handler: Handler) -> Self
-        where
-            Handler: FnMut(Error) -> Result<(), BotError> + 'static,
+    where
+        Handler: Fn(Error) -> Result<(), BotError> + 'static,
     {
         Self {
             error_handler: Some(Box::new(handler)),
@@ -167,8 +174,8 @@ impl<MD> BotBuilder<MD> {
 
     /// Registers the order response receive hook.
     pub fn order_recv_hook<Hook>(self, hook: Hook) -> Self
-        where
-            Hook: FnMut(&Order<()>, &Order<()>) -> Result<(), BotError> + 'static,
+    where
+        Hook: Fn(&Order<()>, &Order<()>) -> Result<(), BotError> + 'static,
     {
         Self {
             order_hook: Some(Box::new(hook)),
@@ -177,9 +184,9 @@ impl<MD> BotBuilder<MD> {
     }
 
     /// Sets [`MarketDepth`] build function.
-    pub fn depth_builder<Builder>(self, builder: Builder) -> Self
-        where
-            Builder: FnMut(&AssetInfo) -> MD + 'static
+    pub fn depth<Builder>(self, builder: Builder) -> Self
+    where
+        Builder: Fn(&AssetInfo) -> MD + 'static,
     {
         Self {
             depth_builder: Some(Box::new(builder)),
@@ -212,9 +219,11 @@ impl<MD> BotBuilder<MD> {
         let (ev_tx, ev_rx) = channel();
         let (req_tx, req_rx) = unbounded_channel();
 
-        let mut depth_builder = self.depth_builder
-            .ok_or(BuildError::BuilderIncomplete("depth_builder"))?;
-        let depth = self.assets
+        let mut depth_builder = self
+            .depth_builder
+            .ok_or(BuildError::BuilderIncomplete("depth"))?;
+        let depth = self
+            .assets
             .iter()
             .map(|(_, asset_info)| depth_builder(asset_info))
             .collect();
@@ -235,19 +244,31 @@ impl<MD> BotBuilder<MD> {
             assets: self.assets,
             trade,
             error_handler: self.error_handler,
-            order_hook: self.order_hook
+            order_hook: self.order_hook,
         })
     }
 }
 
+/// A live trading bot.
+///
+/// Provides the same interface as the backtesters in [`crate::backtest`].
+///
+/// ```
+/// let mut hbt = Bot::builder()
+///     .register("connector_name", connector)
+///     .add("connector_name", "symbol", tick_size, lot_size)
+///     .depth(|asset_info| HashMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size))
+///     .build()
+///     .unwrap();
+/// ```
 pub struct Bot<MD> {
     req_tx: UnboundedSender<Request>,
     req_rx: Option<UnboundedReceiver<Request>>,
     ev_tx: Option<Sender<LiveEvent>>,
     ev_rx: Receiver<LiveEvent>,
-    pub depth: Vec<MD>,
-    pub orders: Vec<HashMap<i64, Order<()>>>,
-    pub position: Vec<f64>,
+    depth: Vec<MD>,
+    orders: Vec<HashMap<i64, Order<()>>>,
+    position: Vec<f64>,
     trade: Vec<Vec<Event>>,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
     assets: Vec<(String, AssetInfo)>,
@@ -255,17 +276,22 @@ pub struct Bot<MD> {
     order_hook: Option<OrderRecvHook>,
 }
 
-impl<MD> Bot<MD> where MD: MarketDepth {
+impl<MD> Bot<MD>
+where
+    MD: MarketDepth,
+{
+    /// Builder to construct [`Bot`] instances.
     pub fn builder() -> BotBuilder<MD> {
         BotBuilder {
             conns: HashMap::new(),
             assets: Vec::new(),
             error_handler: None,
             order_hook: None,
-            depth_builder: None
+            depth_builder: None,
         }
     }
 
+    /// Runs the [`Bot`]. Spawns a thread to send [`Request`] to [`Connector`]s without blocking.
     pub fn run(&mut self) -> Result<(), BotError> {
         let ev_tx = self.ev_tx.take().unwrap();
         let req_rx = self.req_rx.take().unwrap();

@@ -8,10 +8,9 @@ use rand::{distributions::Alphanumeric, Rng};
 use tracing::{debug, error};
 
 use crate::{
-    connector::binancefutures::msg::rest::OrderResponse,
+    connector::binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
     ty::{Order, Status},
 };
-use crate::connector::binancefutures::BinanceFuturesError;
 
 #[derive(Debug)]
 struct OrderWrapper {

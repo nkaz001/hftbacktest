@@ -1,10 +1,10 @@
 use algo::gridtrading;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, Endpoint},
+    depth::hashmapmarketdepth::HashMapMarketDepth,
     live::bot::Bot,
     Interface,
 };
-use hftbacktest::depth::hashmapmarketdepth::HashMapMarketDepth;
 
 mod algo;
 
@@ -24,7 +24,7 @@ fn prepare_live() -> Bot<HashMapMarketDepth> {
     let mut hbt = Bot::builder()
         .register("binancefutures", binance_futures)
         .add("binancefutures", "SOLUSDT", 0.001, 1.0)
-        .depth_builder(|asset_info| HashMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size))
+        .depth(|asset_info| HashMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size))
         .build()
         .unwrap();
 

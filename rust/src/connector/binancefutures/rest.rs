@@ -1,9 +1,6 @@
 /// Binance Futures REST API module
 /// https://binance-docs.github.io/apidocs/futures/en/
-use std::{
-    collections::HashMap,
-    fmt::Write,
-};
+use std::{collections::HashMap, fmt::Write};
 
 use chrono::Utc;
 use hmac::{Hmac, KeyInit, Mac};
@@ -18,11 +15,11 @@ use crate::{
             stream::ListenKey,
         },
         ordermanager::OrderManager,
+        BinanceFuturesError,
     },
     live::AssetInfo,
     ty::{AsStr, OrdType, Order, Side, Status, TimeInForce},
 };
-use crate::connector::binancefutures::BinanceFuturesError;
 
 #[derive(Clone)]
 pub struct BinanceFuturesClient {
@@ -216,7 +213,9 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError(resp.code, resp.msg)),
+            OrderResponseResult::Err(resp) => {
+                Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
+            }
         }
     }
 
@@ -291,7 +290,9 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError(resp.code, resp.msg)),
+            OrderResponseResult::Err(resp) => {
+                Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
+            }
         }
     }
 
@@ -311,7 +312,9 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError(resp.code, resp.msg)),
+            OrderResponseResult::Err(resp) => {
+                Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
+            }
         }
     }
 

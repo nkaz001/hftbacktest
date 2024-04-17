@@ -3,8 +3,8 @@ use chrono::Utc;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, Endpoint},
     live::bot::Bot,
+    ty::Status,
     Interface,
-    ty::Status
 };
 use tracing::info;
 
@@ -27,7 +27,8 @@ fn prepare_live() -> Bot {
         .register("binancefutures", binance_futures)
         .add("binancefutures", "SOLUSDT", 0.001, 1.0)
         .order_recv_hook(|req, resp| {
-            if (req.req == Status::New || req.req == Status::Canceled) && (resp.req == Status::None) {
+            if (req.req == Status::New || req.req == Status::Canceled) && (resp.req == Status::None)
+            {
                 info!(
                     req_timestamp = req.local_timestamp,
                     exch_timestamp = resp.exch_timestamp,
