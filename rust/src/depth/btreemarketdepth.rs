@@ -6,6 +6,11 @@ use crate::{
     ty::{Event, BUY, SELL},
 };
 
+/// Market depth implementation based on an B-Tree map.
+///
+/// If feed data is missing, it may result in the crossing of the best bid and ask, making it
+/// impossible to restore them to the most recent values through natural refreshing.
+/// Ensuring data integrity is imperative.
 #[derive(Debug)]
 pub struct BTreeMarketDepth {
     pub tick_size: f32,
@@ -137,13 +142,13 @@ impl MarketDepth for BTreeMarketDepth {
     }
 
     #[inline(always)]
-    fn bid_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
-        self.bid_depth.get(&price_tick).cloned()
+    fn bid_qty_at_tick(&self, price_tick: i32) -> f32 {
+        *self.bid_depth.get(&price_tick).unwrap_or(&0.0)
     }
 
     #[inline(always)]
-    fn ask_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
-        self.ask_depth.get(&price_tick).cloned()
+    fn ask_qty_at_tick(&self, price_tick: i32) -> f32 {
+        *self.ask_depth.get(&price_tick).unwrap_or(&0.0)
     }
 }
 

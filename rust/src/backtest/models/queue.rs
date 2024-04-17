@@ -30,9 +30,9 @@ where
 {
     fn new_order(&self, order: &mut Order<()>, depth: &MD) {
         if order.side == Side::Buy {
-            order.front_q_qty = depth.bid_qty_at_tick(order.price_tick).unwrap_or(0.0);
+            order.front_q_qty = depth.bid_qty_at_tick(order.price_tick);
         } else {
-            order.front_q_qty = depth.ask_qty_at_tick(order.price_tick).unwrap_or(0.0);
+            order.front_q_qty = depth.ask_qty_at_tick(order.price_tick);
         }
     }
 
@@ -98,9 +98,9 @@ where
 {
     fn new_order(&self, order: &mut Order<QueuePos>, depth: &MD) {
         if order.side == Side::Buy {
-            order.front_q_qty = depth.bid_qty_at_tick(order.price_tick).unwrap_or(0.0);
+            order.front_q_qty = depth.bid_qty_at_tick(order.price_tick);
         } else {
-            order.front_q_qty = depth.ask_qty_at_tick(order.price_tick).unwrap_or(0.0);
+            order.front_q_qty = depth.ask_qty_at_tick(order.price_tick);
         }
     }
 

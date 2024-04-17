@@ -3,10 +3,20 @@ use crate::{backtest::reader::Data, ty::Event};
 pub mod btreemarketdepth;
 pub mod hashmapmarketdepth;
 
+/// Represents no best bid.
 pub const INVALID_MIN: i32 = i32::MIN;
+
+/// Represents no best ask.
 pub const INVALID_MAX: i32 = i32::MAX;
 
+/// Provides MarketDepth interface.
 pub trait MarketDepth {
+    /// Updates the bid-side market depth and returns a tuple containing (the price in ticks,
+    /// the previous best bid price in ticks, the current best bid price in ticks, the previous
+    /// quantity at the price, the current quantity at the price, and the timestamp).
+    ///
+    /// If there is no market depth and thus no best bid, [`INVALID_MIN`] is assigned to the price
+    /// in ticks of the tuple returned.
     fn update_bid_depth(
         &mut self,
         price: f32,
@@ -14,6 +24,12 @@ pub trait MarketDepth {
         timestamp: i64,
     ) -> (i32, i32, i32, f32, f32, i64);
 
+    /// Updates the ask-side market depth and returns a tuple containing (the price in ticks,
+    /// the previous best bid price in ticks, the current best bid price in ticks, the previous
+    /// quantity at the price, the current quantity at the price, and the timestamp).
+    ///
+    /// If there is no market depth and thus no best ask, [`INVALID_MAX`] is assigned to the price
+    /// in ticks of the tuple returned.
     fn update_ask_depth(
         &mut self,
         price: f32,
@@ -21,25 +37,38 @@ pub trait MarketDepth {
         timestamp: i64,
     ) -> (i32, i32, i32, f32, f32, i64);
 
+    /// Clears the market depth. If the `side` is neither [crate::ty::BUY] nor [crate::ty::SELL],
+    /// both sides are cleared. In this case, `clear_upto_price` is ignored.
     fn clear_depth(&mut self, side: i64, clear_upto_price: f32);
 
+    /// The best bid price
     fn best_bid(&self) -> f32;
 
+    /// The best ask price
     fn best_ask(&self) -> f32;
 
+    /// The best bid price in ticks
     fn best_bid_tick(&self) -> i32;
 
+    /// The best ask price in ticks
     fn best_ask_tick(&self) -> i32;
 
+    /// Tick size
     fn tick_size(&self) -> f32;
 
+    /// Lot size
     fn lot_size(&self) -> f32;
 
-    fn bid_qty_at_tick(&self, price_tick: i32) -> Option<f32>;
+    /// The quantity at the bid market depth for a given price in ticks.
+    fn bid_qty_at_tick(&self, price_tick: i32) -> f32;
 
-    fn ask_qty_at_tick(&self, price_tick: i32) -> Option<f32>;
+    /// The quantity at the ask market depth for a given price in ticks.
+    fn ask_qty_at_tick(&self, price_tick: i32) -> f32;
 }
 
+/// Provides a method to initialize the [`MarketDepth`] from the given snapshot data, such as
+/// Start-Of-Day snapshot or End-Of-Day snapshot, for backtesting purpose.
 pub trait ApplySnapshot {
+    /// Applies the snapshot from the given data to this market depth.
     fn apply_snapshot(&mut self, data: &Data<Event>);
 }

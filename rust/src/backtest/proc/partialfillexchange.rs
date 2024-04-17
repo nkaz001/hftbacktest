@@ -372,20 +372,19 @@ where
                         let mut execute = false;
                         let mut cum_qty = 0f32;
                         for t in self.depth.best_ask_tick()..=order.price_tick {
-                            if let Some(qty) = self.depth.ask_qty_at_tick(t) {
-                                cum_qty += qty;
-                                if (cum_qty / self.depth.lot_size()).round()
-                                    >= (order.qty / self.depth.lot_size()).round()
-                                {
-                                    execute = true;
-                                    break;
-                                }
+                            cum_qty += self.depth.ask_qty_at_tick(t);
+                            if (cum_qty / self.depth.lot_size()).round()
+                                >= (order.qty / self.depth.lot_size()).round()
+                            {
+                                execute = true;
+                                break;
                             }
                         }
                         if execute {
                             for t in self.depth.best_ask_tick()..=order.price_tick {
                                 let local_recv_timestamp;
-                                if let Some(qty) = self.depth.ask_qty_at_tick(t) {
+                                let qty = self.depth.ask_qty_at_tick(t);
+                                if qty > 0.0 {
                                     let exec_qty = qty.min(order.leaves_qty);
                                     local_recv_timestamp =
                                         self.fill(&mut order, timestamp, false, t, exec_qty)?;
@@ -410,7 +409,8 @@ where
                         // The order must be executed immediately.
                         for t in self.depth.best_ask_tick()..=order.price_tick {
                             let mut local_recv_timestamp = 0;
-                            if let Some(qty) = self.depth.ask_qty_at_tick(t) {
+                            let qty = self.depth.ask_qty_at_tick(t);
+                            if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
                                 local_recv_timestamp =
                                     self.fill(&mut order, timestamp, false, t, exec_qty)?;
@@ -432,7 +432,8 @@ where
                         // Takes the market.
                         for t in self.depth.best_ask_tick()..order.price_tick {
                             let mut local_recv_timestamp = 0;
-                            if let Some(qty) = self.depth.ask_qty_at_tick(t) {
+                            let qty = self.depth.ask_qty_at_tick(t);
+                            if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
                                 local_recv_timestamp =
                                     self.fill(&mut order, timestamp, false, t, exec_qty)?;
@@ -492,20 +493,19 @@ where
                         let mut execute = false;
                         let mut cum_qty = 0f32;
                         for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                            if let Some(qty) = self.depth.bid_qty_at_tick(t) {
-                                cum_qty += qty;
-                                if (cum_qty / self.depth.lot_size()).round()
-                                    >= (order.qty / self.depth.lot_size()).round()
-                                {
-                                    execute = true;
-                                    break;
-                                }
+                            cum_qty += self.depth.bid_qty_at_tick(t);
+                            if (cum_qty / self.depth.lot_size()).round()
+                                >= (order.qty / self.depth.lot_size()).round()
+                            {
+                                execute = true;
+                                break;
                             }
                         }
                         if execute {
                             for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
                                 let local_recv_timestamp;
-                                if let Some(qty) = self.depth.bid_qty_at_tick(t) {
+                                let qty = self.depth.bid_qty_at_tick(t);
+                                if qty > 0.0 {
                                     let exec_qty = qty.min(order.leaves_qty);
                                     local_recv_timestamp =
                                         self.fill(&mut order, timestamp, false, t, exec_qty)?;
@@ -530,7 +530,8 @@ where
                         // The order must be executed immediately.
                         for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
                             let mut local_recv_timestamp = 0;
-                            if let Some(qty) = self.depth.bid_qty_at_tick(t) {
+                            let qty = self.depth.bid_qty_at_tick(t);
+                            if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
                                 local_recv_timestamp =
                                     self.fill(&mut order, timestamp, false, t, exec_qty)?;
@@ -552,7 +553,8 @@ where
                         // Takes the market.
                         for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
                             let mut local_recv_timestamp = 0;
-                            if let Some(qty) = self.depth.bid_qty_at_tick(t) {
+                            let qty = self.depth.bid_qty_at_tick(t);
+                            if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
                                 local_recv_timestamp =
                                     self.fill(&mut order, timestamp, false, t, exec_qty)?;

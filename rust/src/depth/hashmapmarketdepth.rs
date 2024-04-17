@@ -242,13 +242,13 @@ impl MarketDepth for HashMapMarketDepth {
     }
 
     #[inline(always)]
-    fn bid_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
-        self.bid_depth.get(&price_tick).cloned()
+    fn bid_qty_at_tick(&self, price_tick: i32) -> f32 {
+        *self.bid_depth.get(&price_tick).unwrap_or(&0.0)
     }
 
     #[inline(always)]
-    fn ask_qty_at_tick(&self, price_tick: i32) -> Option<f32> {
-        self.ask_depth.get(&price_tick).cloned()
+    fn ask_qty_at_tick(&self, price_tick: i32) -> f32 {
+        *self.ask_depth.get(&price_tick).unwrap_or(&0.0)
     }
 }
 
