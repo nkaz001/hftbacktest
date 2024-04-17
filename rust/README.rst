@@ -29,6 +29,17 @@ The following features are only provided in Rust implementation:
 Getting started
 ===============
 
+Installation
+------------
+
+Still in its early stages, it's not yet registered on crates.io due to frequent API changes and a lack of documentation.
+However, you can use it directly from the git repository.
+
+.. code-block::
+
+    hftbacktest = { git = "https://github.com/nkaz001/hftbacktest.git" }
+
+
 Data Format
 -----------
 
