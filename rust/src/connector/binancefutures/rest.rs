@@ -2,14 +2,13 @@
 /// https://binance-docs.github.io/apidocs/futures/en/
 use std::{
     collections::HashMap,
-    fmt::{Debug, Write},
+    fmt::Write,
 };
 
 use chrono::Utc;
 use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
-use thiserror::Error;
 
 use super::msg::{rest, rest::PositionInformationV2};
 use crate::{
@@ -23,16 +22,7 @@ use crate::{
     live::AssetInfo,
     ty::{AsStr, OrdType, Order, Side, Status, TimeInForce},
 };
-
-#[derive(Error, Debug)]
-pub enum RequestError {
-    #[error("invalid request")]
-    InvalidRequest,
-    #[error("http error: {0:?}")]
-    ReqError(#[from] reqwest::Error),
-    #[error("error({1}) at order_id({0})")]
-    OrderError(i64, String),
-}
+use crate::connector::binancefutures::BinanceFuturesError;
 
 #[derive(Clone)]
 pub struct BinanceFuturesClient {
@@ -204,7 +194,7 @@ impl BinanceFuturesClient {
         qty: f32,
         order_type: OrdType,
         time_in_force: TimeInForce,
-    ) -> Result<OrderResponse, RequestError> {
+    ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");
         body.push_str(&client_order_id);
@@ -226,16 +216,16 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => Err(RequestError::OrderError(resp.code, resp.msg)),
+            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError(resp.code, resp.msg)),
         }
     }
 
     pub async fn submit_orders(
         &self,
         orders: Vec<(String, String, Side, f32, usize, f32, OrdType, TimeInForce)>,
-    ) -> Result<Vec<Result<OrderResponse, RequestError>>, RequestError> {
+    ) -> Result<Vec<Result<OrderResponse, BinanceFuturesError>>, BinanceFuturesError> {
         if orders.len() > 5 {
-            return Err(RequestError::InvalidRequest);
+            return Err(BinanceFuturesError::InvalidRequest);
         }
         let mut body = String::with_capacity(2000 * orders.len());
         body.push_str("{\"batchOrders\":[");
@@ -269,7 +259,7 @@ impl BinanceFuturesClient {
             .map(|resp| match resp {
                 OrderResponseResult::Ok(resp) => Ok(resp),
                 OrderResponseResult::Err(resp) => {
-                    Err(RequestError::OrderError(resp.code, resp.msg))
+                    Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
                 }
             })
             .collect())
@@ -283,7 +273,7 @@ impl BinanceFuturesClient {
         price: f32,
         price_prec: usize,
         qty: f32,
-    ) -> Result<OrderResponse, RequestError> {
+    ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
         body.push_str(&symbol);
@@ -301,7 +291,7 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => Err(RequestError::OrderError(resp.code, resp.msg)),
+            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError(resp.code, resp.msg)),
         }
     }
 
@@ -309,7 +299,7 @@ impl BinanceFuturesClient {
         &self,
         client_order_id: &str,
         symbol: &str,
-    ) -> Result<OrderResponse, RequestError> {
+    ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
         body.push_str(&symbol);
@@ -321,7 +311,7 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => Err(RequestError::OrderError(resp.code, resp.msg)),
+            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError(resp.code, resp.msg)),
         }
     }
 
@@ -329,9 +319,9 @@ impl BinanceFuturesClient {
         &self,
         symbol: &str,
         client_order_ids: Vec<String>,
-    ) -> Result<Vec<Result<OrderResponse, RequestError>>, RequestError> {
+    ) -> Result<Vec<Result<OrderResponse, BinanceFuturesError>>, BinanceFuturesError> {
         if client_order_ids.len() > 10 {
-            return Err(RequestError::InvalidRequest);
+            return Err(BinanceFuturesError::InvalidRequest);
         }
         let mut body = String::with_capacity(100);
         body.push_str("{\"symbol\":\"");
@@ -354,7 +344,7 @@ impl BinanceFuturesClient {
             .map(|resp| match resp {
                 OrderResponseResult::Ok(resp) => Ok(resp),
                 OrderResponseResult::Err(resp) => {
-                    Err(RequestError::OrderError(resp.code, resp.msg))
+                    Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
                 }
             })
             .collect())

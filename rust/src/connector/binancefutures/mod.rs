@@ -27,8 +27,6 @@ use crate::{
     BuildError,
 };
 
-pub use rest::RequestError;
-
 #[derive(Clone)]
 pub enum Endpoint {
     Public,
@@ -54,6 +52,12 @@ impl From<&'static str> for Endpoint {
 pub enum BinanceFuturesError {
     #[error("asset not found")]
     AssetNotFound,
+    #[error("invalid request")]
+    InvalidRequest,
+    #[error("http error: {0:?}")]
+    ReqError(#[from] reqwest::Error),
+    #[error("error({1}) at order_id({0})")]
+    OrderError(i64, String),
 }
 
 /// Binance Futures USD-M connector [`BinanceFutures`] builder.

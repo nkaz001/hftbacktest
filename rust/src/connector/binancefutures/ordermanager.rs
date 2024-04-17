@@ -8,9 +8,10 @@ use rand::{distributions::Alphanumeric, Rng};
 use tracing::{debug, error};
 
 use crate::{
-    connector::binancefutures::{msg::rest::OrderResponse, rest::RequestError},
+    connector::binancefutures::msg::rest::OrderResponse,
     ty::{Order, Status},
 };
+use crate::connector::binancefutures::BinanceFuturesError;
 
 #[derive(Debug)]
 struct OrderWrapper {
@@ -126,22 +127,22 @@ impl OrderManager {
     pub fn update_submit_fail(
         &mut self,
         mut order: Order<()>,
-        error: &RequestError,
+        error: &BinanceFuturesError,
         client_order_id: String,
     ) -> Option<Order<()>> {
         match error {
-            RequestError::OrderError(-5022, _) => {
+            BinanceFuturesError::OrderError(-5022, _) => {
                 // GTX rejection.
             }
-            RequestError::OrderError(-1008, _) => {
+            BinanceFuturesError::OrderError(-1008, _) => {
                 // Server is currently overloaded with other requests. Please try again in a few minutes.
                 error!("Server is currently overloaded with other requests. Please try again in a few minutes.");
             }
-            RequestError::OrderError(-2019, _) => {
+            BinanceFuturesError::OrderError(-2019, _) => {
                 // Margin is insufficient.
                 error!("Margin is insufficient.");
             }
-            RequestError::OrderError(-1015, _) => {
+            BinanceFuturesError::OrderError(-1015, _) => {
                 // Too many new orders; current limit is 300 orders per TEN_SECONDS."
                 error!("Too many new orders; current limit is 300 orders per TEN_SECONDS.");
             }
@@ -186,11 +187,11 @@ impl OrderManager {
     pub fn update_cancel_fail(
         &mut self,
         mut order: Order<()>,
-        error: &RequestError,
+        error: &BinanceFuturesError,
         client_order_id: String,
     ) -> Option<Order<()>> {
         match error {
-            RequestError::OrderError(-2011, _) => {
+            BinanceFuturesError::OrderError(-2011, _) => {
                 // The given order may no longer exist; it could have already been filled or
                 // canceled. But, it cannot determine the order status because it lacks the
                 // necessary information.
