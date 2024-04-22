@@ -1,7 +1,10 @@
 use crate::{backtest::reader::Data, ty::Event};
 
-pub mod btreemarketdepth;
-pub mod hashmapmarketdepth;
+mod btreemarketdepth;
+mod hashmapmarketdepth;
+
+pub use btreemarketdepth::BTreeMarketDepth;
+pub use hashmapmarketdepth::HashMapMarketDepth;
 
 /// Represents no best bid.
 pub const INVALID_MIN: i32 = i32::MIN;
@@ -62,7 +65,7 @@ pub trait MarketDepth {
     /// Returns the quantity at the bid market depth for a given price in ticks.
     fn bid_qty_at_tick(&self, price_tick: i32) -> f32;
 
-    /// Retrns the quantity at the ask market depth for a given price in ticks.
+    /// Returns the quantity at the ask market depth for a given price in ticks.
     fn ask_qty_at_tick(&self, price_tick: i32) -> f32;
 }
 

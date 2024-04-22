@@ -16,7 +16,7 @@ use tracing::{debug, error};
 use crate::{
     backtest::state::StateValues,
     connector::Connector,
-    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
+    depth::{HashMapMarketDepth, MarketDepth},
     live::AssetInfo,
     ty::{
         Error as ErrorEvent,

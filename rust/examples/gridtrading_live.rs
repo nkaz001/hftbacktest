@@ -1,8 +1,8 @@
 use algo::gridtrading;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, Endpoint},
-    depth::hashmapmarketdepth::HashMapMarketDepth,
-    live::bot::Bot,
+    depth::HashMapMarketDepth,
+    live::Bot,
     Interface,
 };
 

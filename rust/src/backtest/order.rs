@@ -31,10 +31,7 @@ where
 
     /// Returns the timestamp of the frontmost order in the bus.
     pub fn frontmost_timestamp(&self) -> Option<i64> {
-        self.order_list
-            .borrow()
-            .get(0)
-            .map(|(_order, ts)| *ts)
+        self.order_list.borrow().get(0).map(|(_order, ts)| *ts)
     }
 
     /// Appends the order to the bus with the timestamp.

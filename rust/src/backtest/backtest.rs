@@ -9,7 +9,7 @@ use crate::{
         BacktestAsset,
         Error,
     },
-    depth::{hashmapmarketdepth::HashMapMarketDepth, MarketDepth},
+    depth::{HashMapMarketDepth, MarketDepth},
     ty::{Event, OrdType, Order, Side, TimeInForce},
     BuildError,
     Interface,

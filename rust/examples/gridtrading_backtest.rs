@@ -8,7 +8,7 @@ use hftbacktest::{
         BacktestAssetBuilder,
         DataSource,
     },
-    depth::hashmapmarketdepth::HashMapMarketDepth,
+    depth::HashMapMarketDepth,
     Interface,
 };
 
