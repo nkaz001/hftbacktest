@@ -271,7 +271,7 @@ where
         // Processes the order part.
         let mut next_timestamp = i64::MAX;
         while self.orders_from.len() > 0 {
-            let recv_timestamp = self.orders_from.get_head_timestamp().unwrap();
+            let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let order = self.orders_from.remove(0);
                 self.last_order_entry_latency = Some(order.exch_timestamp - order.local_timestamp);
@@ -287,10 +287,10 @@ where
     }
 
     fn frontmost_recv_order_timestamp(&self) -> i64 {
-        self.orders_from.frontmost_timestamp()
+        self.orders_from.frontmost_timestamp().unwrap_or(i64::MAX)
     }
 
     fn frontmost_send_order_timestamp(&self) -> i64 {
-        self.orders_to.frontmost_timestamp()
+        self.orders_to.frontmost_timestamp().unwrap_or(i64::MAX)
     }
 }

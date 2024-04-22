@@ -15,6 +15,7 @@ use crate::{
     Interface,
 };
 
+/// [`MultiAssetMultiExchangeBacktest`] builder.
 pub struct MultiAssetMultiExchangeBacktestBuilder<Q, MD> {
     local: Vec<Box<dyn LocalProcessor<Q, MD>>>,
     exch: Vec<Box<dyn Processor>>,
@@ -24,6 +25,7 @@ impl<Q, MD> MultiAssetMultiExchangeBacktestBuilder<Q, MD>
 where
     Q: Clone,
 {
+    /// Adds [`BacktestAsset`], which will undergo simulation within the backtester.
     pub fn add(self, asset: BacktestAsset<dyn LocalProcessor<Q, MD>, dyn Processor>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(asset.local);
@@ -31,6 +33,7 @@ where
         self_
     }
 
+    /// Builds [`MultiAssetMultiExchangeBacktest`].
     pub fn build(self) -> Result<MultiAssetMultiExchangeBacktest<Q, MD>, BuildError> {
         let num_assets = self.local.len();
         if self.local.len() != num_assets || self.exch.len() != num_assets {
@@ -46,6 +49,7 @@ where
     }
 }
 
+/// Multi-asset multi-exchange model backtester
 pub struct MultiAssetMultiExchangeBacktest<Q, MD> {
     cur_ts: i64,
     evs: EventSet,
@@ -180,27 +184,33 @@ where
 {
     type Error = Error;
 
+    #[inline]
     fn current_timestamp(&self) -> i64 {
         self.cur_ts
     }
 
+    #[inline]
     fn position(&self, asset_no: usize) -> f64 {
         self.local.get(asset_no).unwrap().position()
     }
 
+    #[inline]
     fn state_values(&self, asset_no: usize) -> StateValues {
         self.local.get(asset_no).unwrap().state_values()
     }
 
+    #[inline]
     fn depth(&self, asset_no: usize) -> &MD {
         &self.local.get(asset_no).unwrap().depth()
     }
 
+    #[inline]
     fn trade(&self, asset_no: usize) -> &Vec<Event> {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }
 
+    #[inline]
     fn clear_last_trades(&mut self, asset_no: Option<usize>) {
         match asset_no {
             Some(an) => {
@@ -215,10 +225,12 @@ where
         }
     }
 
+    #[inline]
     fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<Q>> {
         &self.local.get(asset_no).unwrap().orders()
     }
 
+    #[inline]
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
@@ -248,6 +260,7 @@ where
         Ok(true)
     }
 
+    #[inline]
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
@@ -277,6 +290,7 @@ where
         Ok(true)
     }
 
+    #[inline]
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
@@ -289,6 +303,7 @@ where
         Ok(true)
     }
 
+    #[inline]
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>) {
         match asset_no {
             Some(asset_no) => {
@@ -305,6 +320,7 @@ where
         }
     }
 
+    #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
@@ -320,6 +336,7 @@ where
         self.goto(self.cur_ts + duration, WAIT_ORDER_RESPONSE_NONE)
     }
 
+    #[inline]
     fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error> {
         self.elapse(duration)
     }
@@ -341,6 +358,7 @@ where
     Local: LocalProcessor<Q, HashMapMarketDepth> + 'static,
     Exchange: Processor + 'static,
 {
+    /// Adds [`BacktestAsset`], which will undergo simulation within the backtester.
     pub fn add(self, asset: BacktestAsset<Local, Exchange>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(*asset.local);
@@ -348,6 +366,7 @@ where
         self_
     }
 
+    /// Builds [`MultiAssetSingleExchangeBacktest`].
     pub fn build(
         self,
     ) -> Result<MultiAssetSingleExchangeBacktest<Q, HashMapMarketDepth, Local, Exchange>, BuildError>
@@ -367,6 +386,7 @@ where
     }
 }
 
+/// Multi-asset single-exchange model backtester
 pub struct MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange> {
     cur_ts: i64,
     evs: EventSet,
@@ -509,27 +529,33 @@ where
 {
     type Error = Error;
 
+    #[inline]
     fn current_timestamp(&self) -> i64 {
         self.cur_ts
     }
 
+    #[inline]
     fn position(&self, asset_no: usize) -> f64 {
         self.local.get(asset_no).unwrap().position()
     }
 
+    #[inline]
     fn state_values(&self, asset_no: usize) -> StateValues {
         self.local.get(asset_no).unwrap().state_values()
     }
 
+    #[inline]
     fn depth(&self, asset_no: usize) -> &MD {
         &self.local.get(asset_no).unwrap().depth()
     }
 
+    #[inline]
     fn trade(&self, asset_no: usize) -> &Vec<Event> {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }
 
+    #[inline]
     fn clear_last_trades(&mut self, asset_no: Option<usize>) {
         match asset_no {
             Some(an) => {
@@ -544,10 +570,12 @@ where
         }
     }
 
+    #[inline]
     fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<Q>> {
         &self.local.get(asset_no).unwrap().orders()
     }
 
+    #[inline]
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
@@ -577,6 +605,7 @@ where
         Ok(true)
     }
 
+    #[inline]
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
@@ -606,6 +635,7 @@ where
         Ok(true)
     }
 
+    #[inline]
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
@@ -618,6 +648,7 @@ where
         Ok(true)
     }
 
+    #[inline]
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>) {
         match asset_no {
             Some(asset_no) => {
@@ -634,6 +665,7 @@ where
         }
     }
 
+    #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
@@ -649,6 +681,7 @@ where
         self.goto(self.cur_ts + duration, WAIT_ORDER_RESPONSE_NONE)
     }
 
+    #[inline]
     fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error> {
         self.elapse(duration)
     }

@@ -291,7 +291,8 @@ where
         }
     }
 
-    /// Runs the [`Bot`]. Spawns a thread to send [`Request`] to [`Connector`]s without blocking.
+    /// Runs the [`Bot`]. Spawns a thread to run [`Connector`]s and to handle sending [`Request`]
+    /// to [`Connector`]s without blocking.
     pub fn run(&mut self) -> Result<(), BotError> {
         let ev_tx = self.ev_tx.take().unwrap();
         let req_rx = self.req_rx.take().unwrap();
@@ -443,14 +444,17 @@ where
 impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
     type Error = BotError;
 
+    #[inline]
     fn current_timestamp(&self) -> i64 {
         Utc::now().timestamp_nanos_opt().unwrap()
     }
 
+    #[inline]
     fn position(&self, asset_no: usize) -> f64 {
         *self.position.get(asset_no).unwrap_or(&0.0)
     }
 
+    #[inline]
     fn state_values(&self, asset_no: usize) -> StateValues {
         StateValues {
             position: *self.position.get(asset_no).unwrap_or(&0.0),
@@ -462,10 +466,12 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         }
     }
 
+    #[inline]
     fn depth(&self, asset_no: usize) -> &HashMapMarketDepth {
         self.depth.get(asset_no).unwrap()
     }
 
+    #[inline]
     fn trade(&self, asset_no: usize) -> &Vec<Event> {
         self.trade.get(asset_no).unwrap()
     }
@@ -483,10 +489,12 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         }
     }
 
+    #[inline]
     fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<()>> {
         self.orders.get(asset_no).unwrap()
     }
 
+    #[inline]
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
@@ -509,6 +517,7 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         )
     }
 
+    #[inline]
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
@@ -531,6 +540,7 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         )
     }
 
+    #[inline]
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
         let orders = self
             .orders
@@ -548,6 +558,7 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         Ok(true)
     }
 
+    #[inline]
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>) {
         match asset_no {
             Some(an) => {
@@ -563,10 +574,12 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         }
     }
 
+    #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
         self.elapse_(duration)
     }
 
+    #[inline]
     fn elapse_bt(&mut self, _duration: i64) -> Result<bool, Self::Error> {
         Ok(true)
     }

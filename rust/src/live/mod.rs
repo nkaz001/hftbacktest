@@ -1,4 +1,6 @@
-pub mod bot;
+mod bot;
+
+pub use bot::{Bot, BotBuilder, BotError};
 
 #[derive(Clone)]
 pub struct AssetInfo {

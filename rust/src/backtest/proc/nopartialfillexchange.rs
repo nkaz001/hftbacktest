@@ -31,6 +31,31 @@ use crate::{
     ty::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
 };
 
+/// The exchange model without partial fills.
+///
+/// Support order types: [`crate::ty::OrdType::Limit`]
+/// Support time-in-force: [`TimeInForce::GTC`], [`TimeInForce::GTX`]
+///
+/// *Conditions for Full Execution*
+///
+/// Buy order in the order book
+///
+/// - Your order price >= the best ask price
+/// - Your order price > sell trade price
+/// - Your order is at the front of the queue and your order price == sell trade price
+///
+/// Sell order in the order book
+///
+/// - Your order price <= the best bid price
+/// - Your order price < buy trade price
+/// - Your order is at the front of the queue && your order price == buy trade price
+///
+/// *Liquidity-Taking Order*
+///
+/// Regardless of the quantity at the best, liquidity-taking orders will be fully executed at the
+/// best. Be aware that this may cause unrealistic fill simulations if you attempt to execute a
+/// large quantity.
+///
 pub struct NoPartialFillExchange<AT, Q, LM, QM, MD>
 where
     AT: AssetType,
@@ -151,7 +176,7 @@ where
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick);
         } else if order.price_tick == price_tick {
-            // Update the order's queue position.
+            // Updates the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
             if self.queue_model.is_filled(order, &self.depth) {
                 self.filled_orders.push(order.order_id);
@@ -172,7 +197,7 @@ where
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick);
         } else if order.price_tick == price_tick {
-            // Update the order's queue position.
+            // Updates the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
             if self.queue_model.is_filled(order, &self.depth) {
                 self.filled_orders.push(order.order_id);
@@ -423,7 +448,7 @@ where
             return Ok(local_recv_timestamp);
         }
 
-        // Delete the order.
+        // Deletes the order.
         let mut exch_order = exch_order.unwrap();
         if exch_order.side == Side::Buy {
             self.buy_orders
@@ -437,7 +462,7 @@ where
                 .remove(&exch_order.order_id);
         }
 
-        // Make the response.
+        // Makes the response.
         exch_order.status = Status::Canceled;
         exch_order.exch_timestamp = timestamp;
         let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
@@ -476,7 +501,7 @@ where
         let init_q_pos = true;
 
         if exch_order.side == Side::Buy {
-            // Check if the buy order price is greater than or equal to the current best ask.
+            // Checks if the buy order price is greater than or equal to the current best ask.
             if exch_order.price_tick >= self.depth.best_ask_tick() {
                 self.buy_orders
                     .get_mut(&prev_price_tick)
@@ -486,7 +511,7 @@ where
                 if exch_order.time_in_force == TimeInForce::GTX {
                     exch_order.status = Status::Expired;
                 } else {
-                    // Take the market.
+                    // Takes the market.
                     return self.fill(
                         &mut exch_order,
                         timestamp,
@@ -514,7 +539,7 @@ where
                         .insert(exch_order.order_id);
                 }
                 if init_q_pos || prev_price_tick != exch_order.price_tick {
-                    // Initialize the order's queue position.
+                    // Initializes the order's queue position.
                     self.queue_model.new_order(&mut exch_order, &self.depth);
                 }
                 exch_order.status = Status::New;
@@ -531,7 +556,7 @@ where
                 Ok(local_recv_timestamp)
             }
         } else {
-            // Check if the sell order price is less than or equal to the current best bid.
+            // Checks if the sell order price is less than or equal to the current best bid.
             if exch_order.price_tick <= self.depth.best_bid_tick() {
                 self.sell_orders
                     .get_mut(&prev_price_tick)
@@ -541,7 +566,7 @@ where
                 if exch_order.time_in_force == TimeInForce::GTX {
                     exch_order.status = Status::Expired;
                 } else {
-                    // Take the market.
+                    // Takes the market.
                     return self.fill(
                         &mut exch_order,
                         timestamp,
@@ -741,7 +766,7 @@ where
         // Processes the order part.
         let mut next_timestamp = i64::MAX;
         while self.orders_from.len() > 0 {
-            let recv_timestamp = self.orders_from.get_head_timestamp().unwrap();
+            let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let order = self.orders_from.remove(0);
                 next_timestamp =
@@ -755,10 +780,10 @@ where
     }
 
     fn frontmost_recv_order_timestamp(&self) -> i64 {
-        self.orders_from.frontmost_timestamp()
+        self.orders_from.frontmost_timestamp().unwrap_or(i64::MAX)
     }
 
     fn frontmost_send_order_timestamp(&self) -> i64 {
-        self.orders_to.frontmost_timestamp()
+        self.orders_to.frontmost_timestamp().unwrap_or(i64::MAX)
     }
 }

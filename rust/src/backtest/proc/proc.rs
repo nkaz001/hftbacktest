@@ -6,6 +6,7 @@ use crate::{
     ty::{Event, OrdType, Order, Side, TimeInForce},
 };
 
+/// Provides local-specific interaction.
 pub trait LocalProcessor<Q, MD>: Processor
 where
     Q: Clone,
@@ -31,6 +32,7 @@ where
     fn clear_last_trades(&mut self);
 }
 
+/// Processes the historical feed data and the order interaction.
 pub trait Processor {
     fn initialize_data(&mut self) -> Result<i64, Error>;
     fn process_data(&mut self) -> Result<(i64, i64), Error>;

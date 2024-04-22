@@ -31,6 +31,45 @@ use crate::{
     ty::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
 };
 
+/// The exchange model with partial fills.
+///
+/// Support order types: [`crate::ty::OrdType::Limit`]
+/// Support time-in-force: [`TimeInForce::GTC`], [`TimeInForce::FOK`], [`TimeInForce::IOC`],
+///                        [`TimeInForce::GTX`]
+///
+/// *Conditions for Full Execution*
+/// Buy order in the order book
+///
+/// - Your order price >= the best ask price
+/// - Your order price > sell trade price
+///
+/// Sell order in the order book
+///
+/// - Your order price <= the best bid price
+/// - Your order price < buy trade price
+///
+/// *Conditions for Partial Execution*
+/// Buy order in the order book
+///
+/// - Filled by (remaining) sell trade quantity: your order is at the front of the queue && your
+///   order price == sell trade price
+///
+/// Sell order in the order book
+///
+/// - Filled by (remaining) buy trade quantity: your order is at the front of the queue && your
+///   order price == buy trade price
+///
+/// *Liquidity-Taking Order*
+/// Liquidity-taking orders will be executed based on the quantity of the order book, even though
+/// the best price and quantity do not change due to your execution. Be aware that this may cause
+/// unrealistic fill simulations if you attempt to execute a large quantity.
+///
+/// *General Comment*
+/// Simulating partial fills accurately can be challenging, as they may indicate potential market
+/// impact. The rule of thumb is to ensure that your backtesting results align with your live
+/// results.
+/// (more comment will be added...)
+///
 pub struct PartialFillExchange<AT, Q, LM, QM, MD>
 where
     AT: AssetType,
@@ -151,7 +190,7 @@ where
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
         } else if order.price_tick == price_tick {
-            // Update the order's queue position.
+            // Updates the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
             if self.queue_model.is_filled(order, &self.depth) {
                 // q_ahead is negative since is_filled is true and its value represents the
@@ -178,7 +217,7 @@ where
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
         } else if order.price_tick == price_tick {
-            // Update the order's queue position.
+            // Updates the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
             if self.queue_model.is_filled(order, &self.depth) {
                 // q_ahead is negative since is_filled is true and its value represents the
@@ -614,7 +653,7 @@ where
             return Ok(local_recv_timestamp);
         }
 
-        // Delete the order.
+        // Deletes the order.
         let mut exch_order = exch_order.unwrap();
         if exch_order.side == Side::Buy {
             self.buy_orders
@@ -628,7 +667,7 @@ where
                 .remove(&exch_order.order_id);
         }
 
-        // Make the response.
+        // Makes the response.
         exch_order.status = Status::Canceled;
         exch_order.exch_timestamp = timestamp;
         let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
@@ -923,7 +962,7 @@ where
         // Processes the order part.
         let mut next_timestamp = i64::MAX;
         while self.orders_from.len() > 0 {
-            let recv_timestamp = self.orders_from.get_head_timestamp().unwrap();
+            let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let order = self.orders_from.remove(0);
                 next_timestamp =
@@ -937,10 +976,10 @@ where
     }
 
     fn frontmost_recv_order_timestamp(&self) -> i64 {
-        self.orders_from.frontmost_timestamp()
+        self.orders_from.frontmost_timestamp().unwrap_or(i64::MAX)
     }
 
     fn frontmost_send_order_timestamp(&self) -> i64 {
-        self.orders_to.frontmost_timestamp()
+        self.orders_to.frontmost_timestamp().unwrap_or(i64::MAX)
     }
 }

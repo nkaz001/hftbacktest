@@ -41,28 +41,28 @@ pub trait MarketDepth {
     /// both sides are cleared. In this case, `clear_upto_price` is ignored.
     fn clear_depth(&mut self, side: i64, clear_upto_price: f32);
 
-    /// The best bid price
+    /// Returns the best bid price.
     fn best_bid(&self) -> f32;
 
-    /// The best ask price
+    /// Returns the best ask price.
     fn best_ask(&self) -> f32;
 
-    /// The best bid price in ticks
+    /// Returns the best bid price in ticks.
     fn best_bid_tick(&self) -> i32;
 
-    /// The best ask price in ticks
+    /// Returns the best ask price in ticks.
     fn best_ask_tick(&self) -> i32;
 
-    /// Tick size
+    /// Returns the tick size.
     fn tick_size(&self) -> f32;
 
-    /// Lot size
+    /// Returns the lot size.
     fn lot_size(&self) -> f32;
 
-    /// The quantity at the bid market depth for a given price in ticks.
+    /// Returns the quantity at the bid market depth for a given price in ticks.
     fn bid_qty_at_tick(&self, price_tick: i32) -> f32;
 
-    /// The quantity at the ask market depth for a given price in ticks.
+    /// Retrns the quantity at the ask market depth for a given price in ticks.
     fn ask_qty_at_tick(&self, price_tick: i32) -> f32;
 }
 

@@ -1,6 +1,6 @@
 #[derive(Clone, Copy)]
 #[repr(C, align(32))]
-pub struct Event {
+pub(crate) struct Event {
     pub timestamp: i64,
     pub asset_no: usize,
     pub ty: EventType,

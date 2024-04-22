@@ -81,6 +81,13 @@ pub struct Event {
     pub qty: f32,
 }
 
+impl Event {
+    #[inline]
+    pub fn is(&self, ev: i64) -> bool {
+        (self.ev & ev) == ev
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Depth {
     pub asset_no: usize,

@@ -1,10 +1,15 @@
 use crate::{backtest::reader::Data, ty::Order};
 
+/// Provides the order entry latency and the order response latency.
 pub trait LatencyModel {
+    /// Returns the order entry latency for the given timestamp and order.
     fn entry<Q: Clone>(&mut self, timestamp: i64, order: &Order<Q>) -> i64;
+
+    /// Returns the order response latency for the given timestamp and order.
     fn response<Q: Clone>(&mut self, timestamp: i64, order: &Order<Q>) -> i64;
 }
 
+/// Provides constant order latency.
 #[derive(Clone)]
 pub struct ConstantLatency {
     entry_latency: i64,
@@ -12,6 +17,15 @@ pub struct ConstantLatency {
 }
 
 impl ConstantLatency {
+    /// Constructs [`ConstantLatency`].
+    ///
+    /// `entry_latency` and `response_latency` should match the time unit of the data's timestamps.
+    /// Using nanoseconds across all datasets is recommended, since the live [`crate::live::Bot`]
+    /// uses nanoseconds.
+    ///
+    /// If latency has a negative value, it indicates an order rejection by the exchange and its
+    /// value represents the latency that the local experiences when receiving the rejection
+    /// notification.
     pub fn new(entry_latency: i64, response_latency: i64) -> Self {
         Self {
             entry_latency,
@@ -30,15 +44,25 @@ impl LatencyModel for ConstantLatency {
     }
 }
 
+/// The historical order latency data
 #[derive(Clone, Debug)]
 #[repr(C, align(32))]
 pub struct OrderLatencyRow {
+    /// Timestamp at which the request occurs.
     pub req_timestamp: i64,
+    /// Timestamp at which the exchange processes the request.
     pub exch_timestamp: i64,
+    /// Timestamp at which the response is received.
     pub resp_timestamp: i64,
-    pub reserved: i64,
+    /// For the alignment.
+    pub _reserved: i64,
 }
 
+/// Provides order latency based on actual historical order latency data through interpolation.
+///
+/// However, if you don't actual order latency history, you can generate order latencies
+/// artificially based on feed latency or using a custom model such as a regression model, which
+/// incorporates factors like feed latency, trading volume, and the number of events.
 #[derive(Clone)]
 pub struct IntpOrderLatency {
     entry_rn: usize,
@@ -47,6 +71,24 @@ pub struct IntpOrderLatency {
 }
 
 impl IntpOrderLatency {
+    /// Constructs [`IntpOrderLatency`].
+    ///
+    /// In historical order latency data, negative latencies should not exist. This means that there
+    /// should be no instances where `exch_timestamp - req_timestamp < 0` or
+    /// `resp_timestamp - exch_timestamp < 0`. However, it's worth noting that exchanges may
+    /// inadequately handle or reject orders during overload situations or for technical reasons,
+    /// resulting in exchange timestamps being zero. In such cases, [`Self::entry()`] or
+    /// [`Self::response()`] returns negative latency, indicating an order rejection by the
+    /// exchange, and its value represents the latency that the local experiences when receiving the
+    /// rejection notification.
+    ///
+    /// ```
+    /// use hftbacktest::backtest::{reader::read_npz, models::IntpOrderLatency};
+    ///
+    /// let latency_model = IntpOrderLatency::new(
+    ///     read_npz("latency_20240215.npz").unwrap()
+    /// );
+    /// ```
     pub fn new(data: Data<OrderLatencyRow>) -> Self {
         if data.len() == 0 {
             panic!();
