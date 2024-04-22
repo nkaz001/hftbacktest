@@ -10,41 +10,39 @@ repository = "https://github.com/nkaz001/hftbacktest/rust"
 description = "A high-frequency trading and market-making backtesting tool accounts for limit orders, queue positions, and latencies, utilizing full tick data for trades and order books."
 keywords = [
     "quantitative",
-    "finance",
-    "simulation",
     "trading",
     "backtesting",
     "crypto",
-    "hft",
-    "high-frequency-trading",
-    "market-making"
+    "high-frequency-trading"
 ]
 categories = ["finance", "mathematics", "science", "algorithms", "simulation"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["backtest", "live", "binancefutures"]
+backtest = ["zip"]
+live = ["chrono", "tokio", "futures-util"]
+binancefutures = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
+
 [dependencies]
-chrono = "0.4.33"
-serde = { version = "1.0.196", features = ["derive"] }
-tokio = { version = "1.35.1", features = ["full"] }
-hyper = { version = "1.1.0", features = ["full"] }
-hyper-util = "0.1.3"
-serde_json = "1.0.113"
-futures-util = "0.3.30"
-form_urlencoded = "1.2.1"
-http = "1.0.0"
-bytes = "1.5.0"
-tokio-tungstenite = { version = "0.21.0", features = ["native-tls"] }
-url = { version = "2.5.0", features = [] }
 tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = [] }
 anyhow = "1.0.79"
-reqwest = { version = "0.11.24", features = ["json"] }
-sha2 = "0.11.0-pre.3"
-hmac = "0.13.0-pre.3"
-zip = "0.6.6"
 thiserror = "1.0.57"
-rand = "0.8.5"
+chrono = { version = "0.4.33", optional = true }
+serde = { version = "1.0.196", features = ["derive"], optional = true }
+serde_json = { vesrion = "1.0.113", optional = true }
+tokio = { version = "1.35.1", features = ["full"], optional = true }
+tokio-tungstenite = { version = "0.21.0", features = ["native-tls"], optional = true }
+reqwest = { version = "0.12.3", features = ["json"], optional = true }
+zip = { version = "0.6.6", optional = true }
+futures-util = { version = "0.3.30", optional = true }
+sha2 = { version = "0.11.0-pre.3", optional = true }
+hmac = { version = "0.13.0-pre.3", optional = true }
+rand = { version = "0.8.5", optional = true }
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3.18", features = [] }
 
 [profile.dev]
 opt-level = 0
