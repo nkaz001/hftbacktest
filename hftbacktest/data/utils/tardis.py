@@ -25,10 +25,15 @@ def convert(
         base_latency: float = 0,
         snapshot_mode: Literal['process', 'ignore_sod', 'ignore'] = 'process',
         compress: bool = False,
-        structured_array: bool = False
+        structured_array: bool = False,
+        timestamp_unit: Literal['us', 'ns'] = 'us'
 ) -> NDArray:
     r"""
     Converts Tardis.dev data files into a format compatible with HftBacktest.
+
+    For Tardis's Binance Futures feed data, they use the 'E' event timestamp, representing the sending time, rather
+    than the 'T' transaction time, indicating when the matching occurs. So the latency is slightly less than it actually
+    is.
 
     Args:
         input_files: Input filenames for both incremental book and trades files,
@@ -48,10 +53,17 @@ def convert(
                        - Otherwise, all snapshot events will be processed.
         compress: If this is set to True, the output file will be compressed.
         structured_array: If this is set to True, the output is converted into the new format(currently only Rust impl).
-
+        timestamp_unit: The timestamp unit for timestamp to be converted in. Tardis provides timestamps in microseconds.
     Returns:
         Converted data compatible with HftBacktest.
     """
+    if timestamp_unit == 'us':
+        timestamp_mul = 1
+    elif timestamp_unit == 'ns':
+        timestamp_mul = 1000
+    else:
+        raise ValueError
+
     TRADE = 0
     DEPTH = 1
 
@@ -103,8 +115,8 @@ def convert(
                     # Insert TRADE_EVENT
                     tmp[row_num] = [
                         TRADE_EVENT,
-                        int(cols[2]),
-                        int(cols[3]),
+                        int(cols[2]) * timestamp_mul,
+                        int(cols[3]) * timestamp_mul,
                         1 if cols[5] == 'buy' else -1,
                         float(cols[6]),
                         float(cols[7])
@@ -124,8 +136,8 @@ def convert(
                         if cols[5] == 'bid':
                             ss_bid[ss_bid_rn] = [
                                 DEPTH_SNAPSHOT_EVENT,
-                                int(cols[2]),
-                                int(cols[3]),
+                                int(cols[2]) * timestamp_mul,
+                                int(cols[3]) * timestamp_mul,
                                 1,
                                 float(cols[6]),
                                 float(cols[7])
@@ -134,8 +146,8 @@ def convert(
                         else:
                             ss_ask[ss_ask_rn] = [
                                 DEPTH_SNAPSHOT_EVENT,
-                                int(cols[2]),
-                                int(cols[3]),
+                                int(cols[2]) * timestamp_mul,
+                                int(cols[3]) * timestamp_mul,
                                 -1,
                                 float(cols[6]),
                                 float(cols[7])
@@ -153,8 +165,8 @@ def convert(
                                 # Clear the bid market depth within the snapshot bid range.
                                 tmp[row_num] = [
                                     DEPTH_CLEAR_EVENT,
-                                    ss_bid[0, 1],
-                                    ss_bid[0, 2],
+                                    ss_bid[0, 1] * timestamp_mul,
+                                    ss_bid[0, 2] * timestamp_mul,
                                     1,
                                     ss_bid[-1, 4],
                                     0
@@ -170,8 +182,8 @@ def convert(
                                 # Clear the ask market depth within the snapshot ask range.
                                 tmp[row_num] = [
                                     DEPTH_CLEAR_EVENT,
-                                    ss_ask[0, 1],
-                                    ss_ask[0, 2],
+                                    ss_ask[0, 1] * timestamp_mul,
+                                    ss_ask[0, 2] * timestamp_mul,
                                     -1,
                                     ss_ask[-1, 4],
                                     0
@@ -184,8 +196,8 @@ def convert(
                         # Insert DEPTH_EVENT
                         tmp[row_num] = [
                             DEPTH_EVENT,
-                            int(cols[2]),
-                            int(cols[3]),
+                            int(cols[2]) * timestamp_mul,
+                            int(cols[3]) * timestamp_mul,
                             1 if cols[5] == 'bid' else -1,
                             float(cols[6]),
                             float(cols[7])
@@ -205,10 +217,11 @@ def convert(
 
     data = correct_event_order(sorted_exch_ts, sorted_local_ts, structured_array)
 
-    # Validate again.
-    num_corr = validate_data(data)
-    if num_corr < 0:
-        raise ValueError
+    if not structured_array:
+        # Validate again.
+        num_corr = validate_data(data)
+        if num_corr < 0:
+            raise ValueError
 
     if structured_array:
         data = convert_to_struct_arr(data)
