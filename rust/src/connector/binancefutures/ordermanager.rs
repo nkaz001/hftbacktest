@@ -9,7 +9,7 @@ use tracing::{debug, error};
 
 use crate::{
     connector::binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
-    ty::{Order, Status},
+    types::{Order, Status},
 };
 
 #[derive(Debug)]

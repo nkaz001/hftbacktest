@@ -1,4 +1,4 @@
-use crate::{backtest::reader::Data, ty::Order};
+use crate::{backtest::reader::Data, types::Order};
 
 /// Provides the order entry latency and the order response latency.
 pub trait LatencyModel {

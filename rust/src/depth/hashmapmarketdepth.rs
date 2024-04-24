@@ -3,10 +3,10 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::reader::Data,
-    ty::{Event, BUY, SELL},
+    types::{Event, BUY, SELL},
 };
 
-/// HashMap-based Market Depth
+/// L2 Market depth implementation based on a hash map.
 ///
 /// This is considered more robust than a BTreeMap-based Market Depth. This is because in the
 /// BTreeMap-based approach, missing depth feeds can lead to incorrect best bid or ask prices.
@@ -49,6 +49,7 @@ fn depth_above(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
 }
 
 impl HashMapMarketDepth {
+    /// Constructs an instance of `HashMapMarketDepth`.
     pub fn new(tick_size: f32, lot_size: f32) -> Self {
         Self {
             tick_size,

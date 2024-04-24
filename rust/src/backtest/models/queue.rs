@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     depth::MarketDepth,
-    ty::{Order, Side},
+    types::{Order, Side},
 };
 
 /// Provides an estimation of the order's queue position.

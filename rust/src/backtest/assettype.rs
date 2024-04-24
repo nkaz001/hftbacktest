@@ -7,14 +7,14 @@ pub trait AssetType {
     fn equity(&self, price: f32, balance: f64, position: f64, fee: f64) -> f64;
 }
 
-/// The common type of asset.
+/// The common type of asset where the contract's notional value is linear to the quote currency.
 #[derive(Clone)]
 pub struct LinearAsset {
     contract_size: f64,
 }
 
 impl LinearAsset {
-    /// Constructs [`LinearAsset`].
+    /// Constructs an instance of `LinearAsset`.
     pub fn new(contract_size: f64) -> Self {
         Self { contract_size }
     }
@@ -37,7 +37,7 @@ pub struct InverseAsset {
 }
 
 impl InverseAsset {
-    /// Constructs [`InverseAsset`].
+    /// Constructs an instance of `InverseAsset`.
     pub fn new(contract_size: f64) -> Self {
         Self { contract_size }
     }

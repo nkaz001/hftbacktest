@@ -12,16 +12,29 @@ use crate::{
         state::State,
     },
     depth::MarketDepth,
-    ty::Event,
+    types::Event,
     BuildError,
 };
 
+/// Asset types
 pub mod assettype;
+
+/// The backtester
 pub mod backtest;
+
+/// Latency and queue position models
 pub mod models;
+
+/// OrderBus implementation
 pub mod order;
+
+/// Local and exchange models
 pub mod proc;
+
+/// The data reader
 pub mod reader;
+
+/// The state, such as position, cash, and fees.
 pub mod state;
 
 mod evs;

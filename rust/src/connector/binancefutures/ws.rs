@@ -24,7 +24,7 @@ use crate::{
         ordermanager::OrderManager,
     },
     live::AssetInfo,
-    ty::{self, Depth, LiveEvent, Order, OrderResponse, Position, Status, BUY, SELL},
+    types::{self, Depth, LiveEvent, Order, OrderResponse, Position, Status, BUY, SELL},
 };
 
 fn parse_depth(
@@ -213,7 +213,7 @@ pub async fn connect(
                                         .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
                                             LiveEvent::Trade(
-                                                ty::Trade {
+                                                types::Trade {
                                                     asset_no: asset_info.asset_no,
                                                     exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),

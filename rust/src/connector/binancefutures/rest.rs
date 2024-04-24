@@ -18,7 +18,7 @@ use crate::{
         BinanceFuturesError,
     },
     live::AssetInfo,
-    ty::{AsStr, OrdType, Order, Side, Status, TimeInForce},
+    types::{AsStr, OrdType, Order, Side, Status, TimeInForce},
 };
 
 #[derive(Clone)]

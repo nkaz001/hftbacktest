@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::ty::Order;
+use crate::types::Order;
 
 /// Provides a bus for transporting backtesting orders between the exchange and the local model
 /// based on the given timestamp.
@@ -21,7 +21,7 @@ impl<Q> OrderBus<Q>
 where
     Q: Clone,
 {
-    /// Constructs [`OrderBus`].
+    /// Constructs an instance of `OrderBus`.
     pub fn new() -> Self {
         Self {
             order_list: Default::default(),

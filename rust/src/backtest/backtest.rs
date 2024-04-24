@@ -10,7 +10,7 @@ use crate::{
         Error,
     },
     depth::{HashMapMarketDepth, MarketDepth},
-    ty::{Event, OrdType, Order, Side, TimeInForce},
+    types::{Event, OrdType, Order, Side, TimeInForce},
     BuildError,
     Interface,
 };

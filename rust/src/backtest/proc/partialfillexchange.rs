@@ -28,12 +28,12 @@ use crate::{
         Error,
     },
     depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
-    ty::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
+    types::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
 };
 
 /// The exchange model with partial fills.
 ///
-/// Support order types: [`crate::ty::OrdType::Limit`]
+/// Support order types: [`crate::types::OrdType::Limit`]
 /// Support time-in-force: [`TimeInForce::GTC`], [`TimeInForce::FOK`], [`TimeInForce::IOC`],
 ///                        [`TimeInForce::GTX`]
 ///

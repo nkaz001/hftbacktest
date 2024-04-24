@@ -11,7 +11,7 @@ use std::{
 
 use crate::{
     backtest::Error,
-    ty::{BUY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL, TRADE_EVENT},
+    types::{BUY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL, TRADE_EVENT},
 };
 
 pub const EXCH_EVENT: i64 = 1 << 31;

@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 
-use crate::ty::{LiveEvent, Order};
+use crate::types::{LiveEvent, Order};
 
 pub mod binancefutures;
 

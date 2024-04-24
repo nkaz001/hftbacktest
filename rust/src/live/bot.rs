@@ -18,7 +18,7 @@ use crate::{
     connector::Connector,
     depth::{HashMapMarketDepth, MarketDepth},
     live::AssetInfo,
-    ty::{
+    types::{
         Error as ErrorEvent,
         Error,
         Event,

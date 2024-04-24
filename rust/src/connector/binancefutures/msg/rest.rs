@@ -9,7 +9,7 @@ use super::{
     from_str_to_tif,
     from_str_to_type,
 };
-use crate::ty::{OrdType, Side, Status, TimeInForce};
+use crate::types::{OrdType, Side, Status, TimeInForce};
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]

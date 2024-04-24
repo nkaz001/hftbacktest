@@ -7,7 +7,7 @@ use std::{
 /// Error type assigned to [`Error`].
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(i64)]
-pub enum ErrorType {
+pub enum ErrorKind {
     ConnectionInterrupted = 0,
     CriticalConnectionError = 1,
     OrderError = 2,
@@ -17,21 +17,21 @@ pub enum ErrorType {
 /// Error conveyed through [`LiveEvent`].
 #[derive(Clone, Debug)]
 pub struct Error {
-    pub ty: ErrorType,
+    pub kind: ErrorKind,
     pub value: Option<Arc<Box<dyn Any + Send + Sync>>>,
 }
 
 impl Error {
-    pub fn new(ty: ErrorType) -> Error {
-        Self { ty, value: None }
+    pub fn new(kind: ErrorKind) -> Error {
+        Self { kind, value: None }
     }
 
-    pub fn with<T>(ty: ErrorType, value: T) -> Error
+    pub fn with<T>(kind: ErrorKind, value: T) -> Error
     where
         T: Send + Sync + 'static,
     {
         Self {
-            ty,
+            kind,
             value: Some(Arc::new(Box::new(value))),
         }
     }
@@ -47,7 +47,7 @@ impl Error {
     }
 }
 
-/// Events occurring in a live bot sent by a [`Connector`].
+/// Events occurring in a live bot sent by a [`crate::connector::Connector`].
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
     Depth(Depth),

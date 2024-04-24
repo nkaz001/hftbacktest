@@ -1,4 +1,4 @@
-use crate::{backtest::reader::Data, ty::Event};
+use crate::{backtest::reader::Data, types::Event};
 
 mod btreemarketdepth;
 mod hashmapmarketdepth;
@@ -40,7 +40,7 @@ pub trait MarketDepth {
         timestamp: i64,
     ) -> (i32, i32, i32, f32, f32, i64);
 
-    /// Clears the market depth. If the `side` is neither [crate::ty::BUY] nor [crate::ty::SELL],
+    /// Clears the market depth. If the `side` is neither [crate::types::BUY] nor [crate::types::SELL],
     /// both sides are cleared. In this case, `clear_upto_price` is ignored.
     fn clear_depth(&mut self, side: i64, clear_upto_price: f32);
 

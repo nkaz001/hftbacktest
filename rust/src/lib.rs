@@ -14,29 +14,38 @@
 //! - Backtesting of multi-asset and multi-exchange models
 //! - Deployment of a live trading bot using the same algo code
 //!
+//!
+//! ## Feature flags
+//!
+//! Currently, `default` enables all features.
+//!
+//! - `backtest`: Enables backtesting features.
+//! - `live`: Enables a live trading bot.
+//! - `binancefutures`: Enables Binance Futures USDM connector for a live trading bot.
+//!
 use std::collections::HashMap;
 
 use thiserror::Error;
 
 use crate::{
     backtest::state::StateValues,
-    ty::{Event, OrdType, Order, TimeInForce},
+    types::{Event, OrdType, Order, TimeInForce},
 };
 
-/// Defines backtesting features.
+/// Backtesting features.
 pub mod backtest;
 
-/// Defines exchange connectors
+/// Exchange connectors
 pub mod connector;
 
-/// Defines a market depth to build the order book from the feed data.
+/// A market depth to build the order book from the feed data.
 pub mod depth;
 
-/// Defines live bot features.
+/// Live bot features.
 pub mod live;
 
-/// Defines types.
-pub mod ty;
+/// Common types used in both backtesting and live trading.
+pub mod types;
 
 #[derive(Error, Debug)]
 pub enum BuildError {
@@ -148,8 +157,8 @@ where
     /// * `wait` - If true, wait until the order placement response is received.
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error>;
 
-    /// Clears inactive orders from the local [`Self::orders()`] whose status is neither [`ty::Status::New`] nor
-    /// [`ty::Status::PartiallyFilled`].
+    /// Clears inactive orders from the local [`Self::orders()`] whose status is neither [`types::Status::New`] nor
+    /// [`types::Status::PartiallyFilled`].
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>);
 
     /// Elapses the specified duration.

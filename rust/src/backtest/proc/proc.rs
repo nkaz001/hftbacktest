@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     backtest::{state::StateValues, Error},
     depth::MarketDepth,
-    ty::{Event, OrdType, Order, Side, TimeInForce},
+    types::{Event, OrdType, Order, Side, TimeInForce},
 };
 
 /// Provides local-specific interaction.

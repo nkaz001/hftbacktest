@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::reader::Data,
-    ty::{Event, BUY, SELL},
+    types::{Event, BUY, SELL},
 };
 
-/// Market depth implementation based on an B-Tree map.
+/// L2 Market depth implementation based on a B-Tree map.
 ///
 /// If feed data is missing, it may result in the crossing of the best bid and ask, making it
 /// impossible to restore them to the most recent values through natural refreshing.
@@ -21,6 +21,7 @@ pub struct BTreeMarketDepth {
 }
 
 impl BTreeMarketDepth {
+    /// Constructs an instance of `BTreeMarketDepth`.
     pub fn new(tick_size: f32, lot_size: f32) -> Self {
         Self {
             tick_size,

@@ -4,7 +4,7 @@ use serde::{
     Deserializer,
 };
 
-use crate::ty::{OrdType, Side, Status, TimeInForce};
+use crate::types::{OrdType, Side, Status, TimeInForce};
 
 pub mod rest;
 pub mod stream;
