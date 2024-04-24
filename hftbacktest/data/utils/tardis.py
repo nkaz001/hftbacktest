@@ -165,8 +165,8 @@ def convert(
                                 # Clear the bid market depth within the snapshot bid range.
                                 tmp[row_num] = [
                                     DEPTH_CLEAR_EVENT,
-                                    ss_bid[0, 1] * timestamp_mul,
-                                    ss_bid[0, 2] * timestamp_mul,
+                                    ss_bid[0, 1],
+                                    ss_bid[0, 2],
                                     1,
                                     ss_bid[-1, 4],
                                     0
@@ -182,8 +182,8 @@ def convert(
                                 # Clear the ask market depth within the snapshot ask range.
                                 tmp[row_num] = [
                                     DEPTH_CLEAR_EVENT,
-                                    ss_ask[0, 1] * timestamp_mul,
-                                    ss_ask[0, 2] * timestamp_mul,
+                                    ss_ask[0, 1],
+                                    ss_ask[0, 2],
                                     -1,
                                     ss_ask[-1, 4],
                                     0
