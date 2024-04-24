@@ -40,7 +40,7 @@ Getting started
 Installation
 ------------
 
-hftbacktest supports Python 3.8+. You can install hftbacktest using ``pip``:
+hftbacktest supports Python 3.10+. You can install hftbacktest using ``pip``:
 
 .. code-block:: console
 
