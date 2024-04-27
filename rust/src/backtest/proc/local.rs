@@ -21,11 +21,11 @@ use crate::{
             LOCAL_EVENT,
             LOCAL_TRADE_EVENT,
         },
-        state::{State, StateValues},
+        state::State,
         Error,
     },
     depth::MarketDepth,
-    types::{Event, OrdType, Order, Side, Status, TimeInForce, BUY, SELL},
+    types::{Event, OrdType, Order, Side, StateValues, Status, TimeInForce, BUY, SELL},
 };
 
 pub struct Local<AT, Q, LM, MD>
@@ -128,7 +128,7 @@ where
         current_timestamp: i64,
     ) -> Result<(), Error> {
         if self.orders.contains_key(&order_id) {
-            return Err(Error::OrderAlreadyExist);
+            return Err(Error::OrderIdExist);
         }
 
         let price_tick = (price / self.depth.tick_size()).round() as i32;

@@ -17,7 +17,7 @@ use crate::{
         ordermanager::OrderManager,
         BinanceFuturesError,
     },
-    live::AssetInfo,
+    live::Asset,
     types::{AsStr, OrdType, Order, Side, Status, TimeInForce},
 };
 
@@ -381,7 +381,7 @@ impl BinanceFuturesClient {
 
     pub async fn get_current_all_open_orders(
         &self,
-        assets: &HashMap<String, AssetInfo>,
+        assets: &HashMap<String, Asset>,
     ) -> Result<Vec<Order<()>>, reqwest::Error> {
         let resp: Vec<OrderResponse> = self
             .get(

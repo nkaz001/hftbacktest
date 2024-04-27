@@ -358,7 +358,7 @@ where
 
     fn ack_new(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, Error> {
         if self.orders.borrow().contains_key(&order.order_id) {
-            return Err(Error::OrderAlreadyExist);
+            return Err(Error::OrderIdExist);
         }
 
         if order.side == Side::Buy {

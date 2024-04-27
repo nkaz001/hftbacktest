@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    backtest::{state::StateValues, Error},
+    backtest::Error,
     depth::MarketDepth,
-    types::{Event, OrdType, Order, Side, TimeInForce},
+    types::{Event, OrdType, Order, Side, StateValues, TimeInForce},
 };
 
 /// Provides local-specific interaction.

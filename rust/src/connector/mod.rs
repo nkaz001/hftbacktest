@@ -2,6 +2,7 @@ use std::sync::mpsc::Sender;
 
 use crate::types::{LiveEvent, Order};
 
+#[cfg(feature = "binancefutures")]
 pub mod binancefutures;
 
 /// Provides an interface for connecting with an exchange or broker for a live bot.

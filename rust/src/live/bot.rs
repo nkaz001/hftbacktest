@@ -14,26 +14,26 @@ use tokio::{
 use tracing::{debug, error};
 
 use crate::{
-    backtest::state::StateValues,
     connector::Connector,
     depth::{HashMapMarketDepth, MarketDepth},
-    live::AssetInfo,
+    live::Asset,
     types::{
+        BuildError,
         Error as ErrorEvent,
         Error,
         Event,
+        Interface,
         LiveEvent,
         OrdType,
         Order,
         Request,
         Side,
+        StateValues,
         Status,
         TimeInForce,
         BUY,
         SELL,
     },
-    BuildError,
-    Interface,
 };
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
@@ -55,7 +55,7 @@ async fn thread_main(
     ev_tx: Sender<LiveEvent>,
     mut req_rx: UnboundedReceiver<Request>,
     mut conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
-    mapping: Vec<(String, AssetInfo)>,
+    mapping: Vec<(String, Asset)>,
 ) {
     conns
         .iter_mut()
@@ -109,10 +109,10 @@ pub type OrderRecvHook = Box<dyn Fn(&Order<()>, &Order<()>) -> Result<(), BotErr
 /// Live [`Bot`] builder.
 pub struct BotBuilder<MD> {
     conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
-    assets: Vec<(String, AssetInfo)>,
+    assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
-    depth_builder: Option<Box<dyn FnMut(&AssetInfo) -> MD>>,
+    depth_builder: Option<Box<dyn FnMut(&Asset) -> MD>>,
 }
 
 impl<MD> BotBuilder<MD> {
@@ -148,7 +148,7 @@ impl<MD> BotBuilder<MD> {
                 let mut assets = self.assets;
                 assets.push((
                     name.to_string(),
-                    AssetInfo {
+                    Asset {
                         asset_no,
                         symbol: symbol.to_string(),
                         tick_size,
@@ -186,7 +186,7 @@ impl<MD> BotBuilder<MD> {
     /// Sets [`MarketDepth`] build function.
     pub fn depth<Builder>(self, builder: Builder) -> Self
     where
-        Builder: Fn(&AssetInfo) -> MD + 'static,
+        Builder: Fn(&Asset) -> MD + 'static,
     {
         Self {
             depth_builder: Some(Box::new(builder)),
@@ -271,7 +271,7 @@ pub struct Bot<MD> {
     position: Vec<f64>,
     trade: Vec<Vec<Event>>,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
-    assets: Vec<(String, AssetInfo)>,
+    assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
 }

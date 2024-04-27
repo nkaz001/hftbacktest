@@ -5,14 +5,11 @@ use crate::{
         evs::{EventSet, EventType},
         proc::{LocalProcessor, Processor},
         reader::{UNTIL_END_OF_DATA, WAIT_ORDER_RESPONSE_NONE},
-        state::StateValues,
-        BacktestAsset,
+        Asset,
         Error,
     },
     depth::{HashMapMarketDepth, MarketDepth},
-    types::{Event, OrdType, Order, Side, TimeInForce},
-    BuildError,
-    Interface,
+    types::{BuildError, Event, Interface, OrdType, Order, Side, StateValues, TimeInForce},
 };
 
 /// [`MultiAssetMultiExchangeBacktest`] builder.
@@ -25,8 +22,8 @@ impl<Q, MD> MultiAssetMultiExchangeBacktestBuilder<Q, MD>
 where
     Q: Clone,
 {
-    /// Adds [`BacktestAsset`], which will undergo simulation within the backtester.
-    pub fn add(self, asset: BacktestAsset<dyn LocalProcessor<Q, MD>, dyn Processor>) -> Self {
+    /// Adds [`Asset`], which will undergo simulation within the backtester.
+    pub fn add(self, asset: Asset<dyn LocalProcessor<Q, MD>, dyn Processor>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(asset.local);
         self_.exch.push(asset.exch);
@@ -358,8 +355,8 @@ where
     Local: LocalProcessor<Q, HashMapMarketDepth> + 'static,
     Exchange: Processor + 'static,
 {
-    /// Adds [`BacktestAsset`], which will undergo simulation within the backtester.
-    pub fn add(self, asset: BacktestAsset<Local, Exchange>) -> Self {
+    /// Adds [`Asset`], which will undergo simulation within the backtester.
+    pub fn add(self, asset: Asset<Local, Exchange>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(*asset.local);
         self_.exch.push(*asset.exch);

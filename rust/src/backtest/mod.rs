@@ -13,14 +13,15 @@ use crate::{
     },
     depth::MarketDepth,
     types::Event,
-    BuildError,
 };
 
-/// Asset types
+/// Provides asset types.
 pub mod assettype;
 
-/// The backtester
-pub mod backtest;
+mod backtest;
+pub use backtest::*;
+
+use crate::types::BuildError;
 
 /// Latency and queue position models
 pub mod models;
@@ -34,7 +35,6 @@ pub mod proc;
 /// The data reader
 pub mod reader;
 
-/// The state, such as position, cash, and fees.
 pub mod state;
 
 mod evs;
@@ -42,7 +42,7 @@ mod evs;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Order related to a given order id already exists")]
-    OrderAlreadyExist,
+    OrderIdExist,
     #[error("Order request is in process")]
     OrderRequestInProcess,
     #[error("Order not found")]
@@ -62,17 +62,17 @@ pub enum DataSource {
     Array,
 }
 
-pub struct BacktestAsset<L: ?Sized, E: ?Sized> {
+pub struct Asset<L: ?Sized, E: ?Sized> {
     local: Box<L>,
     exch: Box<E>,
 }
 
-impl<L, E> BacktestAsset<L, E> {
-    pub fn builder<Q, LM, AT, QM, MD>() -> BacktestAssetBuilder<Q, LM, AT, QM, MD> {
+impl<L, E> Asset<L, E> {
+    pub fn builder<Q, LM, AT, QM, MD>() -> AssetBuilder<Q, LM, AT, QM, MD> {
         let cache = Cache::new();
         let reader = Reader::new(cache);
 
-        BacktestAssetBuilder {
+        AssetBuilder {
             latency_model: None,
             asset_type: None,
             queue_model: None,
@@ -83,7 +83,7 @@ impl<L, E> BacktestAsset<L, E> {
     }
 }
 
-pub struct BacktestAssetBuilder<Q, LM, AT, QM, MD> {
+pub struct AssetBuilder<Q, LM, AT, QM, MD> {
     latency_model: Option<LM>,
     asset_type: Option<AT>,
     queue_model: Option<QM>,
@@ -92,7 +92,7 @@ pub struct BacktestAssetBuilder<Q, LM, AT, QM, MD> {
     _q_marker: PhantomData<Q>,
 }
 
-impl<Q, LM, AT, QM, MD> BacktestAssetBuilder<Q, LM, AT, QM, MD>
+impl<Q, LM, AT, QM, MD> AssetBuilder<Q, LM, AT, QM, MD>
 where
     AT: AssetType + Clone + 'static,
     MD: MarketDepth + 'static,
@@ -159,9 +159,7 @@ where
         }
     }
 
-    pub fn build(
-        self,
-    ) -> Result<BacktestAsset<dyn LocalProcessor<Q, MD>, dyn Processor>, BuildError> {
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<Q, MD>, dyn Processor>, BuildError> {
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 
@@ -209,7 +207,7 @@ where
             ob_local_to_exch,
         );
 
-        Ok(BacktestAsset {
+        Ok(Asset {
             local: Box::new(local),
             exch: Box::new(exch),
         })
@@ -217,10 +215,8 @@ where
 
     pub fn build_wip(
         self,
-    ) -> Result<
-        BacktestAsset<Local<AT, Q, LM, MD>, NoPartialFillExchange<AT, Q, LM, QM, MD>>,
-        BuildError,
-    > {
+    ) -> Result<Asset<Local<AT, Q, LM, MD>, NoPartialFillExchange<AT, Q, LM, QM, MD>>, BuildError>
+    {
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 
@@ -268,7 +264,7 @@ where
             ob_local_to_exch,
         );
 
-        Ok(BacktestAsset {
+        Ok(Asset {
             local: Box::new(local),
             exch: Box::new(exch),
         })

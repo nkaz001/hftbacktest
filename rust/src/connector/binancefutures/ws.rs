@@ -23,7 +23,7 @@ use crate::{
         msg::{rest, stream},
         ordermanager::OrderManager,
     },
-    live::AssetInfo,
+    live::Asset,
     types::{self, Depth, LiveEvent, Order, OrderResponse, Position, Status, BUY, SELL},
 };
 
@@ -55,7 +55,7 @@ pub enum DepthManageMode {
 pub async fn connect(
     url: &str,
     ev_tx: Sender<LiveEvent>,
-    assets: HashMap<String, AssetInfo>,
+    assets: HashMap<String, Asset>,
     prefix: &str,
     orders: WrappedOrderManager,
     client: BinanceFuturesClient,

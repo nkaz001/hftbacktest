@@ -14,36 +14,77 @@ use crate::{
     types::{BUY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL, TRADE_EVENT},
 };
 
+/// Indicates that it is a valid event to be handled by the exchange processor at the exchange
+/// timestamp.
 pub const EXCH_EVENT: i64 = 1 << 31;
+
+/// Indicates that it is a valid event to be handled by the local processor at the local timestamp.
 pub const LOCAL_EVENT: i64 = 1 << 30;
 
+/// Represents a combination of a [`DEPTH_EVENT`], [`BUY`], and `LOCAL_EVENT`.
 pub const LOCAL_BID_DEPTH_EVENT: i64 = DEPTH_EVENT | BUY | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and `LOCAL_EVENT`.
 pub const LOCAL_ASK_DEPTH_EVENT: i64 = DEPTH_EVENT | SELL | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and `LOCAL_EVENT`.
 pub const LOCAL_BID_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | BUY | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and `LOCAL_EVENT`.
 pub const LOCAL_ASK_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | SELL | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and `LOCAL_EVENT`.
 pub const LOCAL_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and `LOCAL_EVENT`.
 pub const LOCAL_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | LOCAL_EVENT;
 
+/// Represents a combination of [`TRADE_EVENT`], and `LOCAL_EVENT`.
 pub const LOCAL_TRADE_EVENT: i64 = TRADE_EVENT | LOCAL_EVENT;
-pub const LOCAL_BUY_TRADE_EVENT: i64 = TRADE_EVENT | BUY | LOCAL_EVENT;
-pub const LOCAL_SELL_TRADE_EVENT: i64 = TRADE_EVENT | SELL | LOCAL_EVENT;
 
+/// Represents a combination of [`TRADE_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+pub const LOCAL_BUY_TRADE_EVENT: i64 = LOCAL_TRADE_EVENT | BUY;
+
+/// Represents a combination of [`TRADE_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+pub const LOCAL_SELL_TRADE_EVENT: i64 = LOCAL_TRADE_EVENT | SELL;
+
+/// Represents a combination of [`DEPTH_EVENT`], [`BUY`], and `EXCH_EVENT`.
 pub const EXCH_BID_DEPTH_EVENT: i64 = DEPTH_EVENT | BUY | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and `EXCH_EVENT`.
 pub const EXCH_ASK_DEPTH_EVENT: i64 = DEPTH_EVENT | SELL | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and `EXCH_EVENT`.
 pub const EXCH_BID_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | BUY | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and `EXCH_EVENT`.
 pub const EXCH_ASK_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | SELL | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and `EXCH_EVENT`.
 pub const EXCH_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and `EXCH_EVENT`.
 pub const EXCH_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | EXCH_EVENT;
 
+/// Represents a combination of [`TRADE_EVENT`], and `EXCH_EVENT`.
 pub const EXCH_TRADE_EVENT: i64 = TRADE_EVENT | EXCH_EVENT;
-pub const EXCH_BUY_TRADE_EVENT: i64 = TRADE_EVENT | BUY | EXCH_EVENT;
-pub const EXCH_SELL_TRADE_EVENT: i64 = TRADE_EVENT | SELL | EXCH_EVENT;
 
+/// Represents a combination of [`TRADE_EVENT`], [`BUY`], and `EXCH_EVENT`.
+pub const EXCH_BUY_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | BUY;
+
+/// Represents a combination of [`TRADE_EVENT`], [`SELL`], and `EXCH_EVENT`.
+pub const EXCH_SELL_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | SELL;
+
+/// Indicates that one should not wait for an order response.
 pub const WAIT_ORDER_RESPONSE_NONE: i64 = -1;
+
+/// Indicates that one should wait for any order response.
 pub const WAIT_ORDER_RESPONSE_ANY: i64 = -2;
 
+/// Indicates that one should continue until the end of the data.
 pub const UNTIL_END_OF_DATA: i64 = i64::MAX;
 
+/// Provides access to an array of structs from the buffer.
 #[derive(Clone, Debug)]
 pub struct Data<D> {
     buf: Rc<Box<[u8]>>,
@@ -55,11 +96,13 @@ impl<D> Data<D>
 where
     D: Sized,
 {
+    /// Returns the length of the array.
     pub fn len(&self) -> usize {
         let size = size_of::<D>();
         (self.buf.len() - self.header_len) / size
     }
 
+    /// Constructs an empty `Data`.
     pub fn empty() -> Self {
         Self {
             buf: Default::default(),
@@ -85,6 +128,8 @@ where
     }
 }
 
+/// Provides a data cache that allows both the local processor and exchange processor to access the
+/// same or different data based on their timestamps without the need for reloading.
 #[derive(Clone, Debug)]
 pub struct Cache<D>(Rc<RefCell<HashMap<String, (Cell<usize>, Data<D>)>>>)
 where
@@ -94,14 +139,17 @@ impl<D> Cache<D>
 where
     D: Sized + Clone,
 {
+    /// Constructs an instance of `Cache`.
     pub fn new() -> Self {
         Self(Default::default())
     }
 
+    /// Inserts a key-value pair into the `Cache`.
     pub fn insert(&mut self, key: String, data: Data<D>) {
         self.0.borrow_mut().insert(key, (Cell::new(0), data));
     }
 
+    /// Removes the `Data` if all retrieved `Data` are released.
     pub fn remove(&mut self, data: Data<D>) {
         let mut remove = None;
         for (key, (ref_count, cached_data)) in self.0.borrow_mut().iter_mut() {
@@ -118,10 +166,12 @@ where
         }
     }
 
+    /// Returns `true` if the `Cache` contains the `Data` for the specified key.
     pub fn contains(&self, key: &str) -> bool {
         self.0.borrow().contains_key(key)
     }
 
+    /// Returns the `Data` corresponding to the key.
     pub fn get(&mut self, key: &str) -> Data<D> {
         let mut borrowed = self.0.borrow_mut();
         let (ref_count, data) = borrowed.get_mut(key).unwrap();
@@ -130,6 +180,7 @@ where
     }
 }
 
+/// Provides `Data` reading based on the given sequence of data through `Cache`.
 #[derive(Clone, Debug)]
 pub struct Reader<D>
 where
@@ -144,6 +195,7 @@ impl<D> Reader<D>
 where
     D: Sized + Clone,
 {
+    /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
     pub fn new(cache: Cache<D>) -> Self {
         Self {
             file_list: Vec::new(),
@@ -152,14 +204,19 @@ where
         }
     }
 
+    /// Adds a `numpy` file to read. Additions should be made in the same order as the order you
+    /// want to read.
     pub fn add_file(&mut self, filepath: String) {
         self.file_list.push(filepath);
     }
 
+    /// Releases this `Data` from the `Cache`. The `Cache` will delete the `Data` if there are no
+    /// readers accessing it.
     pub fn release(&mut self, data: Data<D>) {
         self.cache.remove(data);
     }
 
+    /// Retrieves the next `Data` based on the order of your additions.
     pub fn next(&mut self) -> Result<Data<D>, Error> {
         if self.data_num < self.file_list.len() {
             let filepath = self.file_list.get(self.data_num).unwrap();
@@ -203,6 +260,8 @@ fn aligned_vec(size: usize) -> Box<[u8]> {
     }
 }
 
+/// Reads a structured array `numpy` file. Currently, it doesn't check if the data structure is the
+/// same as what the file contains. Users should be cautious about this.
 pub fn read_npy<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
     let mut file = File::open(filepath)?;
 
@@ -225,6 +284,8 @@ pub fn read_npy<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
     })
 }
 
+/// Reads a structured array `numpy` zip archived file. Currently, it doesn't check if the data
+/// structure is the same as what the file contains. Users should be cautious about this.
 pub fn read_npz<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
     let mut archive = zip::ZipArchive::new(File::open(filepath)?)?;
 

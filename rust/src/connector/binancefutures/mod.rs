@@ -21,10 +21,9 @@ use crate::{
         },
         Connector,
     },
-    get_precision,
-    live::AssetInfo,
-    types::{Error, ErrorKind, LiveEvent, Order, OrderResponse, Position, Status},
-    BuildError,
+    live::Asset,
+    types::{BuildError, Error, ErrorKind, LiveEvent, Order, OrderResponse, Position, Status},
+    util::get_precision,
 };
 
 #[derive(Clone)]
@@ -191,8 +190,8 @@ impl BinanceFuturesBuilder {
 pub struct BinanceFutures {
     url: String,
     prefix: String,
-    assets: HashMap<String, AssetInfo>,
-    inv_assets: HashMap<usize, AssetInfo>,
+    assets: HashMap<String, Asset>,
+    inv_assets: HashMap<usize, Asset>,
     order_manager: WrappedOrderManager,
     client: BinanceFuturesClient,
     streams: HashSet<String>,
@@ -233,7 +232,7 @@ impl Connector for BinanceFutures {
         tick_size: f32,
         lot_size: f32,
     ) -> Result<(), anyhow::Error> {
-        let asset_info = AssetInfo {
+        let asset_info = Asset {
             asset_no,
             symbol: symbol.clone(),
             tick_size,

@@ -1,4 +1,4 @@
-/// Calculates the value and the equity according to the asset type.
+/// Calculates the value amount and the equity according to the asset type.
 pub trait AssetType {
     /// Calculates the value amount.
     fn amount(&self, price: f32, qty: f32) -> f64;

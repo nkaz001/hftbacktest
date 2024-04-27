@@ -1,16 +1,6 @@
 use crate::{backtest::assettype::AssetType, types::Order};
 
 #[derive(Debug)]
-pub struct StateValues {
-    pub position: f64,
-    pub balance: f64,
-    pub fee: f64,
-    pub trade_num: i32,
-    pub trade_qty: f64,
-    pub trade_amount: f64,
-}
-
-#[derive(Debug)]
 pub struct State<AT>
 where
     AT: AssetType,
