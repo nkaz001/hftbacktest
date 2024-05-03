@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    backtest::Error,
+    backtest::{BacktestError, DataSource},
     types::{BUY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL, TRADE_EVENT},
 };
 
@@ -217,7 +217,7 @@ where
     }
 
     /// Retrieves the next `Data` based on the order of your additions.
-    pub fn next(&mut self) -> Result<Data<D>, Error> {
+    pub fn next(&mut self) -> Result<Data<D>, BacktestError> {
         if self.data_num < self.file_list.len() {
             let filepath = self.file_list.get(self.data_num).unwrap();
             if !self.cache.contains(filepath) {
@@ -228,7 +228,7 @@ where
                     let data = read_npz(filepath)?;
                     self.cache.insert(filepath.to_string(), data);
                 } else {
-                    return Err(Error::DataError(IoError::new(
+                    return Err(BacktestError::DataError(IoError::new(
                         ErrorKind::InvalidData,
                         "unsupported data type",
                     )));
@@ -238,7 +238,7 @@ where
             self.data_num += 1;
             Ok(data)
         } else {
-            Err(Error::EndOfData)
+            Err(BacktestError::EndOfData)
         }
     }
 }

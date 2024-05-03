@@ -2,9 +2,9 @@ mod bot;
 
 pub use bot::{Bot, BotBuilder, BotError};
 
-/// Provides asset information.
+/// Provides asset information for internal use.
 #[derive(Clone)]
-pub struct Asset {
+pub(crate) struct Asset {
     pub asset_no: usize,
     pub symbol: String,
     pub tick_size: f32,

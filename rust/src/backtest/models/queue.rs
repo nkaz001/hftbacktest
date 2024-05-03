@@ -79,8 +79,8 @@ pub trait Probability {
 }
 
 /// Provides a probability-based queue position model as described in
-/// https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
-/// https://rigtorp.se/2013/06/08/estimating-order-queue-position.html
+/// * https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
+/// * https://rigtorp.se/2013/06/08/estimating-order-queue-position.html
 ///
 /// Your order's queue position advances when a trade occurs at the same price level or the quantity
 /// at the level decreases. The advancement in queue position depends on the probability based on
@@ -99,7 +99,7 @@ impl<P, MD> ProbQueueModel<P, MD>
 where
     P: Probability,
 {
-    /// Constructs [`ProbQueueModel`] with a [`Probability`] model.
+    /// Constructs an instance of `ProbQueueModel` with a [`Probability`] model.
     pub fn new(prob: P) -> Self {
         Self {
             prob,
@@ -163,7 +163,7 @@ pub struct PowerProbQueueFunc {
 }
 
 impl PowerProbQueueFunc {
-    /// Constructs [`PowerProbQueueFunc`].
+    /// Constructs an instance of `PowerProbQueueFunc`.
     pub fn new(n: f32) -> Self {
         Self { n }
     }
@@ -184,7 +184,7 @@ impl Probability for PowerProbQueueFunc {
 pub struct LogProbQueueFunc(());
 
 impl LogProbQueueFunc {
-    /// Constructs [`LogProbQueueFunc`].
+    /// Constructs an instance of `LogProbQueueFunc`.
     pub fn new() -> Self {
         Self(())
     }
@@ -205,7 +205,7 @@ impl Probability for LogProbQueueFunc {
 pub struct LogProbQueueFunc2(());
 
 impl LogProbQueueFunc2 {
-    /// Constructs [`LogProbQueueFunc2`].
+    /// Constructs an instance of `LogProbQueueFunc2`.
     pub fn new() -> Self {
         Self(())
     }
@@ -228,7 +228,7 @@ pub struct PowerProbQueueFunc2 {
 }
 
 impl PowerProbQueueFunc2 {
-    /// Constructs [`PowerProbQueueFunc2`].
+    /// Constructs an instance of `PowerProbQueueFunc2`.
     pub fn new(n: f32) -> Self {
         Self { n }
     }
@@ -251,7 +251,7 @@ pub struct PowerProbQueueFunc3 {
 }
 
 impl PowerProbQueueFunc3 {
-    /// Constructs [`PowerProbQueueFunc3`].
+    /// Constructs an instance of `PowerProbQueueFunc3`.
     pub fn new(n: f32) -> Self {
         Self { n }
     }

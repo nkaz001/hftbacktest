@@ -10,6 +10,10 @@ pub trait LatencyModel {
 }
 
 /// Provides constant order latency.
+///
+/// If latency has a negative value, it indicates an order rejection by the exchange and its
+/// value represents the latency that the local experiences when receiving the rejection
+/// notification.
 #[derive(Clone)]
 pub struct ConstantLatency {
     entry_latency: i64,
@@ -17,15 +21,11 @@ pub struct ConstantLatency {
 }
 
 impl ConstantLatency {
-    /// Constructs [`ConstantLatency`].
+    /// Constructs an instance of `ConstantLatency`.
     ///
     /// `entry_latency` and `response_latency` should match the time unit of the data's timestamps.
-    /// Using nanoseconds across all datasets is recommended, since the live [`crate::live::Bot`]
-    /// uses nanoseconds.
-    ///
-    /// If latency has a negative value, it indicates an order rejection by the exchange and its
-    /// value represents the latency that the local experiences when receiving the rejection
-    /// notification.
+    /// Using nanoseconds across all datasets is recommended, since the live
+    /// [Bot](crate::live::Bot) uses nanoseconds.
     pub fn new(entry_latency: i64, response_latency: i64) -> Self {
         Self {
             entry_latency,
@@ -60,9 +60,27 @@ pub struct OrderLatencyRow {
 
 /// Provides order latency based on actual historical order latency data through interpolation.
 ///
-/// However, if you don't actual order latency history, you can generate order latencies
+/// However, if you don't have the actual order latency history, you can generate order latencies
 /// artificially based on feed latency or using a custom model such as a regression model, which
 /// incorporates factors like feed latency, trading volume, and the number of events.
+///
+/// In historical order latency data, negative latencies should not exist. This means that there
+/// should be no instances where `exch_timestamp - req_timestamp < 0` or
+/// `resp_timestamp - exch_timestamp < 0`. However, it's worth noting that exchanges may
+/// inadequately handle or reject orders during overload situations or for technical reasons,
+/// resulting in exchange timestamps being zero. In such cases, [entry()](Self::entry()) or
+/// [response()](Self::response()) returns negative latency, indicating an order rejection by the
+/// exchange, and its value represents the latency that the local experiences when receiving the
+/// rejection notification.
+///
+/// **Example**
+/// ```
+/// use hftbacktest::backtest::{reader::read_npz, models::IntpOrderLatency};
+///
+/// let latency_model = IntpOrderLatency::new(
+///     read_npz("latency_20240215.npz").unwrap()
+/// );
+/// ```
 #[derive(Clone)]
 pub struct IntpOrderLatency {
     entry_rn: usize,
@@ -71,24 +89,7 @@ pub struct IntpOrderLatency {
 }
 
 impl IntpOrderLatency {
-    /// Constructs [`IntpOrderLatency`].
-    ///
-    /// In historical order latency data, negative latencies should not exist. This means that there
-    /// should be no instances where `exch_timestamp - req_timestamp < 0` or
-    /// `resp_timestamp - exch_timestamp < 0`. However, it's worth noting that exchanges may
-    /// inadequately handle or reject orders during overload situations or for technical reasons,
-    /// resulting in exchange timestamps being zero. In such cases, [`Self::entry()`] or
-    /// [`Self::response()`] returns negative latency, indicating an order rejection by the
-    /// exchange, and its value represents the latency that the local experiences when receiving the
-    /// rejection notification.
-    ///
-    /// ```
-    /// use hftbacktest::backtest::{reader::read_npz, models::IntpOrderLatency};
-    ///
-    /// let latency_model = IntpOrderLatency::new(
-    ///     read_npz("latency_20240215.npz").unwrap()
-    /// );
-    /// ```
+    /// Constructs an instance of `IntpOrderLatency`.
     pub fn new(data: Data<OrderLatencyRow>) -> Self {
         if data.len() == 0 {
             panic!();

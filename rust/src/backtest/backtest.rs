@@ -6,7 +6,7 @@ use crate::{
         proc::{LocalProcessor, Processor},
         reader::{UNTIL_END_OF_DATA, WAIT_ORDER_RESPONSE_NONE},
         Asset,
-        Error,
+        BacktestError,
     },
     depth::{HashMapMarketDepth, MarketDepth},
     types::{BuildError, Event, Interface, OrdType, Order, Side, StateValues, TimeInForce},
@@ -46,7 +46,9 @@ where
     }
 }
 
-/// Multi-asset multi-exchange model backtester
+/// This backtester provides multi-asset and multi-exchange model backtesting, allowing you to
+/// configure different setups such as queue models or asset types for each asset. However, this may
+/// result in slightly slower performance compared to [`MultiAssetSingleExchangeBacktest`].
 pub struct MultiAssetMultiExchangeBacktest<Q, MD> {
     cur_ts: i64,
     evs: EventSet,
@@ -81,11 +83,11 @@ where
         }
     }
 
-    fn initialize_evs(&mut self) -> Result<(), Error> {
+    fn initialize_evs(&mut self) -> Result<(), BacktestError> {
         for (asset_no, local) in self.local.iter_mut().enumerate() {
             match local.initialize_data() {
                 Ok(ts) => self.evs.update_local_data(asset_no, ts),
-                Err(Error::EndOfData) => {
+                Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_local_data(asset_no);
                 }
                 Err(e) => {
@@ -96,7 +98,7 @@ where
         for (asset_no, exch) in self.exch.iter_mut().enumerate() {
             match exch.initialize_data() {
                 Ok(ts) => self.evs.update_exch_data(asset_no, ts),
-                Err(Error::EndOfData) => {
+                Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_exch_data(asset_no);
                 }
                 Err(e) => {
@@ -107,7 +109,11 @@ where
         Ok(())
     }
 
-    pub fn goto(&mut self, timestamp: i64, wait_order_response: i64) -> Result<bool, Error> {
+    pub fn goto(
+        &mut self,
+        timestamp: i64,
+        wait_order_response: i64,
+    ) -> Result<bool, BacktestError> {
         loop {
             match self.evs.next() {
                 Some(ev) => {
@@ -122,7 +128,7 @@ where
                                 Ok((next_ts, _)) => {
                                     self.evs.update_local_data(ev.asset_no, next_ts);
                                 }
-                                Err(Error::EndOfData) => {
+                                Err(BacktestError::EndOfData) => {
                                     self.evs.invalidate_local_data(ev.asset_no);
                                 }
                                 Err(e) => {
@@ -144,7 +150,7 @@ where
                                 Ok((next_ts, _)) => {
                                     self.evs.update_exch_data(ev.asset_no, next_ts);
                                 }
-                                Err(Error::EndOfData) => {
+                                Err(BacktestError::EndOfData) => {
                                     self.evs.invalidate_exch_data(ev.asset_no);
                                 }
                                 Err(e) => {
@@ -179,7 +185,7 @@ where
     Q: Clone,
     MD: MarketDepth,
 {
-    type Error = Error;
+    type Error = BacktestError;
 
     #[inline]
     fn current_timestamp(&self) -> i64 {
@@ -343,6 +349,7 @@ where
     }
 }
 
+/// `MultiAssetSingleExchangeBacktest` builder.
 pub struct MultiAssetSingleExchangeBacktestBuilder<Q, Local, Exchange> {
     local: Vec<Local>,
     exch: Vec<Exchange>,
@@ -383,7 +390,10 @@ where
     }
 }
 
-/// Multi-asset single-exchange model backtester
+/// This backtester provides multi-asset and single-exchange model backtesting, meaning all assets
+/// have the same setups for models such as asset type or queue model. However, this can be slightly
+/// faster than [`MultiAssetMultiExchangeBacktest`]. If you need to configure different models for
+/// each asset, use [`MultiAssetMultiExchangeBacktest`].
 pub struct MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange> {
     cur_ts: i64,
     evs: EventSet,
@@ -423,11 +433,11 @@ where
         }
     }
 
-    fn initialize_evs(&mut self) -> Result<(), Error> {
+    fn initialize_evs(&mut self) -> Result<(), BacktestError> {
         for (asset_no, local) in self.local.iter_mut().enumerate() {
             match local.initialize_data() {
                 Ok(ts) => self.evs.update_local_data(asset_no, ts),
-                Err(Error::EndOfData) => {
+                Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_local_data(asset_no);
                 }
                 Err(e) => {
@@ -438,7 +448,7 @@ where
         for (asset_no, exch) in self.exch.iter_mut().enumerate() {
             match exch.initialize_data() {
                 Ok(ts) => self.evs.update_exch_data(asset_no, ts),
-                Err(Error::EndOfData) => {
+                Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_exch_data(asset_no);
                 }
                 Err(e) => {
@@ -449,7 +459,11 @@ where
         Ok(())
     }
 
-    pub fn goto(&mut self, timestamp: i64, wait_order_response: i64) -> Result<bool, Error> {
+    pub fn goto(
+        &mut self,
+        timestamp: i64,
+        wait_order_response: i64,
+    ) -> Result<bool, BacktestError> {
         loop {
             match self.evs.next() {
                 Some(ev) => {
@@ -464,7 +478,7 @@ where
                                 Ok((next_ts, _)) => {
                                     self.evs.update_local_data(ev.asset_no, next_ts);
                                 }
-                                Err(Error::EndOfData) => {
+                                Err(BacktestError::EndOfData) => {
                                     self.evs.invalidate_local_data(ev.asset_no);
                                 }
                                 Err(e) => {
@@ -486,7 +500,7 @@ where
                                 Ok((next_ts, _)) => {
                                     self.evs.update_exch_data(ev.asset_no, next_ts);
                                 }
-                                Err(Error::EndOfData) => {
+                                Err(BacktestError::EndOfData) => {
                                     self.evs.invalidate_exch_data(ev.asset_no);
                                 }
                                 Err(e) => {
@@ -524,7 +538,7 @@ where
     Local: LocalProcessor<Q, MD>,
     Exchange: Processor,
 {
-    type Error = Error;
+    type Error = BacktestError;
 
     #[inline]
     fn current_timestamp(&self) -> i64 {

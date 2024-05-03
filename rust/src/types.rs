@@ -399,19 +399,20 @@ where
     /// within the provided data. In a live bot, it's literally the current local timestamp.
     fn current_timestamp(&self) -> i64;
 
-    /// Retrieve the position you currently hold.
+    /// Returns the position you currently hold.
     ///
     /// * `asset_no` - Asset number from which the position will be retrieved.
     fn position(&self, asset_no: usize) -> f64;
 
+    /// Returns the state's values such as balance, fee, and so on.
     fn state_values(&self, asset_no: usize) -> StateValues;
 
-    /// Gets the market depth.
+    /// Returns the [MarketDepth](crate::depth::MarketDepth).
     ///
     /// * `asset_no` - Asset number from which the market depth will be retrieved.
     fn depth(&self, asset_no: usize) -> &MD;
 
-    /// Gets the last market trades.
+    /// Returns the last market trades.
     ///
     /// * `asset_no` - Asset number from which the last market trades will be retrieved.
     fn trade(&self, asset_no: usize) -> &Vec<Event>;
@@ -422,7 +423,7 @@ where
     ///                trades in any assets will be cleared.
     fn clear_last_trades(&mut self, asset_no: Option<usize>);
 
-    /// Gets [`Order`]s.
+    /// Returns a hash map of order IDs and their corresponding [`Order`]s.
     ///
     /// * `asset_no` - Asset number from which orders will be retrieved.
     fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<Q>>;
@@ -484,7 +485,7 @@ where
     /// * `wait` - If true, wait until the order placement response is received.
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error>;
 
-    /// Clears inactive orders from the local [`Self::orders()`] whose status is neither [`Status::New`] nor
+    /// Clears inactive orders from the local orders whose status is neither [`Status::New`] nor
     /// [`Status::PartiallyFilled`].
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>);
 
@@ -501,9 +502,9 @@ where
 
     /// Elapses time only in backtesting. In live mode, it is ignored.
     ///
-    /// The [`Self::elapse()`] method exclusively manages time during backtesting, meaning that factors such
-    /// as computing time are not properly accounted for. So, this method can be utilized to
-    /// simulate such processing times.
+    /// The [elapse()](Self::elapse()) method exclusively manages time during backtesting, meaning
+    /// that factors such as computing time are not properly accounted for. So, this method can be
+    /// utilized to simulate such processing times.
     ///
     /// Args:
     /// * `duration` - Duration to elapse. Nanoseconds is the default unit. However, unit should be

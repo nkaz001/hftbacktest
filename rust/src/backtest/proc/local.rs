@@ -22,12 +22,13 @@ use crate::{
             LOCAL_TRADE_EVENT,
         },
         state::State,
-        Error,
+        BacktestError,
     },
     depth::MarketDepth,
     types::{Event, OrdType, Order, Side, StateValues, Status, TimeInForce, BUY, SELL},
 };
 
+/// The local model.
 pub struct Local<AT, Q, LM, MD>
 where
     AT: AssetType,
@@ -35,18 +36,18 @@ where
     LM: LatencyModel,
     MD: MarketDepth,
 {
-    pub reader: Reader<Event>,
-    pub data: Data<Event>,
-    pub row_num: usize,
-    pub orders: HashMap<i64, Order<Q>>,
-    pub orders_to: OrderBus<Q>,
-    pub orders_from: OrderBus<Q>,
-    pub depth: MD,
-    pub state: State<AT>,
-    pub order_latency: LM,
-    pub trades: Vec<Event>,
-    pub last_order_entry_latency: Option<i64>,
-    pub last_roundtrip_order_latency: Option<i64>,
+    reader: Reader<Event>,
+    data: Data<Event>,
+    row_num: usize,
+    orders: HashMap<i64, Order<Q>>,
+    orders_to: OrderBus<Q>,
+    orders_from: OrderBus<Q>,
+    depth: MD,
+    state: State<AT>,
+    order_latency: LM,
+    trades: Vec<Event>,
+    last_order_entry_latency: Option<i64>,
+    last_roundtrip_order_latency: Option<i64>,
 }
 
 impl<AT, Q, LM, MD> Local<AT, Q, LM, MD>
@@ -56,6 +57,7 @@ where
     LM: LatencyModel,
     MD: MarketDepth,
 {
+    /// Constructs an instance of `Local`.
     pub fn new(
         reader: Reader<Event>,
         depth: MD,
@@ -87,7 +89,7 @@ where
         _recv_timestamp: i64,
         _wait_resp: i64,
         next_timestamp: i64,
-    ) -> Result<i64, Error> {
+    ) -> Result<i64, BacktestError> {
         if order.status == Status::Filled {
             self.state.apply_fill(&order);
         }
@@ -103,10 +105,6 @@ where
 
         // Bypass next_timestamp
         Ok(next_timestamp)
-    }
-
-    pub fn clear_last_trades(&mut self) {
-        self.trades.clear();
     }
 }
 
@@ -126,9 +124,9 @@ where
         order_type: OrdType,
         time_in_force: TimeInForce,
         current_timestamp: i64,
-    ) -> Result<(), Error> {
+    ) -> Result<(), BacktestError> {
         if self.orders.contains_key(&order_id) {
-            return Err(Error::OrderIdExist);
+            return Err(BacktestError::OrderIdExist);
         }
 
         let price_tick = (price / self.depth.tick_size()).round() as i32;
@@ -150,11 +148,14 @@ where
         Ok(())
     }
 
-    fn cancel(&mut self, order_id: i64, current_timestamp: i64) -> Result<(), Error> {
-        let order = self.orders.get_mut(&order_id).ok_or(Error::OrderNotFound)?;
+    fn cancel(&mut self, order_id: i64, current_timestamp: i64) -> Result<(), BacktestError> {
+        let order = self
+            .orders
+            .get_mut(&order_id)
+            .ok_or(BacktestError::OrderNotFound)?;
 
         if order.req != Status::None {
-            return Err(Error::OrderRequestInProcess);
+            return Err(BacktestError::OrderRequestInProcess);
         }
 
         order.req = Status::Canceled;
@@ -212,7 +213,7 @@ where
     LM: LatencyModel,
     MD: MarketDepth,
 {
-    fn initialize_data(&mut self) -> Result<i64, Error> {
+    fn initialize_data(&mut self) -> Result<i64, BacktestError> {
         self.data = self.reader.next()?;
         for rn in 0..self.data.len() {
             if self.data[rn].ev & LOCAL_EVENT == LOCAL_EVENT {
@@ -220,10 +221,10 @@ where
                 return Ok(self.data[rn].local_ts);
             }
         }
-        Err(Error::EndOfData)
+        Err(BacktestError::EndOfData)
     }
 
-    fn process_data(&mut self) -> Result<(i64, i64), Error> {
+    fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row = &self.data[self.row_num];
         // Processes a depth event
         if row.ev & LOCAL_BID_DEPTH_CLEAR_EVENT == LOCAL_BID_DEPTH_CLEAR_EVENT {
@@ -267,7 +268,7 @@ where
         Ok((next_ts, i64::MAX))
     }
 
-    fn process_recv_order(&mut self, timestamp: i64, wait_resp: i64) -> Result<i64, Error> {
+    fn process_recv_order(&mut self, timestamp: i64, wait_resp: i64) -> Result<i64, BacktestError> {
         // Processes the order part.
         let mut next_timestamp = i64::MAX;
         while self.orders_from.len() > 0 {

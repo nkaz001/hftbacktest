@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
-use tracing::info;
+
 use hftbacktest::prelude::*;
+use tracing::info;
 
 pub fn gridtrading<Q, MD, I: Interface<Q, MD>>(
     hbt: &mut I,

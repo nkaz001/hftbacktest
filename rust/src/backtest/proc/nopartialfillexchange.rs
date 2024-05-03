@@ -25,7 +25,7 @@ use crate::{
             EXCH_SELL_TRADE_EVENT,
         },
         state::State,
-        Error,
+        BacktestError,
     },
     depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
     types::{Event, Order, Side, Status, TimeInForce, BUY, SELL},
@@ -33,10 +33,10 @@ use crate::{
 
 /// The exchange model without partial fills.
 ///
-/// Support order types: [`crate::types::OrdType::Limit`]
+/// Support order types: [OrdType::Limit](crate::types::OrdType::Limit)
 /// Support time-in-force: [`TimeInForce::GTC`], [`TimeInForce::GTX`]
 ///
-/// *Conditions for Full Execution*
+/// **Conditions for Full Execution**
 ///
 /// Buy order in the order book
 ///
@@ -50,7 +50,7 @@ use crate::{
 /// - Your order price < buy trade price
 /// - Your order is at the front of the queue && your order price == buy trade price
 ///
-/// *Liquidity-Taking Order*
+/// **Liquidity-Taking Order**
 ///
 /// Regardless of the quantity at the best, liquidity-taking orders will be fully executed at the
 /// best. Be aware that this may cause unrealistic fill simulations if you attempt to execute a
@@ -93,6 +93,7 @@ where
     QM: QueueModel<Q, MD>,
     MD: MarketDepth,
 {
+    /// Constructs an instance of `NoPartialFillExchange`.
     pub fn new(
         reader: Reader<Event>,
         depth: MD,
@@ -125,7 +126,7 @@ where
         recv_timestamp: i64,
         wait_resp: i64,
         next_timestamp: i64,
-    ) -> Result<i64, Error> {
+    ) -> Result<i64, BacktestError> {
         let order_id = order.order_id;
 
         // Processes a new order.
@@ -158,7 +159,7 @@ where
                 };
             }
         } else {
-            return Err(Error::InvalidOrderRequest);
+            return Err(BacktestError::InvalidOrderRequest);
         }
 
         // Bypass next_timestamp
@@ -171,7 +172,7 @@ where
         price_tick: i32,
         qty: f32,
         timestamp: i64,
-    ) -> Result<i64, Error> {
+    ) -> Result<i64, BacktestError> {
         if order.price_tick < price_tick {
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick);
@@ -192,7 +193,7 @@ where
         price_tick: i32,
         qty: f32,
         timestamp: i64,
-    ) -> Result<i64, Error> {
+    ) -> Result<i64, BacktestError> {
         if order.price_tick > price_tick {
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick);
@@ -213,12 +214,12 @@ where
         timestamp: i64,
         maker: bool,
         exec_price_tick: i32,
-    ) -> Result<i64, Error> {
+    ) -> Result<i64, BacktestError> {
         if order.status == Status::Expired
             || order.status == Status::Canceled
             || order.status == Status::Filled
         {
-            return Err(Error::InvalidOrderStatus);
+            return Err(BacktestError::InvalidOrderStatus);
         }
 
         order.maker = maker;
@@ -289,7 +290,7 @@ where
         prev_best_tick: i32,
         new_best_tick: i32,
         timestamp: i64,
-    ) -> Result<(), Error> {
+    ) -> Result<(), BacktestError> {
         // If the best has been significantly updated compared to the previous best, it would be
         // better to iterate orders dict instead of order price ladder.
         {
@@ -325,7 +326,7 @@ where
         prev_best_tick: i32,
         new_best_tick: i32,
         timestamp: i64,
-    ) -> Result<(), Error> {
+    ) -> Result<(), BacktestError> {
         // If the best has been significantly updated compared to the previous best, it would be
         // better to iterate orders dict instead of order price ladder.
         {
@@ -356,9 +357,9 @@ where
         Ok(())
     }
 
-    fn ack_new(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, Error> {
+    fn ack_new(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, BacktestError> {
         if self.orders.borrow().contains_key(&order.order_id) {
-            return Err(Error::OrderIdExist);
+            return Err(BacktestError::OrderIdExist);
         }
 
         if order.side == Side::Buy {
@@ -432,7 +433,7 @@ where
         }
     }
 
-    fn ack_cancel(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, Error> {
+    fn ack_cancel(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, BacktestError> {
         let exch_order = {
             let mut order_borrowed = self.orders.borrow_mut();
             order_borrowed.remove(&order.order_id)
@@ -471,7 +472,7 @@ where
         Ok(local_recv_timestamp)
     }
 
-    fn ack_modify(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, Error> {
+    fn ack_modify(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, BacktestError> {
         let mut exch_order = {
             let mut order_borrowed = self.orders.borrow_mut();
             let exch_order = order_borrowed.remove(&order.order_id);
@@ -622,7 +623,7 @@ where
     QM: QueueModel<Q, MD>,
     MD: MarketDepth,
 {
-    fn initialize_data(&mut self) -> Result<i64, Error> {
+    fn initialize_data(&mut self) -> Result<i64, BacktestError> {
         self.data = self.reader.next()?;
         for rn in 0..self.data.len() {
             if self.data[rn].ev & EXCH_EVENT == EXCH_EVENT {
@@ -630,10 +631,10 @@ where
                 return Ok(self.data[rn].local_ts);
             }
         }
-        Err(Error::EndOfData)
+        Err(BacktestError::EndOfData)
     }
 
-    fn process_data(&mut self) -> Result<(i64, i64), Error> {
+    fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row_num = self.row_num;
         if self.data[row_num].ev & EXCH_BID_DEPTH_CLEAR_EVENT == EXCH_BID_DEPTH_CLEAR_EVENT {
             self.depth.clear_depth(BUY, self.data[row_num].px);
@@ -762,7 +763,7 @@ where
         Ok((next_ts, i64::MAX))
     }
 
-    fn process_recv_order(&mut self, timestamp: i64, wait_resp: i64) -> Result<i64, Error> {
+    fn process_recv_order(&mut self, timestamp: i64, wait_resp: i64) -> Result<i64, BacktestError> {
         // Processes the order part.
         let mut next_timestamp = i64::MAX;
         while self.orders_from.len() > 0 {

@@ -9,8 +9,8 @@ use hftbacktest::{
         MultiAssetMultiExchangeBacktest,
     },
     depth::HashMapMarketDepth,
+    prelude::Interface,
 };
-use hftbacktest::prelude::Interface;
 
 mod algo;
 

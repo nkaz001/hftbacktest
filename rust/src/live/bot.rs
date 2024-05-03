@@ -38,12 +38,12 @@ use crate::{
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
+    #[error("order id already exists")]
+    OrderIdExist,
     #[error("asset not found")]
     AssetNotFound,
     #[error("order not found")]
     OrderNotFound,
-    #[error("order id already exists")]
-    DuplicateOrderId,
     #[error("order status is invalid")]
     InvalidOrderStatus,
     #[error("{0}")]
@@ -413,7 +413,7 @@ where
             .get_mut(asset_no)
             .ok_or(BotError::AssetNotFound)?;
         if orders.contains_key(&order_id) {
-            return Err(BotError::DuplicateOrderId);
+            return Err(BotError::OrderIdExist);
         }
         let tick_size = self.assets.get(asset_no).unwrap().1.tick_size;
         let order = Order {

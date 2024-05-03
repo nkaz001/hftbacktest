@@ -21,7 +21,7 @@ pub mod assettype;
 mod backtest;
 pub use backtest::*;
 
-use crate::types::BuildError;
+use crate::{backtest::reader::Data, types::BuildError};
 
 /// Latency and queue position models
 pub mod models;
@@ -40,7 +40,7 @@ pub mod state;
 mod evs;
 
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum BacktestError {
     #[error("Order related to a given order id already exists")]
     OrderIdExist,
     #[error("Order request is in process")]
@@ -57,9 +57,10 @@ pub enum Error {
     DataError(#[from] IoError),
 }
 
+#[derive(Clone, Debug)]
 pub enum DataSource {
     File(String),
-    Array,
+    Data(Data<Event>),
 }
 
 pub struct Asset<L: ?Sized, E: ?Sized> {
@@ -120,7 +121,7 @@ where
                 DataSource::File(filename) => {
                     self.reader.add_file(filename);
                 }
-                DataSource::Array => {
+                DataSource::Data(data) => {
                     todo!();
                 }
             }
