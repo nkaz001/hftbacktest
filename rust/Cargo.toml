@@ -31,11 +31,11 @@ anyhow = "1.0.79"
 thiserror = "1.0.57"
 chrono = { version = "0.4.33", optional = true }
 serde = { version = "1.0.196", features = ["derive"], optional = true }
-serde_json = { vesrion = "1.0.113", optional = true }
+serde_json = { version = "1.0.113", optional = true }
 tokio = { version = "1.35.1", features = ["full"], optional = true }
 tokio-tungstenite = { version = "0.21.0", features = ["native-tls"], optional = true }
 reqwest = { version = "0.12.3", features = ["json"], optional = true }
-zip = { version = "0.6.6", optional = true }
+zip = { version = "1.2.2", optional = true }
 futures-util = { version = "0.3.30", optional = true }
 sha2 = { version = "0.11.0-pre.3", optional = true }
 hmac = { version = "0.13.0-pre.3", optional = true }
