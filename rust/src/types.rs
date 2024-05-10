@@ -25,10 +25,13 @@ pub struct Error {
 }
 
 impl Error {
+    /// Constructs an instance of `Error`.
     pub fn new(kind: ErrorKind) -> Error {
         Self { kind, value: None }
     }
 
+    /// Constructs an instance of `Error` with a value that is either the original error or contains
+    /// detailed error information.
     pub fn with<T>(kind: ErrorKind, value: T) -> Error
     where
         T: Send + Sync + 'static,
@@ -39,6 +42,7 @@ impl Error {
         }
     }
 
+    /// Returns some reference to the value if it exists and is of type `T`, or `None` if it isn’t.
     pub fn value_downcast_ref<T>(&self) -> Option<&T>
     where
         T: 'static,
@@ -50,7 +54,7 @@ impl Error {
     }
 }
 
-/// Events occurring in a live bot sent by a [`crate::connector::Connector`].
+/// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
     Depth(Depth),
@@ -86,55 +90,87 @@ pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(32))]
 pub struct Event {
+    /// Event flag
     pub ev: i64,
+    /// Exchange timestamp, which is the time at which the event occurs on the exchange.
     pub exch_ts: i64,
+    /// Exchange timestamp, which is the time at which the event occurs on the local.
     pub local_ts: i64,
+    /// Price
     pub px: f32,
+    /// Quantity
     pub qty: f32,
 }
 
 impl Event {
+    /// Checks if this `Event` corresponds to the given event.
     #[inline]
-    pub fn is(&self, ev: i64) -> bool {
-        (self.ev & ev) == ev
+    pub fn is(&self, event: i64) -> bool {
+        (self.ev & event) == event
     }
 }
 
+/// Market depth feed
 #[derive(Clone, PartialEq, Debug)]
 pub struct Depth {
+    /// Corresponding asset number
     pub asset_no: usize,
+    /// Exchange timestamp
     pub exch_ts: i64,
+    /// Local(Receipt) timestamp
     pub local_ts: i64,
+    /// Market depth on the bid side consists of a list of tuples, each containing price and
+    /// quantity.
     pub bids: Vec<(f32, f32)>,
+    /// Market depth on the ask side consists of a list of tuples, each containing price and
+    /// quantity.
     pub asks: Vec<(f32, f32)>,
 }
 
+/// Market trade feed
 #[derive(Clone, PartialEq, Debug)]
 pub struct Trade {
+    /// Corresponding asset number
     pub asset_no: usize,
+    /// Exchange timestamp
     pub exch_ts: i64,
+    /// Local(Receipt) timestamp
     pub local_ts: i64,
+    /// Trade initiator's side
     pub side: i8,
+    /// Price
     pub price: f32,
+    /// Quantity
     pub qty: f32,
 }
 
+/// Holding position
 #[derive(Clone, PartialEq, Debug)]
 pub struct Position {
+    /// Corresponding asset number
     pub asset_no: usize,
+    /// Symbol of this asset
     pub symbol: String,
+    /// Holding position quantity
     pub qty: f64,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(i8)]
 pub enum Side {
+    /// In the market depth event, this indicates the bid side; in the market trade event, it
+    /// indicates that the trade initiator is a buyer.
     Buy = 1,
+    /// In the market depth event, this indicates the ask side; in the market trade event, it
+    /// indicates that the trade initiator is a seller.
     Sell = -1,
+    /// This occurs when the [`Connector`](`crate::connector::Connector`) receives a side value that
+    /// does not have a corresponding enum value.
     Unsupported = 127,
 }
 
 impl Side {
+    /// Returns `1` if this is a [`Buy`], `-1` if this is a `Sell`; otherwise, it will panic.
     pub fn as_f64(&self) -> f64 {
         match self {
             Side::Buy => 1f64,
@@ -143,6 +179,7 @@ impl Side {
         }
     }
 
+    /// Returns `1` if this is a [`Buy`], `-1` if this is a `Sell`; otherwise, it will panic.
     pub fn as_f32(&self) -> f32 {
         match self {
             Side::Buy => 1f32,
@@ -152,6 +189,7 @@ impl Side {
     }
 }
 
+/// Side
 impl AsRef<str> for Side {
     fn as_ref(&self) -> &'static str {
         match self {
@@ -162,6 +200,7 @@ impl AsRef<str> for Side {
     }
 }
 
+/// Order status
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(u8)]
 pub enum Status {
@@ -171,16 +210,25 @@ pub enum Status {
     Filled = 3,
     Canceled = 4,
     PartiallyFilled = 5,
+    /// This occurs when the [`Connector`](`crate::connector::Connector`) receives an order status
+    /// value that does not have a corresponding enum value.
     Unsupported = 255,
 }
 
+/// Time In Force
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(u8)]
 pub enum TimeInForce {
+    /// Good 'Til Canceled
     GTC = 0,
+    /// Post-only
     GTX = 1,
+    /// Fill or Kill
     FOK = 2,
+    /// Immediate or Cancel
     IOC = 3,
+    /// This occurs when the [`Connector`](`crate::connector::Connector`) receives a time-in-force
+    /// value that does not have a corresponding enum value.
     Unsupported = 255,
 }
 
@@ -196,6 +244,7 @@ impl AsRef<str> for TimeInForce {
     }
 }
 
+/// Order type
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(u8)]
 pub enum OrdType {
@@ -214,26 +263,48 @@ impl AsRef<str> for OrdType {
     }
 }
 
+/// Order
 #[derive(Clone)]
 pub struct Order<Q>
 where
     Q: Sized + Clone,
 {
+    /// Order quantity
     pub qty: f32,
+    /// The quantity of this order that has not yet been executed. It represents the remaining
+    /// quantity that is still open or active in the market after any partial fills.
     pub leaves_qty: f32,
+    /// Order price in ticks (`price / tick_size`).
     pub price_tick: i32,
+    /// The tick size of the asset associated with this order.
     pub tick_size: f32,
     pub side: Side,
     pub time_in_force: TimeInForce,
+    /// The time at which the exchange processes this order, ideally when the matching engine
+    /// processes the order, will be set if the value is available.
     pub exch_timestamp: i64,
     pub status: Status,
+    /// The time at which the local receives this order or sent this order to the exchange.
     pub local_timestamp: i64,
+    /// Request status:
+    ///   * [`Status::New`]: Request to open a new order.
+    ///   * [`Status::Canceled`]: Request to cancel an opened order.
     pub req: Status,
+    /// Executed price in ticks (`executed_price / tick_size`), only available when this order is
+    /// executed.
     pub exec_price_tick: i32,
+    /// Executed quantity, only available when this order is executed.
     pub exec_qty: f32,
     pub order_id: i64,
+    /// It represents the quantity ahead of this order in the queue of the limit order book. This is
+    /// only available in backtesting and should be used exclusively by the exchange processor; it
+    /// should not be known to the local.
     pub front_q_qty: f32,
+    /// Additional queue position estimation values according to the
+    /// [`QueueModel`](`crate::backtest::models::QueueModel`). This is only available in
+    /// backtesting, and the type `Q` is set to `()` in a live bot.
     pub q: Q,
+    /// Whether the order is executed as a maker, only available when this order is executed.
     pub maker: bool,
     pub order_type: OrdType,
 }
@@ -242,6 +313,7 @@ impl<Q> Order<Q>
 where
     Q: Sized + Clone,
 {
+    /// Constructs an instance of `Order`.
     pub fn new(
         order_id: i64,
         price_tick: i32,
@@ -275,27 +347,34 @@ where
         }
     }
 
+    /// Returns the order price.
     pub fn price(&self) -> f32 {
         self.price_tick as f32 * self.tick_size
     }
 
+    /// Returns the executed price, only available when this order is executed.
     pub fn exec_price(&self) -> f32 {
         self.exec_price_tick as f32 * self.tick_size
     }
 
+    /// Returns whether this order is cancelable.
     pub fn cancellable(&self) -> bool {
         (self.status == Status::New || self.status == Status::PartiallyFilled)
             && self.req == Status::None
     }
 
+    /// Returns whether this order is active in the market.
     pub fn active(&self) -> bool {
         self.status == Status::New || self.status == Status::PartiallyFilled
     }
 
+    /// Returns whether this order has an ongoing request.
     pub fn pending(&self) -> bool {
         self.req != Status::None
     }
 
+    /// Updates this order with the given order. This is used only by the processor in backtesting
+    /// or by a bot in live trading.
     pub fn update(&mut self, order: &Order<Q>) {
         self.qty = order.qty;
         self.leaves_qty = order.leaves_qty;
@@ -349,17 +428,21 @@ where
     }
 }
 
+/// An asynchronous request to [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub enum Request {
+    /// An order request, a tuple consisting of an asset number and an [`Order`].
     Order((usize, Order<()>)),
 }
 
+/// An order response from [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub struct OrderResponse {
     pub asset_no: usize,
     pub order: Order<()>,
 }
 
+/// Provides state values.
 #[derive(Debug)]
 pub struct StateValues {
     pub position: f64,
@@ -370,6 +453,7 @@ pub struct StateValues {
     pub trade_amount: f64,
 }
 
+/// Provides errors that can occur in builders.
 #[derive(Error, Debug)]
 pub enum BuildError {
     #[error("`{0}` is required")]
