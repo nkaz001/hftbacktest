@@ -117,8 +117,8 @@ pub struct BotBuilder<MD> {
 
 impl<MD> BotBuilder<MD> {
     /// Registers a [`Connector`] with a specified name.
-    /// The specified name for this connector is used when using [`BotBuilder::add`] to add an
-    /// asset for trading through this connector.
+    /// The specified name for this connector is used when using [`add()`](`BotBuilder::add()`) to
+    /// add an asset for trading through this connector.
     pub fn register<C>(self, name: &str, conn: C) -> Self
     where
         C: Connector + Send + 'static,
@@ -135,8 +135,9 @@ impl<MD> BotBuilder<MD> {
 
     /// Adds an asset.
     ///
-    /// * `name` - Name of the [`Connector`], which is registered by [`BotBuilder::register`],
-    ///            through which this asset will be traded.
+    /// * `name` - Name of the [`Connector`], which is registered by
+    ///            [`register()`](`BotBuilder::register()`), through which this asset will be
+    ///            traded.
     /// * `symbol` - Symbol of the asset. You need to check with the [`Connector`] which symbology
     ///              is used.
     /// * `tick_size` - The minimum price fluctuation.
@@ -251,13 +252,15 @@ impl<MD> BotBuilder<MD> {
 
 /// A live trading bot.
 ///
-/// Provides the same interface as the backtesters in [`crate::backtest`].
+/// Provides the same interface as the backtesters in [`backtest`](`crate::backtest`).
 ///
 /// ```
+/// use hftbacktest::{live::Bot, prelude::HashMapMarketDepth};
+///
 /// let mut hbt = Bot::builder()
 ///     .register("connector_name", connector)
 ///     .add("connector_name", "symbol", tick_size, lot_size)
-///     .depth(|asset_info| HashMapMarketDepth::new(asset_info.tick_size, asset_info.lot_size))
+///     .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
 ///     .build()
 ///     .unwrap();
 /// ```

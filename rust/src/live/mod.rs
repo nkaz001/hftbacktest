@@ -4,7 +4,7 @@ pub use bot::{Bot, BotBuilder, BotError};
 
 /// Provides asset information for internal use.
 #[derive(Clone)]
-pub(crate) struct Asset {
+pub struct Asset {
     pub asset_no: usize,
     pub symbol: String,
     pub tick_size: f32,
