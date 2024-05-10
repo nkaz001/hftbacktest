@@ -3,7 +3,7 @@ use chrono::Utc;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, Endpoint},
     live::Bot,
-    prelude::{Interface, HashMapMarketDepth, Status},
+    prelude::{HashMapMarketDepth, Interface, Status},
 };
 use tracing::info;
 
