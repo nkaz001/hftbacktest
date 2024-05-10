@@ -82,10 +82,6 @@ pub const DEPTH_CLEAR_EVENT: i64 = 3;
 /// Indicates that the market depth snapshot is received.
 pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
 
-pub trait AsStr {
-    fn as_str(&self) -> &'static str;
-}
-
 /// Exchange event data.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(32))]
@@ -156,8 +152,8 @@ impl Side {
     }
 }
 
-impl AsStr for Side {
-    fn as_str(&self) -> &'static str {
+impl AsRef<str> for Side {
+    fn as_ref(&self) -> &'static str {
         match self {
             Side::Buy => "BUY",
             Side::Sell => "SELL",
@@ -188,8 +184,8 @@ pub enum TimeInForce {
     Unsupported = 255,
 }
 
-impl AsStr for TimeInForce {
-    fn as_str(&self) -> &'static str {
+impl AsRef<str> for TimeInForce {
+    fn as_ref(&self) -> &'static str {
         match self {
             TimeInForce::GTC => "GTC",
             TimeInForce::GTX => "GTX",
@@ -208,8 +204,8 @@ pub enum OrdType {
     Unsupported = 255,
 }
 
-impl AsStr for OrdType {
-    fn as_str(&self) -> &'static str {
+impl AsRef<str> for OrdType {
+    fn as_ref(&self) -> &'static str {
         match self {
             OrdType::Limit => "LIMIT",
             OrdType::Market => "MARKET",
