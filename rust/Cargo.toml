@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["nkaz001 <nkaz001@protonmail.com>"]
 license = "MIT"
-#documentation = "https://docs.rs/hftbacktest/"
+documentation = "https://docs.rs/hftbacktest/"
 repository = "https://github.com/nkaz001/hftbacktest/rust"
-#readme = "README.md"
+readme = "README.rst"
 description = "A high-frequency trading and market-making backtesting tool accounts for limit orders, queue positions, and latencies, utilizing full tick data for trades and order books."
 keywords = [
     "quantitative",
