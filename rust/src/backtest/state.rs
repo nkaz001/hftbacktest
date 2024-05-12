@@ -20,7 +20,7 @@ impl<AT> State<AT>
 where
     AT: AssetType,
 {
-    pub fn new(asset_type: AT) -> Self {
+    pub fn new(asset_type: AT, maker_fee: f64, taker_fee: f64) -> Self {
         Self {
             position: 0.0,
             balance: 0.0,
@@ -28,8 +28,8 @@ where
             trade_num: 0,
             trade_qty: 0.0,
             trade_amount: 0.0,
-            maker_fee: 0.0,
-            taker_fee: 0.0,
+            maker_fee,
+            taker_fee,
             asset_type,
         }
     }

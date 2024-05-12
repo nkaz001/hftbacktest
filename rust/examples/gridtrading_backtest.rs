@@ -24,6 +24,8 @@ fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarket
                 .data(vec![DataSource::File("SOLUSDT_20240215.npz".to_string())])
                 .latency_model(latency_model)
                 .asset_type(asset_type)
+                .maker_fee(-0.00005)
+                .taker_fee(0.0007)
                 .queue_model(queue_model)
                 .depth(|| HashMapMarketDepth::new(0.001, 1.0))
                 .build()

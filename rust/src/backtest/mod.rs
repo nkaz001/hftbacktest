@@ -79,6 +79,8 @@ impl<L, E> Asset<L, E> {
             queue_model: None,
             depth_builder: None,
             reader,
+            maker_fee: 0.0,
+            taker_fee: 0.0,
             _q_marker: Default::default(),
         }
     }
@@ -90,6 +92,8 @@ pub struct AssetBuilder<Q, LM, AT, QM, MD> {
     queue_model: Option<QM>,
     depth_builder: Option<Box<dyn Fn() -> MD>>,
     reader: Reader<Event>,
+    maker_fee: f64,
+    taker_fee: f64,
     _q_marker: PhantomData<Q>,
 }
 
@@ -111,6 +115,8 @@ where
             queue_model: None,
             depth_builder: None,
             reader,
+            maker_fee: 0.0,
+            taker_fee: 0.0,
             _q_marker: Default::default(),
         }
     }
@@ -139,6 +145,20 @@ where
     pub fn asset_type(self, asset_type: AT) -> Self {
         Self {
             asset_type: Some(asset_type),
+            ..self
+        }
+    }
+
+    pub fn maker_fee(self, maker_fee: f64) -> Self {
+        Self {
+            maker_fee,
+            ..self
+        }
+    }
+
+    pub fn taker_fee(self, taker_fee: f64) -> Self {
+        Self {
+            taker_fee,
             ..self
         }
     }
@@ -180,7 +200,7 @@ where
         let local = Local::new(
             self.reader.clone(),
             create_depth(),
-            State::new(asset_type),
+            State::new(asset_type, self.maker_fee, self.taker_fee),
             order_latency,
             1000,
             ob_local_to_exch.clone(),
@@ -201,7 +221,7 @@ where
         let exch = NoPartialFillExchange::new(
             self.reader.clone(),
             create_depth(),
-            State::new(asset_type),
+            State::new(asset_type, self.maker_fee, self.taker_fee),
             order_latency,
             queue_model,
             ob_exch_to_local,
@@ -237,7 +257,7 @@ where
         let local = Local::new(
             self.reader.clone(),
             create_depth(),
-            State::new(asset_type),
+            State::new(asset_type, self.maker_fee, self.taker_fee),
             order_latency,
             1000,
             ob_local_to_exch.clone(),
@@ -258,7 +278,7 @@ where
         let exch = NoPartialFillExchange::new(
             self.reader.clone(),
             create_depth(),
-            State::new(asset_type),
+            State::new(asset_type, self.maker_fee, self.taker_fee),
             order_latency,
             queue_model,
             ob_exch_to_local,
