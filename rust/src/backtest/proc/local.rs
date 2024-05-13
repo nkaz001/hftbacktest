@@ -225,32 +225,28 @@ where
     }
 
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
-        let row = &self.data[self.row_num];
+        let ev = &self.data[self.row_num];
         // Processes a depth event
-        if row.ev & LOCAL_BID_DEPTH_CLEAR_EVENT == LOCAL_BID_DEPTH_CLEAR_EVENT {
-            self.depth.clear_depth(BUY, row.px);
-        } else if row.ev & LOCAL_ASK_DEPTH_CLEAR_EVENT == LOCAL_ASK_DEPTH_CLEAR_EVENT {
-            self.depth.clear_depth(SELL, row.px);
-        } else if row.ev & LOCAL_BID_DEPTH_EVENT == LOCAL_BID_DEPTH_EVENT
-            || row.ev & LOCAL_BID_DEPTH_SNAPSHOT_EVENT == LOCAL_BID_DEPTH_SNAPSHOT_EVENT
-        {
-            self.depth.update_bid_depth(row.px, row.qty, row.local_ts);
-        } else if row.ev & LOCAL_ASK_DEPTH_EVENT == LOCAL_ASK_DEPTH_EVENT
-            || row.ev & LOCAL_ASK_DEPTH_SNAPSHOT_EVENT == LOCAL_ASK_DEPTH_SNAPSHOT_EVENT
-        {
-            self.depth.update_ask_depth(row.px, row.qty, row.local_ts);
+        if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(BUY, ev.px);
+        } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(SELL, ev.px);
+        } else if ev.is(LOCAL_BID_DEPTH_EVENT) || ev.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT) {
+            self.depth.update_bid_depth(ev.px, ev.qty, ev.local_ts);
+        } else if ev.is(LOCAL_ASK_DEPTH_EVENT) || ev.is(LOCAL_ASK_DEPTH_SNAPSHOT_EVENT) {
+            self.depth.update_ask_depth(ev.px, ev.qty, ev.local_ts);
         }
         // Processes a trade event
-        else if row.ev & LOCAL_TRADE_EVENT == LOCAL_TRADE_EVENT {
+        else if ev.is(LOCAL_TRADE_EVENT) {
             if self.trades.capacity() > 0 {
-                self.trades.push(row.clone());
+                self.trades.push(ev.clone());
             }
         }
 
         // Checks
         let mut next_ts = 0;
         for rn in (self.row_num + 1)..self.data.len() {
-            if self.data[rn].ev & LOCAL_EVENT == LOCAL_EVENT {
+            if self.data[rn].is(LOCAL_EVENT) {
                 self.row_num = rn;
                 next_ts = self.data[rn].local_ts;
                 break;

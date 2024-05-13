@@ -104,7 +104,7 @@ pub struct Event {
 
 impl Event {
     /// Checks if this `Event` corresponds to the given event.
-    #[inline]
+    #[inline(always)]
     pub fn is(&self, event: i64) -> bool {
         (self.ev & event) == event
     }

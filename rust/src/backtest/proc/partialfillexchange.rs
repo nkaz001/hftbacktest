@@ -822,7 +822,7 @@ where
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
         self.data = self.reader.next()?;
         for rn in 0..self.data.len() {
-            if self.data[rn].ev & EXCH_EVENT == EXCH_EVENT {
+            if self.data[rn].is(EXCH_EVENT) {
                 self.row_num = rn;
                 return Ok(self.data[rn].local_ts);
             }
@@ -832,13 +832,12 @@ where
 
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row_num = self.row_num;
-        if self.data[row_num].ev & EXCH_BID_DEPTH_CLEAR_EVENT == EXCH_BID_DEPTH_CLEAR_EVENT {
+        if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(BUY, self.data[row_num].px);
-        } else if self.data[row_num].ev & EXCH_ASK_DEPTH_CLEAR_EVENT == EXCH_ASK_DEPTH_CLEAR_EVENT {
+        } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(SELL, self.data[row_num].px);
-        } else if self.data[row_num].ev & EXCH_BID_DEPTH_EVENT == EXCH_BID_DEPTH_EVENT
-            || self.data[row_num].ev & EXCH_BID_DEPTH_SNAPSHOT_EVENT
-                == EXCH_BID_DEPTH_SNAPSHOT_EVENT
+        } else if self.data[row_num].is(EXCH_BID_DEPTH_EVENT)
+            || self.data[row_num].is(EXCH_BID_DEPTH_SNAPSHOT_EVENT)
         {
             let (price_tick, prev_best_bid_tick, best_bid_tick, prev_qty, new_qty, timestamp) =
                 self.depth.update_bid_depth(
@@ -850,9 +849,8 @@ where
             if best_bid_tick > prev_best_bid_tick {
                 self.on_best_bid_update(prev_best_bid_tick, best_bid_tick, timestamp)?;
             }
-        } else if self.data[row_num].ev & EXCH_ASK_DEPTH_EVENT == EXCH_ASK_DEPTH_EVENT
-            || self.data[row_num].ev & EXCH_ASK_DEPTH_SNAPSHOT_EVENT
-                == EXCH_ASK_DEPTH_SNAPSHOT_EVENT
+        } else if self.data[row_num].is(EXCH_ASK_DEPTH_EVENT)
+            || self.data[row_num].is(EXCH_ASK_DEPTH_SNAPSHOT_EVENT)
         {
             let (price_tick, prev_best_ask_tick, best_ask_tick, prev_qty, new_qty, timestamp) =
                 self.depth.update_ask_depth(
@@ -864,7 +862,7 @@ where
             if best_ask_tick < prev_best_ask_tick {
                 self.on_best_ask_update(prev_best_ask_tick, best_ask_tick, timestamp)?;
             }
-        } else if self.data[row_num].ev & EXCH_BUY_TRADE_EVENT == EXCH_BUY_TRADE_EVENT {
+        } else if self.data[row_num].is(EXCH_BUY_TRADE_EVENT) {
             let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i32;
             let qty = self.data[row_num].qty;
             {
@@ -900,7 +898,7 @@ where
                 }
             }
             self.remove_filled_orders();
-        } else if self.data[row_num].ev & EXCH_SELL_TRADE_EVENT == EXCH_SELL_TRADE_EVENT {
+        } else if self.data[row_num].is(EXCH_SELL_TRADE_EVENT) {
             let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i32;
             let qty = self.data[row_num].qty;
             {
@@ -941,7 +939,7 @@ where
         // Checks
         let mut next_ts = 0;
         for rn in (self.row_num + 1)..self.data.len() {
-            if self.data[rn].ev & EXCH_EVENT == EXCH_EVENT {
+            if self.data[rn].is(EXCH_EVENT) {
                 self.row_num = rn;
                 next_ts = self.data[rn].exch_ts;
                 break;
