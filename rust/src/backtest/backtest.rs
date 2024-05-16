@@ -9,6 +9,7 @@ use crate::{
         BacktestError,
     },
     depth::{HashMapMarketDepth, MarketDepth},
+    prelude::OrderRequest,
     types::{BuildError, Event, Interface, OrdType, Order, Side, StateValues, TimeInForce},
 };
 
@@ -193,6 +194,11 @@ where
     }
 
     #[inline]
+    fn num_assets(&self) -> usize {
+        self.local.len()
+    }
+
+    #[inline]
     fn position(&self, asset_no: usize) -> f64 {
         self.local.get(asset_no).unwrap().position()
     }
@@ -289,6 +295,63 @@ where
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, order_id);
+        }
+        Ok(true)
+    }
+
+    fn submit_order(
+        &mut self,
+        asset_no: usize,
+        order: OrderRequest,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        let local = self.local.get_mut(asset_no).unwrap();
+        local.submit_order(
+            order.order_id,
+            Side::Sell,
+            order.price,
+            order.qty,
+            order.order_type,
+            order.time_in_force,
+            self.cur_ts,
+        )?;
+        self.evs
+            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+
+        if wait {
+            return self.goto(UNTIL_END_OF_DATA, order.order_id);
+        }
+        Ok(true)
+    }
+
+    fn submit_batch_orders(
+        &mut self,
+        asset_no: usize,
+        batch_orders: Vec<OrderRequest>,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        let mut wait_order_id = None;
+        let local = self.local.get_mut(asset_no).unwrap();
+        for order in batch_orders {
+            if wait_order_id.is_none() {
+                wait_order_id = Some(order.order_id);
+            }
+            local.submit_order(
+                order.order_id,
+                Side::Sell,
+                order.price,
+                order.qty,
+                order.order_type,
+                order.time_in_force,
+                self.cur_ts,
+            )?;
+        }
+        self.evs
+            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+        if wait {
+            if let Some(order_id) = wait_order_id {
+                return self.goto(UNTIL_END_OF_DATA, order_id);
+            }
         }
         Ok(true)
     }
@@ -546,6 +609,11 @@ where
     }
 
     #[inline]
+    fn num_assets(&self) -> usize {
+        self.local.len()
+    }
+
+    #[inline]
     fn position(&self, asset_no: usize) -> f64 {
         self.local.get(asset_no).unwrap().position()
     }
@@ -642,6 +710,63 @@ where
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, order_id);
+        }
+        Ok(true)
+    }
+
+    fn submit_order(
+        &mut self,
+        asset_no: usize,
+        order: OrderRequest,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        let local = self.local.get_mut(asset_no).unwrap();
+        local.submit_order(
+            order.order_id,
+            Side::Sell,
+            order.price,
+            order.qty,
+            order.order_type,
+            order.time_in_force,
+            self.cur_ts,
+        )?;
+        self.evs
+            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+
+        if wait {
+            return self.goto(UNTIL_END_OF_DATA, order.order_id);
+        }
+        Ok(true)
+    }
+
+    fn submit_batch_orders(
+        &mut self,
+        asset_no: usize,
+        batch_orders: Vec<OrderRequest>,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        let mut wait_order_id = None;
+        let local = self.local.get_mut(asset_no).unwrap();
+        for order in batch_orders {
+            if wait_order_id.is_none() {
+                wait_order_id = Some(order.order_id);
+            }
+            local.submit_order(
+                order.order_id,
+                Side::Sell,
+                order.price,
+                order.qty,
+                order.order_type,
+                order.time_in_force,
+                self.cur_ts,
+            )?;
+        }
+        self.evs
+            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+        if wait {
+            if let Some(order_id) = wait_order_id {
+                return self.goto(UNTIL_END_OF_DATA, order_id);
+            }
         }
         Ok(true)
     }

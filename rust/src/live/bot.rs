@@ -17,6 +17,7 @@ use crate::{
     connector::Connector,
     depth::{HashMapMarketDepth, MarketDepth},
     live::Asset,
+    prelude::OrderRequest,
     types::{
         BuildError,
         Error as ErrorEvent,
@@ -90,6 +91,19 @@ async fn thread_main(
                                 req => {
                                     error!(%connector_name, ?req, "req_rx received an invalid request.");
                                 }
+                            }
+                        }
+                    }
+                    Some(Request::BatchOrder((asset_no, orders))) => {
+                        if let Some((connector_name, _)) = mapping.get(asset_no) {
+                            let conn_ = conns.get_mut(connector_name).unwrap();
+                            let ev_tx_ = ev_tx.clone();
+                            if let Err(error) = conn_.submit_batch(asset_no, orders, ev_tx_) {
+                                error!(
+                                    %connector_name,
+                                    ?error,
+                                    "Unable to submit a new order due to an internal error in the connector."
+                                );
                             }
                         }
                     }
@@ -246,6 +260,7 @@ impl<MD> BotBuilder<MD> {
             trade,
             error_handler: self.error_handler,
             order_hook: self.order_hook,
+            batch_orders: Default::default(),
         })
     }
 }
@@ -277,6 +292,7 @@ pub struct Bot<MD> {
     assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
+    batch_orders: Vec<Order<()>>,
 }
 
 impl<MD> Bot<MD>
@@ -425,7 +441,7 @@ where
             q: (),
             price_tick: (price / tick_size).round() as i32,
             qty,
-            leaves_qty: 0.0,
+            leaves_qty: qty,
             tick_size,
             side,
             time_in_force,
@@ -453,12 +469,18 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
     }
 
     #[inline]
+    fn num_assets(&self) -> usize {
+        self.position.len()
+    }
+
+    #[inline]
     fn position(&self, asset_no: usize) -> f64 {
         *self.position.get(asset_no).unwrap_or(&0.0)
     }
 
     #[inline]
     fn state_values(&self, asset_no: usize) -> StateValues {
+        // fixme:
         StateValues {
             position: *self.position.get(asset_no).unwrap_or(&0.0),
             balance: 0.0,
@@ -541,6 +563,70 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
             wait,
             Side::Sell,
         )
+    }
+
+    fn submit_order(
+        &mut self,
+        asset_no: usize,
+        order: OrderRequest,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        self.submit_order(
+            asset_no,
+            order.order_id,
+            order.price,
+            order.qty,
+            order.time_in_force,
+            order.order_type,
+            wait,
+            order.side,
+        )
+    }
+
+    fn submit_batch_orders(
+        &mut self,
+        asset_no: usize,
+        batch_orders: Vec<OrderRequest>,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        let orders = self
+            .orders
+            .get_mut(asset_no)
+            .ok_or(BotError::AssetNotFound)?;
+        let tick_size = self.assets.get(asset_no).unwrap().1.tick_size;
+        let mut prepared_orders = Vec::new();
+        for order in batch_orders {
+            if orders.contains_key(&order.order_id) {
+                return Err(BotError::OrderIdExist);
+            }
+            let order = Order {
+                order_id: order.order_id,
+                front_q_qty: 0.0,
+                q: (),
+                price_tick: (order.price / tick_size).round() as i32,
+                qty: order.qty,
+                leaves_qty: order.qty,
+                tick_size,
+                side: order.side,
+                time_in_force: order.time_in_force,
+                order_type: order.order_type,
+                status: Status::New,
+                local_timestamp: Utc::now().timestamp_nanos_opt().unwrap(),
+                req: Status::New,
+                exec_price_tick: 0,
+                exch_timestamp: 0,
+                exec_qty: 0.0,
+                maker: false,
+            };
+            prepared_orders.push(order);
+        }
+        for order in prepared_orders.iter() {
+            orders.insert(order.order_id, order.clone());
+        }
+        self.req_tx
+            .send(Request::BatchOrder((asset_no, prepared_orders)))
+            .unwrap();
+        Ok(true)
     }
 
     #[inline]

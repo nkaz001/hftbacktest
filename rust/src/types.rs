@@ -7,6 +7,8 @@ use std::{
 
 use thiserror::Error;
 
+use crate::depth::MarketDepth;
+
 /// Error type assigned to [`Error`].
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(i64)]
@@ -433,6 +435,8 @@ where
 pub enum Request {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
     Order((usize, Order<()>)),
+    /// A batch order request, a vector of a tuple consisting of an asset number and an [`Order`].
+    BatchOrder((usize, Vec<Order<()>>)),
 }
 
 /// An order response from [`Connector`](`crate::connector::Connector`).
@@ -468,6 +472,15 @@ pub enum BuildError {
     Error(#[from] anyhow::Error),
 }
 
+pub struct OrderRequest {
+    pub order_id: i64,
+    pub price: f32,
+    pub qty: f32,
+    pub side: Side,
+    pub time_in_force: TimeInForce,
+    pub order_type: OrdType,
+}
+
 /// Provides an interface for a backtester or a bot.
 pub trait Interface<Q, MD>
 where
@@ -478,6 +491,9 @@ where
     /// In backtesting, this timestamp reflects the time at which the backtesting is conducted
     /// within the provided data. In a live bot, it's literally the current local timestamp.
     fn current_timestamp(&self) -> i64;
+
+    /// Returns the number of assets.
+    fn num_assets(&self) -> usize;
 
     /// Returns the position you currently hold.
     ///
@@ -558,6 +574,22 @@ where
         wait: bool,
     ) -> Result<bool, Self::Error>;
 
+    /// Places an order.
+    fn submit_order(
+        &mut self,
+        asset_no: usize,
+        order: OrderRequest,
+        wait: bool,
+    ) -> Result<bool, Self::Error>;
+
+    /// Places batch orders.
+    fn submit_batch_orders(
+        &mut self,
+        asset_no: usize,
+        batch_orders: Vec<OrderRequest>,
+        wait: bool,
+    ) -> Result<bool, Self::Error>;
+
     /// Cancels the specified order.
     ///
     /// * `asset_no` - Asset number at which this command will be executed.
@@ -597,4 +629,13 @@ where
 
     /// Closes this backtester or bot.
     fn close(&mut self) -> Result<(), Self::Error>;
+}
+
+pub trait Recorder {
+    type Error;
+    fn record<Q, MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
+    where
+        Q: Sized + Clone,
+        I: Interface<Q, MD>,
+        MD: MarketDepth;
 }

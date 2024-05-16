@@ -37,6 +37,8 @@ pub mod reader;
 
 pub mod state;
 
+pub mod recorder;
+
 mod evs;
 
 #[derive(Error, Debug)]
@@ -150,17 +152,11 @@ where
     }
 
     pub fn maker_fee(self, maker_fee: f64) -> Self {
-        Self {
-            maker_fee,
-            ..self
-        }
+        Self { maker_fee, ..self }
     }
 
     pub fn taker_fee(self, taker_fee: f64) -> Self {
-        Self {
-            taker_fee,
-            ..self
-        }
+        Self { taker_fee, ..self }
     }
 
     pub fn queue_model(self, queue_model: QM) -> Self {

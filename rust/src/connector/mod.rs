@@ -32,6 +32,16 @@ pub trait Connector {
         ev_tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error>;
 
+    /// Submits new batch orders. This method should not block, and the response should be returned
+    /// through the channel using [`LiveEvent`]. The returned error should not be related to the
+    /// exchange; instead, it should indicate a connector internal error.
+    fn submit_batch(
+        &self,
+        asset_no: usize,
+        orders: Vec<Order<()>>,
+        ev_tx: Sender<LiveEvent>,
+    ) -> Result<(), anyhow::Error>;
+
     /// Cancels an open order. This method should not block, and the response should be returned
     /// through the channel using [`LiveEvent`]. The returned error should not be related to the
     /// exchange; instead, it should indicate a connector internal error.
