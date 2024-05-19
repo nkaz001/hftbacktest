@@ -1,6 +1,6 @@
 [package]
 name = "hftbacktest"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["nkaz001 <nkaz001@protonmail.com>"]
 license = "MIT"
@@ -43,6 +43,7 @@ rand = { version = "0.8.5", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.18", features = [] }
+polars = "0.39.2"
 
 [profile.dev]
 opt-level = 0
