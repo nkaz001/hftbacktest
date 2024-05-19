@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::{Error, Write},
-    path::Path,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use tracing::info;
 
@@ -11,12 +7,15 @@ use crate::{
     prelude::Interface,
     types::{Recorder, StateValues},
 };
+use crate::prelude::get_precision;
 
 /// Provides logging of the live strategy's state values.
-pub struct LiveRecorder;
+pub struct LoggingRecorder {
+    state: HashMap<usize, (f32, StateValues)>,
+}
 
-impl Recorder for LiveRecorder {
-    type Error = Error;
+impl Recorder for LoggingRecorder {
+    type Error = ();
 
     fn record<Q, MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
@@ -26,17 +25,44 @@ impl Recorder for LiveRecorder {
     {
         for asset_no in 0..hbt.num_assets() {
             let depth = hbt.depth(asset_no);
+            let price_prec = get_precision(depth.tick_size());
             let mid = (depth.best_bid() + depth.best_ask()) / 2.0;
             let state_values = hbt.state_values(asset_no);
-            info!(%mid, ?state_values, "State");
+            let updated = match self.state.entry(asset_no) {
+                Entry::Occupied(mut entry) => {
+                    let (prev_mid, prev_state_values) = entry.get();
+                    if (*prev_mid != mid) || (*prev_state_values != state_values) {
+                        *entry.get_mut() = (mid, state_values.clone());
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert((mid, state_values.clone()));
+                    true
+                }
+            };
+            if updated {
+                info!(
+                    %asset_no,
+                    %mid,
+                    bid = format!("{:.prec$}", depth.best_bid(), prec = price_prec),
+                    ask = format!("{:.prec$}", depth.best_ask(), prec = price_prec),
+                    ?state_values,
+                    "The state of asset number {asset_no} has been updated."
+                );
+            }
         }
         Ok(())
     }
 }
 
-impl LiveRecorder {
-    /// Constructs an instance of `LiveRecorder`.
+impl LoggingRecorder {
+    /// Constructs an instance of `LoggingRecorder`.
     pub fn new() -> Self {
-        Self {}
+        Self {
+            state: Default::default(),
+        }
     }
 }

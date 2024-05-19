@@ -3,8 +3,9 @@ use std::{collections::HashMap, fmt::Debug};
 use hftbacktest::prelude::*;
 use tracing::info;
 
-pub fn gridtrading<Q, MD, I: Interface<Q, MD>>(
+pub fn gridtrading<Q, MD, I, R>(
     hbt: &mut I,
+    recorder: &mut R,
     half_spread: f64,
     grid_interval: f64,
     skew: f64,
@@ -13,13 +14,13 @@ pub fn gridtrading<Q, MD, I: Interface<Q, MD>>(
 where
     Q: Sized + Clone,
     MD: MarketDepth,
+    I: Interface<Q, MD>,
     <I as Interface<Q, MD>>::Error: Debug,
+    R: Recorder,
 {
     let grid_num = 20;
     let max_position = grid_num as f64 * order_qty;
-
     let tick_size = hbt.depth(0).tick_size() as f64;
-    let price_prec = get_precision(tick_size as f32);
 
     // Running interval in nanoseconds
     while hbt.elapse(100_000_000).unwrap() {
@@ -30,14 +31,6 @@ where
             // Market depth is incomplete.
             continue;
         }
-
-        info!(
-            time = hbt.current_timestamp(),
-            bid = format!("{:.prec$}", depth.best_bid(), prec = price_prec),
-            ask = format!("{:.prec$}", depth.best_ask(), prec = price_prec),
-            position = position,
-            "Run"
-        );
 
         let mid_price = (depth.best_bid() + depth.best_ask()) as f64 / 2.0;
 

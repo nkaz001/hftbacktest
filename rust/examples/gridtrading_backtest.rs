@@ -10,6 +10,7 @@ use hftbacktest::{
     },
     prelude::{HashMapMarketDepth, Interface},
 };
+use hftbacktest::backtest::recorder::BacktestRecorder;
 
 mod algo;
 
@@ -46,6 +47,7 @@ fn main() {
     let skew = 0.004;
     let order_qty = 1.0;
 
-    gridtrading(&mut hbt, half_spread, grid_interval, skew, order_qty).unwrap();
+    let mut recorder = BacktestRecorder::new(&hbt);
+    gridtrading(&mut hbt, &mut recorder, half_spread, grid_interval, skew, order_qty).unwrap();
     hbt.close().unwrap();
 }

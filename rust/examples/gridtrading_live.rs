@@ -4,6 +4,7 @@ use hftbacktest::{
     live::Bot,
     prelude::{HashMapMarketDepth, Interface},
 };
+use hftbacktest::live::LoggingRecorder;
 
 mod algo;
 
@@ -41,6 +42,7 @@ fn main() {
     let skew = 0.004;
     let order_qty = 1.0;
 
-    gridtrading(&mut hbt, half_spread, grid_interval, skew, order_qty).unwrap();
+    let mut recorder = LoggingRecorder::new();
+    gridtrading(&mut hbt, &mut recorder, half_spread, grid_interval, skew, order_qty).unwrap();
     hbt.close().unwrap();
 }

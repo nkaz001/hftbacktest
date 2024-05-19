@@ -1,5 +1,7 @@
-use std::mem;
-use std::mem::{forget, size_of};
+use std::{
+    mem,
+    mem::{forget, size_of},
+};
 
 #[derive(Clone, Copy)]
 #[repr(C, align(32))]
@@ -31,7 +33,8 @@ fn aligned_vec_i64(count: usize) -> Box<[i64]> {
     forget(aligned);
 
     unsafe {
-        Vec::from_raw_parts(ptr as *mut i64, count, cap * size_of::<Align64>() / 8).into_boxed_slice()
+        Vec::from_raw_parts(ptr as *mut i64, count, cap * size_of::<Align64>() / 8)
+            .into_boxed_slice()
     }
 }
 

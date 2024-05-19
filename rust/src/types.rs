@@ -447,7 +447,7 @@ pub struct OrderResponse {
 }
 
 /// Provides state values.
-#[derive(Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct StateValues {
     pub position: f64,
     pub balance: f64,

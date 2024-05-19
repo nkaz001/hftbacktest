@@ -480,7 +480,8 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
 
     #[inline]
     fn state_values(&self, asset_no: usize) -> StateValues {
-        // fixme:
+        // todo: implement the missing fields. Trade values need to be changed to a rolling manner,
+        //       unlike the current Python implementation, to support live trading.
         StateValues {
             position: *self.position.get(asset_no).unwrap_or(&0.0),
             balance: 0.0,

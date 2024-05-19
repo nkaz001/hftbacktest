@@ -47,11 +47,16 @@ impl Recorder for BacktestRecorder {
 
 impl BacktestRecorder {
     /// Constructs an instance of `BacktestRecorder`.
-    pub fn new(num_assets: usize) -> Self {
+    pub fn new<Q, MD, I>(hbt: &I) -> Self
+    where
+        Q: Sized + Clone,
+        I: Interface<Q, MD>,
+        MD: MarketDepth,
+    {
         Self {
             values: {
-                let mut vec = Vec::new();
-                for _ in 0..num_assets {
+                let mut vec = Vec::with_capacity(hbt.num_assets());
+                for _ in 0..hbt.num_assets() {
                     vec.push(Vec::new());
                 }
                 vec
