@@ -7,7 +7,10 @@ from .validation import (
     correct_local_timestamp,
     correct_exch_timestamp,
     correct_exch_timestamp_adjust,
-    correct
+    correct,
+    correct_event_order,
+    convert_to_struct_arr,
+    convert_from_struct_arr
 )
 
 __all__ = (
@@ -15,7 +18,10 @@ __all__ = (
     'correct_local_timestamp',
     'correct_exch_timestamp',
     'correct_exch_timestamp_adjust',
-    'correct'
+    'correct',
+    'correct_event_order',
+    'convert_to_struct_arr',
+    'convert_from_struct_arr'
 )
 
 

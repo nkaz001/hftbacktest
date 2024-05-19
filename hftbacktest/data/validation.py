@@ -446,3 +446,42 @@ def convert_to_struct_arr(data: np.ndarray, add_exch_local_ev: bool = True) -> n
         tup_list,
         dtype=[('ev', 'i8'), ('exch_ts', 'i8'), ('local_ts', 'i8'), ('px', 'f4'), ('qty', 'f4')]
     )
+
+
+def convert_from_struct_arr(data: np.ndarray) -> np.ndarray:
+    r"""
+    Converts the structured array that can be used in Rust hftbacktest into the 2D ndarray currently used in Python
+    hftbacktest.
+
+    Args:
+        data: the structured array to be converted.
+
+    Returns:
+        Converted 2D ndarray.
+    """
+
+    out = np.empty((len(data), 6), np.float64)
+    for row in range(len(data)):
+        ev = data[row][0]
+
+        if ev & EXCH_EVENT == EXCH_EVENT:
+            out[row, COL_EXCH_TIMESTAMP] = data[row][1]
+        else:
+            out[row, COL_EXCH_TIMESTAMP] = -1
+
+        if ev & LOCAL_EVENT == LOCAL_EVENT:
+            out[row, COL_LOCAL_TIMESTAMP] = data[row][2]
+        else:
+            out[row, COL_LOCAL_TIMESTAMP] = -1
+
+        if ev & BUY == BUY:
+            out[row, COL_SIDE] = 1
+        elif ev & SELL == SELL:
+            out[row, COL_SIDE] = -1
+        else:
+            out[row, COL_SIDE] = 0
+
+        out[row, COL_PRICE] = data[row][3]
+        out[row, COL_QTY] = data[row][4]
+        out[row, COL_EVENT] = ev & 0xFF
+    return out
