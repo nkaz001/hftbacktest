@@ -4,10 +4,9 @@ use tracing::info;
 
 use crate::{
     depth::MarketDepth,
-    prelude::Interface,
+    prelude::{get_precision, Interface},
     types::{Recorder, StateValues},
 };
-use crate::prelude::get_precision;
 
 /// Provides logging of the live strategy's state values.
 pub struct LoggingRecorder {

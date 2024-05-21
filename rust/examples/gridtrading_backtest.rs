@@ -4,13 +4,13 @@ use hftbacktest::{
         assettype::LinearAsset,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
         reader::read_npz,
+        recorder::BacktestRecorder,
         AssetBuilder,
         DataSource,
         MultiAssetMultiExchangeBacktest,
     },
     prelude::{HashMapMarketDepth, Interface},
 };
-use hftbacktest::backtest::recorder::BacktestRecorder;
 
 mod algo;
 
@@ -48,6 +48,14 @@ fn main() {
     let order_qty = 1.0;
 
     let mut recorder = BacktestRecorder::new(&hbt);
-    gridtrading(&mut hbt, &mut recorder, half_spread, grid_interval, skew, order_qty).unwrap();
+    gridtrading(
+        &mut hbt,
+        &mut recorder,
+        half_spread,
+        grid_interval,
+        skew,
+        order_qty,
+    )
+    .unwrap();
     hbt.close().unwrap();
 }

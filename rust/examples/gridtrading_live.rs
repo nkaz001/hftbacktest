@@ -1,10 +1,9 @@
 use algo::gridtrading;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, Endpoint},
-    live::Bot,
+    live::{Bot, LoggingRecorder},
     prelude::{HashMapMarketDepth, Interface},
 };
-use hftbacktest::live::LoggingRecorder;
 
 mod algo;
 
@@ -43,6 +42,14 @@ fn main() {
     let order_qty = 1.0;
 
     let mut recorder = LoggingRecorder::new();
-    gridtrading(&mut hbt, &mut recorder, half_spread, grid_interval, skew, order_qty).unwrap();
+    gridtrading(
+        &mut hbt,
+        &mut recorder,
+        half_spread,
+        grid_interval,
+        skew,
+        order_qty,
+    )
+    .unwrap();
     hbt.close().unwrap();
 }
