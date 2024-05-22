@@ -11,6 +11,7 @@ use hftbacktest::{
     },
     prelude::{HashMapMarketDepth, Interface},
 };
+use hftbacktest::backtest::ExchangeKind;
 
 mod algo;
 
@@ -29,6 +30,8 @@ fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarket
                 .taker_fee(0.0007)
                 .queue_model(queue_model)
                 .depth(|| HashMapMarketDepth::new(0.001, 1.0))
+                .exchange(ExchangeKind::NoPartialFillExchange)
+                .trade_len(1000)
                 .build()
                 .unwrap(),
         )
