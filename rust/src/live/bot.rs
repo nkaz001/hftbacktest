@@ -36,6 +36,7 @@ use crate::{
         SELL,
     },
 };
+use crate::backtest::reader::{WAIT_ORDER_RESPONSE_ANY, WAIT_ORDER_RESPONSE_NONE};
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -323,7 +324,7 @@ where
         Ok(())
     }
 
-    fn elapse_(&mut self, duration: i64) -> Result<bool, BotError> {
+    fn elapse_(&mut self, duration: i64, wait_order_response: (usize, i64)) -> Result<bool, BotError> {
         let now = Instant::now();
         let mut remaining_duration = duration;
         loop {
@@ -361,6 +362,14 @@ where
                 }
                 Ok(LiveEvent::Order(data)) => {
                     debug!(?data, "Event::Order");
+                    let received_order_resp = if wait_order_response.0 == data.asset_no && (
+                        wait_order_response.1 == data.order.order_id
+                            || wait_order_response.1 == WAIT_ORDER_RESPONSE_ANY
+                    ) {
+                        true
+                    } else {
+                        false
+                    };
                     match self
                         .orders
                         .get_mut(data.asset_no)
@@ -391,6 +400,10 @@ where
                             );
                             entry.insert(data.order);
                         }
+                    }
+
+                    if received_order_resp {
+                        return Ok(true);
                     }
                 }
                 Ok(LiveEvent::Position(data)) => {
@@ -513,6 +526,15 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
                 }
             }
         }
+    }
+
+    fn wait_order_response(
+        &mut self,
+        asset_no: usize,
+        order_id: i64,
+        timeout: i64
+    ) -> Result<bool, Self::Error> {
+        todo!()
     }
 
     #[inline]
@@ -666,7 +688,7 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
 
     #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
-        self.elapse_(duration)
+        self.elapse_(duration, (0, WAIT_ORDER_RESPONSE_NONE))
     }
 
     #[inline]
