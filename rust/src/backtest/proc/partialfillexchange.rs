@@ -138,46 +138,20 @@ where
         &mut self,
         mut order: Order<Q>,
         recv_timestamp: i64,
-        wait_resp: i64,
-        next_timestamp: i64,
-    ) -> Result<i64, BacktestError> {
-        let order_id = order.order_id;
-
+    ) -> Result<(), BacktestError> {
         // Processes a new order.
         if order.req == Status::New {
             order.req = Status::None;
-            let resp_timestamp = self.ack_new(order, recv_timestamp)?;
-
-            // Checks if the local waits for the orders' response.
-            if wait_resp == order_id {
-                // If next_timestamp is valid, chooses the earlier timestamp.
-                return if next_timestamp > 0 {
-                    Ok(next_timestamp.min(resp_timestamp))
-                } else {
-                    Ok(resp_timestamp)
-                };
-            }
+            self.ack_new(order, recv_timestamp)?;
         }
         // Processes a cancel order.
         else if order.req == Status::Canceled {
             order.req = Status::None;
-            let resp_timestamp = self.ack_cancel(order, recv_timestamp)?;
-
-            // Checks if the local waits for the orders' response.
-            if wait_resp == order_id {
-                // If next_timestamp is valid, chooses the earlier timestamp.
-                return if next_timestamp > 0 {
-                    Ok(next_timestamp.min(resp_timestamp))
-                } else {
-                    Ok(resp_timestamp)
-                };
-            }
+            self.ack_cancel(order, recv_timestamp)?;
         } else {
             return Err(BacktestError::InvalidOrderRequest);
         }
-
-        // Bypass next_timestamp
-        Ok(next_timestamp)
+        Ok(())
     }
 
     fn check_if_sell_filled(
@@ -186,7 +160,7 @@ where
         price_tick: i32,
         qty: f32,
         timestamp: i64,
-    ) -> Result<i64, BacktestError> {
+    ) -> Result<(), BacktestError> {
         if order.price_tick < price_tick {
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
@@ -204,7 +178,7 @@ where
                 return self.fill(order, timestamp, true, order.price_tick, exec_qty);
             }
         }
-        Ok(i64::MAX)
+        Ok(())
     }
 
     fn check_if_buy_filled(
@@ -213,7 +187,7 @@ where
         price_tick: i32,
         qty: f32,
         timestamp: i64,
-    ) -> Result<i64, BacktestError> {
+    ) -> Result<(), BacktestError> {
         if order.price_tick > price_tick {
             self.filled_orders.push(order.order_id);
             return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
@@ -231,7 +205,7 @@ where
                 return self.fill(order, timestamp, true, order.price_tick, exec_qty);
             }
         }
-        Ok(i64::MAX)
+        Ok(())
     }
 
     fn fill(
@@ -241,7 +215,7 @@ where
         maker: bool,
         exec_price_tick: i32,
         exec_qty: f32,
-    ) -> Result<i64, BacktestError> {
+    ) -> Result<(), BacktestError> {
         if order.status == Status::Expired
             || order.status == Status::Canceled
             || order.status == Status::Filled
@@ -269,7 +243,7 @@ where
 
         self.state.apply_fill(order);
         self.orders_to.append(order.clone(), local_recv_timestamp);
-        Ok(local_recv_timestamp)
+        Ok(())
     }
 
     fn remove_filled_orders(&mut self) {
@@ -388,7 +362,7 @@ where
         Ok(())
     }
 
-    fn ack_new(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, BacktestError> {
+    fn ack_new(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<(), BacktestError> {
         if self.orders.borrow().contains_key(&order.order_id) {
             return Err(BacktestError::OrderIdExist);
         }
@@ -404,7 +378,7 @@ where
                         let local_recv_timestamp =
                             timestamp + self.order_latency.response(timestamp, &order);
                         self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(local_recv_timestamp)
+                        Ok(())
                     }
                     TimeInForce::FOK => {
                         // The order must be executed immediately in its entirety; otherwise, the
@@ -422,15 +396,12 @@ where
                         }
                         if execute {
                             for t in self.depth.best_ask_tick()..=order.price_tick {
-                                let local_recv_timestamp;
                                 let qty = self.depth.ask_qty_at_tick(t);
                                 if qty > 0.0 {
                                     let exec_qty = qty.min(order.leaves_qty);
-                                    local_recv_timestamp =
-                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
                                     if order.status == Status::Filled {
-                                        assert_ne!(local_recv_timestamp, 0);
-                                        return Ok(local_recv_timestamp);
+                                        return Ok(());
                                     }
                                 }
                             }
@@ -442,22 +413,19 @@ where
                             let local_recv_timestamp =
                                 timestamp + self.order_latency.response(timestamp, &order);
                             self.orders_to.append(order.clone(), local_recv_timestamp);
-                            Ok(local_recv_timestamp)
+                            Ok(())
                         }
                     }
                     TimeInForce::IOC => {
                         // The order must be executed immediately.
                         for t in self.depth.best_ask_tick()..=order.price_tick {
-                            let mut local_recv_timestamp = 0;
                             let qty = self.depth.ask_qty_at_tick(t);
                             if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp =
-                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
-                                assert_ne!(local_recv_timestamp, 0);
-                                return Ok(local_recv_timestamp);
+                                return Ok(());
                             }
                         }
                         order.status = Status::Expired;
@@ -466,21 +434,18 @@ where
                         let local_recv_timestamp =
                             timestamp + self.order_latency.response(timestamp, &order);
                         self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(local_recv_timestamp)
+                        Ok(())
                     }
                     TimeInForce::GTC => {
                         // Takes the market.
                         for t in self.depth.best_ask_tick()..order.price_tick {
-                            let mut local_recv_timestamp = 0;
                             let qty = self.depth.ask_qty_at_tick(t);
                             if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp =
-                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
-                                assert_ne!(local_recv_timestamp, 0);
-                                return Ok(local_recv_timestamp);
+                                return Ok(());
                             }
                         }
 
@@ -512,7 +477,7 @@ where
 
                 self.orders.borrow_mut().insert(order.order_id, order);
 
-                Ok(local_recv_timestamp)
+                Ok(())
             }
         } else {
             // Checks if the sell order price is less than or equal to the current best bid.
@@ -525,7 +490,7 @@ where
                         let local_recv_timestamp =
                             timestamp + self.order_latency.response(timestamp, &order);
                         self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(local_recv_timestamp)
+                        Ok(())
                     }
                     TimeInForce::FOK => {
                         // The order must be executed immediately in its entirety; otherwise, the
@@ -543,15 +508,12 @@ where
                         }
                         if execute {
                             for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                                let local_recv_timestamp;
                                 let qty = self.depth.bid_qty_at_tick(t);
                                 if qty > 0.0 {
                                     let exec_qty = qty.min(order.leaves_qty);
-                                    local_recv_timestamp =
-                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
                                     if order.status == Status::Filled {
-                                        assert_ne!(local_recv_timestamp, 0);
-                                        return Ok(local_recv_timestamp);
+                                        return Ok(());
                                     }
                                 }
                             }
@@ -563,22 +525,19 @@ where
                             let local_recv_timestamp =
                                 timestamp + self.order_latency.response(timestamp, &order);
                             self.orders_to.append(order.clone(), local_recv_timestamp);
-                            Ok(local_recv_timestamp)
+                            Ok(())
                         }
                     }
                     TimeInForce::IOC => {
                         // The order must be executed immediately.
                         for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                            let mut local_recv_timestamp = 0;
                             let qty = self.depth.bid_qty_at_tick(t);
                             if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp =
-                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
-                                assert_ne!(local_recv_timestamp, 0);
-                                return Ok(local_recv_timestamp);
+                                return Ok(());
                             }
                         }
                         order.status = Status::Expired;
@@ -587,21 +546,18 @@ where
                         let local_recv_timestamp =
                             timestamp + self.order_latency.response(timestamp, &order);
                         self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(local_recv_timestamp)
+                        Ok(())
                     }
                     TimeInForce::GTC => {
                         // Takes the market.
                         for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                            let mut local_recv_timestamp = 0;
                             let qty = self.depth.bid_qty_at_tick(t);
                             if qty > 0.0 {
                                 let exec_qty = qty.min(order.leaves_qty);
-                                local_recv_timestamp =
-                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
                             }
                             if order.status == Status::Filled {
-                                assert_ne!(local_recv_timestamp, 0);
-                                return Ok(local_recv_timestamp);
+                                return Ok(());
                             }
                         }
 
@@ -633,12 +589,12 @@ where
 
                 self.orders.borrow_mut().insert(order.order_id, order);
 
-                Ok(local_recv_timestamp)
+                Ok(())
             }
         }
     }
 
-    fn ack_cancel(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, BacktestError> {
+    fn ack_cancel(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<(), BacktestError> {
         let exch_order = {
             let mut order_borrowed = self.orders.borrow_mut();
             order_borrowed.remove(&order.order_id)
@@ -651,7 +607,7 @@ where
             // It can overwrite another existing order on the local side if order_id is the same.
             // So, commented out.
             // self.orders_to.append(order.copy(), local_recv_timestamp)
-            return Ok(local_recv_timestamp);
+            return Ok(());
         }
 
         // Deletes the order.
@@ -674,10 +630,10 @@ where
         let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
         self.orders_to
             .append(exch_order.clone(), local_recv_timestamp);
-        Ok(local_recv_timestamp)
+        Ok(())
     }
 
-    fn ack_modify(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, BacktestError> {
+    fn ack_modify(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<(), BacktestError> {
         todo!();
         // let mut exch_order = {
         //     let mut order_borrowed = self.orders.borrow_mut();
@@ -957,21 +913,19 @@ where
         Ok((next_ts, i64::MAX))
     }
 
-    fn process_recv_order(&mut self, timestamp: i64, wait_resp: i64) -> Result<i64, BacktestError> {
+    fn process_recv_order(&mut self, timestamp: i64, _wait_resp_order_id: i64) -> Result<bool, BacktestError> {
         // Processes the order part.
-        let mut next_timestamp = i64::MAX;
         while self.orders_from.len() > 0 {
             let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let order = self.orders_from.remove(0);
-                next_timestamp =
-                    self.process_recv_order_(order, recv_timestamp, wait_resp, next_timestamp)?;
+                self.process_recv_order_(order, recv_timestamp)?;
             } else {
                 assert!(recv_timestamp > timestamp);
                 break;
             }
         }
-        Ok(next_timestamp)
+        Ok(false)
     }
 
     fn frontmost_recv_order_timestamp(&self) -> i64 {

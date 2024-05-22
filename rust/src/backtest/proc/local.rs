@@ -27,6 +27,7 @@ use crate::{
     depth::MarketDepth,
     types::{Event, OrdType, Order, Side, StateValues, Status, TimeInForce, BUY, SELL},
 };
+use crate::backtest::reader::WAIT_ORDER_RESPONSE_ANY;
 
 /// The local model.
 pub struct Local<AT, Q, LM, MD>
@@ -86,10 +87,7 @@ where
     fn process_recv_order_(
         &mut self,
         order: Order<Q>,
-        _recv_timestamp: i64,
-        _wait_resp: i64,
-        next_timestamp: i64,
-    ) -> Result<i64, BacktestError> {
+    ) -> Result<(), BacktestError> {
         if order.status == Status::Filled {
             self.state.apply_fill(&order);
         }
@@ -102,9 +100,7 @@ where
                 entry.insert(order);
             }
         }
-
-        // Bypass next_timestamp
-        Ok(next_timestamp)
+        Ok(())
     }
 }
 
@@ -264,23 +260,25 @@ where
         Ok((next_ts, i64::MAX))
     }
 
-    fn process_recv_order(&mut self, timestamp: i64, wait_resp: i64) -> Result<i64, BacktestError> {
+    fn process_recv_order(&mut self, timestamp: i64, wait_resp_order_id: i64) -> Result<bool, BacktestError> {
         // Processes the order part.
-        let mut next_timestamp = i64::MAX;
+        let mut wait_resp_order_received = false;
         while self.orders_from.len() > 0 {
             let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let order = self.orders_from.remove(0);
                 self.last_order_entry_latency = Some(order.exch_timestamp - order.local_timestamp);
                 self.last_roundtrip_order_latency = Some(recv_timestamp - order.local_timestamp);
-                next_timestamp =
-                    self.process_recv_order_(order, recv_timestamp, wait_resp, next_timestamp)?;
+                if order.order_id == wait_resp_order_id || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY {
+                    wait_resp_order_received = true;
+                }
+                self.process_recv_order_(order)?;
             } else {
                 assert!(recv_timestamp > timestamp);
                 break;
             }
         }
-        Ok(next_timestamp)
+        Ok(wait_resp_order_received)
     }
 
     fn frontmost_recv_order_timestamp(&self) -> i64 {

@@ -76,8 +76,12 @@ pub trait Processor {
 
     /// Processes an order upon receipt. This is invoked when the backtesting time reaches the order
     /// receipt timestamp.
-    /// If successful, returns the timestamp of the next receipt.
-    fn process_recv_order(&mut self, timestamp: i64, wait_resp: i64) -> Result<i64, BacktestError>;
+    /// Returns Ok(true) if the order with `wait_resp_order_id` is received and processed.
+    fn process_recv_order(
+        &mut self,
+        timestamp: i64,
+        wait_resp_order_id: i64
+    ) -> Result<bool, BacktestError>;
 
     /// Returns the foremost timestamp at which an order is to be received by this processor.
     fn frontmost_recv_order_timestamp(&self) -> i64;

@@ -601,6 +601,14 @@ where
     /// [`Status::PartiallyFilled`].
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>);
 
+    /// Waits for the response of the order with the given order ID until timeout.
+    fn wait_order_response(
+        &mut self,
+        asset_no: usize,
+        order_id: i64,
+        timeout: i64
+    ) -> Result<bool, Self::Error>;
+
     /// Elapses the specified duration.
     ///
     /// Args:

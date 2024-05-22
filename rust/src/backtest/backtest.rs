@@ -113,8 +113,9 @@ where
     pub fn goto(
         &mut self,
         timestamp: i64,
-        wait_order_response: i64,
+        wait_order_response: (usize, i64),
     ) -> Result<bool, BacktestError> {
+        let mut timestamp = timestamp;
         loop {
             match self.evs.next() {
                 Some(ev) => {
@@ -139,7 +140,14 @@ where
                         }
                         EventType::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let t = local.process_recv_order(ev.timestamp, wait_order_response)?;
+                            let wait_order_resp_id = if ev.asset_no == wait_order_response.0 {
+                                wait_order_response.1
+                            } else {
+                                WAIT_ORDER_RESPONSE_NONE
+                            };
+                            if local.process_recv_order(ev.timestamp, wait_order_resp_id)? {
+                                timestamp += 1;
+                            }
                             self.evs.update_local_order(
                                 ev.asset_no,
                                 local.frontmost_recv_order_timestamp(),
@@ -165,7 +173,7 @@ where
                         }
                         EventType::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let t = exch.process_recv_order(ev.timestamp, wait_order_response)?;
+                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.frontmost_recv_order_timestamp(),
@@ -264,7 +272,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
         }
         Ok(true)
     }
@@ -294,7 +302,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
         }
         Ok(true)
     }
@@ -319,7 +327,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order.order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order.order_id));
         }
         Ok(true)
     }
@@ -350,7 +358,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
         if wait {
             if let Some(order_id) = wait_order_id {
-                return self.goto(UNTIL_END_OF_DATA, order_id);
+                return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
             }
         }
         Ok(true)
@@ -364,7 +372,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
         }
         Ok(true)
     }
@@ -387,6 +395,16 @@ where
     }
 
     #[inline]
+    fn wait_order_response(
+        &mut self,
+        asset_no: usize,
+        order_id: i64,
+        timeout: i64
+    ) -> Result<bool, BacktestError> {
+        self.goto(self.cur_ts + timeout, (asset_no, order_id))
+    }
+
+    #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
@@ -399,7 +417,7 @@ where
                 }
             }
         }
-        self.goto(self.cur_ts + duration, WAIT_ORDER_RESPONSE_NONE)
+        self.goto(self.cur_ts + duration, (0, WAIT_ORDER_RESPONSE_NONE))
     }
 
     #[inline]
@@ -525,8 +543,9 @@ where
     pub fn goto(
         &mut self,
         timestamp: i64,
-        wait_order_response: i64,
+        wait_order_response: (usize, i64),
     ) -> Result<bool, BacktestError> {
+        let mut timestamp = timestamp;
         loop {
             match self.evs.next() {
                 Some(ev) => {
@@ -551,7 +570,14 @@ where
                         }
                         EventType::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let t = local.process_recv_order(ev.timestamp, wait_order_response)?;
+                            let wait_order_resp_id = if ev.asset_no == wait_order_response.0 {
+                                wait_order_response.1
+                            } else {
+                                WAIT_ORDER_RESPONSE_NONE
+                            };
+                            if local.process_recv_order(ev.timestamp, wait_order_resp_id)? {
+                                timestamp += 1;
+                            }
                             self.evs.update_local_order(
                                 ev.asset_no,
                                 local.frontmost_recv_order_timestamp(),
@@ -577,7 +603,7 @@ where
                         }
                         EventType::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let t = exch.process_recv_order(ev.timestamp, wait_order_response)?;
+                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.frontmost_recv_order_timestamp(),
@@ -679,7 +705,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
         }
         Ok(true)
     }
@@ -709,7 +735,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
         }
         Ok(true)
     }
@@ -734,7 +760,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order.order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order.order_id));
         }
         Ok(true)
     }
@@ -765,7 +791,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
         if wait {
             if let Some(order_id) = wait_order_id {
-                return self.goto(UNTIL_END_OF_DATA, order_id);
+                return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
             }
         }
         Ok(true)
@@ -779,7 +805,7 @@ where
             .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, order_id);
+            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
         }
         Ok(true)
     }
@@ -802,6 +828,16 @@ where
     }
 
     #[inline]
+    fn wait_order_response(
+        &mut self,
+        asset_no: usize,
+        order_id: i64,
+        timeout: i64
+    ) -> Result<bool, BacktestError> {
+        self.goto(self.cur_ts + timeout, (asset_no, order_id))
+    }
+
+    #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
@@ -814,7 +850,7 @@ where
                 }
             }
         }
-        self.goto(self.cur_ts + duration, WAIT_ORDER_RESPONSE_NONE)
+        self.goto(self.cur_ts + duration, (0, WAIT_ORDER_RESPONSE_NONE))
     }
 
     #[inline]
