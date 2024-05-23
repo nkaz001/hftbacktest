@@ -194,6 +194,7 @@ The following items are examples of contributions you can make to this project:
    tutorials/Getting Started
    tutorials/Working with Market Depth and Trades
    tutorials/Integrating Custom Data
+   tutorials/Making Multiple Markets - Introduction
    tutorials/High-Frequency Grid Trading
    tutorials/Impact of Order Latency
    tutorials/GLFT Market Making Model and Grid Trading
