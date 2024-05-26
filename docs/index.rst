@@ -197,6 +197,7 @@ The following items are examples of contributions you can make to this project:
    tutorials/Making Multiple Markets - Introduction
    tutorials/High-Frequency Grid Trading
    tutorials/Impact of Order Latency
+   tutorials/Order Latency Data
    tutorials/GLFT Market Making Model and Grid Trading
    tutorials/Making Multiple Markets
    tutorials/Probability Queue Models
