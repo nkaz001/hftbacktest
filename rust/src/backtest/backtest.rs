@@ -146,7 +146,7 @@ where
                                 WAIT_ORDER_RESPONSE_NONE
                             };
                             if local.process_recv_order(ev.timestamp, wait_order_resp_id)? {
-                                timestamp += 1;
+                                timestamp = ev.timestamp;
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
@@ -404,6 +404,88 @@ where
         self.goto(self.cur_ts + timeout, (asset_no, order_id))
     }
 
+    fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
+        if self.cur_ts == i64::MAX {
+            self.initialize_evs()?;
+            match self.evs.next() {
+                Some(ev) => {
+                    self.cur_ts = ev.timestamp;
+                }
+                None => {
+                    return Ok(false);
+                }
+            }
+        }
+        let mut timestamp = self.cur_ts + timeout;
+        loop {
+            match self.evs.next() {
+                Some(ev) => {
+                    if ev.timestamp > timestamp {
+                        self.cur_ts = timestamp;
+                        return Ok(true);
+                    }
+                    match ev.ty {
+                        EventType::LocalData => {
+                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            match local.process_data() {
+                                Ok((next_ts, _)) => {
+                                    self.evs.update_local_data(ev.asset_no, next_ts);
+                                }
+                                Err(BacktestError::EndOfData) => {
+                                    self.evs.invalidate_local_data(ev.asset_no);
+                                }
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            }
+                            timestamp = ev.timestamp;
+                        }
+                        EventType::LocalOrder => {
+                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            let _ = local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            self.evs.update_local_order(
+                                ev.asset_no,
+                                local.frontmost_recv_order_timestamp(),
+                            );
+                            if include_order_resp {
+                                timestamp = ev.timestamp;
+                            }
+                        }
+                        EventType::ExchData => {
+                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            match exch.process_data() {
+                                Ok((next_ts, _)) => {
+                                    self.evs.update_exch_data(ev.asset_no, next_ts);
+                                }
+                                Err(BacktestError::EndOfData) => {
+                                    self.evs.invalidate_exch_data(ev.asset_no);
+                                }
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            }
+                            self.evs.update_local_order(
+                                ev.asset_no,
+                                exch.frontmost_send_order_timestamp(),
+                            );
+                        }
+                        EventType::ExchOrder => {
+                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            self.evs.update_exch_order(
+                                ev.asset_no,
+                                exch.frontmost_recv_order_timestamp(),
+                            );
+                        }
+                    }
+                }
+                None => {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+
     #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
@@ -576,7 +658,7 @@ where
                                 WAIT_ORDER_RESPONSE_NONE
                             };
                             if local.process_recv_order(ev.timestamp, wait_order_resp_id)? {
-                                timestamp += 1;
+                                timestamp = ev.timestamp;
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
@@ -835,6 +917,88 @@ where
         timeout: i64
     ) -> Result<bool, BacktestError> {
         self.goto(self.cur_ts + timeout, (asset_no, order_id))
+    }
+
+    fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
+        if self.cur_ts == i64::MAX {
+            self.initialize_evs()?;
+            match self.evs.next() {
+                Some(ev) => {
+                    self.cur_ts = ev.timestamp;
+                }
+                None => {
+                    return Ok(false);
+                }
+            }
+        }
+        let mut timestamp = self.cur_ts + timeout;
+        loop {
+            match self.evs.next() {
+                Some(ev) => {
+                    if ev.timestamp > timestamp {
+                        self.cur_ts = timestamp;
+                        return Ok(true);
+                    }
+                    match ev.ty {
+                        EventType::LocalData => {
+                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            match local.process_data() {
+                                Ok((next_ts, _)) => {
+                                    self.evs.update_local_data(ev.asset_no, next_ts);
+                                }
+                                Err(BacktestError::EndOfData) => {
+                                    self.evs.invalidate_local_data(ev.asset_no);
+                                }
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            }
+                            timestamp = ev.timestamp;
+                        }
+                        EventType::LocalOrder => {
+                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            let _ = local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            self.evs.update_local_order(
+                                ev.asset_no,
+                                local.frontmost_recv_order_timestamp(),
+                            );
+                            if include_order_resp {
+                                timestamp = ev.timestamp;
+                            }
+                        }
+                        EventType::ExchData => {
+                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            match exch.process_data() {
+                                Ok((next_ts, _)) => {
+                                    self.evs.update_exch_data(ev.asset_no, next_ts);
+                                }
+                                Err(BacktestError::EndOfData) => {
+                                    self.evs.invalidate_exch_data(ev.asset_no);
+                                }
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            }
+                            self.evs.update_local_order(
+                                ev.asset_no,
+                                exch.frontmost_send_order_timestamp(),
+                            );
+                        }
+                        EventType::ExchOrder => {
+                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            self.evs.update_exch_order(
+                                ev.asset_no,
+                                exch.frontmost_recv_order_timestamp(),
+                            );
+                        }
+                    }
+                }
+                None => {
+                    return Ok(false);
+                }
+            }
+        }
     }
 
     #[inline]

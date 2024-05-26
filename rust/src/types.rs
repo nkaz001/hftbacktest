@@ -609,6 +609,13 @@ where
         timeout: i64
     ) -> Result<bool, Self::Error>;
 
+    /// Wait until the next feed is received, or until timeout.
+    fn wait_next_feed(
+        &mut self,
+        include_order_resp: bool,
+        timeout: i64
+    ) -> Result<bool, Self::Error>;
+
     /// Elapses the specified duration.
     ///
     /// Args:

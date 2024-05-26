@@ -324,7 +324,12 @@ where
         Ok(())
     }
 
-    fn elapse_(&mut self, duration: i64, wait_order_response: (usize, i64)) -> Result<bool, BotError> {
+    fn elapse_(
+        &mut self,
+        duration: i64,
+        wait_order_response: (usize, i64),
+        wait_next_feed: bool,
+    ) -> Result<bool, BotError> {
         let now = Instant::now();
         let mut remaining_duration = duration;
         loop {
@@ -340,6 +345,9 @@ where
                     }
                     for (px, qty) in data.asks {
                         depth.update_ask_depth(px, qty, 0);
+                    }
+                    if wait_next_feed {
+                        return Ok(true);
                     }
                 }
                 Ok(LiveEvent::Trade(data)) => {
@@ -359,6 +367,9 @@ where
                         px: data.price,
                         qty: data.qty,
                     });
+                    if wait_next_feed {
+                        return Ok(true);
+                    }
                 }
                 Ok(LiveEvent::Order(data)) => {
                     debug!(?data, "Event::Order");
@@ -401,8 +412,7 @@ where
                             entry.insert(data.order);
                         }
                     }
-
-                    if received_order_resp {
+                    if received_order_resp || wait_next_feed {
                         return Ok(true);
                     }
                 }
@@ -526,15 +536,6 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
                 }
             }
         }
-    }
-
-    fn wait_order_response(
-        &mut self,
-        asset_no: usize,
-        order_id: i64,
-        timeout: i64
-    ) -> Result<bool, Self::Error> {
-        todo!()
     }
 
     #[inline]
@@ -686,9 +687,22 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         }
     }
 
+    fn wait_order_response(
+        &mut self,
+        asset_no: usize,
+        order_id: i64,
+        timeout: i64
+    ) -> Result<bool, Self::Error> {
+        self.elapse_(timeout, (asset_no, order_id), false)
+    }
+
+    fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
+        self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_NONE), true)
+    }
+
     #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
-        self.elapse_(duration, (0, WAIT_ORDER_RESPONSE_NONE))
+        self.elapse_(duration, (0, WAIT_ORDER_RESPONSE_NONE), false)
     }
 
     #[inline]
