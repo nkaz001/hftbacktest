@@ -247,6 +247,8 @@ impl<MD> BotBuilder<MD> {
         let orders = self.assets.iter().map(|_| HashMap::new()).collect();
         let position = self.assets.iter().map(|_| 0.0).collect();
         let trade = self.assets.iter().map(|_| Vec::new()).collect();
+        let last_feed_latency = self.assets.iter().map(|_| None).collect();
+        let last_order_latency = self.assets.iter().map(|_| None).collect();
 
         Ok(Bot {
             ev_tx: Some(ev_tx),
@@ -262,6 +264,8 @@ impl<MD> BotBuilder<MD> {
             error_handler: self.error_handler,
             order_hook: self.order_hook,
             batch_orders: Default::default(),
+            last_feed_latency,
+            last_order_latency,
         })
     }
 }
@@ -294,6 +298,8 @@ pub struct Bot<MD> {
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
     batch_orders: Vec<Order<()>>,
+    last_feed_latency: Vec<Option<i64>>,
+    last_order_latency: Vec<Option<(i64, i64)>>
 }
 
 impl<MD> Bot<MD>
@@ -346,6 +352,7 @@ where
                     for (px, qty) in data.asks {
                         depth.update_ask_depth(px, qty, 0);
                     }
+                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } = Some(data.exch_ts - data.local_ts);
                     if wait_next_feed {
                         return Ok(true);
                     }
@@ -367,6 +374,7 @@ where
                         px: data.price,
                         qty: data.qty,
                     });
+                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } = Some(data.exch_ts - data.local_ts);
                     if wait_next_feed {
                         return Ok(true);
                     }
@@ -381,6 +389,11 @@ where
                     } else {
                         false
                     };
+                    *unsafe { self.last_order_latency.get_unchecked_mut(data.asset_no) }
+                        = Some((
+                        data.order.exch_timestamp - data.order.local_timestamp,
+                        Utc::now().timestamp_nanos_opt().unwrap() - data.order.local_timestamp
+                    ));
                     match self
                         .orders
                         .get_mut(data.asset_no)
@@ -479,6 +492,9 @@ where
         };
         orders.insert(order.order_id, order.clone());
         self.req_tx.send(Request::Order((asset_no, order))).unwrap();
+        if wait {
+            todo!();
+        }
         Ok(true)
     }
 }
@@ -687,6 +703,7 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         }
     }
 
+    #[inline]
     fn wait_order_response(
         &mut self,
         asset_no: usize,
@@ -696,6 +713,7 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         self.elapse_(timeout, (asset_no, order_id), false)
     }
 
+    #[inline]
     fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
         self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_NONE), true)
     }
@@ -712,5 +730,13 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
 
     fn close(&mut self) -> Result<(), Self::Error> {
         Ok(())
+    }
+
+    fn feed_latency(&self, asset_no: usize) -> Option<i64> {
+        todo!()
+    }
+
+    fn order_latency(&self, asset_no: usize) -> Option<(i64, i64)> {
+        todo!()
     }
 }

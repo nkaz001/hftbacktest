@@ -404,6 +404,7 @@ where
         self.goto(self.cur_ts + timeout, (asset_no, order_id))
     }
 
+    #[inline]
     fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
@@ -507,8 +508,19 @@ where
         self.elapse(duration)
     }
 
+    #[inline]
     fn close(&mut self) -> Result<(), Self::Error> {
         Ok(())
+    }
+
+    #[inline]
+    fn feed_latency(&self, asset_no: usize) -> Option<i64> {
+        self.local.get(asset_no).unwrap().feed_latency()
+    }
+
+    #[inline]
+    fn order_latency(&self, asset_no: usize) -> Option<(i64, i64)> {
+        self.local.get(asset_no).unwrap().order_latency()
     }
 }
 
@@ -1022,7 +1034,18 @@ where
         self.elapse(duration)
     }
 
+    #[inline]
     fn close(&mut self) -> Result<(), Self::Error> {
         Ok(())
+    }
+
+    #[inline]
+    fn feed_latency(&self, asset_no: usize) -> Option<i64> {
+        self.local.get(asset_no).unwrap().feed_latency()
+    }
+
+    #[inline]
+    fn order_latency(&self, asset_no: usize) -> Option<(i64, i64)> {
+        self.local.get(asset_no).unwrap().order_latency()
     }
 }

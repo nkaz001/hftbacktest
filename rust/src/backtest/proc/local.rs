@@ -47,8 +47,8 @@ where
     state: State<AT>,
     order_latency: LM,
     trades: Vec<Event>,
-    last_order_entry_latency: Option<i64>,
-    last_roundtrip_order_latency: Option<i64>,
+    last_feed_latency: Option<i64>,
+    last_order_latency: Option<(i64, i64)>,
 }
 
 impl<AT, Q, LM, MD> Local<AT, Q, LM, MD>
@@ -79,8 +79,8 @@ where
             state,
             order_latency,
             trades: Vec::with_capacity(trade_len),
-            last_order_entry_latency: None,
-            last_roundtrip_order_latency: None,
+            last_feed_latency: None,
+            last_order_latency: None,
         }
     }
 
@@ -136,6 +136,7 @@ where
             time_in_force,
         );
         order.req = Status::New;
+        order.local_timestamp = current_timestamp;
         let exch_recv_timestamp =
             current_timestamp + self.order_latency.entry(current_timestamp, &order);
 
@@ -155,6 +156,7 @@ where
         }
 
         order.req = Status::Canceled;
+        order.local_timestamp = current_timestamp;
         let exch_recv_timestamp =
             current_timestamp + self.order_latency.entry(current_timestamp, order);
 
@@ -200,6 +202,14 @@ where
     fn clear_last_trades(&mut self) {
         self.trades.clear();
     }
+
+    fn feed_latency(&self) -> Option<i64> {
+        self.last_feed_latency
+    }
+
+    fn order_latency(&self) -> Option<(i64, i64)> {
+        self.last_order_latency
+    }
 }
 
 impl<AT, Q, LM, MD> Processor for Local<AT, Q, LM, MD>
@@ -239,6 +249,9 @@ where
             }
         }
 
+        // Stores the current feed latency
+        self.last_feed_latency = Some(ev.exch_ts - ev.local_ts);
+
         // Checks
         let mut next_ts = 0;
         for rn in (self.row_num + 1)..self.data.len() {
@@ -257,6 +270,7 @@ where
             self.reader.release(data);
             self.row_num = 0;
         }
+
         Ok((next_ts, i64::MAX))
     }
 
@@ -267,8 +281,7 @@ where
             let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let order = self.orders_from.remove(0);
-                self.last_order_entry_latency = Some(order.exch_timestamp - order.local_timestamp);
-                self.last_roundtrip_order_latency = Some(recv_timestamp - order.local_timestamp);
+                self.last_order_latency = Some((order.exch_timestamp - order.local_timestamp, recv_timestamp - order.local_timestamp));
                 if order.order_id == wait_resp_order_id || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY {
                     wait_resp_order_received = true;
                 }
