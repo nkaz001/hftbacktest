@@ -326,6 +326,8 @@ class Stat:
         print('The number of trades per day: %d' % dtn)
         print('Avg. daily trading volume: %d' % dtq)
         print('Avg. daily trading amount: %d' % dta)
+        print('Avg. daily turnover (trading amount/capital): %.2f %%' % dta / capital * 100)
+        print('Return per trade (bp): %.6f' % ar / (dta * trading_days))
 
         position = np.asarray(self.position) * np.asarray(self.mid)
         if capital is not None:
