@@ -1,29 +1,35 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use hftbacktest::prelude::*;
-use tracing::info;
 
 pub fn gridtrading<Q, MD, I, R>(
     hbt: &mut I,
     recorder: &mut R,
     half_spread: f64,
     grid_interval: f64,
+    grid_num: i32,
     skew: f64,
     order_qty: f64,
 ) -> Result<(), i64>
-where
-    Q: Sized + Clone,
-    MD: MarketDepth,
-    I: Interface<Q, MD>,
-    <I as Interface<Q, MD>>::Error: Debug,
-    R: Recorder,
+    where
+        Q: Sized + Clone,
+        MD: MarketDepth,
+        I: Interface<Q, MD>,
+        <I as Interface<Q, MD>>::Error: Debug,
+        R: Recorder,
+        <R as Recorder>::Error: Debug,
 {
-    let grid_num = 20;
     let max_position = grid_num as f64 * order_qty;
     let tick_size = hbt.depth(0).tick_size() as f64;
-
+    let mut int = 0;
     // Running interval in nanoseconds
     while hbt.elapse(100_000_000).unwrap() {
+        int += 1;
+        if int % 10 == 0 {
+            // Records every 1-sec.
+            recorder.record(hbt).unwrap();
+        }
+
         let depth = hbt.depth(0);
         let position = hbt.position(0);
 
@@ -39,10 +45,10 @@ where
         let bid_depth = half_spread + skew * normalized_position;
         let ask_depth = half_spread - skew * normalized_position;
 
-        let bid_price = (mid_price - bid_depth).min(depth.best_bid() as f64);
-        let ask_price = (mid_price + ask_depth).max(depth.best_ask() as f64);
+        let bid_price = (mid_price * (1.0 - bid_depth)).min(depth.best_bid() as f64);
+        let ask_price = (mid_price * (1.0 + ask_depth)).max(depth.best_ask() as f64);
 
-        let grid_interval = ((grid_interval / tick_size).round() * tick_size).max(tick_size);
+        let grid_interval = ((mid_price * grid_interval / tick_size).round() * tick_size).max(tick_size);
 
         let mut bid_price = (bid_price / grid_interval).floor() * grid_interval;
         let mut ask_price = (ask_price / grid_interval).ceil() * grid_interval;
@@ -93,7 +99,7 @@ where
                     OrdType::Limit,
                     false,
                 )
-                .unwrap();
+                    .unwrap();
             }
         }
 
@@ -138,7 +144,7 @@ where
                     OrdType::Limit,
                     false,
                 )
-                .unwrap();
+                    .unwrap();
             }
         }
     }

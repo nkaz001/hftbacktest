@@ -1,3 +1,4 @@
+use std::time::Instant;
 use algo::gridtrading;
 use hftbacktest::{
     backtest::{
@@ -43,22 +44,26 @@ fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarket
 fn main() {
     tracing_subscriber::fmt::init();
 
-    let mut hbt = prepare_backtest();
-
-    let half_spread = 0.05;
-    let grid_interval = 0.05;
-    let skew = 0.004;
+    let half_spread_bp = 0.0005;
+    let grid_interval_bp = 0.0005;
+    let grid_num = 20;
+    let skew = half_spread_bp / grid_num as f64;
     let order_qty = 1.0;
 
+    let mut start = Instant::now();
+    let mut hbt = prepare_backtest();
     let mut recorder = BacktestRecorder::new(&hbt);
     gridtrading(
         &mut hbt,
         &mut recorder,
-        half_spread,
-        grid_interval,
+        half_spread_bp,
+        grid_interval_bp,
+        grid_num,
         skew,
-        order_qty,
+        order_qty
     )
-    .unwrap();
+        .unwrap();
     hbt.close().unwrap();
+    print!("{} seconds", start.elapsed().as_secs());
+    recorder.to_csv(".").unwrap();
 }
