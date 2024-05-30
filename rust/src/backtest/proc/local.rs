@@ -222,9 +222,10 @@ where
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
         self.data = self.reader.next()?;
         for rn in 0..self.data.len() {
-            if self.data[rn].ev & LOCAL_EVENT == LOCAL_EVENT {
+            if self.data[rn].is(LOCAL_EVENT) {
                 self.row_num = rn;
-                return Ok(self.data[rn].local_ts);
+                let tmp = self.data[rn].local_ts;
+                return Ok(tmp);
             }
         }
         Err(BacktestError::EndOfData)

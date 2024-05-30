@@ -780,7 +780,7 @@ where
         for rn in 0..self.data.len() {
             if self.data[rn].is(EXCH_EVENT) {
                 self.row_num = rn;
-                return Ok(self.data[rn].local_ts);
+                return Ok(self.data[rn].exch_ts);
             }
         }
         Err(BacktestError::EndOfData)
