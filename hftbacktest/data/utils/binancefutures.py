@@ -179,7 +179,8 @@ def convert(
             raise ValueError
 
     if structured_array:
-        data = convert_to_struct_arr(data)
+        # EXCH_EVENT and LOCAL_EVENT are already applied.
+        data = convert_to_struct_arr(data, False)
 
     if output_filename is not None:
         print('Saving to %s' % output_filename)
