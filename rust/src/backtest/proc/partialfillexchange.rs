@@ -913,7 +913,11 @@ where
         Ok((next_ts, i64::MAX))
     }
 
-    fn process_recv_order(&mut self, timestamp: i64, _wait_resp_order_id: i64) -> Result<bool, BacktestError> {
+    fn process_recv_order(
+        &mut self,
+        timestamp: i64,
+        _wait_resp_order_id: i64,
+    ) -> Result<bool, BacktestError> {
         // Processes the order part.
         while self.orders_from.len() > 0 {
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();

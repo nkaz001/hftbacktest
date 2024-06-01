@@ -1,6 +1,4 @@
-use std::rc::Rc;
-use std::cell::UnsafeCell;
-use std::collections::VecDeque;
+use std::{cell::UnsafeCell, collections::VecDeque, rc::Rc};
 
 use crate::types::Order;
 
@@ -27,7 +25,9 @@ where
 
     /// Returns the timestamp of the earliest order in the bus.
     pub fn earliest_timestamp(&self) -> Option<i64> {
-        unsafe { &*self.order_list.get() }.get(0).map(|(_order, ts)| *ts)
+        unsafe { &*self.order_list.get() }
+            .get(0)
+            .map(|(_order, ts)| *ts)
     }
 
     /// Appends the order to the bus with the timestamp.

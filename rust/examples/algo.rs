@@ -11,13 +11,13 @@ pub fn gridtrading<Q, MD, I, R>(
     skew: f64,
     order_qty: f64,
 ) -> Result<(), i64>
-    where
-        Q: Sized + Clone,
-        MD: MarketDepth,
-        I: Interface<Q, MD>,
-        <I as Interface<Q, MD>>::Error: Debug,
-        R: Recorder,
-        <R as Recorder>::Error: Debug,
+where
+    Q: Sized + Clone,
+    MD: MarketDepth,
+    I: Interface<Q, MD>,
+    <I as Interface<Q, MD>>::Error: Debug,
+    R: Recorder,
+    <R as Recorder>::Error: Debug,
 {
     let max_position = grid_num as f64 * order_qty;
     let tick_size = hbt.depth(0).tick_size() as f64;
@@ -48,7 +48,8 @@ pub fn gridtrading<Q, MD, I, R>(
         let bid_price = (mid_price * (1.0 - bid_depth)).min(depth.best_bid() as f64);
         let ask_price = (mid_price * (1.0 + ask_depth)).max(depth.best_ask() as f64);
 
-        let grid_interval = ((mid_price * grid_interval / tick_size).round() * tick_size).max(tick_size);
+        let grid_interval =
+            ((mid_price * grid_interval / tick_size).round() * tick_size).max(tick_size);
 
         let mut bid_price = (bid_price / grid_interval).floor() * grid_interval;
         let mut ask_price = (ask_price / grid_interval).ceil() * grid_interval;
@@ -99,7 +100,7 @@ pub fn gridtrading<Q, MD, I, R>(
                     OrdType::Limit,
                     false,
                 )
-                    .unwrap();
+                .unwrap();
             }
         }
 
@@ -144,7 +145,7 @@ pub fn gridtrading<Q, MD, I, R>(
                     OrdType::Limit,
                     false,
                 )
-                    .unwrap();
+                .unwrap();
             }
         }
     }

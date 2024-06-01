@@ -1,8 +1,15 @@
 use std::mem;
+
 use serde::de::MapAccess;
-use crate::{backtest::reader::Data, types::Order};
-use crate::backtest::{BacktestError, DataSource};
-use crate::backtest::reader::{Cache, Reader};
+
+use crate::{
+    backtest::{
+        reader::{Cache, Data, Reader},
+        BacktestError,
+        DataSource,
+    },
+    types::Order,
+};
 
 /// Provides the order entry latency and the order response latency.
 pub trait LatencyModel {
@@ -111,12 +118,12 @@ impl IntpOrderLatency {
         let data = match reader.next() {
             Ok(data) => data,
             Err(BacktestError::EndOfData) => Data::empty(),
-            Err(e) => return Err(e)
+            Err(e) => return Err(e),
         };
         let next_data = match reader.next() {
             Ok(data) => data,
             Err(BacktestError::EndOfData) => Data::empty(),
-            Err(e) => return Err(e)
+            Err(e) => return Err(e),
         };
         Ok(Self {
             entry_rn: 0,
@@ -136,8 +143,7 @@ impl IntpOrderLatency {
             let next_data = match self.reader.next() {
                 Ok(data) => data,
                 Err(BacktestError::EndOfData) => Data::empty(),
-                Err(e) => return Err(e)
-
+                Err(e) => return Err(e),
             };
             let next_data = mem::replace(&mut self.next_data, next_data);
             let data = mem::replace(&mut self.data, next_data);

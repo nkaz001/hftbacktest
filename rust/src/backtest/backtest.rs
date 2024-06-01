@@ -179,7 +179,8 @@ where
                         }
                         EventType::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ =
+                                exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.earliest_recv_order_timestamp(),
@@ -396,13 +397,17 @@ where
         &mut self,
         asset_no: usize,
         order_id: i64,
-        timeout: i64
+        timeout: i64,
     ) -> Result<bool, BacktestError> {
         self.goto(self.cur_ts + timeout, (asset_no, order_id))
     }
 
     #[inline]
-    fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
+    fn wait_next_feed(
+        &mut self,
+        include_order_resp: bool,
+        timeout: i64,
+    ) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
             match self.evs.next() {
@@ -446,7 +451,8 @@ where
                         }
                         EventType::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let _ = local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ =
+                                local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_local_order(
                                 ev.asset_no,
                                 local.earliest_recv_order_timestamp(),
@@ -475,7 +481,8 @@ where
                         }
                         EventType::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ =
+                                exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.earliest_recv_order_timestamp(),
@@ -700,7 +707,8 @@ where
                         }
                         EventType::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ =
+                                exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.earliest_recv_order_timestamp(),
@@ -929,12 +937,16 @@ where
         &mut self,
         asset_no: usize,
         order_id: i64,
-        timeout: i64
+        timeout: i64,
     ) -> Result<bool, BacktestError> {
         self.goto(self.cur_ts + timeout, (asset_no, order_id))
     }
 
-    fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
+    fn wait_next_feed(
+        &mut self,
+        include_order_resp: bool,
+        timeout: i64,
+    ) -> Result<bool, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
             match self.evs.next() {
@@ -972,7 +984,8 @@ where
                         }
                         EventType::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let _ = local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ =
+                                local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_local_order(
                                 ev.asset_no,
                                 local.earliest_recv_order_timestamp(),
@@ -1001,7 +1014,8 @@ where
                         }
                         EventType::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ =
+                                exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.earliest_recv_order_timestamp(),

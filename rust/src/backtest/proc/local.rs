@@ -20,6 +20,7 @@ use crate::{
             LOCAL_BID_DEPTH_SNAPSHOT_EVENT,
             LOCAL_EVENT,
             LOCAL_TRADE_EVENT,
+            WAIT_ORDER_RESPONSE_ANY,
         },
         state::State,
         BacktestError,
@@ -27,7 +28,6 @@ use crate::{
     depth::MarketDepth,
     types::{Event, OrdType, Order, Side, StateValues, Status, TimeInForce, BUY, SELL},
 };
-use crate::backtest::reader::WAIT_ORDER_RESPONSE_ANY;
 
 /// The local model.
 pub struct Local<AT, Q, LM, MD>
@@ -84,10 +84,7 @@ where
         }
     }
 
-    fn process_recv_order_(
-        &mut self,
-        order: Order<Q>,
-    ) -> Result<(), BacktestError> {
+    fn process_recv_order_(&mut self, order: Order<Q>) -> Result<(), BacktestError> {
         if order.status == Status::Filled {
             self.state.apply_fill(&order);
         }
@@ -292,15 +289,24 @@ where
         Ok((next_ts, i64::MAX))
     }
 
-    fn process_recv_order(&mut self, timestamp: i64, wait_resp_order_id: i64) -> Result<bool, BacktestError> {
+    fn process_recv_order(
+        &mut self,
+        timestamp: i64,
+        wait_resp_order_id: i64,
+    ) -> Result<bool, BacktestError> {
         // Processes the order part.
         let mut wait_resp_order_received = false;
         while self.orders_from.len() > 0 {
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();
-                self.last_order_latency = Some((order.exch_timestamp - order.local_timestamp, recv_timestamp - order.local_timestamp));
-                if order.order_id == wait_resp_order_id || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY {
+                self.last_order_latency = Some((
+                    order.exch_timestamp - order.local_timestamp,
+                    recv_timestamp - order.local_timestamp,
+                ));
+                if order.order_id == wait_resp_order_id
+                    || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY
+                {
                     wait_resp_order_received = true;
                 }
                 self.process_recv_order_(order)?;

@@ -86,7 +86,7 @@ pub trait Processor {
     fn process_recv_order(
         &mut self,
         timestamp: i64,
-        wait_resp_order_id: i64
+        wait_resp_order_id: i64,
     ) -> Result<bool, BacktestError>;
 
     /// Returns the foremost timestamp at which an order is to be received by this processor.

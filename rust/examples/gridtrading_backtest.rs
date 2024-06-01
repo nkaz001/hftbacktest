@@ -1,6 +1,7 @@
 use std::time::Instant;
-use clap::Parser;
+
 use algo::gridtrading;
+use clap::Parser;
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
@@ -8,26 +9,26 @@ use hftbacktest::{
         recorder::BacktestRecorder,
         AssetBuilder,
         DataSource,
+        ExchangeKind,
         MultiAssetMultiExchangeBacktest,
     },
     prelude::{HashMapMarketDepth, Interface},
 };
-use hftbacktest::backtest::ExchangeKind;
 
 mod algo;
 
 fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
-    let latency_data = (20240501..20240532).map(
-        |date| DataSource::File(format!("latency_{date}.npz"))
-    ).collect();
+    let latency_data = (20240501..20240532)
+        .map(|date| DataSource::File(format!("latency_{date}.npz")))
+        .collect();
 
     let latency_model = IntpOrderLatency::new(latency_data).unwrap();
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 
-    let data = (20240501..20240532).map(
-        |date| DataSource::File(format!("1000SHIBUSDT_{date}.npz"))
-    ).collect();
+    let data = (20240501..20240532)
+        .map(|date| DataSource::File(format!("1000SHIBUSDT_{date}.npz")))
+        .collect();
 
     let hbt = MultiAssetMultiExchangeBacktest::builder()
         .add(
@@ -67,9 +68,9 @@ fn main() {
         grid_interval_bp,
         grid_num,
         skew,
-        order_qty
+        order_qty,
     )
-        .unwrap();
+    .unwrap();
     hbt.close().unwrap();
     print!("{} seconds", start.elapsed().as_secs());
     recorder.to_csv(".").unwrap();

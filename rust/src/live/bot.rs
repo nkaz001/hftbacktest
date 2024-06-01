@@ -14,6 +14,7 @@ use tokio::{
 use tracing::{debug, error};
 
 use crate::{
+    backtest::reader::{WAIT_ORDER_RESPONSE_ANY, WAIT_ORDER_RESPONSE_NONE},
     connector::Connector,
     depth::{HashMapMarketDepth, MarketDepth},
     live::Asset,
@@ -36,7 +37,6 @@ use crate::{
         SELL,
     },
 };
-use crate::backtest::reader::{WAIT_ORDER_RESPONSE_ANY, WAIT_ORDER_RESPONSE_NONE};
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -299,7 +299,7 @@ pub struct Bot<MD> {
     order_hook: Option<OrderRecvHook>,
     batch_orders: Vec<Order<()>>,
     last_feed_latency: Vec<Option<i64>>,
-    last_order_latency: Vec<Option<(i64, i64)>>
+    last_order_latency: Vec<Option<(i64, i64)>>,
 }
 
 impl<MD> Bot<MD>
@@ -352,7 +352,8 @@ where
                     for (px, qty) in data.asks {
                         depth.update_ask_depth(px, qty, 0);
                     }
-                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } = Some(data.exch_ts - data.local_ts);
+                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } =
+                        Some(data.exch_ts - data.local_ts);
                     if wait_next_feed {
                         return Ok(true);
                     }
@@ -374,25 +375,25 @@ where
                         px: data.price,
                         qty: data.qty,
                     });
-                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } = Some(data.exch_ts - data.local_ts);
+                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } =
+                        Some(data.exch_ts - data.local_ts);
                     if wait_next_feed {
                         return Ok(true);
                     }
                 }
                 Ok(LiveEvent::Order(data)) => {
                     debug!(?data, "Event::Order");
-                    let received_order_resp = if wait_order_response.0 == data.asset_no && (
-                        wait_order_response.1 == data.order.order_id
-                            || wait_order_response.1 == WAIT_ORDER_RESPONSE_ANY
-                    ) {
+                    let received_order_resp = if wait_order_response.0 == data.asset_no
+                        && (wait_order_response.1 == data.order.order_id
+                            || wait_order_response.1 == WAIT_ORDER_RESPONSE_ANY)
+                    {
                         true
                     } else {
                         false
                     };
-                    *unsafe { self.last_order_latency.get_unchecked_mut(data.asset_no) }
-                        = Some((
+                    *unsafe { self.last_order_latency.get_unchecked_mut(data.asset_no) } = Some((
                         data.order.exch_timestamp - data.order.local_timestamp,
-                        Utc::now().timestamp_nanos_opt().unwrap() - data.order.local_timestamp
+                        Utc::now().timestamp_nanos_opt().unwrap() - data.order.local_timestamp,
                     ));
                     match self
                         .orders
@@ -708,13 +709,17 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         &mut self,
         asset_no: usize,
         order_id: i64,
-        timeout: i64
+        timeout: i64,
     ) -> Result<bool, Self::Error> {
         self.elapse_(timeout, (asset_no, order_id), false)
     }
 
     #[inline]
-    fn wait_next_feed(&mut self, include_order_resp: bool, timeout: i64) -> Result<bool, Self::Error> {
+    fn wait_next_feed(
+        &mut self,
+        include_order_resp: bool,
+        timeout: i64,
+    ) -> Result<bool, Self::Error> {
         self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_NONE), true)
     }
 

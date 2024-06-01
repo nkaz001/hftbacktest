@@ -50,7 +50,7 @@ fn main() {
         grid_interval_bp,
         grid_num,
         skew,
-        order_qty
+        order_qty,
     )
     .unwrap();
     hbt.close().unwrap();
