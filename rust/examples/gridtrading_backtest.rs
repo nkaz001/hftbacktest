@@ -1,10 +1,10 @@
 use std::time::Instant;
+use clap::Parser;
 use algo::gridtrading;
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
-        reader::read_npz,
         recorder::BacktestRecorder,
         AssetBuilder,
         DataSource,
@@ -17,22 +17,29 @@ use hftbacktest::backtest::ExchangeKind;
 mod algo;
 
 fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
-    let latency_model = IntpOrderLatency::new(read_npz("latency_20240215.npz").unwrap());
+    let latency_data = (20240501..20240532).map(
+        |date| DataSource::File(format!("latency_{date}.npz"))
+    ).collect();
+
+    let latency_model = IntpOrderLatency::new(latency_data).unwrap();
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
+
+    let data = (20240501..20240532).map(
+        |date| DataSource::File(format!("1000SHIBUSDT_{date}.npz"))
+    ).collect();
 
     let hbt = MultiAssetMultiExchangeBacktest::builder()
         .add(
             AssetBuilder::new()
-                .data(vec![DataSource::File("SOLUSDT_20240215.npz".to_string())])
+                .data(data)
                 .latency_model(latency_model)
                 .asset_type(asset_type)
                 .maker_fee(-0.00005)
                 .taker_fee(0.0007)
                 .queue_model(queue_model)
-                .depth(|| HashMapMarketDepth::new(0.001, 1.0))
+                .depth(|| HashMapMarketDepth::new(0.000001, 1.0))
                 .exchange(ExchangeKind::NoPartialFillExchange)
-                .trade_len(1000)
                 .build()
                 .unwrap(),
         )
@@ -46,7 +53,7 @@ fn main() {
 
     let half_spread_bp = 0.0005;
     let grid_interval_bp = 0.0005;
-    let grid_num = 20;
+    let grid_num = 10;
     let skew = half_spread_bp / grid_num as f64;
     let order_qty = 1.0;
 

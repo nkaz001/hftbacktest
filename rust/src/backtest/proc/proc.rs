@@ -90,9 +90,9 @@ pub trait Processor {
     ) -> Result<bool, BacktestError>;
 
     /// Returns the foremost timestamp at which an order is to be received by this processor.
-    fn frontmost_recv_order_timestamp(&self) -> i64;
+    fn earliest_recv_order_timestamp(&self) -> i64;
 
     /// Returns the foremost timestamp at which an order sent by this processor is to be received by
     /// the corresponding processor.
-    fn frontmost_send_order_timestamp(&self) -> i64;
+    fn earliest_send_order_timestamp(&self) -> i64;
 }

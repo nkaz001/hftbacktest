@@ -137,11 +137,20 @@ where
         );
         order.req = Status::New;
         order.local_timestamp = current_timestamp;
-        let exch_recv_timestamp =
-            current_timestamp + self.order_latency.entry(current_timestamp, &order);
+        self.orders.insert(order.order_id, order.clone());
 
-        self.orders_to.append(order.clone(), exch_recv_timestamp);
-        self.orders.insert(order.order_id, order);
+        let mut order_entry_latency = self.order_latency.entry(current_timestamp, &order);
+        // Negative latency indicates that the order is rejected for technical reasons, and its
+        // value represents the latency that the local experiences when receiving the rejection
+        // notification.
+        if order_entry_latency < 0 {
+            // Rejects the order.
+            let rej_recv_timestamp = current_timestamp - order_entry_latency;
+            self.orders_from.append(order, rej_recv_timestamp);
+        } else {
+            let exch_recv_timestamp = current_timestamp + order_entry_latency;
+            self.orders_to.append(order, exch_recv_timestamp);
+        }
         Ok(())
     }
 
@@ -157,10 +166,18 @@ where
 
         order.req = Status::Canceled;
         order.local_timestamp = current_timestamp;
-        let exch_recv_timestamp =
-            current_timestamp + self.order_latency.entry(current_timestamp, order);
-
-        self.orders_to.append(order.clone(), exch_recv_timestamp);
+        let mut order_entry_latency = self.order_latency.entry(current_timestamp, order);
+        // Negative latency indicates that the order is rejected for technical reasons, and its
+        // value represents the latency that the local experiences when receiving the rejection
+        // notification.
+        if order_entry_latency < 0 {
+            // Rejects the order.
+            let rej_recv_timestamp = current_timestamp - order_entry_latency;
+            self.orders_from.append(order.clone(), rej_recv_timestamp);
+        } else {
+            let exch_recv_timestamp = current_timestamp + order_entry_latency;
+            self.orders_to.append(order.clone(), exch_recv_timestamp);
+        }
         Ok(())
     }
 
@@ -279,9 +296,9 @@ where
         // Processes the order part.
         let mut wait_resp_order_received = false;
         while self.orders_from.len() > 0 {
-            let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
+            let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
-                let order = self.orders_from.remove(0);
+                let (order, _) = self.orders_from.pop_front().unwrap();
                 self.last_order_latency = Some((order.exch_timestamp - order.local_timestamp, recv_timestamp - order.local_timestamp));
                 if order.order_id == wait_resp_order_id || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY {
                     wait_resp_order_received = true;
@@ -295,11 +312,11 @@ where
         Ok(wait_resp_order_received)
     }
 
-    fn frontmost_recv_order_timestamp(&self) -> i64 {
-        self.orders_from.frontmost_timestamp().unwrap_or(i64::MAX)
+    fn earliest_recv_order_timestamp(&self) -> i64 {
+        self.orders_from.earliest_timestamp().unwrap_or(i64::MAX)
     }
 
-    fn frontmost_send_order_timestamp(&self) -> i64 {
-        self.orders_to.frontmost_timestamp().unwrap_or(i64::MAX)
+    fn earliest_send_order_timestamp(&self) -> i64 {
+        self.orders_to.earliest_timestamp().unwrap_or(i64::MAX)
     }
 }

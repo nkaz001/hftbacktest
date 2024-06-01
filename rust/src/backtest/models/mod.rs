@@ -1,7 +1,11 @@
 mod latencies;
 mod queue;
 
-pub use latencies::{ConstantLatency, IntpOrderLatency, LatencyModel};
+pub use latencies::{
+    LatencyModel,
+    ConstantLatency,
+    IntpOrderLatency,
+};
 pub use queue::{
     LogProbQueueFunc,
     LogProbQueueFunc2,

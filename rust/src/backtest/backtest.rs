@@ -116,6 +116,12 @@ where
         wait_order_response: (usize, i64),
     ) -> Result<bool, BacktestError> {
         let mut timestamp = timestamp;
+        for (asset_no, local) in self.local.iter().enumerate() {
+            self.evs
+                .update_exch_order(asset_no, local.earliest_send_order_timestamp());
+            self.evs
+                .update_local_order(asset_no, local.earliest_recv_order_timestamp());
+        }
         loop {
             match self.evs.next() {
                 Some(ev) => {
@@ -150,7 +156,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                local.frontmost_recv_order_timestamp(),
+                                local.earliest_recv_order_timestamp(),
                             );
                         }
                         EventType::ExchData => {
@@ -168,7 +174,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                exch.frontmost_send_order_timestamp(),
+                                exch.earliest_send_order_timestamp(),
                             );
                         }
                         EventType::ExchOrder => {
@@ -176,7 +182,7 @@ where
                             let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
-                                exch.frontmost_recv_order_timestamp(),
+                                exch.earliest_recv_order_timestamp(),
                             );
                         }
                     }
@@ -268,8 +274,6 @@ where
             time_in_force,
             self.cur_ts,
         )?;
-        self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -298,8 +302,6 @@ where
             time_in_force,
             self.cur_ts,
         )?;
-        self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -323,8 +325,6 @@ where
             order.time_in_force,
             self.cur_ts,
         )?;
-        self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order.order_id));
@@ -354,8 +354,7 @@ where
                 self.cur_ts,
             )?;
         }
-        self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+
         if wait {
             if let Some(order_id) = wait_order_id {
                 return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -368,8 +367,6 @@ where
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
-        self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -418,6 +415,12 @@ where
             }
         }
         let mut timestamp = self.cur_ts + timeout;
+        for (asset_no, local) in self.local.iter().enumerate() {
+            self.evs
+                .update_exch_order(asset_no, local.earliest_send_order_timestamp());
+            self.evs
+                .update_local_order(asset_no, local.earliest_recv_order_timestamp());
+        }
         loop {
             match self.evs.next() {
                 Some(ev) => {
@@ -446,7 +449,7 @@ where
                             let _ = local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                local.frontmost_recv_order_timestamp(),
+                                local.earliest_recv_order_timestamp(),
                             );
                             if include_order_resp {
                                 timestamp = ev.timestamp;
@@ -467,7 +470,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                exch.frontmost_send_order_timestamp(),
+                                exch.earliest_send_order_timestamp(),
                             );
                         }
                         EventType::ExchOrder => {
@@ -475,7 +478,7 @@ where
                             let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
-                                exch.frontmost_recv_order_timestamp(),
+                                exch.earliest_recv_order_timestamp(),
                             );
                         }
                     }
@@ -674,7 +677,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                local.frontmost_recv_order_timestamp(),
+                                local.earliest_recv_order_timestamp(),
                             );
                         }
                         EventType::ExchData => {
@@ -692,7 +695,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                exch.frontmost_send_order_timestamp(),
+                                exch.earliest_send_order_timestamp(),
                             );
                         }
                         EventType::ExchOrder => {
@@ -700,7 +703,7 @@ where
                             let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
-                                exch.frontmost_recv_order_timestamp(),
+                                exch.earliest_recv_order_timestamp(),
                             );
                         }
                     }
@@ -796,7 +799,7 @@ where
             self.cur_ts,
         )?;
         self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+            .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -826,7 +829,7 @@ where
             self.cur_ts,
         )?;
         self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+            .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -851,7 +854,7 @@ where
             self.cur_ts,
         )?;
         self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+            .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order.order_id));
@@ -882,7 +885,7 @@ where
             )?;
         }
         self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+            .update_exch_order(asset_no, local.earliest_send_order_timestamp());
         if wait {
             if let Some(order_id) = wait_order_id {
                 return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -896,7 +899,7 @@ where
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
         self.evs
-            .update_exch_order(asset_no, local.frontmost_send_order_timestamp());
+            .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
@@ -972,7 +975,7 @@ where
                             let _ = local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                local.frontmost_recv_order_timestamp(),
+                                local.earliest_recv_order_timestamp(),
                             );
                             if include_order_resp {
                                 timestamp = ev.timestamp;
@@ -993,7 +996,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                exch.frontmost_send_order_timestamp(),
+                                exch.earliest_send_order_timestamp(),
                             );
                         }
                         EventType::ExchOrder => {
@@ -1001,7 +1004,7 @@ where
                             let _ = exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
-                                exch.frontmost_recv_order_timestamp(),
+                                exch.earliest_recv_order_timestamp(),
                             );
                         }
                     }

@@ -22,7 +22,7 @@ fn prepare_live() -> Bot<HashMapMarketDepth> {
 
     let mut hbt = Bot::builder()
         .register("binancefutures", binance_futures)
-        .add("binancefutures", "SOLUSDT", 0.001, 1.0)
+        .add("binancefutures", "1000SHIBUSDT", 0.000001, 1.0)
         .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
         .build()
         .unwrap();
@@ -36,19 +36,21 @@ fn main() {
 
     let mut hbt = prepare_live();
 
-    let half_spread = 0.05;
-    let grid_interval = 0.05;
-    let skew = 0.004;
+    let half_spread_bp = 0.0005;
+    let grid_interval_bp = 0.0005;
+    let grid_num = 20;
+    let skew = half_spread_bp / grid_num as f64;
     let order_qty = 1.0;
 
     let mut recorder = LoggingRecorder::new();
     gridtrading(
         &mut hbt,
         &mut recorder,
-        half_spread,
-        grid_interval,
+        half_spread_bp,
+        grid_interval_bp,
+        grid_num,
         skew,
-        order_qty,
+        order_qty
     )
     .unwrap();
     hbt.close().unwrap();

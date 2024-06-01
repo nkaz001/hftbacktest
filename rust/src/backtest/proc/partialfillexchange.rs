@@ -916,9 +916,9 @@ where
     fn process_recv_order(&mut self, timestamp: i64, _wait_resp_order_id: i64) -> Result<bool, BacktestError> {
         // Processes the order part.
         while self.orders_from.len() > 0 {
-            let recv_timestamp = self.orders_from.frontmost_timestamp().unwrap();
+            let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
-                let order = self.orders_from.remove(0);
+                let (order, _) = self.orders_from.pop_front().unwrap();
                 self.process_recv_order_(order, recv_timestamp)?;
             } else {
                 assert!(recv_timestamp > timestamp);
@@ -928,11 +928,11 @@ where
         Ok(false)
     }
 
-    fn frontmost_recv_order_timestamp(&self) -> i64 {
-        self.orders_from.frontmost_timestamp().unwrap_or(i64::MAX)
+    fn earliest_recv_order_timestamp(&self) -> i64 {
+        self.orders_from.earliest_timestamp().unwrap_or(i64::MAX)
     }
 
-    fn frontmost_send_order_timestamp(&self) -> i64 {
-        self.orders_to.frontmost_timestamp().unwrap_or(i64::MAX)
+    fn earliest_send_order_timestamp(&self) -> i64 {
+        self.orders_to.earliest_timestamp().unwrap_or(i64::MAX)
     }
 }
