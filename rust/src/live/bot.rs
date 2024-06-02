@@ -737,11 +737,11 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         Ok(())
     }
 
-    fn feed_latency(&self, asset_no: usize) -> Option<i64> {
+    fn feed_latency(&self, asset_no: usize) -> Option<(i64, i64)> {
         todo!()
     }
 
-    fn order_latency(&self, asset_no: usize) -> Option<(i64, i64)> {
+    fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
         todo!()
     }
 }
