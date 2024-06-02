@@ -7,12 +7,13 @@ use hftbacktest::{
         assettype::LinearAsset,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
         recorder::BacktestRecorder,
+        reader::read_npz,
         AssetBuilder,
         DataSource,
         ExchangeKind,
         MultiAssetMultiExchangeBacktest,
     },
-    prelude::{HashMapMarketDepth, Interface},
+    prelude::{HashMapMarketDepth, Interface, ApplySnapshot},
 };
 
 mod algo;
@@ -39,7 +40,11 @@ fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarket
                 .maker_fee(-0.00005)
                 .taker_fee(0.0007)
                 .queue_model(queue_model)
-                .depth(|| HashMapMarketDepth::new(0.000001, 1.0))
+                .depth(|| {
+                    let mut depth = HashMapMarketDepth::new(0.000001, 1.0);
+                    depth.apply_snapshot(&read_npz("1000SHIBUSDT_20240501_SOD.npz").unwrap());
+                    depth
+                })
                 .exchange(ExchangeKind::NoPartialFillExchange)
                 .build()
                 .unwrap(),
@@ -73,5 +78,5 @@ fn main() {
     .unwrap();
     hbt.close().unwrap();
     print!("{} seconds", start.elapsed().as_secs());
-    recorder.to_csv(".").unwrap();
+    recorder.to_csv("gridtrading", ".").unwrap();
 }
