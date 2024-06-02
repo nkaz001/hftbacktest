@@ -420,32 +420,27 @@ def convert_to_struct_arr(data: np.ndarray, add_exch_local_ev: bool = True) -> n
     Returns:
         Converted structured array.
     """
-    ev = data[:, COL_EVENT].astype(int)
+    dtype = [('ev', 'i8'), ('exch_ts', 'i8'), ('local_ts', 'i8'), ('px', 'f4'), ('qty', 'f4')]
+    s_arr = np.empty(len(data), dtype)
+
+    s_arr['ev'] = data[:, COL_EVENT].astype(np.int64)
     if add_exch_local_ev:
         valid_exch_ts = data[:, COL_EXCH_TIMESTAMP] != -1
         valid_local_ts = data[:, COL_LOCAL_TIMESTAMP] != -1
-        ev[valid_exch_ts] |= EXCH_EVENT
-        ev[valid_local_ts] |= LOCAL_EVENT
+        s_arr['ev'][valid_exch_ts] |= EXCH_EVENT
+        s_arr['ev'][valid_local_ts] |= LOCAL_EVENT
 
     buy = data[:, COL_SIDE] == 1
     sell = data[:, COL_SIDE] == -1
-    ev[buy] |= BUY
-    ev[sell] |= SELL
+    s_arr['ev'][buy] |= BUY
+    s_arr['ev'][sell] |= SELL
 
-    tup_list = [
-        (
-            ev[rn],
-            data[rn, COL_EXCH_TIMESTAMP],
-            data[rn, COL_LOCAL_TIMESTAMP],
-            data[rn, COL_PRICE],
-            data[rn, COL_QTY]
-        ) for rn in range(len(data))
-    ]
+    s_arr['exch_ts'] = data[:, COL_EXCH_TIMESTAMP].astype(np.int64)
+    s_arr['local_ts'] = data[:, COL_LOCAL_TIMESTAMP].astype(np.int64)
+    s_arr['px'] = data[:, COL_PRICE].astype(np.float32)
+    s_arr['qty'] = data[:, COL_QTY].astype(np.float32)
 
-    return np.array(
-        tup_list,
-        dtype=[('ev', 'i8'), ('exch_ts', 'i8'), ('local_ts', 'i8'), ('px', 'f4'), ('qty', 'f4')]
-    )
+    return s_arr
 
 
 def convert_from_struct_arr(data: np.ndarray) -> np.ndarray:
