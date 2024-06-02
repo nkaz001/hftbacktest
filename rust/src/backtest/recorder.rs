@@ -65,19 +65,32 @@ impl BacktestRecorder {
     }
 
     /// Saves record data into a CSV file at the specified path. It creates a separate CSV file for
-    /// each asset, with the filename `record_{asset_no}.csv`.
+    /// each asset, with the filename `{prefix}_{asset_no}.csv`.
     /// The columns are `timestamp`, `mid`, `balance`, `position`, `fee`, `trade_num`,
     /// `trade_amount`, `trade_qty`.
-    pub fn to_csv<P>(&self, path: P) -> Result<(), Error>
+    pub fn to_csv<Prefix, P>(&self, prefix: Prefix, path: P) -> Result<(), Error>
     where
+        Prefix: AsRef<str>,
         P: AsRef<Path>,
     {
+        let prefix = prefix.as_ref();
         for (asset_no, values) in self.values.iter().enumerate() {
-            let file_path = path.as_ref().join(format!("record_{asset_no}.csv"));
+            let file_path = path.as_ref().join(format!("{prefix}_{asset_no}.csv"));
             let mut file = File::create(file_path)?;
-            for (timestamp, mid, balance, position, fee, trade_num, trade_amount, trade_qty) in
-                values
-            {
+            write!(
+                file,
+                "timestamp,mid,balance,position,fee,trade_num,trade_amount,trade_qty\n",
+            )?;
+            for (
+                timestamp,
+                mid,
+                balance,
+                position,
+                fee,
+                trade_num,
+                trade_amount,
+                trade_qty
+            ) in values {
                 write!(
                     file,
                     "{},{},{},{},{},{},{},{}\n",
