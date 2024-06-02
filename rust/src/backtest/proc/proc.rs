@@ -62,11 +62,12 @@ where
     /// Clears the last market trades from the buffer.
     fn clear_last_trades(&mut self);
 
-    /// Returns the current feed latency.
-    fn feed_latency(&self) -> Option<i64>;
+    /// Returns the last feed's exchange timestamp and local receipt timestamp.
+    fn feed_latency(&self) -> Option<(i64, i64)>;
 
-    /// Returns a tuple of the last order entry latency and the round-trip latency.
-    fn order_latency(&self) -> Option<(i64, i64)>;
+    /// Returns the last order's request timestamp, exchange timestamp, and response receipt
+    /// timestamp.
+    fn order_latency(&self) -> Option<(i64, i64, i64)>;
 }
 
 /// Processes the historical feed data and the order interaction.

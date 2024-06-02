@@ -645,11 +645,12 @@ where
     /// Closes this backtester or bot.
     fn close(&mut self) -> Result<(), Self::Error>;
 
-    /// Returns the current feed latency.
-    fn feed_latency(&self, asset_no: usize) -> Option<i64>;
+    /// Returns the last feed's exchange timestamp and local receipt timestamp.
+    fn feed_latency(&self, asset_no: usize) -> Option<(i64, i64)>;
 
-    /// Returns a tuple of the last order entry latency and the round-trip latency.
-    fn order_latency(&self, asset_no: usize) -> Option<(i64, i64)>;
+    /// Returns the last order's request timestamp, exchange timestamp, and response receipt
+    /// timestamp.
+    fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)>;
 }
 
 pub trait Recorder {

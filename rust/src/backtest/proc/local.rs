@@ -47,8 +47,8 @@ where
     state: State<AT>,
     order_latency: LM,
     trades: Vec<Event>,
-    last_feed_latency: Option<i64>,
-    last_order_latency: Option<(i64, i64)>,
+    last_feed_latency: Option<(i64, i64)>,
+    last_order_latency: Option<(i64, i64, i64)>,
 }
 
 impl<AT, Q, LM, MD> Local<AT, Q, LM, MD>
@@ -217,11 +217,11 @@ where
         self.trades.clear();
     }
 
-    fn feed_latency(&self) -> Option<i64> {
+    fn feed_latency(&self) -> Option<(i64, i64)> {
         self.last_feed_latency
     }
 
-    fn order_latency(&self) -> Option<(i64, i64)> {
+    fn order_latency(&self) -> Option<(i64, i64, i64)> {
         self.last_order_latency
     }
 }
@@ -265,7 +265,7 @@ where
         }
 
         // Stores the current feed latency
-        self.last_feed_latency = Some(ev.exch_ts - ev.local_ts);
+        self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
 
         // Checks
         let mut next_ts = 0;
@@ -301,8 +301,9 @@ where
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();
                 self.last_order_latency = Some((
-                    order.exch_timestamp - order.local_timestamp,
-                    recv_timestamp - order.local_timestamp,
+                    order.local_timestamp,
+                    order.exch_timestamp,
+                    recv_timestamp
                 ));
                 if order.order_id == wait_resp_order_id
                     || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY
