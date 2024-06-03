@@ -27,12 +27,12 @@ impl Recorder for BacktestRecorder {
         let timestamp = hbt.current_timestamp();
         for asset_no in 0..hbt.num_assets() {
             let depth = hbt.depth(asset_no);
-            let mid = (depth.best_bid() + depth.best_ask()) / 2.0;
+            let mid_price = (depth.best_bid() + depth.best_ask()) / 2.0;
             let state_values = hbt.state_values(asset_no);
             let values = unsafe { self.values.get_unchecked_mut(asset_no) };
             values.push((
                 timestamp,
-                mid,
+                mid_price,
                 state_values.balance,
                 state_values.position,
                 state_values.fee,
@@ -75,15 +75,15 @@ impl BacktestRecorder {
     {
         let prefix = prefix.as_ref();
         for (asset_no, values) in self.values.iter().enumerate() {
-            let file_path = path.as_ref().join(format!("{prefix}_{asset_no}.csv"));
+            let file_path = path.as_ref().join(format!("{prefix}{asset_no}.csv"));
             let mut file = File::create(file_path)?;
             write!(
                 file,
-                "timestamp,mid,balance,position,fee,trade_num,trade_amount,trade_qty\n",
+                "timestamp,mid_price,balance,position,fee,trade_num,trade_amount,trade_qty\n",
             )?;
             for (
                 timestamp,
-                mid,
+                mid_price,
                 balance,
                 position,
                 fee,
@@ -94,7 +94,7 @@ impl BacktestRecorder {
                 write!(
                     file,
                     "{},{},{},{},{},{},{},{}\n",
-                    timestamp, mid, balance, position, fee, trade_num, trade_amount, trade_qty
+                    timestamp, mid_price, balance, position, fee, trade_num, trade_amount, trade_qty
                 )?;
             }
         }
