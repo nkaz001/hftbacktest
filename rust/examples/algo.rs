@@ -7,7 +7,7 @@ pub fn gridtrading<Q, MD, I, R>(
     recorder: &mut R,
     relative_half_spread: f64,
     relative_grid_interval: f64,
-    grid_num: i32,
+    grid_num: usize,
     skew: f64,
     order_qty: f64,
 ) -> Result<(), i64>
