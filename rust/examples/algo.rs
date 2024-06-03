@@ -5,8 +5,8 @@ use hftbacktest::prelude::*;
 pub fn gridtrading<Q, MD, I, R>(
     hbt: &mut I,
     recorder: &mut R,
-    half_spread: f64,
-    grid_interval: f64,
+    relative_half_spread: f64,
+    relative_grid_interval: f64,
     grid_num: i32,
     skew: f64,
     order_qty: f64,
@@ -42,14 +42,15 @@ where
 
         let normalized_position = position / order_qty;
 
-        let bid_depth = half_spread + skew * normalized_position;
-        let ask_depth = half_spread - skew * normalized_position;
+        let relative_bid_depth = relative_half_spread + skew * normalized_position;
+        let relative_ask_depth = relative_half_spread - skew * normalized_position;
+        let alpha = 0.0;
 
-        let bid_price = (mid_price * (1.0 - bid_depth)).min(depth.best_bid() as f64);
-        let ask_price = (mid_price * (1.0 + ask_depth)).max(depth.best_ask() as f64);
+        let bid_price = ((mid_price + alpha) * (1.0 - relative_bid_depth)).min(depth.best_bid() as f64);
+        let ask_price = ((mid_price + alpha) * (1.0 + relative_ask_depth)).max(depth.best_ask() as f64);
 
         let grid_interval =
-            ((mid_price * grid_interval / tick_size).round() * tick_size).max(tick_size);
+            ((mid_price * relative_grid_interval / tick_size).round() * tick_size).max(tick_size);
 
         let mut bid_price = (bid_price / grid_interval).floor() * grid_interval;
         let mut ask_price = (ask_price / grid_interval).ceil() * grid_interval;

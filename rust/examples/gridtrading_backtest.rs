@@ -57,10 +57,10 @@ fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarket
 fn main() {
     tracing_subscriber::fmt::init();
 
-    let half_spread_bp = 0.0005;
-    let grid_interval_bp = 0.0005;
+    let relative_half_spread = 0.0005;
+    let relative_grid_interval = 0.0005;
     let grid_num = 10;
-    let skew = half_spread_bp / grid_num as f64;
+    let skew = relative_half_spread / grid_num as f64;
     let order_qty = 1.0;
 
     let mut start = Instant::now();
@@ -69,8 +69,8 @@ fn main() {
     gridtrading(
         &mut hbt,
         &mut recorder,
-        half_spread_bp,
-        grid_interval_bp,
+        relative_half_spread,
+        relative_grid_interval,
         grid_num,
         skew,
         order_qty,
