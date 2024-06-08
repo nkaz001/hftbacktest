@@ -67,11 +67,10 @@ def convert(
     TRADE = 0
     DEPTH = 1
 
-    sets = []
+    tmp = np.empty((buffer_size, 6), np.float64)
+    row_num = 0
     for file in input_files:
         file_type = None
-        tmp = np.empty((buffer_size, 6), np.float64)
-        row_num = 0
         is_snapshot = False
         ss_bid = None
         ss_ask = None
@@ -203,19 +202,18 @@ def convert(
                             float(cols[7])
                         ]
                         row_num += 1
-        sets.append(tmp[:row_num])
-
-    print('Merging')
-    merged = np.concatenate(sets)
+    merged = tmp[:row_num]
 
     print('Correcting the latency')
     merged = correct_local_timestamp(merged, base_latency)
 
     print('Correcting the event order')
-    sorted_exch_ts = merged[np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort')]
-    sorted_local_ts = merged[np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort')]
-
-    data = correct_event_order(sorted_exch_ts, sorted_local_ts, structured_array)
+    data = correct_event_order(
+        merged,
+        np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort'),
+        np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort'),
+        structured_array
+    )
 
     if not structured_array:
         # Validate again.

@@ -167,10 +167,12 @@ def convert(
     merged = correct_local_timestamp(data, base_latency)
 
     print('Correcting the event order')
-    sorted_exch_ts = merged[np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort')]
-    sorted_local_ts = merged[np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort')]
-
-    data = correct_event_order(sorted_exch_ts, sorted_local_ts, structured_array)
+    data = correct_event_order(
+        merged,
+        np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort'),
+        np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort'),
+        structured_array
+    )
 
     if not structured_array:
         # Validate again.

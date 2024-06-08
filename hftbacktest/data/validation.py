@@ -323,8 +323,9 @@ def correct(
 
 @njit
 def correct_event_order(
-        sorted_exch: np.ndarray,
-        sorted_local: np.ndarray,
+        data: np.ndarray,
+        sorted_exch_index: np.ndarray,
+        sorted_local_index: np.ndarray,
         add_exch_local_ev: bool
 ) -> np.ndarray:
     r"""
@@ -332,49 +333,51 @@ def correct_event_order(
     and local timestamps, through duplication. See ``data`` for details.
 
     Args:
-        sorted_exch: Data sorted by exchange timestamp.
-        sorted_local: Data sorted by local timestamp.
+        data: Data to be reordered.
+        sorted_exch_index: Index of data sorted by exchange timestamp.
+        sorted_local_index: Index of data sorted by local timestamp.
         add_exch_local_ev: If this is set to True, `EXCH_EVENT` and `LOCAL_EVENT` flags will be added to the event field
                            based on the validity of each timestamp.
 
     Returns:
         Adjusted data with corrected exchange timestamps.
     """
-    sorted_final = np.zeros((sorted_exch.shape[0] * 2, sorted_exch.shape[1]), np.float64)
+    sorted_final = np.zeros((data.shape[0] * 2, data.shape[1]), np.float64)
 
     out_rn = 0
     exch_rn = 0
     local_rn = 0
     while True:
+        sorted_exch = data[sorted_exch_index[exch_rn]]
+        sorted_local = data[sorted_local_index[local_rn]]
         if (
-                exch_rn < len(sorted_exch)
-                and local_rn < len(sorted_local)
-                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] == sorted_local[local_rn, COL_EXCH_TIMESTAMP]
-                and sorted_exch[exch_rn, COL_LOCAL_TIMESTAMP] == sorted_local[local_rn, COL_LOCAL_TIMESTAMP]
+                exch_rn < len(data)
+                and local_rn < len(data)
+                and sorted_exch[COL_EXCH_TIMESTAMP] == sorted_local[COL_EXCH_TIMESTAMP]
+                and sorted_exch[COL_LOCAL_TIMESTAMP] == sorted_local[COL_LOCAL_TIMESTAMP]
         ):
-            assert sorted_exch[exch_rn, COL_EVENT] == sorted_local[local_rn, COL_EVENT]
-            assert sorted_exch[exch_rn, COL_PRICE] == sorted_local[local_rn, COL_PRICE]
-            assert sorted_exch[exch_rn, COL_QTY] == sorted_local[local_rn, COL_QTY]
+            assert sorted_exch[COL_EVENT] == sorted_local[COL_EVENT]
+            assert sorted_exch[COL_PRICE] == sorted_local[COL_PRICE]
+            assert sorted_exch[COL_QTY] == sorted_local[COL_QTY]
 
-            sorted_final[out_rn] = sorted_exch[exch_rn]
+            sorted_final[out_rn] = sorted_exch[:]
             if add_exch_local_ev:
-                sorted_final[out_rn, COL_EVENT] = int(
-                    sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT | LOCAL_EVENT
+                sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT | LOCAL_EVENT
 
             out_rn += 1
             exch_rn += 1
             local_rn += 1
         elif ((
-                exch_rn < len(sorted_exch)
-                and local_rn < len(sorted_local)
-                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] == sorted_local[local_rn, COL_EXCH_TIMESTAMP]
-                and sorted_exch[exch_rn, COL_LOCAL_TIMESTAMP] < sorted_local[local_rn, COL_LOCAL_TIMESTAMP]
+                exch_rn < len(data)
+                and local_rn < len(data)
+                and sorted_exch[COL_EXCH_TIMESTAMP] == sorted_local[COL_EXCH_TIMESTAMP]
+                and sorted_exch[COL_LOCAL_TIMESTAMP] < sorted_local[COL_LOCAL_TIMESTAMP]
         ) or (
-                exch_rn < len(sorted_exch)
-                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] < sorted_local[local_rn, COL_EXCH_TIMESTAMP]
+                exch_rn < len(data)
+                and sorted_exch[COL_EXCH_TIMESTAMP] < sorted_local[COL_EXCH_TIMESTAMP]
         )):
             # exchange
-            sorted_final[out_rn] = sorted_exch[exch_rn]
+            sorted_final[out_rn] = sorted_exch[:]
             if add_exch_local_ev:
                 sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT
             else:
@@ -383,15 +386,15 @@ def correct_event_order(
             out_rn += 1
             exch_rn += 1
         elif ((
-                exch_rn < len(sorted_exch)
-                and local_rn < len(sorted_local)
-                and sorted_exch[exch_rn, COL_EXCH_TIMESTAMP] == sorted_local[local_rn, COL_EXCH_TIMESTAMP]
-                and sorted_exch[exch_rn, COL_LOCAL_TIMESTAMP] > sorted_local[local_rn, COL_LOCAL_TIMESTAMP]
+                exch_rn < len(data)
+                and local_rn < len(data)
+                and sorted_exch[COL_EXCH_TIMESTAMP] == sorted_local[COL_EXCH_TIMESTAMP]
+                and sorted_exch[COL_LOCAL_TIMESTAMP] > sorted_local[COL_LOCAL_TIMESTAMP]
         ) or (
-                local_rn < len(sorted_local)
+                local_rn < len(data)
         )):
             # local
-            sorted_final[out_rn] = sorted_local[local_rn]
+            sorted_final[out_rn] = sorted_local[:]
             if add_exch_local_ev:
                 sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | LOCAL_EVENT
             else:
@@ -400,8 +403,8 @@ def correct_event_order(
             out_rn += 1
             local_rn += 1
         else:
-            assert exch_rn == len(sorted_exch)
-            assert local_rn == len(sorted_local)
+            assert exch_rn == len(data)
+            assert local_rn == len(data)
             break
     return sorted_final[:out_rn]
 
