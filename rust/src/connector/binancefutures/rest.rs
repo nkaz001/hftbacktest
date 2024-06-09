@@ -1,21 +1,22 @@
 /// Binance Futures REST API module
 /// https://binance-docs.github.io/apidocs/futures/en/
-use std::{collections::HashMap, fmt::Write};
+use std::collections::HashMap;
 
 use chrono::Utc;
-use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
-use sha2::Sha256;
 
 use super::msg::{rest, rest::PositionInformationV2};
 use crate::{
-    connector::binancefutures::{
-        msg::{
-            rest::{OrderResponse, OrderResponseResult},
-            stream::ListenKey,
+    connector::{
+        binancefutures::{
+            msg::{
+                rest::{OrderResponse, OrderResponseResult},
+                stream::ListenKey,
+            },
+            ordermanager::OrderManager,
+            BinanceFuturesError,
         },
-        ordermanager::OrderManager,
-        BinanceFuturesError,
+        util::sign_hmac_sha256,
     },
     live::Asset,
     types::{OrdType, Order, Side, Status, TimeInForce},
@@ -39,17 +40,6 @@ impl BinanceFuturesClient {
         }
     }
 
-    fn sign(secret: &str, s: &str) -> String {
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
-        mac.update(s.as_bytes());
-        let hash = mac.finalize().into_bytes();
-        let mut tmp = String::with_capacity(hash.len() * 2);
-        for c in hash {
-            write!(&mut tmp, "{:02x}", c).unwrap();
-        }
-        tmp
-    }
-
     async fn get<T: for<'a> Deserialize<'a>>(
         &self,
         path: &str,
@@ -63,7 +53,7 @@ impl BinanceFuturesClient {
         }
         query.push_str("recvWindow=5000&timestamp=");
         query.push_str(&time.to_string());
-        let signature = Self::sign(secret, &query);
+        let signature = sign_hmac_sha256(secret, &query);
         let resp = self
             .client
             .get(&format!(
@@ -88,7 +78,7 @@ impl BinanceFuturesClient {
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
         let sign_body = format!("recvWindow=5000&timestamp={}{}", time, body);
-        let signature = Self::sign(secret, &sign_body);
+        let signature = sign_hmac_sha256(secret, &sign_body);
         let resp = self
             .client
             .put(&format!(
@@ -114,7 +104,7 @@ impl BinanceFuturesClient {
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
         let sign_body = format!("recvWindow=5000&timestamp={}{}", time, body);
-        let signature = Self::sign(secret, &sign_body);
+        let signature = sign_hmac_sha256(secret, &sign_body);
         let resp = self
             .client
             .post(&format!(
@@ -140,7 +130,7 @@ impl BinanceFuturesClient {
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
         let sign_body = format!("recvWindow=5000&timestamp={}{}", time, body);
-        let signature = Self::sign(secret, &sign_body);
+        let signature = sign_hmac_sha256(secret, &sign_body);
         let resp = self
             .client
             .delete(&format!(

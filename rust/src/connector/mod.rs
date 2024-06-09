@@ -5,6 +5,11 @@ use crate::types::{LiveEvent, Order};
 #[cfg(feature = "binancefutures")]
 pub mod binancefutures;
 
+#[cfg(feature = "bybit")]
+pub mod bybit;
+
+pub mod util;
+
 /// Provides an interface for connecting with an exchange or broker for a live bot.
 pub trait Connector {
     /// Adds an asset to be traded through this connector.

@@ -20,10 +20,11 @@ categories = ["finance", "mathematics", "science", "algorithms", "simulation"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["backtest", "live", "binancefutures"]
+default = ["backtest", "live", "binancefutures", "bybit"]
 backtest = ["zip"]
 live = ["chrono", "tokio", "futures-util"]
 binancefutures = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
+bybit = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
 
 [dependencies]
 tracing = "0.1.40"
@@ -33,7 +34,7 @@ chrono = { version = "0.4.33", optional = true }
 serde = { version = "1.0.196", features = ["derive"], optional = true }
 serde_json = { version = "1.0.113", optional = true }
 tokio = { version = "1.35.1", features = ["full"], optional = true }
-tokio-tungstenite = { version = "0.21.0", features = ["native-tls"], optional = true }
+tokio-tungstenite = { version = "0.23.0", features = ["native-tls"], optional = true }
 reqwest = { version = "0.12.3", features = ["json"], optional = true }
 zip = { version = "2.1.1", optional = true }
 futures-util = { version = "0.3.30", optional = true }

@@ -9,33 +9,6 @@ use crate::types::{OrdType, Side, Status, TimeInForce};
 pub mod rest;
 pub mod stream;
 
-fn from_str_to_f32<'de, D>(deserializer: D) -> Result<f32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: &str = Deserialize::deserialize(deserializer)?;
-    s.parse::<f32>().map_err(Error::custom)
-}
-
-fn from_str_to_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: &str = Deserialize::deserialize(deserializer)?;
-    s.parse::<f64>().map_err(Error::custom)
-}
-
-fn from_str_to_f32_opt<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: Option<&str> = Deserialize::deserialize(deserializer)?;
-    match s {
-        Some(s) => Ok(Some(s.parse::<f32>().map_err(Error::custom)?)),
-        None => Ok(None),
-    }
-}
-
 fn from_str_to_side<'de, D>(deserializer: D) -> Result<Side, D::Error>
 where
     D: Deserializer<'de>,

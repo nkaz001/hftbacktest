@@ -1,0 +1,184 @@
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    num::ParseIntError,
+    sync::{Arc, Mutex},
+};
+
+use thiserror::Error;
+
+use crate::{
+    connector::bybit::msg::{Order as BybitOrder, PrivateOrder},
+    prelude::{get_precision, OrdType, Side, TimeInForce},
+    types::{Order, Status},
+};
+
+pub type WrappedOrderManager = Arc<Mutex<OrderManager>>;
+
+#[derive(Error, Debug)]
+pub enum OrderManagerError {
+    #[error("parse error: {0}")]
+    InvalidOrderId(ParseIntError),
+    #[error("prefix unmatched")]
+    PrefixUnmatched,
+    #[error("order not exist")]
+    NoOrder,
+    #[error("req id not exist")]
+    NoReqId,
+    #[error("invalid argument")]
+    InvalidArg(&'static str),
+    #[error("order already exist")]
+    OrderAlreadyExist,
+}
+
+pub struct OrderManager {
+    prefix: String,
+    orders: HashMap<i64, (usize, Order<()>)>,
+    pending_orders: HashMap<String, PrivateOrder>,
+}
+
+impl OrderManager {
+    pub fn new(prefix: &str) -> Self {
+        Self {
+            prefix: prefix.to_string(),
+            orders: Default::default(),
+            pending_orders: Default::default(),
+        }
+    }
+
+    fn parse_order_id(&self, order_link_id: &str) -> Result<i64, OrderManagerError> {
+        if !order_link_id.starts_with(&self.prefix) {
+            return Err(OrderManagerError::PrefixUnmatched);
+        }
+        order_link_id[self.prefix.len()..]
+            .parse()
+            .map_err(|e| OrderManagerError::InvalidOrderId(e))
+    }
+
+    pub fn update(
+        &mut self,
+        order_data: &PrivateOrder,
+    ) -> Result<(usize, Order<()>), OrderManagerError> {
+        let order_id = self.parse_order_id(&order_data.order_link_id)?;
+        let (asset_no, order) = self
+            .orders
+            .get_mut(&order_id)
+            .ok_or(OrderManagerError::NoOrder)?;
+        order.req = Status::None;
+        order.status = order_data.order_status;
+        order.exch_timestamp = order_data.updated_time * 1_000_000;
+        let is_active = order.active();
+        if !is_active {
+            let (asset_no, order) = self.orders.remove(&order_id).unwrap();
+            Ok((asset_no, order))
+        } else {
+            Ok((*asset_no, order.clone()))
+        }
+    }
+
+    pub fn new_order(
+        &mut self,
+        symbol: &str,
+        category: &str,
+        asset_no: usize,
+        order: Order<()>,
+    ) -> Result<BybitOrder, OrderManagerError> {
+        let price_prec = get_precision(order.tick_size);
+        let bybit_order = BybitOrder {
+            symbol: symbol.to_string(),
+            side: Some({
+                match order.side {
+                    Side::Buy => "Buy".to_string(),
+                    Side::Sell => "Sell".to_string(),
+                    Side::Unsupported => return Err(OrderManagerError::InvalidArg("side")),
+                }
+            }),
+            order_type: Some({
+                match order.order_type {
+                    OrdType::Limit => "Limit".to_string(),
+                    OrdType::Market => "Market".to_string(),
+                    OrdType::Unsupported => {
+                        return Err(OrderManagerError::InvalidArg("order_type"))
+                    }
+                }
+            }),
+            qty: Some(format!("{:.5}", order.qty)),
+            price: Some(format!(
+                "{:.prec$}",
+                order.price_tick as f32 * order.tick_size,
+                prec = price_prec
+            )),
+            category: category.to_string(),
+            time_in_force: Some({
+                match order.time_in_force {
+                    TimeInForce::GTC => "GTC".to_string(),
+                    TimeInForce::GTX => "PostOnly".to_string(),
+                    TimeInForce::FOK => "FOK".to_string(),
+                    TimeInForce::IOC => "IOC".to_string(),
+                    TimeInForce::Unsupported => {
+                        return Err(OrderManagerError::InvalidArg("time_in_force"));
+                    }
+                }
+            }),
+            order_link_id: format!("{}{}", self.prefix, order.order_id),
+        };
+        match self.orders.entry(order.order_id) {
+            Entry::Occupied(_) => {
+                return Err(OrderManagerError::OrderAlreadyExist);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert((asset_no, order));
+            }
+        }
+        Ok(bybit_order)
+    }
+
+    pub fn cancel_order(
+        &mut self,
+        symbol: &str,
+        category: &str,
+        order_id: i64,
+    ) -> Result<BybitOrder, OrderManagerError> {
+        let (_, order) = self.orders
+            .get(&order_id)
+            .ok_or(OrderManagerError::NoOrder)?;
+        let bybit_order = BybitOrder {
+            symbol: symbol.to_string(),
+            side: None,
+            order_type: None,
+            qty: None,
+            price: None,
+            category: category.to_string(),
+            time_in_force: None,
+            order_link_id: format!("{}{}", self.prefix, order.order_id),
+        };
+        Ok(bybit_order)
+    }
+
+    pub fn update_submit_fail(
+        &mut self,
+        order_link_id: &str,
+    ) -> Result<(usize, Order<()>), OrderManagerError> {
+        let order_id = self.parse_order_id(order_link_id)?;
+        let (asset_no, mut order) = self
+            .orders
+            .remove(&order_id)
+            .ok_or(OrderManagerError::NoOrder)?;
+        order.req = Status::None;
+        order.status = Status::Expired;
+        Ok((asset_no, order))
+    }
+
+    pub fn update_cancel_fail(
+        &mut self,
+        order_link_id: &str,
+    ) -> Result<(usize, Order<()>), OrderManagerError> {
+        let order_id = self.parse_order_id(order_link_id)?;
+        let (asset_no, mut order) = self
+            .orders
+            .get_mut(&order_id)
+            .cloned()
+            .ok_or(OrderManagerError::NoOrder)?;
+        order.req = Status::None;
+        Ok((asset_no, order))
+    }
+}

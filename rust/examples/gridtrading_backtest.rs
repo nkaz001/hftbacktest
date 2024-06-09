@@ -6,14 +6,14 @@ use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
-        recorder::BacktestRecorder,
         reader::read_npz,
+        recorder::BacktestRecorder,
         AssetBuilder,
         DataSource,
         ExchangeKind,
         MultiAssetMultiExchangeBacktest,
     },
-    prelude::{HashMapMarketDepth, Interface, ApplySnapshot},
+    prelude::{ApplySnapshot, HashMapMarketDepth, Interface},
 };
 
 mod algo;

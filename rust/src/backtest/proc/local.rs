@@ -300,11 +300,8 @@ where
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();
-                self.last_order_latency = Some((
-                    order.local_timestamp,
-                    order.exch_timestamp,
-                    recv_timestamp
-                ));
+                self.last_order_latency =
+                    Some((order.local_timestamp, order.exch_timestamp, recv_timestamp));
                 if order.order_id == wait_resp_order_id
                     || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY
                 {

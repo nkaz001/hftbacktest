@@ -1,18 +1,17 @@
-use clap::Parser;
-
 use algo::gridtrading;
+use clap::Parser;
 use hftbacktest::{
     backtest::{
-        AssetBuilder,
         assettype::LinearAsset,
+        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
+        reader::read_npz,
+        recorder::BacktestRecorder,
+        AssetBuilder,
         DataSource,
         ExchangeKind,
-        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
         MultiAssetMultiExchangeBacktest,
-        recorder::BacktestRecorder,
-        reader::read_npz
     },
-    prelude::{HashMapMarketDepth, ApplySnapshot, Interface},
+    prelude::{ApplySnapshot, HashMapMarketDepth, Interface},
 };
 
 mod algo;
@@ -60,15 +59,24 @@ fn prepare_backtest(
     taker_fee: f64,
 ) -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
     let latency_model = IntpOrderLatency::new(
-        latency_files.iter().map(|file| DataSource::File(file.clone())).collect()
-    ).unwrap();
+        latency_files
+            .iter()
+            .map(|file| DataSource::File(file.clone()))
+            .collect(),
+    )
+    .unwrap();
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 
     let hbt = MultiAssetMultiExchangeBacktest::builder()
         .add(
             AssetBuilder::new()
-                .data(data_files.iter().map(|file| DataSource::File(file.clone())).collect())
+                .data(
+                    data_files
+                        .iter()
+                        .map(|file| DataSource::File(file.clone()))
+                        .collect(),
+                )
                 .latency_model(latency_model)
                 .asset_type(asset_type)
                 .maker_fee(maker_fee)
@@ -102,7 +110,7 @@ fn main() {
         args.tick_size,
         args.lot_size,
         args.maker_fee,
-        args.taker_fee
+        args.taker_fee,
     );
     let mut recorder = BacktestRecorder::new(&hbt);
     gridtrading(
@@ -113,7 +121,8 @@ fn main() {
         args.grid_num,
         args.skew,
         args.order_qty,
-    ).unwrap();
+    )
+    .unwrap();
     hbt.close().unwrap();
     recorder.to_csv(args.name, args.output_path).unwrap();
 }

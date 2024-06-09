@@ -89,12 +89,20 @@ impl BacktestRecorder {
                 fee,
                 trade_num,
                 trade_amount,
-                trade_qty
-            ) in values {
+                trade_qty,
+            ) in values
+            {
                 write!(
                     file,
                     "{},{},{},{},{},{},{},{}\n",
-                    timestamp, mid_price, balance, position, fee, trade_num, trade_amount, trade_qty
+                    timestamp,
+                    mid_price,
+                    balance,
+                    position,
+                    fee,
+                    trade_num,
+                    trade_amount,
+                    trade_qty
                 )?;
             }
         }

@@ -47,11 +47,14 @@ where
         let alpha = 0.0;
         let forecast_mid_price = mid_price + alpha;
 
-        let bid_price = (forecast_mid_price * (1.0 - relative_bid_depth)).min(depth.best_bid() as f64);
-        let ask_price = (forecast_mid_price * (1.0 + relative_ask_depth)).max(depth.best_ask() as f64);
+        let bid_price =
+            (forecast_mid_price * (1.0 - relative_bid_depth)).min(depth.best_bid() as f64);
+        let ask_price =
+            (forecast_mid_price * (1.0 + relative_ask_depth)).max(depth.best_ask() as f64);
 
-        let grid_interval =
-            ((forecast_mid_price * relative_grid_interval / tick_size).round() * tick_size).max(tick_size);
+        let grid_interval = ((forecast_mid_price * relative_grid_interval / tick_size).round()
+            * tick_size)
+            .max(tick_size);
 
         let mut bid_price = (bid_price / grid_interval).floor() * grid_interval;
         let mut ask_price = (ask_price / grid_interval).ceil() * grid_interval;
