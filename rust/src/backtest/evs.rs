@@ -11,6 +11,8 @@ pub(crate) struct Event {
     pub ty: EventType,
 }
 
+// This is constructed by using transmute in `EventSet::next`.
+#[allow(dead_code)]
 #[derive(Eq, PartialEq, Clone, Copy)]
 #[repr(usize)]
 pub enum EventType {
@@ -51,7 +53,7 @@ impl EventSet {
         if num_assets == 0 {
             panic!();
         }
-        let mut timestamp = unsafe { aligned_vec_i64(num_assets * 4) };
+        let mut timestamp = aligned_vec_i64(num_assets * 4);
         for i in 0..(num_assets * 4) {
             timestamp[i] = i64::MAX;
         }

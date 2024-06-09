@@ -152,7 +152,7 @@ where
                     self.reader.add_file(filename);
                 }
                 DataSource::Data(data) => {
-                    todo!();
+                    self.reader.add_data(data);
                 }
             }
         }

@@ -1,7 +1,5 @@
 use std::mem;
 
-use serde::de::MapAccess;
-
 use crate::{
     backtest::{
         reader::{Cache, Data, Reader},

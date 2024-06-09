@@ -8,9 +8,10 @@ use std::{
     ops::Index,
     rc::Rc,
 };
+use uuid::Uuid;
 
 use crate::{
-    backtest::{BacktestError, DataSource},
+    backtest::BacktestError,
     types::{BUY, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL, TRADE_EVENT},
 };
 
@@ -208,6 +209,14 @@ where
     /// want to read.
     pub fn add_file(&mut self, filepath: String) {
         self.file_list.push(filepath);
+    }
+
+    /// Adds a `Data`. Additions should be made in the same order as the order you want to read.
+    pub fn add_data(&mut self, data: Data<D>) {
+        // todo: Data should not be removed from the cache.
+        let id = Uuid::new_v4().to_string();
+        self.file_list.push(id.clone());
+        self.cache.insert(id, data);
     }
 
     /// Releases this `Data` from the `Cache`. The `Cache` will delete the `Data` if there are no

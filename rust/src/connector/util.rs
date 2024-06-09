@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, fmt::Write, hash::Hash};
+use std::{fmt, fmt::Write};
 
 use hmac::{Hmac, KeyInit, Mac};
 use serde::{

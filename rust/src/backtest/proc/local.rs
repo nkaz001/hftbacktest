@@ -136,7 +136,7 @@ where
         order.local_timestamp = current_timestamp;
         self.orders.insert(order.order_id, order.clone());
 
-        let mut order_entry_latency = self.order_latency.entry(current_timestamp, &order);
+        let order_entry_latency = self.order_latency.entry(current_timestamp, &order);
         // Negative latency indicates that the order is rejected for technical reasons, and its
         // value represents the latency that the local experiences when receiving the rejection
         // notification.
@@ -163,7 +163,7 @@ where
 
         order.req = Status::Canceled;
         order.local_timestamp = current_timestamp;
-        let mut order_entry_latency = self.order_latency.entry(current_timestamp, order);
+        let order_entry_latency = self.order_latency.entry(current_timestamp, order);
         // Negative latency indicates that the order is rejected for technical reasons, and its
         // value represents the latency that the local experiences when receiving the rejection
         // notification.

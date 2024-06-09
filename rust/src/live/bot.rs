@@ -16,7 +16,7 @@ use tracing::{debug, error};
 use crate::{
     backtest::reader::{WAIT_ORDER_RESPONSE_ANY, WAIT_ORDER_RESPONSE_NONE},
     connector::Connector,
-    depth::{HashMapMarketDepth, MarketDepth},
+    depth::MarketDepth,
     live::Asset,
     prelude::OrderRequest,
     types::{
@@ -263,7 +263,6 @@ impl<MD> BotBuilder<MD> {
             trade,
             error_handler: self.error_handler,
             order_hook: self.order_hook,
-            batch_orders: Default::default(),
             last_feed_latency,
             last_order_latency,
         })
@@ -297,7 +296,6 @@ pub struct Bot<MD> {
     assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
-    batch_orders: Vec<Order<()>>,
     last_feed_latency: Vec<Option<i64>>,
     last_order_latency: Vec<Option<(i64, i64)>>,
 }
@@ -491,16 +489,18 @@ where
             exec_qty: 0.0,
             maker: false,
         };
-        orders.insert(order.order_id, order.clone());
+        let order_id = order.order_id;
+        orders.insert(order_id, order.clone());
         self.req_tx.send(Request::Order((asset_no, order))).unwrap();
         if wait {
-            todo!();
+            // fixme: timeout should be specified by the argument.
+            return self.wait_order_response(asset_no, order_id, 60_000_000_000);
         }
         Ok(true)
     }
 }
 
-impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
+impl<MD> Interface<(), MD> for Bot<MD> where MD: MarketDepth {
     type Error = BotError;
 
     #[inline]
@@ -533,7 +533,7 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
     }
 
     #[inline]
-    fn depth(&self, asset_no: usize) -> &HashMapMarketDepth {
+    fn depth(&self, asset_no: usize) -> &MD {
         self.depth.get(asset_no).unwrap()
     }
 
@@ -624,52 +624,6 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         )
     }
 
-    fn submit_batch_orders(
-        &mut self,
-        asset_no: usize,
-        batch_orders: Vec<OrderRequest>,
-        wait: bool,
-    ) -> Result<bool, Self::Error> {
-        let orders = self
-            .orders
-            .get_mut(asset_no)
-            .ok_or(BotError::AssetNotFound)?;
-        let tick_size = self.assets.get(asset_no).unwrap().1.tick_size;
-        let mut prepared_orders = Vec::new();
-        for order in batch_orders {
-            if orders.contains_key(&order.order_id) {
-                return Err(BotError::OrderIdExist);
-            }
-            let order = Order {
-                order_id: order.order_id,
-                front_q_qty: 0.0,
-                q: (),
-                price_tick: (order.price / tick_size).round() as i32,
-                qty: order.qty,
-                leaves_qty: order.qty,
-                tick_size,
-                side: order.side,
-                time_in_force: order.time_in_force,
-                order_type: order.order_type,
-                status: Status::New,
-                local_timestamp: Utc::now().timestamp_nanos_opt().unwrap(),
-                req: Status::New,
-                exec_price_tick: 0,
-                exch_timestamp: 0,
-                exec_qty: 0.0,
-                maker: false,
-            };
-            prepared_orders.push(order);
-        }
-        for order in prepared_orders.iter() {
-            orders.insert(order.order_id, order.clone());
-        }
-        self.req_tx
-            .send(Request::BatchOrder((asset_no, prepared_orders)))
-            .unwrap();
-        Ok(true)
-    }
-
     #[inline]
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
         let orders = self
@@ -685,6 +639,10 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         self.req_tx
             .send(Request::Order((asset_no, order.clone())))
             .unwrap();
+        if wait {
+            // fixme: timeout should be specified by the argument.
+            return self.wait_order_response(asset_no, order_id, 60_000_000_000);
+        }
         Ok(true)
     }
 
@@ -720,7 +678,14 @@ impl Interface<(), HashMapMarketDepth> for Bot<HashMapMarketDepth> {
         include_order_resp: bool,
         timeout: i64,
     ) -> Result<bool, Self::Error> {
-        self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_NONE), true)
+        if include_order_resp {
+            todo!();
+            // todo: It should return when it receives the order response, regardless of which asset
+            //       the response comes from.
+            // self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_ANY), true)
+        } else {
+            self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_NONE), true)
+        }
     }
 
     #[inline]

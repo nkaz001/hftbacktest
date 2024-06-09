@@ -333,37 +333,6 @@ where
         Ok(true)
     }
 
-    fn submit_batch_orders(
-        &mut self,
-        asset_no: usize,
-        batch_orders: Vec<OrderRequest>,
-        wait: bool,
-    ) -> Result<bool, Self::Error> {
-        let mut wait_order_id = None;
-        let local = self.local.get_mut(asset_no).unwrap();
-        for order in batch_orders {
-            if wait_order_id.is_none() {
-                wait_order_id = Some(order.order_id);
-            }
-            local.submit_order(
-                order.order_id,
-                Side::Sell,
-                order.price,
-                order.qty,
-                order.order_type,
-                order.time_in_force,
-                self.cur_ts,
-            )?;
-        }
-
-        if wait {
-            if let Some(order_id) = wait_order_id {
-                return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
-            }
-        }
-        Ok(true)
-    }
-
     #[inline]
     fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
@@ -866,38 +835,6 @@ where
 
         if wait {
             return self.goto(UNTIL_END_OF_DATA, (asset_no, order.order_id));
-        }
-        Ok(true)
-    }
-
-    fn submit_batch_orders(
-        &mut self,
-        asset_no: usize,
-        batch_orders: Vec<OrderRequest>,
-        wait: bool,
-    ) -> Result<bool, Self::Error> {
-        let mut wait_order_id = None;
-        let local = self.local.get_mut(asset_no).unwrap();
-        for order in batch_orders {
-            if wait_order_id.is_none() {
-                wait_order_id = Some(order.order_id);
-            }
-            local.submit_order(
-                order.order_id,
-                Side::Sell,
-                order.price,
-                order.qty,
-                order.order_type,
-                order.time_in_force,
-                self.cur_ts,
-            )?;
-        }
-        self.evs
-            .update_exch_order(asset_no, local.earliest_send_order_timestamp());
-        if wait {
-            if let Some(order_id) = wait_order_id {
-                return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
-            }
         }
         Ok(true)
     }

@@ -451,8 +451,8 @@ where
             if exch_order.is_none() {
                 order.status = Status::Expired;
                 order.exch_timestamp = timestamp;
-                let local_recv_timestamp =
-                    timestamp + self.order_latency.response(timestamp, &order);
+                // let local_recv_timestamp =
+                //     timestamp + self.order_latency.response(timestamp, &order);
                 // It can overwrite another existing order on the local side if order_id is the
                 // same. So, commented out.
                 // self.orders_to.append(order.copy(), local_recv_timestamp)

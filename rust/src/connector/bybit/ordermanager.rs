@@ -33,7 +33,6 @@ pub enum OrderManagerError {
 pub struct OrderManager {
     prefix: String,
     orders: HashMap<i64, (usize, Order<()>)>,
-    pending_orders: HashMap<String, PrivateOrder>,
 }
 
 impl OrderManager {
@@ -41,7 +40,6 @@ impl OrderManager {
         Self {
             prefix: prefix.to_string(),
             orders: Default::default(),
-            pending_orders: Default::default(),
         }
     }
 

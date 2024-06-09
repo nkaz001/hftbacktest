@@ -582,14 +582,6 @@ where
         wait: bool,
     ) -> Result<bool, Self::Error>;
 
-    /// Places batch orders.
-    fn submit_batch_orders(
-        &mut self,
-        asset_no: usize,
-        batch_orders: Vec<OrderRequest>,
-        wait: bool,
-    ) -> Result<bool, Self::Error>;
-
     /// Cancels the specified order.
     ///
     /// * `asset_no` - Asset number at which this command will be executed.
