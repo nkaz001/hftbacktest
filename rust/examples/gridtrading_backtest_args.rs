@@ -1,21 +1,19 @@
-use std::time::Instant;
+use clap::Parser;
 
 use algo::gridtrading;
-use clap::Parser;
 use hftbacktest::{
     backtest::{
-        assettype::LinearAsset,
-        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
-        recorder::BacktestRecorder,
         AssetBuilder,
+        assettype::LinearAsset,
         DataSource,
         ExchangeKind,
+        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
         MultiAssetMultiExchangeBacktest,
+        recorder::BacktestRecorder,
+        reader::read_npz
     },
-    prelude::{HashMapMarketDepth, Interface},
+    prelude::{HashMapMarketDepth, ApplySnapshot, Interface},
 };
-use hftbacktest::backtest::reader::read_npz;
-use hftbacktest::prelude::ApplySnapshot;
 
 mod algo;
 
@@ -23,13 +21,15 @@ mod algo;
 #[command(about = None, long_about = None)]
 struct Args {
     #[arg(long)]
+    name: String,
+    #[arg(long)]
     output_path: String,
-    #[arg(long)]
-    latency_files: Vec<String>,
-    #[arg(long)]
+    #[arg(long, num_args = 1..)]
     data_files: Vec<String>,
     #[arg(long)]
     initial_snapshot: Option<String>,
+    #[arg(long, num_args = 1..)]
+    latency_files: Vec<String>,
     #[arg(long)]
     tick_size: f32,
     #[arg(long)]
@@ -95,7 +95,6 @@ fn main() {
 
     let args = Args::parse();
 
-    let start = Instant::now();
     let mut hbt = prepare_backtest(
         args.latency_files,
         args.data_files,
@@ -116,6 +115,5 @@ fn main() {
         args.order_qty,
     ).unwrap();
     hbt.close().unwrap();
-    print!("{} seconds", start.elapsed().as_secs());
-    recorder.to_csv("gridtrading", args.output_path).unwrap();
+    recorder.to_csv(args.name, args.output_path).unwrap();
 }
