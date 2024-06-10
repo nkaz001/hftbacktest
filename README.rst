@@ -2,7 +2,7 @@
 HftBacktest
 ===========
 
-|codacy| |codeql| |pypi| |downloads| |license| |docs| |github|
+|codacy| |codeql| |python| |pypi| |downloads| |license| |docs| |github|
 
 High-Frequency Trading Backtesting Tool
 =======================================
@@ -19,6 +19,10 @@ support the following features.
 * Deployment of a live trading bot using the same algo code.
 
 Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ directory.
+
+Example: The complete process of backtesting Binance Futures
+------------------------------------------------------------
+`gridtrading<https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_ The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Key Features
 ============
