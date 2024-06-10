@@ -1,5 +1,7 @@
 # HftBacktest
 
+![crates.io](https://img.shields.io/crates/v/hftbacktest.svg)
+
 **This project is currently in its initial development stages, meaning that breaking changes may occur without prior
 notice. The live bot feature has not undergone comprehensive testing yet; therefore, it must be used at your own risk.**
 
@@ -40,6 +42,8 @@ The Rust implementation uses a different data format compared to the Python impl
 part of [Data Preparation](https://hftbacktest.readthedocs.io/en/latest/tutorials/Data%20Preparation.html) tutorial.
 
 ### Examples
+
+[gridtrading](https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb): The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Please see [examples](https://github.com/nkaz001/hftbacktest/tree/master/rust/examples).
 
