@@ -487,7 +487,10 @@ where
     }
 }
 
-impl<MD> Interface<(), MD> for Bot<MD> where MD: MarketDepth {
+impl<MD> Interface<(), MD> for Bot<MD>
+where
+    MD: MarketDepth,
+{
     type Error = BotError;
 
     #[inline]

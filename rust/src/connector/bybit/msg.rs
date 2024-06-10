@@ -1,12 +1,8 @@
-use std::{
-    collections::HashMap,
-    fmt,
-    fmt::{Debug, Formatter},
-};
+use std::{collections::HashMap, fmt, fmt::Debug};
 
 use serde::{
     de,
-    de::{Error, MapAccess, Unexpected, Visitor},
+    de::{Error, Unexpected, Visitor},
     Deserialize,
     Deserializer,
     Serialize,

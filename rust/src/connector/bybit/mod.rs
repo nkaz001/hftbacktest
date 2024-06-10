@@ -6,7 +6,7 @@ use std::{
 
 use thiserror::Error;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tracing::{debug, error, warn};
+use tracing::error;
 
 use crate::{
     connector::{
@@ -17,9 +17,7 @@ use crate::{
         Connector,
     },
     live::Asset,
-    prelude::{OrdType, Side},
     types::{Error, ErrorKind, LiveEvent, Order},
-    util::get_precision,
 };
 
 mod msg;
@@ -66,9 +64,11 @@ pub struct Bybit {
     secret: String,
     order_tx: Option<UnboundedSender<BybitOrderReq>>,
     order_man: WrappedOrderManager,
+    category: String,
 }
 
 impl Bybit {
+    /// Currently, only `linear` category is supported.
     pub fn new(
         public_url: &str,
         private_url: &str,
@@ -76,6 +76,7 @@ impl Bybit {
         api_key: &str,
         secret: &str,
         prefix: &str,
+        category: &str,
     ) -> Self {
         Self {
             public_url: public_url.to_string(),
@@ -88,6 +89,7 @@ impl Bybit {
             secret: secret.to_string(),
             order_tx: None,
             order_man: Arc::new(Mutex::new(OrderManager::new(prefix))),
+            category: category.to_string(),
         }
     }
 }
@@ -112,9 +114,6 @@ impl Connector for Bybit {
     }
 
     fn run(&mut self, ev_tx: Sender<LiveEvent>) -> Result<(), anyhow::Error> {
-        let topics = self.topics.clone();
-        let mut error_count = 0;
-
         // Connects to the public stream for the market data.
         let public_url = self.public_url.clone();
         let ev_tx_public = ev_tx.clone();
@@ -130,6 +129,7 @@ impl Connector for Bybit {
         }
 
         let _ = tokio::spawn(async move {
+            let mut error_count = 0;
             loop {
                 if error_count > 0 {
                     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -168,6 +168,7 @@ impl Connector for Bybit {
         let secret_private = self.secret.clone();
         let order_man_private = self.order_man.clone();
         let _ = tokio::spawn(async move {
+            let mut error_count = 0;
             'connection: loop {
                 if error_count > 0 {
                     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -239,13 +240,13 @@ impl Connector for Bybit {
         // Connects to the trade stream for order entry.
         let trade_url = self.trade_url.clone();
         let ev_tx_trade = ev_tx.clone();
-        let assets_trade = self.assets.clone();
         let api_key_trade = self.api_key.clone();
         let secret_trade = self.secret.clone();
         let order_man_trade = self.order_man.clone();
         let (order_tx, mut order_rx) = unbounded_channel();
         self.order_tx = Some(order_tx);
         let _ = tokio::spawn(async move {
+            let mut error_count = 0;
             loop {
                 if error_count > 0 {
                     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -292,7 +293,8 @@ impl Connector for Bybit {
             .get(&asset_no)
             .ok_or(BybitError::AssetNotFound)?;
         let mut order_man = self.order_man.lock().unwrap();
-        let bybit_order = order_man.new_order(&asset_info.symbol, "linear", asset_no, order)?;
+        let bybit_order =
+            order_man.new_order(&asset_info.symbol, &self.category, asset_no, order)?;
         self.order_tx.as_ref().unwrap().send(BybitOrderReq {
             op: "order.create".to_string(),
             bybit_order,
@@ -301,31 +303,19 @@ impl Connector for Bybit {
         Ok(())
     }
 
-    fn submit_batch(
-        &self,
-        asset_no: usize,
-        orders: Vec<Order<()>>,
-        ev_tx: Sender<LiveEvent>,
-    ) -> Result<(), anyhow::Error> {
-        todo!()
-    }
-
     fn cancel(
         &self,
         asset_no: usize,
-        mut order: Order<()>,
+        order: Order<()>,
         tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
         let asset_info = self
             .inv_assets
             .get(&asset_no)
             .ok_or(BybitError::AssetNotFound)?;
-        let asset_info = self
-            .inv_assets
-            .get(&asset_no)
-            .ok_or(BybitError::AssetNotFound)?;
         let mut order_man = self.order_man.lock().unwrap();
-        let bybit_order = order_man.cancel_order(&asset_info.symbol, "linear", order.order_id)?;
+        let bybit_order =
+            order_man.cancel_order(&asset_info.symbol, &self.category, order.order_id)?;
         self.order_tx.as_ref().unwrap().send(BybitOrderReq {
             op: "order.cancel".to_string(),
             bybit_order,
