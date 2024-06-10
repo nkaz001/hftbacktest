@@ -22,7 +22,7 @@ Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ dir
 
 Example: The complete process of backtesting Binance Futures
 ------------------------------------------------------------
-`gridtrading<https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_ The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
+`gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_ The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Key Features
 ============
