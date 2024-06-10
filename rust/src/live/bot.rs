@@ -95,19 +95,6 @@ async fn thread_main(
                             }
                         }
                     }
-                    Some(Request::BatchOrder((asset_no, orders))) => {
-                        if let Some((connector_name, _)) = mapping.get(asset_no) {
-                            let conn_ = conns.get_mut(connector_name).unwrap();
-                            let ev_tx_ = ev_tx.clone();
-                            if let Err(error) = conn_.submit_batch(asset_no, orders, ev_tx_) {
-                                error!(
-                                    %connector_name,
-                                    ?error,
-                                    "Unable to submit a new order due to an internal error in the connector."
-                                );
-                            }
-                        }
-                    }
                     None => {
                         debug!("req_rx channel is closed.");
                         break;

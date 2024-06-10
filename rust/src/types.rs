@@ -435,8 +435,6 @@ where
 pub enum Request {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
     Order((usize, Order<()>)),
-    /// A batch order request, a vector of a tuple consisting of an asset number and an [`Order`].
-    BatchOrder((usize, Vec<Order<()>>)),
 }
 
 /// An order response from [`Connector`](`crate::connector::Connector`).
