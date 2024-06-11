@@ -63,7 +63,7 @@ def backtest_rust(
         f'--grid-num {grid_num} '
         f'--skew {skew} '
         f'--order-qty {order_qty} '
-        f'--max_position {max_position} '
+        f'--max-position {max_position} '
     )
     return_code = subprocess.call(cmd, shell=True)
     print(f'{symbol}: {return_code}\n')
