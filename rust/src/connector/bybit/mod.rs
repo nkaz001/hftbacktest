@@ -12,17 +12,21 @@ use crate::{
     connector::{
         bybit::{
             ordermanager::{OrderManager, WrappedOrderManager},
-            ws::{connect_private, connect_public, connect_trade, BybitOrderReq},
+            ws::{connect_private, connect_public, connect_trade, OrderOp},
         },
         Connector,
     },
     live::Asset,
     types::{Error, ErrorKind, LiveEvent, Order},
 };
+use crate::connector::bybit::rest::BybitClient;
+use crate::prelude::OrderResponse;
+use crate::types::Position;
 
 mod msg;
 mod ordermanager;
 mod ws;
+mod rest;
 
 #[derive(Clone)]
 pub enum Endpoint {
@@ -62,9 +66,10 @@ pub struct Bybit {
     topics: HashSet<String>,
     api_key: String,
     secret: String,
-    order_tx: Option<UnboundedSender<BybitOrderReq>>,
+    order_tx: Option<UnboundedSender<OrderOp>>,
     order_man: WrappedOrderManager,
     category: String,
+    client: BybitClient,
 }
 
 impl Bybit {
@@ -73,6 +78,7 @@ impl Bybit {
         public_url: &str,
         private_url: &str,
         trade_url: &str,
+        rest_url: &str,
         api_key: &str,
         secret: &str,
         prefix: &str,
@@ -90,6 +96,7 @@ impl Bybit {
             order_tx: None,
             order_man: Arc::new(Mutex::new(OrderManager::new(prefix))),
             category: category.to_string(),
+            client: BybitClient::new(rest_url, api_key, secret)
         }
     }
 }
@@ -118,6 +125,7 @@ impl Connector for Bybit {
         let public_url = self.public_url.clone();
         let ev_tx_public = ev_tx.clone();
         let assets_public = self.assets.clone();
+        // todo: for the finest and most frequent updates, fusing multiple depth topics is needed.
         let mut topics = vec![
             // "orderbook.1".to_string(),
             "orderbook.50".to_string(),
@@ -167,6 +175,7 @@ impl Connector for Bybit {
         let api_key_private = self.api_key.clone();
         let secret_private = self.secret.clone();
         let order_man_private = self.order_man.clone();
+        let client_private = self.client.clone();
         let _ = tokio::spawn(async move {
             let mut error_count = 0;
             'connection: loop {
@@ -176,38 +185,46 @@ impl Connector for Bybit {
 
                 // Cancel all orders before connecting to the stream in order to start with the
                 // clean state.
-                // for symbol in assets.keys() {
-                //     if let Err(error) = client.cancel_all_orders(symbol).await {
-                //         error!(?error, %symbol, "Couldn't cancel all open orders.");
-                //         ev_tx
-                //             .send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
-                //             .unwrap();
-                //         error_count += 1;
-                //         continue 'connection;
-                //     }
-                // }
+                if let Err(error) = client_private.cancel_all_orders().await {
+                    error!(?error, "Couldn't cancel all open orders.");
+                    ev_tx_private
+                        .send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
+                        .unwrap();
+                    error_count += 1;
+                    continue 'connection;
+                }
+                {
+                    let mut order_manager_ = order_man_private.lock().unwrap();
+                    let orders = order_manager_.clear_orders();
+                    for (asset_no, order) in orders {
+                        ev_tx_private.send(LiveEvent::Order(OrderResponse {
+                            asset_no,
+                            order
+                        })).unwrap();
+                    }
+                }
 
                 // Fetches the initial states such as positions and open orders.
-                // match client.get_position_information().await {
-                //     Ok(positions) => {
-                //         positions.into_iter().for_each(|position| {
-                //             assets.get(&position.symbol).map(|asset_info| {
-                //                 ev_tx
-                //                     .send(LiveEvent::Position(Position {
-                //                         asset_no: asset_info.asset_no,
-                //                         symbol: position.symbol,
-                //                         qty: position.position_amount,
-                //                     }))
-                //                     .unwrap();
-                //             });
-                //         });
-                //     }
-                //     Err(error) => {
-                //         error!(?error, "Couldn't get position information.");
-                //         error_count += 1;
-                //         continue 'connection;
-                //     }
-                // }
+                match client_private.get_position_information().await {
+                    Ok(positions) => {
+                        positions.into_iter().for_each(|position| {
+                            assets_private.get(&position.symbol).map(|asset_info| {
+                                ev_tx_private
+                                    .send(LiveEvent::Position(Position {
+                                        asset_no: asset_info.asset_no,
+                                        symbol: position.symbol,
+                                        qty: position.size,
+                                    }))
+                                    .unwrap();
+                            });
+                        });
+                    }
+                    Err(error) => {
+                        error!(?error, "Couldn't get position information.");
+                        error_count += 1;
+                        continue 'connection;
+                    }
+                }
 
                 if let Err(error) = connect_private(
                     &private_url,
@@ -295,7 +312,7 @@ impl Connector for Bybit {
         let mut order_man = self.order_man.lock().unwrap();
         let bybit_order =
             order_man.new_order(&asset_info.symbol, &self.category, asset_no, order)?;
-        self.order_tx.as_ref().unwrap().send(BybitOrderReq {
+        self.order_tx.as_ref().unwrap().send(OrderOp {
             op: "order.create".to_string(),
             bybit_order,
             tx,
@@ -316,7 +333,7 @@ impl Connector for Bybit {
         let mut order_man = self.order_man.lock().unwrap();
         let bybit_order =
             order_man.cancel_order(&asset_info.symbol, &self.category, order.order_id)?;
-        self.order_tx.as_ref().unwrap().send(BybitOrderReq {
+        self.order_tx.as_ref().unwrap().send(OrderOp {
             op: "order.cancel".to_string(),
             bybit_order,
             tx,

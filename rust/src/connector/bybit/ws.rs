@@ -35,7 +35,7 @@ use crate::{
     types::{Depth, Error, LiveEvent, OrderResponse, Side, Trade, BUY, SELL},
 };
 
-pub struct BybitOrderReq {
+pub struct OrderOp {
     pub op: String,
     pub bybit_order: BybitOrder,
     pub tx: Sender<LiveEvent>,
@@ -215,7 +215,7 @@ async fn handle_private_stream(
                     .send(LiveEvent::Position(Position {
                         asset_no: asset.asset_no,
                         symbol: item.symbol,
-                        qty: item.position_value,
+                        qty: item.size,
                     }))
                     .unwrap();
             }
@@ -339,7 +339,7 @@ pub async fn connect_trade(
     api_key: &str,
     secret: &str,
     ev_tx: Sender<LiveEvent>,
-    order_rx: &mut UnboundedReceiver<BybitOrderReq>,
+    order_rx: &mut UnboundedReceiver<OrderOp>,
     order_man: WrappedOrderManager,
 ) -> Result<(), HandleError> {
     let mut request = url.into_client_request()?;

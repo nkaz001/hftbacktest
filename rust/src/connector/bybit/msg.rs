@@ -271,8 +271,8 @@ pub struct Position {
     pub risk_limit_value: String,
     pub symbol: String,
     pub side: String,
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub size: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub size: f64,
     #[serde(rename = "entryPrice")]
     #[serde(deserialize_with = "from_str_to_f32")]
     pub entry_price: f32,
@@ -509,4 +509,28 @@ pub struct Order {
     pub time_in_force: Option<String>,
     #[serde(rename = "orderLinkId")]
     pub order_link_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RestResult {
+    pub list: serde_json::Value,
+    #[serde(default)]
+    pub success: String,
+    #[serde(rename = "next_page_cursor")]
+    #[serde(default)]
+    pub next_page_cursor: String,
+    #[serde(default)]
+    pub category: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RestResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i64,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: RestResult,
+    #[serde(rename = "retExtInfo")]
+    pub ret_ext_info: serde_json::Value,
+    pub time: i64,
 }
