@@ -172,11 +172,12 @@ idea for an enhancement or a bug fix, please open an issue or discussion on GitH
 
 The following items are examples of contributions you can make to this project:
 
+* GitHub workflow.
 * Improve performance statistics reporting
 * Implement test code
-* Add additional queue or exchange models
 * Update documentation and examples
 * Implement a live bot connector
+* Add additional queue or exchange models
 
 .. |python| image:: https://shields.io/badge/python-3.10-blue
     :alt: Python Version
