@@ -2,6 +2,7 @@ use crate::{backtest::reader::Data, types::Event};
 
 mod btreemarketdepth;
 mod hashmapmarketdepth;
+mod l3mbomarketdepth;
 
 pub use btreemarketdepth::BTreeMarketDepth;
 pub use hashmapmarketdepth::HashMapMarketDepth;
