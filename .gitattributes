@@ -1,2 +1,2 @@
-*.pkl filter=lfs diff=lfs merge=lfs -text
+* text=auto
 *.ipynb linguist-detectable=false
