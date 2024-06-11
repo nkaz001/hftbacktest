@@ -10,6 +10,7 @@ pub fn gridtrading<Q, MD, I, R>(
     grid_num: usize,
     skew: f64,
     order_qty: f64,
+    max_position: f64,
 ) -> Result<(), i64>
 where
     Q: Sized + Clone,
@@ -19,7 +20,6 @@ where
     R: Recorder,
     <R as Recorder>::Error: Debug,
 {
-    let max_position = grid_num as f64 * order_qty;
     let tick_size = hbt.depth(0).tick_size() as f64;
     let mut int = 0;
     // Running interval in nanoseconds

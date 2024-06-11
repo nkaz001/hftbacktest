@@ -6,6 +6,7 @@ use hftbacktest::{
     prelude::{HashMapMarketDepth, Interface, Status},
 };
 use tracing::info;
+use hftbacktest::live::LoggingRecorder;
 
 mod algo;
 
@@ -15,7 +16,7 @@ const SECRET: &str = "secret";
 
 fn prepare_live() -> Bot<HashMapMarketDepth> {
     let binance_futures = BinanceFutures::builder()
-        .endpoint(Endpoint::Testnet)
+        .endpoint(Endpoint::Public)
         .api_key(API_KEY)
         .secret(SECRET)
         .order_prefix(ORDER_PREFIX)
@@ -50,11 +51,23 @@ fn main() {
 
     let mut hbt = prepare_live();
 
-    let half_spread = 0.05;
-    let grid_interval = 0.05;
-    let skew = 0.004;
+    let relative_half_spread = 0.0005;
+    let relative_grid_interval = 0.0005;
+    let grid_num = 10;
+    let skew = relative_half_spread / grid_num as f64;
     let order_qty = 1.0;
+    let max_position = grid_num as f64 * order_qty;
 
-    gridtrading(&mut hbt, half_spread, grid_interval, skew, order_qty).unwrap();
+    let mut recorder = LoggingRecorder::new();
+    gridtrading(
+        &mut hbt,
+        &mut recorder,
+        relative_half_spread,
+        relative_grid_interval,
+        grid_num,
+        skew,
+        order_qty,
+        max_position
+    ).unwrap();
     hbt.close().unwrap();
 }

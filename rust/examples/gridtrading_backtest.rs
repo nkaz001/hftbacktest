@@ -62,6 +62,7 @@ fn main() {
     let grid_num = 10;
     let skew = relative_half_spread / grid_num as f64;
     let order_qty = 1.0;
+    let max_position = grid_num as f64 * order_qty;
 
     let mut start = Instant::now();
     let mut hbt = prepare_backtest();
@@ -74,6 +75,7 @@ fn main() {
         grid_num,
         skew,
         order_qty,
+        max_position
     )
     .unwrap();
     hbt.close().unwrap();

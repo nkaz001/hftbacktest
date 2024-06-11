@@ -45,7 +45,7 @@ uuid = { version = "1.8.0", features = ["v4"], optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.18", features = [] }
-clap = "4.5.4"
+clap = { version = "4.5.4", features = ["derive"] }
 polars = "0.40.0"
 
 [profile.dev]

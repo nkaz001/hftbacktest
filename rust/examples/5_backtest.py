@@ -36,7 +36,8 @@ def backtest_rust(
         rel_grid_interval,
         grid_num,
         skew,
-        order_qty
+        order_qty,
+        max_position
 ):
     date = datetime.strptime(str(date_from_), '%Y%m%d')
     date_to_ = datetime.strptime(str(date_to_), '%Y%m%d')
@@ -59,6 +60,7 @@ def backtest_rust(
         f'--grid-num {grid_num} '
         f'--skew {skew} '
         f'--order-qty {order_qty} '
+        f'--max_position {max_position} '
     )
     return_code = subprocess.call(cmd, shell=True)
     print(f'{symbol}: {return_code}\n')
@@ -75,8 +77,14 @@ def params(symbol):
     skew = rel_half_spread / grid_num
 
     # Order quantity is set to be equivalent to about $100.
-    order_qty100 = round((100 / float(tickers[symbol]['weighted_avg_price'])) / float(lot_size)) * float(lot_size)
+    if symbol.startswith('1000'):
+        order_qty100 = round(
+            (100 / (1000 * float(tickers[symbol]['weighted_avg_price']))) / float(lot_size)
+        ) * float(lot_size)
+    else:
+        order_qty100 = round((100 / float(tickers[symbol]['weighted_avg_price'])) / float(lot_size)) * float(lot_size)
     order_qty = max(float(min_qty), order_qty100)
+    max_position = grid_num * order_qty
 
     return (
         symbol,
@@ -88,7 +96,8 @@ def params(symbol):
         rel_grid_interval,
         grid_num,
         skew,
-        order_qty
+        order_qty,
+        max_position
     )
 
 

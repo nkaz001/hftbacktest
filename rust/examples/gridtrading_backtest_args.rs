@@ -43,6 +43,8 @@ struct Args {
     grid_num: usize,
     #[arg(long)]
     order_qty: f64,
+    #[arg(long)]
+    max_position: f64,
     #[arg(long, default_value_t = -0.00005)]
     maker_fee: f64,
     #[arg(long, default_value_t = 0.0007)]
@@ -121,6 +123,7 @@ fn main() {
         args.grid_num,
         args.skew,
         args.order_qty,
+        args.max_position
     )
     .unwrap();
     hbt.close().unwrap();
