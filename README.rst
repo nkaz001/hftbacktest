@@ -154,6 +154,16 @@ Examples
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory.
 
+Roadmap
+=======
+
+Currently, new features are being implemented in Rust due to the limitations of Numba, as performance is crucial given the size of the high-frequency data.
+The imminent task is to integrate hftbacktest in Python with hftbacktest in Rust by using the Rust implementation as the backend.
+Meanwhile, the data format, which is currently different, needs to be unified.
+On the pure Python side, the performance reporting tool should be improved to provide more performance metrics with increased speed.
+
+For the roadmap of the Rust implementation, please see the hftbacktest in Rust's README.
+
 Contributing
 ============
 
