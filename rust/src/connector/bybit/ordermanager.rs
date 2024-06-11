@@ -201,14 +201,10 @@ impl OrderManager {
 
     pub fn clear_orders(&mut self) -> Vec<(usize, Order<()>)> {
         let mut values: Vec<(usize, Order<()>)> = Vec::new();
-        values.extend(
-            self.orders
-                .drain()
-                .map(|(_, (asset_no, mut order))| {
-                    order.status = Status::Canceled;
-                    (asset_no, order)
-                })
-        );
+        values.extend(self.orders.drain().map(|(_, (asset_no, mut order))| {
+            order.status = Status::Canceled;
+            (asset_no, order)
+        }));
         values
     }
 }

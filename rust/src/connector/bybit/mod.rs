@@ -12,21 +12,20 @@ use crate::{
     connector::{
         bybit::{
             ordermanager::{OrderManager, WrappedOrderManager},
+            rest::BybitClient,
             ws::{connect_private, connect_public, connect_trade, OrderOp},
         },
         Connector,
     },
     live::Asset,
-    types::{Error, ErrorKind, LiveEvent, Order},
+    prelude::OrderResponse,
+    types::{Error, ErrorKind, LiveEvent, Order, Position},
 };
-use crate::connector::bybit::rest::BybitClient;
-use crate::prelude::OrderResponse;
-use crate::types::Position;
 
 mod msg;
 mod ordermanager;
-mod ws;
 mod rest;
+mod ws;
 
 #[derive(Clone)]
 pub enum Endpoint {
@@ -96,7 +95,7 @@ impl Bybit {
             order_tx: None,
             order_man: Arc::new(Mutex::new(OrderManager::new(prefix))),
             category: category.to_string(),
-            client: BybitClient::new(rest_url, api_key, secret)
+            client: BybitClient::new(rest_url, api_key, secret),
         }
     }
 }
@@ -197,10 +196,9 @@ impl Connector for Bybit {
                     let mut order_manager_ = order_man_private.lock().unwrap();
                     let orders = order_manager_.clear_orders();
                     for (asset_no, order) in orders {
-                        ev_tx_private.send(LiveEvent::Order(OrderResponse {
-                            asset_no,
-                            order
-                        })).unwrap();
+                        ev_tx_private
+                            .send(LiveEvent::Order(OrderResponse { asset_no, order }))
+                            .unwrap();
                     }
                 }
 

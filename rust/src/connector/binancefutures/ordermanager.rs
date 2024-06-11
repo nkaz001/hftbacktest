@@ -216,7 +216,7 @@ impl OrderManager {
         &mut self,
         asset_no: usize,
         client_order_id: String,
-        order: Order<()>
+        order: Order<()>,
     ) -> Option<Order<()>> {
         match self.orders.entry(client_order_id.clone()) {
             Entry::Occupied(mut entry) => {
@@ -339,14 +339,10 @@ impl OrderManager {
 
     pub fn clear_orders(&mut self) -> Vec<(usize, Order<()>)> {
         let mut values: Vec<(usize, Order<()>)> = Vec::new();
-        values.extend(
-            self.orders
-                .drain()
-                .map(|(_, mut order)| {
-                    order.order.status = Status::Canceled;
-                    (order.asset_no, order.order)
-                })
-        );
+        values.extend(self.orders.drain().map(|(_, mut order)| {
+            order.order.status = Status::Canceled;
+            (order.asset_no, order.order)
+        }));
         values
     }
 }

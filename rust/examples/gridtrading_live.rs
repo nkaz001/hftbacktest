@@ -52,7 +52,7 @@ fn main() {
         grid_num,
         skew,
         order_qty,
-        max_position
+        max_position,
     )
     .unwrap();
     hbt.close().unwrap();

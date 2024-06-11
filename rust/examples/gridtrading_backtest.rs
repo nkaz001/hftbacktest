@@ -1,7 +1,6 @@
 use std::time::Instant;
 
 use algo::gridtrading;
-use clap::Parser;
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
@@ -64,7 +63,6 @@ fn main() {
     let order_qty = 1.0;
     let max_position = grid_num as f64 * order_qty;
 
-    let mut start = Instant::now();
     let mut hbt = prepare_backtest();
     let mut recorder = BacktestRecorder::new(&hbt);
     gridtrading(
@@ -75,10 +73,9 @@ fn main() {
         grid_num,
         skew,
         order_qty,
-        max_position
+        max_position,
     )
     .unwrap();
     hbt.close().unwrap();
-    print!("{} seconds", start.elapsed().as_secs());
     recorder.to_csv("gridtrading", ".").unwrap();
 }

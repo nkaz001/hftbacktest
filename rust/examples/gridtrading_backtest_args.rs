@@ -123,7 +123,7 @@ fn main() {
         args.grid_num,
         args.skew,
         args.order_qty,
-        args.max_position
+        args.max_position,
     )
     .unwrap();
     hbt.close().unwrap();

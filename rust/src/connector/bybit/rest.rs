@@ -1,8 +1,10 @@
 use chrono::Utc;
 use serde::Deserialize;
-use crate::connector::bybit::msg::{Position, RestResponse};
 
-use crate::connector::util::sign_hmac_sha256;
+use crate::connector::{
+    bybit::msg::{Position, RestResponse},
+    util::sign_hmac_sha256,
+};
 
 #[derive(Clone)]
 pub struct BybitClient {
@@ -88,9 +90,7 @@ impl BybitClient {
         Ok(())
     }
 
-    pub async fn get_position_information(
-        &self,
-    ) -> Result<Vec<Position>, anyhow::Error> {
+    pub async fn get_position_information(&self) -> Result<Vec<Position>, anyhow::Error> {
         // Position
         let resp: RestResponse = self
             .get(

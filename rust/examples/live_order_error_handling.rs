@@ -2,11 +2,10 @@ use algo::gridtrading;
 use chrono::Utc;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, BinanceFuturesError, Endpoint},
-    live::{Bot, BotError},
+    live::{Bot, BotError, LoggingRecorder},
     prelude::{ErrorKind, HashMapMarketDepth, Interface},
 };
 use tracing::{error, info};
-use hftbacktest::live::LoggingRecorder;
 
 mod algo;
 
@@ -88,7 +87,8 @@ fn main() {
         grid_num,
         skew,
         order_qty,
-        max_position
-    ).unwrap();
+        max_position,
+    )
+    .unwrap();
     hbt.close().unwrap();
 }
