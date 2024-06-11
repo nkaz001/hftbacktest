@@ -187,6 +187,7 @@ impl BinanceFuturesBuilder {
     }
 }
 
+/// A connector for Binance USD-m Futures.
 pub struct BinanceFutures {
     url: String,
     prefix: String,
@@ -210,6 +211,7 @@ impl BinanceFutures {
         }
     }
 
+    /// Constructs an instance of `BinanceFutures`.
     pub fn new(stream_url: &str, api_url: &str, prefix: &str, api_key: &str, secret: &str) -> Self {
         let order_manager: WrappedOrderManager = Arc::new(Mutex::new(OrderManager::new(prefix)));
         Self {
@@ -248,7 +250,7 @@ impl Connector for BinanceFutures {
         let base_url = self.url.clone();
         let prefix = self.prefix.clone();
         let client = self.client.clone();
-        let orders = self.order_manager.clone();
+        let order_manager = self.order_manager.clone();
         let add_streams = self.streams.clone();
         let mut error_count = 0;
 
@@ -260,7 +262,7 @@ impl Connector for BinanceFutures {
 
                 // Cancel all orders before connecting to the stream in order to start with the
                 // clean state.
-                for symbol in assets.keys() {
+                for (symbol, asset) in assets.iter() {
                     if let Err(error) = client.cancel_all_orders(symbol).await {
                         error!(?error, %symbol, "Couldn't cancel all open orders.");
                         ev_tx
@@ -268,6 +270,16 @@ impl Connector for BinanceFutures {
                             .unwrap();
                         error_count += 1;
                         continue 'connection;
+                    }
+                }
+                {
+                    let mut order_manager_ = order_manager.lock().unwrap();
+                    let orders = order_manager_.clear_orders();
+                    for (asset_no, order) in orders {
+                        ev_tx.send(LiveEvent::Order(OrderResponse {
+                            asset_no,
+                            order
+                        })).unwrap();
                     }
                 }
 
@@ -332,7 +344,7 @@ impl Connector for BinanceFutures {
                     ev_tx.clone(),
                     assets.clone(),
                     &prefix,
-                    orders.clone(),
+                    order_manager.clone(),
                     client.clone(),
                 )
                 .await
@@ -374,7 +386,7 @@ impl Connector for BinanceFutures {
             let client_order_id = orders
                 .lock()
                 .unwrap()
-                .prepare_client_order_id(order.clone());
+                .prepare_client_order_id(asset_no, order.clone());
 
             match client_order_id {
                 Some(client_order_id) => {
@@ -392,18 +404,25 @@ impl Connector for BinanceFutures {
                         .await
                     {
                         Ok(resp) => {
-                            let order = orders.lock().unwrap().update_submit_success(order, resp);
+                            let order = orders
+                                .lock()
+                                .unwrap()
+                                .update_submit_success(asset_no, order, resp);
                             if let Some(order) = order {
                                 tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
                         }
                         Err(error) => {
-                            let order = orders.lock().unwrap().update_submit_fail(
-                                order,
-                                &error,
-                                client_order_id,
-                            );
+                            let order = orders
+                                .lock()
+                                .unwrap()
+                                .update_submit_fail(
+                                    asset_no,
+                                    order,
+                                    &error,
+                                    client_order_id,
+                                );
                             if let Some(order) = order {
                                 tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
@@ -444,24 +463,34 @@ impl Connector for BinanceFutures {
         let client = self.client.clone();
         let orders = self.order_manager.clone();
         tokio::spawn(async move {
-            let client_order_id = orders.lock().unwrap().get_client_order_id(order.order_id);
+            let client_order_id = orders
+                .lock()
+                .unwrap()
+                .get_client_order_id(order.order_id);
 
             match client_order_id {
                 Some(client_order_id) => {
                     match client.cancel_order(&client_order_id, &symbol).await {
                         Ok(resp) => {
-                            let order = orders.lock().unwrap().update_cancel_success(order, resp);
+                            let order = orders
+                                .lock()
+                                .unwrap()
+                                .update_cancel_success(asset_no, order, resp);
                             if let Some(order) = order {
                                 tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();
                             }
                         }
                         Err(error) => {
-                            let order = orders.lock().unwrap().update_cancel_fail(
-                                order,
-                                &error,
-                                client_order_id,
-                            );
+                            let order = orders
+                                .lock()
+                                .unwrap()
+                                .update_cancel_fail(
+                                    asset_no,
+                                    order,
+                                    &error,
+                                    client_order_id,
+                                );
                             if let Some(order) = order {
                                 tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
                                     .unwrap();

@@ -282,7 +282,11 @@ pub async fn connect(
                                         let order = orders
                                             .lock()
                                             .unwrap()
-                                            .update_from_ws(data.order.client_order_id, order);
+                                            .update_from_ws(
+                                                asset_info.asset_no,
+                                                data.order.client_order_id,
+                                                order
+                                            );
                                         if let Some(order) = order {
                                             ev_tx.send(
                                                 LiveEvent::Order(
