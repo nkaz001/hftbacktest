@@ -4,13 +4,23 @@ use crate::{
     backtest::{
         evs::{EventSet, EventType},
         proc::{LocalProcessor, Processor},
-        reader::{UNTIL_END_OF_DATA, WAIT_ORDER_RESPONSE_NONE},
         Asset,
         BacktestError,
     },
     depth::{HashMapMarketDepth, MarketDepth},
     prelude::OrderRequest,
-    types::{BuildError, Event, Interface, OrdType, Order, Side, StateValues, TimeInForce},
+    types::{
+        BuildError,
+        Event,
+        Interface,
+        OrdType,
+        Order,
+        Side,
+        StateValues,
+        TimeInForce,
+        UNTIL_END_OF_DATA,
+        WAIT_ORDER_RESPONSE_NONE,
+    },
 };
 
 /// [`MultiAssetMultiExchangeBacktest`] builder.

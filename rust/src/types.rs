@@ -88,6 +88,76 @@ pub const DEPTH_CLEAR_EVENT: i64 = 3;
 /// Indicates that the market depth snapshot is received.
 pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
 
+/// Indicates that it is a valid event to be handled by the exchange processor at the exchange
+/// timestamp.
+pub const EXCH_EVENT: i64 = 1 << 31;
+
+/// Indicates that it is a valid event to be handled by the local processor at the local timestamp.
+pub const LOCAL_EVENT: i64 = 1 << 30;
+
+/// Represents a combination of a [`DEPTH_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+pub const LOCAL_BID_DEPTH_EVENT: i64 = DEPTH_EVENT | BUY | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+pub const LOCAL_ASK_DEPTH_EVENT: i64 = DEPTH_EVENT | SELL | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+pub const LOCAL_BID_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | BUY | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+pub const LOCAL_ASK_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | SELL | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+pub const LOCAL_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+pub const LOCAL_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | LOCAL_EVENT;
+
+/// Represents a combination of [`TRADE_EVENT`], and `LOCAL_EVENT`.
+pub const LOCAL_TRADE_EVENT: i64 = TRADE_EVENT | LOCAL_EVENT;
+
+/// Represents a combination of [`TRADE_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+pub const LOCAL_BUY_TRADE_EVENT: i64 = LOCAL_TRADE_EVENT | BUY;
+
+/// Represents a combination of [`TRADE_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+pub const LOCAL_SELL_TRADE_EVENT: i64 = LOCAL_TRADE_EVENT | SELL;
+
+/// Represents a combination of [`DEPTH_EVENT`], [`BUY`], and `EXCH_EVENT`.
+pub const EXCH_BID_DEPTH_EVENT: i64 = DEPTH_EVENT | BUY | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and `EXCH_EVENT`.
+pub const EXCH_ASK_DEPTH_EVENT: i64 = DEPTH_EVENT | SELL | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and `EXCH_EVENT`.
+pub const EXCH_BID_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | BUY | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and `EXCH_EVENT`.
+pub const EXCH_ASK_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | SELL | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and `EXCH_EVENT`.
+pub const EXCH_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and `EXCH_EVENT`.
+pub const EXCH_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | EXCH_EVENT;
+
+/// Represents a combination of [`TRADE_EVENT`], and `EXCH_EVENT`.
+pub const EXCH_TRADE_EVENT: i64 = TRADE_EVENT | EXCH_EVENT;
+
+/// Represents a combination of [`TRADE_EVENT`], [`BUY`], and `EXCH_EVENT`.
+pub const EXCH_BUY_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | BUY;
+
+/// Represents a combination of [`TRADE_EVENT`], [`SELL`], and `EXCH_EVENT`.
+pub const EXCH_SELL_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | SELL;
+
+/// Indicates that one should not wait for an order response.
+pub const WAIT_ORDER_RESPONSE_NONE: i64 = -1;
+
+/// Indicates that one should wait for any order response.
+pub const WAIT_ORDER_RESPONSE_ANY: i64 = -2;
+
+/// Indicates that one should continue until the end of the data.
+pub const UNTIL_END_OF_DATA: i64 = i64::MAX;
+
 /// Exchange event data.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(32))]
@@ -108,7 +178,11 @@ impl Event {
     /// Checks if this `Event` corresponds to the given event.
     #[inline(always)]
     pub fn is(&self, event: i64) -> bool {
-        (self.ev & event) == event
+        if (self.ev & event) != event {
+            false
+        } else {
+            self.ev & 0xff == event & 0xff
+        }
     }
 }
 
@@ -650,4 +724,47 @@ pub trait Recorder {
         Q: Sized + Clone,
         I: Interface<Q, MD>,
         MD: MarketDepth;
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        prelude::LOCAL_EVENT,
+        types::{
+            Event,
+            BUY,
+            LOCAL_BID_DEPTH_CLEAR_EVENT,
+            LOCAL_BID_DEPTH_EVENT,
+            LOCAL_BID_DEPTH_SNAPSHOT_EVENT,
+            LOCAL_BUY_TRADE_EVENT,
+        },
+    };
+
+    #[test]
+    fn test_event_is() {
+        let event = Event {
+            ev: LOCAL_BID_DEPTH_CLEAR_EVENT | (1 << 20),
+            exch_ts: 0,
+            local_ts: 0,
+            px: 0.0,
+            qty: 0.0,
+        };
+
+        assert!(!event.is(LOCAL_BID_DEPTH_EVENT));
+        assert!(!event.is(LOCAL_BUY_TRADE_EVENT));
+        assert!(event.is(LOCAL_BID_DEPTH_CLEAR_EVENT));
+
+        let event = Event {
+            ev: LOCAL_EVENT | BUY | 0xff,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 0.0,
+            qty: 0.0,
+        };
+
+        assert!(!event.is(LOCAL_BID_DEPTH_EVENT));
+        assert!(!event.is(LOCAL_BUY_TRADE_EVENT));
+        assert!(!event.is(LOCAL_BID_DEPTH_CLEAR_EVENT));
+        assert!(!event.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT));
+    }
 }

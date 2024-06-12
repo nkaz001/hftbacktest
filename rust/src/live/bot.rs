@@ -14,7 +14,6 @@ use tokio::{
 use tracing::{debug, error};
 
 use crate::{
-    backtest::reader::{WAIT_ORDER_RESPONSE_ANY, WAIT_ORDER_RESPONSE_NONE},
     connector::Connector,
     depth::MarketDepth,
     live::Asset,
@@ -35,6 +34,8 @@ use crate::{
         TimeInForce,
         BUY,
         SELL,
+        WAIT_ORDER_RESPONSE_ANY,
+        WAIT_ORDER_RESPONSE_NONE,
     },
 };
 
