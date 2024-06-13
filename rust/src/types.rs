@@ -181,7 +181,12 @@ impl Event {
         if (self.ev & event) != event {
             false
         } else {
-            self.ev & 0xff == event & 0xff
+            let event_kind = event & 0xff;
+            if event_kind == 0 {
+                true
+            } else {
+                self.ev & 0xff == event_kind
+            }
         }
     }
 }
@@ -766,5 +771,7 @@ mod test {
         assert!(!event.is(LOCAL_BUY_TRADE_EVENT));
         assert!(!event.is(LOCAL_BID_DEPTH_CLEAR_EVENT));
         assert!(!event.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT));
+        assert!(event.is(LOCAL_EVENT));
+        assert!(event.is(BUY));
     }
 }
