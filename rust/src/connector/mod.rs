@@ -33,7 +33,7 @@ pub trait Connector {
     fn submit(
         &self,
         asset_no: usize,
-        order: Order<()>,
+        order: Order,
         ev_tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error>;
 
@@ -43,7 +43,7 @@ pub trait Connector {
     fn cancel(
         &self,
         asset_no: usize,
-        order: Order<()>,
+        order: Order,
         ev_tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error>;
 }

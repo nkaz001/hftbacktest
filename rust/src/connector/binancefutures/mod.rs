@@ -371,7 +371,7 @@ impl Connector for BinanceFutures {
     fn submit(
         &self,
         asset_no: usize,
-        mut order: Order<()>,
+        mut order: Order,
         tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
         let asset_info = self
@@ -448,7 +448,7 @@ impl Connector for BinanceFutures {
     fn cancel(
         &self,
         asset_no: usize,
-        mut order: Order<()>,
+        mut order: Order,
         tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
         let asset_info = self

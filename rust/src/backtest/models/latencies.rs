@@ -12,10 +12,10 @@ use crate::{
 /// Provides the order entry latency and the order response latency.
 pub trait LatencyModel {
     /// Returns the order entry latency for the given timestamp and order.
-    fn entry<Q: Clone>(&mut self, timestamp: i64, order: &Order<Q>) -> i64;
+    fn entry(&mut self, timestamp: i64, order: &Order) -> i64;
 
     /// Returns the order response latency for the given timestamp and order.
-    fn response<Q: Clone>(&mut self, timestamp: i64, order: &Order<Q>) -> i64;
+    fn response(&mut self, timestamp: i64, order: &Order) -> i64;
 }
 
 /// Provides constant order latency.
@@ -44,11 +44,11 @@ impl ConstantLatency {
 }
 
 impl LatencyModel for ConstantLatency {
-    fn entry<Q: Clone>(&mut self, _timestamp: i64, _order: &Order<Q>) -> i64 {
+    fn entry(&mut self, _timestamp: i64, _order: &Order) -> i64 {
         self.entry_latency
     }
 
-    fn response<Q: Clone>(&mut self, _timestamp: i64, _order: &Order<Q>) -> i64 {
+    fn response(&mut self, _timestamp: i64, _order: &Order) -> i64 {
         self.response_latency
     }
 }
@@ -154,7 +154,7 @@ impl IntpOrderLatency {
 }
 
 impl LatencyModel for IntpOrderLatency {
-    fn entry<Q: Clone>(&mut self, timestamp: i64, _order: &Order<Q>) -> i64 {
+    fn entry(&mut self, timestamp: i64, _order: &Order) -> i64 {
         let first_row = &self.data[0];
         if timestamp < first_row.req_timestamp {
             return first_row.exch_timestamp - first_row.req_timestamp;
@@ -221,7 +221,7 @@ impl LatencyModel for IntpOrderLatency {
         }
     }
 
-    fn response<Q: Clone>(&mut self, timestamp: i64, _order: &Order<Q>) -> i64 {
+    fn response(&mut self, timestamp: i64, _order: &Order) -> i64 {
         let first_row = &self.data[0];
         if timestamp < first_row.exch_timestamp {
             return first_row.resp_timestamp - first_row.exch_timestamp;

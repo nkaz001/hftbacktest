@@ -16,10 +16,9 @@ pub struct LoggingRecorder {
 impl Recorder for LoggingRecorder {
     type Error = ();
 
-    fn record<Q, MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
+    fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        Q: Sized + Clone,
-        I: Interface<Q, MD>,
+        I: Interface<MD>,
         MD: MarketDepth,
     {
         for asset_no in 0..hbt.num_assets() {

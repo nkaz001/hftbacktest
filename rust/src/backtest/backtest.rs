@@ -24,17 +24,14 @@ use crate::{
 };
 
 /// [`MultiAssetMultiExchangeBacktest`] builder.
-pub struct MultiAssetMultiExchangeBacktestBuilder<Q, MD> {
-    local: Vec<Box<dyn LocalProcessor<Q, MD>>>,
+pub struct MultiAssetMultiExchangeBacktestBuilder<MD> {
+    local: Vec<Box<dyn LocalProcessor<MD>>>,
     exch: Vec<Box<dyn Processor>>,
 }
 
-impl<Q, MD> MultiAssetMultiExchangeBacktestBuilder<Q, MD>
-where
-    Q: Clone,
-{
+impl<MD> MultiAssetMultiExchangeBacktestBuilder<MD> {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add(self, asset: Asset<dyn LocalProcessor<Q, MD>, dyn Processor>) -> Self {
+    pub fn add(self, asset: Asset<dyn LocalProcessor<MD>, dyn Processor>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(asset.local);
         self_.exch.push(asset.exch);
@@ -42,7 +39,7 @@ where
     }
 
     /// Builds [`MultiAssetMultiExchangeBacktest`].
-    pub fn build(self) -> Result<MultiAssetMultiExchangeBacktest<Q, MD>, BuildError> {
+    pub fn build(self) -> Result<MultiAssetMultiExchangeBacktest<MD>, BuildError> {
         let num_assets = self.local.len();
         if self.local.len() != num_assets || self.exch.len() != num_assets {
             panic!();
@@ -52,7 +49,6 @@ where
             evs: EventSet::new(num_assets),
             local: self.local,
             exch: self.exch,
-            _q_marker: Default::default(),
         })
     }
 }
@@ -60,27 +56,25 @@ where
 /// This backtester provides multi-asset and multi-exchange model backtesting, allowing you to
 /// configure different setups such as queue models or asset types for each asset. However, this may
 /// result in slightly slower performance compared to [`MultiAssetSingleExchangeBacktest`].
-pub struct MultiAssetMultiExchangeBacktest<Q, MD> {
+pub struct MultiAssetMultiExchangeBacktest<MD> {
     cur_ts: i64,
     evs: EventSet,
-    local: Vec<Box<dyn LocalProcessor<Q, MD>>>,
+    local: Vec<Box<dyn LocalProcessor<MD>>>,
     exch: Vec<Box<dyn Processor>>,
-    _q_marker: PhantomData<Q>,
 }
 
-impl<Q, MD> MultiAssetMultiExchangeBacktest<Q, MD>
+impl<MD> MultiAssetMultiExchangeBacktest<MD>
 where
-    Q: Clone,
     MD: MarketDepth,
 {
-    pub fn builder() -> MultiAssetMultiExchangeBacktestBuilder<Q, MD> {
+    pub fn builder() -> MultiAssetMultiExchangeBacktestBuilder<MD> {
         MultiAssetMultiExchangeBacktestBuilder {
             local: vec![],
             exch: vec![],
         }
     }
 
-    pub fn new(local: Vec<Box<dyn LocalProcessor<Q, MD>>>, exch: Vec<Box<dyn Processor>>) -> Self {
+    pub fn new(local: Vec<Box<dyn LocalProcessor<MD>>>, exch: Vec<Box<dyn Processor>>) -> Self {
         let num_assets = local.len();
         if local.len() != num_assets || exch.len() != num_assets {
             panic!();
@@ -90,7 +84,6 @@ where
             evs: EventSet::new(num_assets),
             local,
             exch,
-            _q_marker: Default::default(),
         }
     }
 
@@ -206,9 +199,8 @@ where
     }
 }
 
-impl<Q, MD> Interface<Q, MD> for MultiAssetMultiExchangeBacktest<Q, MD>
+impl<MD> Interface<MD> for MultiAssetMultiExchangeBacktest<MD>
 where
-    Q: Clone,
     MD: MarketDepth,
 {
     type Error = BacktestError;
@@ -260,7 +252,7 @@ where
     }
 
     #[inline]
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<Q>> {
+    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order> {
         &self.local.get(asset_no).unwrap().orders()
     }
 
@@ -514,16 +506,14 @@ where
 }
 
 /// `MultiAssetSingleExchangeBacktest` builder.
-pub struct MultiAssetSingleExchangeBacktestBuilder<Q, Local, Exchange> {
+pub struct MultiAssetSingleExchangeBacktestBuilder<Local, Exchange> {
     local: Vec<Local>,
     exch: Vec<Exchange>,
-    _q_marker: PhantomData<Q>,
 }
 
-impl<Q, Local, Exchange> MultiAssetSingleExchangeBacktestBuilder<Q, Local, Exchange>
+impl<Local, Exchange> MultiAssetSingleExchangeBacktestBuilder<Local, Exchange>
 where
-    Q: Clone,
-    Local: LocalProcessor<Q, HashMapMarketDepth> + 'static,
+    Local: LocalProcessor<HashMapMarketDepth> + 'static,
     Exchange: Processor + 'static,
 {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
@@ -537,7 +527,7 @@ where
     /// Builds [`MultiAssetSingleExchangeBacktest`].
     pub fn build(
         self,
-    ) -> Result<MultiAssetSingleExchangeBacktest<Q, HashMapMarketDepth, Local, Exchange>, BuildError>
+    ) -> Result<MultiAssetSingleExchangeBacktest<HashMapMarketDepth, Local, Exchange>, BuildError>
     {
         let num_assets = self.local.len();
         if self.local.len() != num_assets || self.exch.len() != num_assets {
@@ -548,7 +538,6 @@ where
             evs: EventSet::new(num_assets),
             local: self.local,
             exch: self.exch,
-            _q_marker: Default::default(),
             _md_marker: Default::default(),
         })
     }
@@ -558,27 +547,24 @@ where
 /// have the same setups for models such as asset type or queue model. However, this can be slightly
 /// faster than [`MultiAssetMultiExchangeBacktest`]. If you need to configure different models for
 /// each asset, use [`MultiAssetMultiExchangeBacktest`].
-pub struct MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange> {
+pub struct MultiAssetSingleExchangeBacktest<MD, Local, Exchange> {
     cur_ts: i64,
     evs: EventSet,
     local: Vec<Local>,
     exch: Vec<Exchange>,
-    _q_marker: PhantomData<Q>,
     _md_marker: PhantomData<MD>,
 }
 
-impl<Q, MD, Local, Exchange> MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange>
+impl<MD, Local, Exchange> MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
-    Q: Clone,
     MD: MarketDepth,
-    Local: LocalProcessor<Q, MD>,
+    Local: LocalProcessor<MD>,
     Exchange: Processor,
 {
-    pub fn builder() -> MultiAssetSingleExchangeBacktestBuilder<Q, Local, Exchange> {
+    pub fn builder() -> MultiAssetSingleExchangeBacktestBuilder<Local, Exchange> {
         MultiAssetSingleExchangeBacktestBuilder {
             local: vec![],
             exch: vec![],
-            _q_marker: Default::default(),
         }
     }
 
@@ -592,7 +578,6 @@ where
             evs: EventSet::new(num_assets),
             local,
             exch,
-            _q_marker: Default::default(),
             _md_marker: Default::default(),
         }
     }
@@ -703,12 +688,10 @@ where
     }
 }
 
-impl<Q, MD, Local, Exchange> Interface<Q, MD>
-    for MultiAssetSingleExchangeBacktest<Q, MD, Local, Exchange>
+impl<MD, Local, Exchange> Interface<MD> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
-    Q: Clone,
     MD: MarketDepth,
-    Local: LocalProcessor<Q, MD>,
+    Local: LocalProcessor<MD>,
     Exchange: Processor,
 {
     type Error = BacktestError;
@@ -760,7 +743,7 @@ where
     }
 
     #[inline]
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<Q>> {
+    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order> {
         &self.local.get(asset_no).unwrap().orders()
     }
 

@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug)]
 struct OrderWrapper {
     asset_no: usize,
-    order: Order<()>,
+    order: Order,
     removed_by_ws: bool,
     removed_by_rest: bool,
 }
@@ -46,8 +46,8 @@ impl OrderManager {
         &mut self,
         asset_no: usize,
         client_order_id: String,
-        order: Order<()>,
-    ) -> Option<Order<()>> {
+        order: Order,
+    ) -> Option<Order> {
         match self.orders.entry(client_order_id.clone()) {
             Entry::Occupied(mut entry) => {
                 let wrapper = entry.get_mut();
@@ -101,9 +101,9 @@ impl OrderManager {
     pub fn update_submit_success(
         &mut self,
         asset_no: usize,
-        order: Order<()>,
+        order: Order,
         resp: OrderResponse,
-    ) -> Option<Order<()>> {
+    ) -> Option<Order> {
         let order = Order {
             qty: resp.orig_qty,
             leaves_qty: resp.orig_qty - resp.cum_qty,
@@ -120,8 +120,7 @@ impl OrderManager {
             order_id: order.order_id,
             order_type: resp.ty,
             // Invalid information
-            front_q_qty: 0.0,
-            q: (),
+            q: Box::new(()),
             maker: false,
         };
         self.update_from_rest(asset_no, resp.client_order_id, order)
@@ -130,10 +129,10 @@ impl OrderManager {
     pub fn update_submit_fail(
         &mut self,
         asset_no: usize,
-        mut order: Order<()>,
+        mut order: Order,
         error: &BinanceFuturesError,
         client_order_id: String,
-    ) -> Option<Order<()>> {
+    ) -> Option<Order> {
         match error {
             BinanceFuturesError::OrderError(-5022, _) => {
                 // GTX rejection.
@@ -163,9 +162,9 @@ impl OrderManager {
     pub fn update_cancel_success(
         &mut self,
         asset_no: usize,
-        mut order: Order<()>,
+        mut order: Order,
         resp: OrderResponse,
-    ) -> Option<Order<()>> {
+    ) -> Option<Order> {
         let order = Order {
             qty: resp.orig_qty,
             leaves_qty: resp.orig_qty - resp.cum_qty,
@@ -182,8 +181,7 @@ impl OrderManager {
             order_id: order.order_id,
             order_type: resp.ty,
             // Invalid information
-            front_q_qty: 0.0,
-            q: (),
+            q: Box::new(()),
             maker: false,
         };
         self.update_from_rest(asset_no, resp.client_order_id, order)
@@ -192,10 +190,10 @@ impl OrderManager {
     pub fn update_cancel_fail(
         &mut self,
         asset_no: usize,
-        mut order: Order<()>,
+        mut order: Order,
         error: &BinanceFuturesError,
         client_order_id: String,
-    ) -> Option<Order<()>> {
+    ) -> Option<Order> {
         match error {
             BinanceFuturesError::OrderError(-2011, _) => {
                 // The given order may no longer exist; it could have already been filled or
@@ -216,8 +214,8 @@ impl OrderManager {
         &mut self,
         asset_no: usize,
         client_order_id: String,
-        order: Order<()>,
-    ) -> Option<Order<()>> {
+        order: Order,
+    ) -> Option<Order> {
         match self.orders.entry(client_order_id.clone()) {
             Entry::Occupied(mut entry) => {
                 let wrapper = entry.get_mut();
@@ -268,7 +266,7 @@ impl OrderManager {
         }
     }
 
-    pub fn prepare_client_order_id(&mut self, asset_no: usize, order: Order<()>) -> Option<String> {
+    pub fn prepare_client_order_id(&mut self, asset_no: usize, order: Order) -> Option<String> {
         if self.order_id_map.contains_key(&order.order_id) {
             return None;
         }
@@ -337,8 +335,8 @@ impl OrderManager {
         }
     }
 
-    pub fn clear_orders(&mut self) -> Vec<(usize, Order<()>)> {
-        let mut values: Vec<(usize, Order<()>)> = Vec::new();
+    pub fn clear_orders(&mut self) -> Vec<(usize, Order)> {
+        let mut values: Vec<(usize, Order)> = Vec::new();
         values.extend(self.orders.drain().map(|(_, mut order)| {
             order.order.status = Status::Canceled;
             (order.asset_no, order.order)

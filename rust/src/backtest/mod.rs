@@ -1,5 +1,6 @@
-use std::{io::Error as IoError, marker::PhantomData};
+use std::io::Error as IoError;
 
+pub use backtest::*;
 use thiserror::Error;
 
 use crate::{
@@ -7,25 +8,18 @@ use crate::{
         assettype::AssetType,
         models::{LatencyModel, QueueModel},
         order::OrderBus,
-        proc::{Local, LocalProcessor, NoPartialFillExchange, Processor},
-        reader::{Cache, Reader},
+        proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
+        reader::{Cache, Data, Reader},
         state::State,
     },
     depth::MarketDepth,
-    types::Event,
+    types::{BuildError, Event},
 };
 
 /// Provides asset types.
 pub mod assettype;
 
 mod backtest;
-pub use backtest::*;
-
-use crate::{
-    backtest::{proc::PartialFillExchange, reader::Data},
-    types::BuildError,
-};
-
 /// Latency and queue position models
 pub mod models;
 
@@ -85,12 +79,11 @@ impl<L, E> Asset<L, E> {
     }
 
     /// Returns a builder for `Asset`.
-    pub fn builder<Q, LM, AT, QM, MD>() -> AssetBuilder<Q, LM, AT, QM, MD>
+    pub fn builder<Q, LM, AT, QM, MD>() -> AssetBuilder<LM, AT, QM, MD>
     where
         AT: AssetType + Clone + 'static,
         MD: MarketDepth + 'static,
-        Q: Clone + Default + 'static,
-        QM: QueueModel<Q, MD> + 'static,
+        QM: QueueModel<MD> + 'static,
         LM: LatencyModel + Clone + 'static,
     {
         AssetBuilder::new()
@@ -104,7 +97,7 @@ pub enum ExchangeKind {
 }
 
 /// A builder for `Asset`.
-pub struct AssetBuilder<Q, LM, AT, QM, MD> {
+pub struct AssetBuilder<LM, AT, QM, MD> {
     latency_model: Option<LM>,
     asset_type: Option<AT>,
     queue_model: Option<QM>,
@@ -114,15 +107,13 @@ pub struct AssetBuilder<Q, LM, AT, QM, MD> {
     taker_fee: f64,
     exch_kind: ExchangeKind,
     trade_len: usize,
-    _q_marker: PhantomData<Q>,
 }
 
-impl<Q, LM, AT, QM, MD> AssetBuilder<Q, LM, AT, QM, MD>
+impl<LM, AT, QM, MD> AssetBuilder<LM, AT, QM, MD>
 where
     AT: AssetType + Clone + 'static,
     MD: MarketDepth + 'static,
-    Q: Clone + Default + 'static,
-    QM: QueueModel<Q, MD> + 'static,
+    QM: QueueModel<MD> + 'static,
     LM: LatencyModel + Clone + 'static,
 {
     /// Constructs an instance of `AssetBuilder`.
@@ -140,7 +131,6 @@ where
             taker_fee: 0.0,
             exch_kind: ExchangeKind::NoPartialFillExchange,
             trade_len: 1000,
-            _q_marker: Default::default(),
         }
     }
 
@@ -216,7 +206,7 @@ where
     }
 
     /// Builds an `Asset`.
-    pub fn build(self) -> Result<Asset<dyn LocalProcessor<Q, MD>, dyn Processor>, BuildError> {
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor>, BuildError> {
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 
@@ -293,8 +283,7 @@ where
 
     pub fn build_wip(
         self,
-    ) -> Result<Asset<Local<AT, Q, LM, MD>, NoPartialFillExchange<AT, Q, LM, QM, MD>>, BuildError>
-    {
+    ) -> Result<Asset<Local<AT, LM, MD>, NoPartialFillExchange<AT, LM, QM, MD>>, BuildError> {
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 

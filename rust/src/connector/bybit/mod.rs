@@ -300,7 +300,7 @@ impl Connector for Bybit {
     fn submit(
         &self,
         asset_no: usize,
-        order: Order<()>,
+        order: Order,
         tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
         let asset_info = self
@@ -321,7 +321,7 @@ impl Connector for Bybit {
     fn cancel(
         &self,
         asset_no: usize,
-        order: Order<()>,
+        order: Order,
         tx: Sender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
         let asset_info = self

@@ -37,19 +37,18 @@ use crate::{
 };
 
 /// The local model.
-pub struct Local<AT, Q, LM, MD>
+pub struct Local<AT, LM, MD>
 where
     AT: AssetType,
-    Q: Clone,
     LM: LatencyModel,
     MD: MarketDepth,
 {
     reader: Reader<Event>,
     data: Data<Event>,
     row_num: usize,
-    orders: HashMap<i64, Order<Q>>,
-    orders_to: OrderBus<Q>,
-    orders_from: OrderBus<Q>,
+    orders: HashMap<i64, Order>,
+    orders_to: OrderBus,
+    orders_from: OrderBus,
     depth: MD,
     state: State<AT>,
     order_latency: LM,
@@ -58,10 +57,9 @@ where
     last_order_latency: Option<(i64, i64, i64)>,
 }
 
-impl<AT, Q, LM, MD> Local<AT, Q, LM, MD>
+impl<AT, LM, MD> Local<AT, LM, MD>
 where
     AT: AssetType,
-    Q: Clone + Default,
     LM: LatencyModel,
     MD: MarketDepth,
 {
@@ -72,8 +70,8 @@ where
         state: State<AT>,
         order_latency: LM,
         trade_len: usize,
-        orders_to: OrderBus<Q>,
-        orders_from: OrderBus<Q>,
+        orders_to: OrderBus,
+        orders_from: OrderBus,
     ) -> Self {
         Self {
             reader,
@@ -91,7 +89,7 @@ where
         }
     }
 
-    fn process_recv_order_(&mut self, order: Order<Q>) -> Result<(), BacktestError> {
+    fn process_recv_order_(&mut self, order: Order) -> Result<(), BacktestError> {
         if order.status == Status::Filled {
             self.state.apply_fill(&order);
         }
@@ -108,10 +106,9 @@ where
     }
 }
 
-impl<AT, Q, LM, MD> LocalProcessor<Q, MD> for Local<AT, Q, LM, MD>
+impl<AT, LM, MD> LocalProcessor<MD> for Local<AT, LM, MD>
 where
     AT: AssetType,
-    Q: Clone + Default,
     LM: LatencyModel,
     MD: MarketDepth,
 {
@@ -212,7 +209,7 @@ where
         &self.depth
     }
 
-    fn orders(&self) -> &HashMap<i64, Order<Q>> {
+    fn orders(&self) -> &HashMap<i64, Order> {
         &self.orders
     }
 
@@ -233,10 +230,9 @@ where
     }
 }
 
-impl<AT, Q, LM, MD> Processor for Local<AT, Q, LM, MD>
+impl<AT, LM, MD> Processor for Local<AT, LM, MD>
 where
     AT: AssetType,
-    Q: Clone + Default,
     LM: LatencyModel,
     MD: MarketDepth,
 {
