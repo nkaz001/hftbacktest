@@ -1,11 +1,13 @@
+pub use btreemarketdepth::BTreeMarketDepth;
+pub use hashmapmarketdepth::HashMapMarketDepth;
+
 use crate::{backtest::reader::Data, types::Event};
 
 mod btreemarketdepth;
 mod hashmapmarketdepth;
-mod l3mbomarketdepth;
 
-pub use btreemarketdepth::BTreeMarketDepth;
-pub use hashmapmarketdepth::HashMapMarketDepth;
+#[cfg(feature = "unstable_l3")]
+mod l3mbomarketdepth;
 
 /// Represents no best bid.
 pub const INVALID_MIN: i32 = i32::MIN;
@@ -75,4 +77,35 @@ pub trait MarketDepth {
 pub trait ApplySnapshot {
     /// Applies the snapshot from the given data to this market depth.
     fn apply_snapshot(&mut self, data: &Data<Event>);
+}
+
+#[cfg(feature = "unstable_l3")]
+pub trait L3MarketDepth : MarketDepth {
+    type Error;
+
+    fn add_buy_order(
+        &mut self,
+        order_id: i64,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> Result<(i32, i32), Self::Error>;
+
+    fn add_sell_order(
+        &mut self,
+        order_id: i64,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> Result<(i32, i32), Self::Error>;
+
+    fn delete_order(&mut self, order_id: i64, timestamp: i64) -> Result<(), Self::Error>;
+
+    fn modify_order(
+        &mut self,
+        order_id: i64,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> Result<(i64, i32, i32), Self::Error>;
 }

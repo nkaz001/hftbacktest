@@ -25,6 +25,7 @@ backtest = ["zip", "uuid"]
 live = ["chrono", "tokio", "futures-util"]
 binancefutures = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
 bybit = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
+unstable_l3 = []
 
 [dependencies]
 tracing = "0.1.40"

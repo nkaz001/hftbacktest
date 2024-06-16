@@ -38,6 +38,9 @@ pub mod recorder;
 
 mod evs;
 
+#[cfg(features = "unstable_l3")]
+pub mod l3backtest;
+
 #[derive(Error, Debug)]
 pub enum BacktestError {
     #[error("Order related to a given order id already exists")]

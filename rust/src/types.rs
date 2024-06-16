@@ -77,6 +77,8 @@ pub const BUY: i64 = 1 << 29;
 /// event, it means that the trade initiator is a seller.
 pub const SELL: i64 = 1 << 28;
 
+pub const SIDE: i64 = BUY | SELL;
+
 /// Indicates that the market depth is changed.
 pub const DEPTH_EVENT: i64 = 1;
 
@@ -88,6 +90,18 @@ pub const DEPTH_CLEAR_EVENT: i64 = 3;
 
 /// Indicates that the market depth snapshot is received.
 pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
+
+#[cfg(feature = "unstable_l3")]
+pub const ADD_ORDER_EVENT: i64 = 10;
+
+#[cfg(feature = "unstable_l3")]
+pub const CANCEL_ORDER_EVENT: i64 = 11;
+
+#[cfg(feature = "unstable_l3")]
+pub const MODIFY_ORDER_EVENT: i64 = 12;
+
+#[cfg(feature = "unstable_l3")]
+pub const FILL_EVENT: i64 = 13;
 
 /// Indicates that it is a valid event to be handled by the exchange processor at the exchange
 /// timestamp.
@@ -150,6 +164,42 @@ pub const EXCH_BUY_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | BUY;
 /// Represents a combination of [`TRADE_EVENT`], [`SELL`], and `EXCH_EVENT`.
 pub const EXCH_SELL_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | SELL;
 
+#[cfg(feature = "unstable_l3")]
+pub const LOCAL_ADD_ORDER_EVENT: i64 = LOCAL_EVENT | ADD_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const LOCAL_BID_ADD_ORDER_EVENT: i64 = BUY | LOCAL_ADD_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const LOCAL_ASK_ADD_ORDER_EVENT: i64 = SELL | LOCAL_ADD_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const LOCAL_CANCEL_ORDER_EVENT: i64 = LOCAL_EVENT | CANCEL_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const LOCAL_MODIFY_ORDER_EVENT: i64 = LOCAL_EVENT | MODIFY_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const LOCAL_FILL_EVENT: i64 = LOCAL_EVENT | FILL_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const EXCH_ADD_ORDER_EVENT: i64 = EXCH_EVENT | ADD_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const EXCH_BID_ADD_ORDER_EVENT: i64 = BUY | EXCH_ADD_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const EXCH_ASK_ADD_ORDER_EVENT: i64 = SELL | EXCH_ADD_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const EXCH_CANCEL_ORDER_EVENT: i64 = EXCH_EVENT | CANCEL_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const EXCH_MODIFY_ORDER_EVENT: i64 = EXCH_EVENT | MODIFY_ORDER_EVENT;
+
+#[cfg(feature = "unstable_l3")]
+pub const EXCH_FILL_EVENT: i64 = EXCH_EVENT | FILL_EVENT;
+
 /// Indicates that one should not wait for an order response.
 pub const WAIT_ORDER_RESPONSE_NONE: i64 = -1;
 
@@ -177,6 +227,44 @@ pub struct Event {
 
 impl Event {
     /// Checks if this `Event` corresponds to the given event.
+    #[inline(always)]
+    pub fn is(&self, event: i64) -> bool {
+        if (self.ev & event) != event {
+            false
+        } else {
+            let event_kind = event & 0xff;
+            if event_kind == 0 {
+                true
+            } else {
+                self.ev & 0xff == event_kind
+            }
+        }
+    }
+}
+
+/// Exchange Level3 Market-By-Order event data.
+#[cfg(feature = "unstable_l3")]
+#[derive(Clone, PartialEq, Debug)]
+#[repr(C, align(64))]
+pub struct L3Event {
+    /// Event flag
+    pub ev: i64,
+    /// Exchange timestamp, which is the time at which the event occurs on the exchange.
+    pub exch_ts: i64,
+    /// Exchange timestamp, which is the time at which the event occurs on the local.
+    pub local_ts: i64,
+    /// Order Id
+    pub order_id: i64,
+    /// Price
+    pub px: f32,
+    /// Quantity
+    pub qty: f32,
+    pub _reserved: [i64; 3],
+}
+
+#[cfg(feature = "unstable_l3")]
+impl L3Event {
+    /// Checks if this `L3Event` corresponds to the given event.
     #[inline(always)]
     pub fn is(&self, event: i64) -> bool {
         if (self.ev & event) != event {
