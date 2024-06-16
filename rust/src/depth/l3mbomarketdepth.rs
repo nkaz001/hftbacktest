@@ -2,10 +2,9 @@ use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use crate::{
     backtest::BacktestError,
-    depth::{L3MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::{L3MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
     types::{Side, BUY, SELL},
 };
-use crate::depth::MarketDepth;
 
 pub struct MarketOrder {
     order_id: i64,
@@ -174,11 +173,21 @@ impl L3MarketDepth for L3MBOMarketDepth {
 }
 
 impl MarketDepth for L3MBOMarketDepth {
-    fn update_bid_depth(&mut self, price: f32, qty: f32, timestamp: i64) -> (i32, i32, i32, f32, f32, i64) {
+    fn update_bid_depth(
+        &mut self,
+        price: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64) {
         todo!()
     }
 
-    fn update_ask_depth(&mut self, price: f32, qty: f32, timestamp: i64) -> (i32, i32, i32, f32, f32, i64) {
+    fn update_ask_depth(
+        &mut self,
+        price: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64) {
         todo!()
     }
 

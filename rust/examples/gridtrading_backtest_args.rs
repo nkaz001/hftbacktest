@@ -59,7 +59,7 @@ fn prepare_backtest(
     lot_size: f32,
     maker_fee: f64,
     taker_fee: f64,
-) -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
+) -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {
     let latency_model = IntpOrderLatency::new(
         latency_files
             .iter()

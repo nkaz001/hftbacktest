@@ -18,7 +18,7 @@ impl Recorder for LoggingRecorder {
 
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Interface<MD>,
+        I: Interface,
         MD: MarketDepth,
     {
         for asset_no in 0..hbt.num_assets() {

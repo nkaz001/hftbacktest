@@ -2,6 +2,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     mem,
 };
+use std::any::Any;
 
 use crate::{
     backtest::{

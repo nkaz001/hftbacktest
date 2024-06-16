@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     depth::MarketDepth,
-    types::{Interface, Recorder},
+    types::{BotDepth, Interface, Recorder},
 };
 
 /// Provides recording of the backtesting strategy's state values, which are needed to compute
@@ -20,12 +20,12 @@ impl Recorder for BacktestRecorder {
 
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Interface<MD>,
+        I: Interface + BotDepth<MD>,
         MD: MarketDepth,
     {
         let timestamp = hbt.current_timestamp();
         for asset_no in 0..hbt.num_assets() {
-            let depth = hbt.depth(asset_no);
+            let depth = hbt.depth_concrete(asset_no);
             let mid_price = (depth.best_bid() + depth.best_ask()) / 2.0;
             let state_values = hbt.state_values(asset_no);
             let values = unsafe { self.values.get_unchecked_mut(asset_no) };
@@ -46,10 +46,9 @@ impl Recorder for BacktestRecorder {
 
 impl BacktestRecorder {
     /// Constructs an instance of `BacktestRecorder`.
-    pub fn new<MD, I>(hbt: &I) -> Self
+    pub fn new<I>(hbt: &I) -> Self
     where
-        I: Interface<MD>,
-        MD: MarketDepth,
+        I: Interface,
     {
         Self {
             values: {

@@ -17,7 +17,7 @@ use hftbacktest::{
 
 mod algo;
 
-fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
+fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {
     let latency_data = (20240501..20240532)
         .map(|date| DataSource::File(format!("latency_{date}.npz")))
         .collect();

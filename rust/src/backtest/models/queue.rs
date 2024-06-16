@@ -1,6 +1,8 @@
-use std::{any::Any, marker::PhantomData};
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::{
+    any::Any,
+    collections::{hash_map::Entry, HashMap},
+    marker::PhantomData,
+};
 
 use crate::{
     backtest::BacktestError,
@@ -319,6 +321,7 @@ pub enum L3OrderSource {
     Backtesting,
 }
 
+#[cfg(feature = "unstable_l3")]
 impl AnyClone for L3OrderSource {
     fn as_any(&self) -> &dyn Any {
         self
@@ -531,11 +534,7 @@ impl L3QueueModel {
         Ok(())
     }
 
-    pub fn fill(
-        &mut self,
-        order_id: L3OrderId,
-        delete: bool,
-    ) -> Result<Vec<Order>, BacktestError> {
+    pub fn fill(&mut self, order_id: L3OrderId, delete: bool) -> Result<Vec<Order>, BacktestError> {
         let (side, order_price_tick) = self
             .orders
             .remove(&order_id)
@@ -550,7 +549,8 @@ impl L3QueueModel {
                 let mut i = 0;
                 while i < priority.len() {
                     let order_in_q = priority.get(i).unwrap();
-                    let order_source = order_in_q.q
+                    let order_source = order_in_q
+                        .q
                         .as_any()
                         .downcast_ref::<L3OrderSource>()
                         .unwrap();
@@ -581,7 +581,8 @@ impl L3QueueModel {
                 let mut i = 0;
                 while i < priority.len() {
                     let order_in_q = priority.get(i).unwrap();
-                    let order_source = order_in_q.q
+                    let order_source = order_in_q
+                        .q
                         .as_any()
                         .downcast_ref::<L3OrderSource>()
                         .unwrap();

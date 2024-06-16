@@ -659,7 +659,7 @@ pub struct OrderRequest {
 }
 
 /// Provides an interface for a backtester or a bot.
-pub trait Interface<MD> {
+pub trait Interface {
     type Error;
 
     /// In backtesting, this timestamp reflects the time at which the backtesting is conducted
@@ -680,12 +680,12 @@ pub trait Interface<MD> {
     /// Returns the [MarketDepth](crate::depth::MarketDepth).
     ///
     /// * `asset_no` - Asset number from which the market depth will be retrieved.
-    fn depth(&self, asset_no: usize) -> &MD;
+    fn depth(&self, asset_no: usize) -> &dyn MarketDepth;
 
     /// Returns the last market trades.
     ///
     /// * `asset_no` - Asset number from which the last market trades will be retrieved.
-    fn trade(&self, asset_no: usize) -> &Vec<Event>;
+    fn trade(&self, asset_no: usize) -> Vec<&dyn Any>;
 
     /// Clears the last market trades from the buffer.
     ///
@@ -819,11 +819,27 @@ pub trait Interface<MD> {
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)>;
 }
 
+/// Provides an interface for a backtester or a bot.
+pub trait BotDepth<MD> {
+    /// Returns the [MarketDepth](crate::depth::MarketDepth).
+    ///
+    /// * `asset_no` - Asset number from which the market depth will be retrieved.
+    fn depth_concrete(&self, asset_no: usize) -> &MD;
+}
+
+/// Provides an interface for a backtester or a bot.
+pub trait BotTrade<Event> {
+    /// Returns the last market trades.
+    ///
+    /// * `asset_no` - Asset number from which the last market trades will be retrieved.
+    fn trade_concrete(&self, asset_no: usize) -> &Vec<Event>;
+}
+
 pub trait Recorder {
     type Error;
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Interface<MD>,
+        I: Interface + BotDepth<MD>,
         MD: MarketDepth;
 }
 
