@@ -372,7 +372,7 @@ impl BinanceFuturesClient {
     pub async fn get_current_all_open_orders(
         &self,
         assets: &HashMap<String, Asset>,
-    ) -> Result<Vec<Order<()>>, reqwest::Error> {
+    ) -> Result<Vec<Order>, reqwest::Error> {
         let resp: Vec<OrderResponse> = self
             .get(
                 "/fapi/v1/openOrders",
@@ -403,8 +403,7 @@ impl BinanceFuturesClient {
                             order_id,
                             order_type: data.ty,
                             // Invalid information
-                            front_q_qty: 0.0,
-                            q: (),
+                            q: Box::new(()),
                             maker: false,
                         },
                     )

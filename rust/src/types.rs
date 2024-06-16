@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use dyn_clone::DynClone;
 use thiserror::Error;
 
 use crate::depth::MarketDepth;
@@ -344,12 +345,40 @@ impl AsRef<str> for OrdType {
     }
 }
 
+/// Provides cloning of `Box<dyn Any>`, which is utilized in [Order] for the additional data used in
+/// [`QueueModel`](`crate::backtest::models::QueueModel`).
+///
+/// **Usage:**
+/// ```
+/// impl AnyClone for QueuePos {
+///     fn as_any(&self) -> &dyn Any {
+///         self
+///     }
+///
+///     fn as_any_mut(&mut self) -> &mut dyn Any {
+///         self
+///     }
+/// }
+/// ```
+pub trait AnyClone: DynClone {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+dyn_clone::clone_trait_object!(AnyClone);
+
+impl AnyClone for () {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 /// Order
 #[derive(Clone)]
-pub struct Order<Q>
-where
-    Q: Sized + Clone,
-{
+pub struct Order {
     /// Order quantity
     pub qty: f32,
     /// The quantity of this order that has not yet been executed. It represents the remaining
@@ -377,23 +406,15 @@ where
     /// Executed quantity, only available when this order is executed.
     pub exec_qty: f32,
     pub order_id: i64,
-    /// It represents the quantity ahead of this order in the queue of the limit order book. This is
-    /// only available in backtesting and should be used exclusively by the exchange processor; it
-    /// should not be known to the local.
-    pub front_q_qty: f32,
-    /// Additional queue position estimation values according to the
-    /// [`QueueModel`](`crate::backtest::models::QueueModel`). This is only available in
-    /// backtesting, and the type `Q` is set to `()` in a live bot.
-    pub q: Q,
+    /// Additional data used for [`QueueModel`](`crate::backtest::models::QueueModel`).
+    /// This is only available in backtesting, and the type `Q` is set to `()` in a live bot.
+    pub q: Box<dyn AnyClone + Send>,
     /// Whether the order is executed as a maker, only available when this order is executed.
     pub maker: bool,
     pub order_type: OrdType,
 }
 
-impl<Q> Order<Q>
-where
-    Q: Sized + Clone,
-{
+impl Order {
     /// Constructs an instance of `Order`.
     pub fn new(
         order_id: i64,
@@ -403,10 +424,7 @@ where
         side: Side,
         order_type: OrdType,
         time_in_force: TimeInForce,
-    ) -> Self
-    where
-        Q: Default,
-    {
+    ) -> Self {
         Self {
             qty,
             leaves_qty: qty,
@@ -421,8 +439,7 @@ where
             exec_price_tick: 0,
             exec_qty: 0.0,
             order_id,
-            front_q_qty: 0.0,
-            q: Q::default(),
+            q: Box::new(()),
             maker: false,
             order_type,
         }
@@ -456,7 +473,7 @@ where
 
     /// Updates this order with the given order. This is used only by the processor in backtesting
     /// or by a bot in live trading.
-    pub fn update(&mut self, order: &Order<Q>) {
+    pub fn update(&mut self, order: &Order) {
         self.qty = order.qty;
         self.leaves_qty = order.leaves_qty;
         self.price_tick = order.price_tick;
@@ -476,17 +493,13 @@ where
         self.exec_price_tick = order.exec_price_tick;
         self.exec_qty = order.exec_qty;
         self.order_id = order.order_id;
-        self.front_q_qty = order.front_q_qty;
         self.q = order.q.clone();
         self.maker = order.maker;
         self.order_type = order.order_type;
     }
 }
 
-impl<Q> Debug for Order<Q>
-where
-    Q: Sized + Clone,
-{
+impl Debug for Order {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Order")
             .field("qty", &self.qty)
@@ -504,7 +517,6 @@ where
             .field("order_id", &self.order_id)
             .field("maker", &self.maker)
             .field("order_type", &self.order_type)
-            .field("front_q_qty", &self.front_q_qty)
             .finish()
     }
 }
@@ -513,14 +525,14 @@ where
 #[derive(Clone, Debug)]
 pub enum Request {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
-    Order((usize, Order<()>)),
+    Order((usize, Order)),
 }
 
 /// An order response from [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub struct OrderResponse {
     pub asset_no: usize,
-    pub order: Order<()>,
+    pub order: Order,
 }
 
 /// Provides state values.
@@ -559,10 +571,7 @@ pub struct OrderRequest {
 }
 
 /// Provides an interface for a backtester or a bot.
-pub trait Interface<Q, MD>
-where
-    Q: Sized + Clone,
-{
+pub trait Interface<MD> {
     type Error;
 
     /// In backtesting, this timestamp reflects the time at which the backtesting is conducted
@@ -599,7 +608,7 @@ where
     /// Returns a hash map of order IDs and their corresponding [`Order`]s.
     ///
     /// * `asset_no` - Asset number from which orders will be retrieved.
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<Q>>;
+    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order>;
 
     /// Places a buy order.
     ///
@@ -724,10 +733,9 @@ where
 
 pub trait Recorder {
     type Error;
-    fn record<Q, MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
+    fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        Q: Sized + Clone,
-        I: Interface<Q, MD>,
+        I: Interface<MD>,
         MD: MarketDepth;
 }
 

@@ -34,7 +34,7 @@ where
         }
     }
 
-    pub fn apply_fill<Q: Clone + Default>(&mut self, order: &Order<Q>) {
+    pub fn apply_fill(&mut self, order: &Order) {
         let fee = if order.maker {
             self.maker_fee
         } else {

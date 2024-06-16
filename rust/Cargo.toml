@@ -30,6 +30,7 @@ bybit = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", 
 tracing = "0.1.40"
 anyhow = "1.0.79"
 thiserror = "1.0.57"
+dyn-clone = "1.0.17"
 chrono = { version = "0.4.33", optional = true }
 serde = { version = "1.0.196", features = ["derive"], optional = true }
 serde_json = { version = "1.0.113", optional = true }
@@ -46,7 +47,6 @@ uuid = { version = "1.8.0", features = ["v4"], optional = true }
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.18", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }
-polars = "0.40.0"
 
 [profile.dev]
 opt-level = 0

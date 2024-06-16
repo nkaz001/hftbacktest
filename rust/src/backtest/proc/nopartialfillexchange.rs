@@ -61,12 +61,11 @@ use crate::{
 /// best. Be aware that this may cause unrealistic fill simulations if you attempt to execute a
 /// large quantity.
 ///
-pub struct NoPartialFillExchange<AT, Q, LM, QM, MD>
+pub struct NoPartialFillExchange<AT, LM, QM, MD>
 where
     AT: AssetType,
-    Q: Clone + Default,
     LM: LatencyModel,
-    QM: QueueModel<Q, MD>,
+    QM: QueueModel<MD>,
     MD: MarketDepth,
 {
     reader: Reader<Event>,
@@ -74,13 +73,13 @@ where
     row_num: usize,
 
     // key: order_id, value: Order<Q>
-    orders: Rc<RefCell<HashMap<i64, Order<Q>>>>,
+    orders: Rc<RefCell<HashMap<i64, Order>>>,
     // key: order's price tick, value: order_ids
     buy_orders: HashMap<i32, HashSet<i64>>,
     sell_orders: HashMap<i32, HashSet<i64>>,
 
-    orders_to: OrderBus<Q>,
-    orders_from: OrderBus<Q>,
+    orders_to: OrderBus,
+    orders_from: OrderBus,
 
     depth: MD,
     state: State<AT>,
@@ -90,12 +89,11 @@ where
     filled_orders: Vec<i64>,
 }
 
-impl<AT, Q, LM, QM, MD> NoPartialFillExchange<AT, Q, LM, QM, MD>
+impl<AT, LM, QM, MD> NoPartialFillExchange<AT, LM, QM, MD>
 where
     AT: AssetType,
-    Q: Clone + Default,
     LM: LatencyModel,
-    QM: QueueModel<Q, MD>,
+    QM: QueueModel<MD>,
     MD: MarketDepth,
 {
     /// Constructs an instance of `NoPartialFillExchange`.
@@ -105,8 +103,8 @@ where
         state: State<AT>,
         order_latency: LM,
         queue_model: QM,
-        orders_to: OrderBus<Q>,
-        orders_from: OrderBus<Q>,
+        orders_to: OrderBus,
+        orders_from: OrderBus,
     ) -> Self {
         Self {
             reader,
@@ -127,7 +125,7 @@ where
 
     fn process_recv_order_(
         &mut self,
-        mut order: Order<Q>,
+        mut order: Order,
         recv_timestamp: i64,
     ) -> Result<(), BacktestError> {
         // Processes a new order.
@@ -147,7 +145,7 @@ where
 
     fn check_if_sell_filled(
         &mut self,
-        order: &mut Order<Q>,
+        order: &mut Order,
         price_tick: i32,
         qty: f32,
         timestamp: i64,
@@ -158,7 +156,7 @@ where
         } else if order.price_tick == price_tick {
             // Updates the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
-            if self.queue_model.is_filled(order, &self.depth) {
+            if self.queue_model.is_filled(order, &self.depth) > 0.0 {
                 self.filled_orders.push(order.order_id);
                 return self.fill(order, timestamp, true, order.price_tick);
             }
@@ -168,7 +166,7 @@ where
 
     fn check_if_buy_filled(
         &mut self,
-        order: &mut Order<Q>,
+        order: &mut Order,
         price_tick: i32,
         qty: f32,
         timestamp: i64,
@@ -179,7 +177,7 @@ where
         } else if order.price_tick == price_tick {
             // Updates the order's queue position.
             self.queue_model.trade(order, qty, &self.depth);
-            if self.queue_model.is_filled(order, &self.depth) {
+            if self.queue_model.is_filled(order, &self.depth) > 0.0 {
                 self.filled_orders.push(order.order_id);
                 return self.fill(order, timestamp, true, order.price_tick);
             }
@@ -189,7 +187,7 @@ where
 
     fn fill(
         &mut self,
-        order: &mut Order<Q>,
+        order: &mut Order,
         timestamp: i64,
         maker: bool,
         exec_price_tick: i32,
@@ -336,7 +334,7 @@ where
         Ok(())
     }
 
-    fn ack_new(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<(), BacktestError> {
+    fn ack_new(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
         if self.orders.borrow().contains_key(&order.order_id) {
             return Err(BacktestError::OrderIdExist);
         }
@@ -408,7 +406,7 @@ where
         }
     }
 
-    fn ack_cancel(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<i64, BacktestError> {
+    fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<i64, BacktestError> {
         let exch_order = {
             let mut order_borrowed = self.orders.borrow_mut();
             order_borrowed.remove(&order.order_id)
@@ -447,7 +445,7 @@ where
         Ok(local_recv_timestamp)
     }
 
-    fn ack_modify(&mut self, mut order: Order<Q>, timestamp: i64) -> Result<(), BacktestError> {
+    fn ack_modify(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
         let mut exch_order = {
             let mut order_borrowed = self.orders.borrow_mut();
             let exch_order = order_borrowed.remove(&order.order_id);
@@ -590,12 +588,11 @@ where
     }
 }
 
-impl<AT, Q, LM, QM, MD> Processor for NoPartialFillExchange<AT, Q, LM, QM, MD>
+impl<AT, LM, QM, MD> Processor for NoPartialFillExchange<AT, LM, QM, MD>
 where
-    Q: Clone + Default,
     AT: AssetType,
     LM: LatencyModel,
-    QM: QueueModel<Q, MD>,
+    QM: QueueModel<MD>,
     MD: MarketDepth,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {

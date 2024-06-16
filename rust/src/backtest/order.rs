@@ -5,17 +5,11 @@ use crate::types::Order;
 /// Provides a bus for transporting backtesting orders between the exchange and the local model
 /// based on the given timestamp.
 #[derive(Clone, Debug)]
-pub struct OrderBus<Q>
-where
-    Q: Clone,
-{
-    order_list: Rc<UnsafeCell<VecDeque<(Order<Q>, i64)>>>,
+pub struct OrderBus {
+    order_list: Rc<UnsafeCell<VecDeque<(Order, i64)>>>,
 }
 
-impl<Q> OrderBus<Q>
-where
-    Q: Clone,
-{
+impl OrderBus {
     /// Constructs an instance of `OrderBus`.
     pub fn new() -> Self {
         Self {
@@ -39,7 +33,7 @@ where
     /// later to reach the matching engine before order requests sent earlier. However, for the
     /// purpose of simplifying the backtesting process, all requests and responses are assumed to be
     /// in order.
-    pub fn append(&mut self, order: Order<Q>, timestamp: i64) {
+    pub fn append(&mut self, order: Order, timestamp: i64) {
         let latest_timestamp = {
             let order_list = unsafe { &*self.order_list.get() };
             let len = order_list.len();
@@ -65,7 +59,7 @@ where
     }
 
     /// Removes the first order and its timestamp and returns it, or `None` if the bus is empty.
-    pub fn pop_front(&mut self) -> Option<(Order<Q>, i64)> {
+    pub fn pop_front(&mut self) -> Option<(Order, i64)> {
         unsafe { &mut *self.order_list.get() }.pop_front()
     }
 }

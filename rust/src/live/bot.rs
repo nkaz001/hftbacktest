@@ -107,7 +107,7 @@ async fn thread_main(
 }
 
 pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
-pub type OrderRecvHook = Box<dyn Fn(&Order<()>, &Order<()>) -> Result<(), BotError>>;
+pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
 /// Live [`Bot`] builder.
 pub struct BotBuilder<MD> {
@@ -179,7 +179,7 @@ impl<MD> BotBuilder<MD> {
     /// Registers the order response receive hook.
     pub fn order_recv_hook<Hook>(self, hook: Hook) -> Self
     where
-        Hook: Fn(&Order<()>, &Order<()>) -> Result<(), BotError> + 'static,
+        Hook: Fn(&Order, &Order) -> Result<(), BotError> + 'static,
     {
         Self {
             order_hook: Some(Box::new(hook)),
@@ -277,7 +277,7 @@ pub struct Bot<MD> {
     ev_tx: Option<Sender<LiveEvent>>,
     ev_rx: Receiver<LiveEvent>,
     depth: Vec<MD>,
-    orders: Vec<HashMap<i64, Order<()>>>,
+    orders: Vec<HashMap<i64, Order>>,
     position: Vec<f64>,
     trade: Vec<Vec<Event>>,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
@@ -460,8 +460,6 @@ where
         let tick_size = self.assets.get(asset_no).unwrap().1.tick_size;
         let order = Order {
             order_id,
-            front_q_qty: 0.0,
-            q: (),
             price_tick: (price / tick_size).round() as i32,
             qty,
             leaves_qty: qty,
@@ -475,6 +473,8 @@ where
             exec_price_tick: 0,
             exch_timestamp: 0,
             exec_qty: 0.0,
+            // Invalid information
+            q: Box::new(()),
             maker: false,
         };
         let order_id = order.order_id;
@@ -488,7 +488,7 @@ where
     }
 }
 
-impl<MD> Interface<(), MD> for Bot<MD>
+impl<MD> Interface<MD> for Bot<MD>
 where
     MD: MarketDepth,
 {
@@ -547,7 +547,7 @@ where
     }
 
     #[inline]
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order<()>> {
+    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order> {
         self.orders.get(asset_no).unwrap()
     }
 

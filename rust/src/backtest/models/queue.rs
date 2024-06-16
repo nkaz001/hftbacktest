@@ -1,33 +1,41 @@
-use std::marker::PhantomData;
+use std::{any::Any, marker::PhantomData};
 
 use crate::{
     depth::MarketDepth,
-    types::{Order, Side},
+    types::{AnyClone, Order, Side},
 };
 
 /// Provides an estimation of the order's queue position.
-pub trait QueueModel<Q, MD>
+pub trait QueueModel<MD>
 where
-    Q: Clone,
     MD: MarketDepth,
 {
     /// Initialize the queue position and other necessary values for estimation.
     /// This function is called when the exchange model accepts the new order.
-    fn new_order(&self, order: &mut Order<Q>, depth: &MD);
+    fn new_order(&self, order: &mut Order, depth: &MD);
 
     /// Adjusts the estimation values when market trades occur at the same price.
-    fn trade(&self, order: &mut Order<Q>, qty: f32, depth: &MD);
+    fn trade(&self, order: &mut Order, qty: f32, depth: &MD);
 
     /// Adjusts the estimation values when market depth changes at the same price.
-    fn depth(&self, order: &mut Order<Q>, prev_qty: f32, new_qty: f32, depth: &MD);
+    fn depth(&self, order: &mut Order, prev_qty: f32, new_qty: f32, depth: &MD);
 
-    // todo: remove it, as there's no need for specialization.
-    fn is_filled(&self, order: &Order<Q>, depth: &MD) -> bool;
+    fn is_filled(&self, order: &Order, depth: &MD) -> f32;
 }
 
 /// Provides a conservative queue position model, where your order's queue position advances only
 /// when trades occur at the same price level.
 pub struct RiskAdverseQueueModel<MD>(PhantomData<MD>);
+
+impl AnyClone for f32 {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
 
 impl<MD> RiskAdverseQueueModel<MD> {
     pub fn new() -> Self {
@@ -35,40 +43,64 @@ impl<MD> RiskAdverseQueueModel<MD> {
     }
 }
 
-impl<MD> QueueModel<(), MD> for RiskAdverseQueueModel<MD>
+impl<MD> QueueModel<MD> for RiskAdverseQueueModel<MD>
 where
     MD: MarketDepth,
 {
-    fn new_order(&self, order: &mut Order<()>, depth: &MD) {
+    fn new_order(&self, order: &mut Order, depth: &MD) {
+        let mut front_q_qty: f32;
         if order.side == Side::Buy {
-            order.front_q_qty = depth.bid_qty_at_tick(order.price_tick);
+            front_q_qty = depth.bid_qty_at_tick(order.price_tick);
         } else {
-            order.front_q_qty = depth.ask_qty_at_tick(order.price_tick);
+            front_q_qty = depth.ask_qty_at_tick(order.price_tick);
         }
+        order.q = Box::new(front_q_qty);
     }
 
-    fn trade(&self, order: &mut Order<()>, qty: f32, _depth: &MD) {
-        order.front_q_qty -= qty;
+    fn trade(&self, order: &mut Order, qty: f32, _depth: &MD) {
+        let front_q_qty = order.q.as_any_mut().downcast_mut::<f32>().unwrap();
+        *front_q_qty -= qty;
     }
 
-    fn depth(&self, order: &mut Order<()>, _prev_qty: f32, new_qty: f32, _depth: &MD) {
-        order.front_q_qty = order.front_q_qty.min(new_qty);
+    fn depth(&self, order: &mut Order, _prev_qty: f32, new_qty: f32, _depth: &MD) {
+        let front_q_qty = order.q.as_any_mut().downcast_mut::<f32>().unwrap();
+        *front_q_qty = front_q_qty.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order<()>, depth: &MD) -> bool {
-        (order.front_q_qty / depth.lot_size()).round() < 0.0
+    fn is_filled(&self, order: &Order, depth: &MD) -> f32 {
+        let front_q_qty = order.q.as_any().downcast_ref::<f32>().unwrap();
+        if (front_q_qty / depth.lot_size()).round() < 0.0 {
+            let q_qty = (-front_q_qty / depth.lot_size()).floor() * depth.lot_size();
+            q_qty
+        } else {
+            0.0
+        }
     }
 }
 
 /// Stores the values needed for queue position estimation and adjustment for [`ProbQueueModel`].
 #[derive(Clone)]
 pub struct QueuePos {
+    front_q_qty: f32,
     cum_trade_qty: f32,
+}
+
+impl AnyClone for QueuePos {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl Default for QueuePos {
     fn default() -> Self {
-        Self { cum_trade_qty: 0.0 }
+        Self {
+            front_q_qty: 0.0,
+            cum_trade_qty: 0.0,
+        }
     }
 }
 
@@ -108,38 +140,42 @@ where
     }
 }
 
-impl<P, MD> QueueModel<QueuePos, MD> for ProbQueueModel<P, MD>
+impl<P, MD> QueueModel<MD> for ProbQueueModel<P, MD>
 where
     P: Probability,
     MD: MarketDepth,
 {
-    fn new_order(&self, order: &mut Order<QueuePos>, depth: &MD) {
+    fn new_order(&self, order: &mut Order, depth: &MD) {
+        let mut q = QueuePos::default();
         if order.side == Side::Buy {
-            order.front_q_qty = depth.bid_qty_at_tick(order.price_tick);
+            q.front_q_qty = depth.bid_qty_at_tick(order.price_tick);
         } else {
-            order.front_q_qty = depth.ask_qty_at_tick(order.price_tick);
+            q.front_q_qty = depth.ask_qty_at_tick(order.price_tick);
         }
+        order.q = Box::new(q);
     }
 
-    fn trade(&self, order: &mut Order<QueuePos>, qty: f32, _depth: &MD) {
-        order.front_q_qty -= qty;
-        order.q.cum_trade_qty += qty;
+    fn trade(&self, order: &mut Order, qty: f32, _depth: &MD) {
+        let q = order.q.as_any_mut().downcast_mut::<QueuePos>().unwrap();
+        q.front_q_qty -= qty;
+        q.cum_trade_qty += qty;
     }
 
-    fn depth(&self, order: &mut Order<QueuePos>, prev_qty: f32, new_qty: f32, _depth: &MD) {
+    fn depth(&self, order: &mut Order, prev_qty: f32, new_qty: f32, _depth: &MD) {
         let mut chg = prev_qty - new_qty;
         // In order to avoid duplicate order queue position adjustment, subtract queue position
         // change by trades.
-        chg = chg - order.q.cum_trade_qty;
+        let q = order.q.as_any_mut().downcast_mut::<QueuePos>().unwrap();
+        chg = chg - q.cum_trade_qty;
         // Reset, as quantity change by trade should be already reflected in qty.
-        order.q.cum_trade_qty = 0.0;
+        q.cum_trade_qty = 0.0;
         // For an increase of the quantity, front queue doesn't change by the quantity change.
         if chg < 0.0 {
-            order.front_q_qty = order.front_q_qty.min(new_qty);
+            q.front_q_qty = q.front_q_qty.min(new_qty);
             return;
         }
 
-        let front = order.front_q_qty;
+        let front = q.front_q_qty;
         let back = prev_qty - front;
 
         let mut prob = self.prob.prob(front, back);
@@ -148,11 +184,17 @@ where
         }
 
         let est_front = front - (1.0 - prob) * chg + (back - prob * chg).min(0.0);
-        order.front_q_qty = est_front.min(new_qty);
+        q.front_q_qty = est_front.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order<QueuePos>, depth: &MD) -> bool {
-        (order.front_q_qty / depth.lot_size()).round() < 0.0
+    fn is_filled(&self, order: &Order, depth: &MD) -> f32 {
+        let q = order.q.as_any().downcast_ref::<QueuePos>().unwrap();
+        if (q.front_q_qty / depth.lot_size()).round() < 0.0 {
+            let q_qty = (-q.front_q_qty / depth.lot_size()).floor() * depth.lot_size();
+            q_qty
+        } else {
+            0.0
+        }
     }
 }
 

@@ -7,9 +7,8 @@ use crate::{
 };
 
 /// Provides local-specific interaction.
-pub trait LocalProcessor<Q, MD>: Processor
+pub trait LocalProcessor<MD>: Processor
 where
-    Q: Clone,
     MD: MarketDepth,
 {
     /// Submits a new order.
@@ -54,7 +53,7 @@ where
     fn depth(&self) -> &MD;
 
     /// Returns a hash map of order IDs and their corresponding [`Order`]s.
-    fn orders(&self) -> &HashMap<i64, Order<Q>>;
+    fn orders(&self) -> &HashMap<i64, Order>;
 
     /// Returns the last market trades.
     fn trade(&self) -> &Vec<Event>;

@@ -274,8 +274,7 @@ pub async fn connect(
                                             order_id,
                                             order_type: data.order.order_type,
                                             // Invalid information
-                                            front_q_qty: 0.0,
-                                            q: (),
+                                            q: Box::new(()),
                                             maker: false
                                         };
 

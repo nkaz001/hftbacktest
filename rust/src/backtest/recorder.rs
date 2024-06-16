@@ -18,10 +18,9 @@ pub struct BacktestRecorder {
 impl Recorder for BacktestRecorder {
     type Error = Error;
 
-    fn record<Q, MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
+    fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        Q: Sized + Clone,
-        I: Interface<Q, MD>,
+        I: Interface<MD>,
         MD: MarketDepth,
     {
         let timestamp = hbt.current_timestamp();
@@ -47,10 +46,9 @@ impl Recorder for BacktestRecorder {
 
 impl BacktestRecorder {
     /// Constructs an instance of `BacktestRecorder`.
-    pub fn new<Q, MD, I>(hbt: &I) -> Self
+    pub fn new<MD, I>(hbt: &I) -> Self
     where
-        Q: Sized + Clone,
-        I: Interface<Q, MD>,
+        I: Interface<MD>,
         MD: MarketDepth,
     {
         Self {

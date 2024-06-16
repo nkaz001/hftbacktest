@@ -40,7 +40,7 @@ pub(super) enum HandleError {
 
 pub struct OrderManager {
     prefix: String,
-    orders: HashMap<i64, (usize, Order<()>)>,
+    orders: HashMap<i64, (usize, Order)>,
 }
 
 impl OrderManager {
@@ -60,7 +60,7 @@ impl OrderManager {
             .map_err(|e| HandleError::InvalidOrderId(e))
     }
 
-    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<(usize, Order<()>), HandleError> {
+    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<(usize, Order), HandleError> {
         let order_id = self.parse_order_id(&data.order_link_id)?;
         let (asset_no, order) = self
             .orders
@@ -81,7 +81,7 @@ impl OrderManager {
     pub fn update_execution(
         &mut self,
         data: &FastExecution,
-    ) -> Result<(usize, Order<()>), HandleError> {
+    ) -> Result<(usize, Order), HandleError> {
         let order_id = self.parse_order_id(&data.order_link_id)?;
         let (asset_no, order) = self
             .orders
@@ -98,7 +98,7 @@ impl OrderManager {
         symbol: &str,
         category: &str,
         asset_no: usize,
-        order: Order<()>,
+        order: Order,
     ) -> Result<BybitOrder, HandleError> {
         let price_prec = get_precision(order.tick_size);
         let bybit_order = BybitOrder {
@@ -174,7 +174,7 @@ impl OrderManager {
     pub fn update_submit_fail(
         &mut self,
         order_link_id: &str,
-    ) -> Result<(usize, Order<()>), HandleError> {
+    ) -> Result<(usize, Order), HandleError> {
         let order_id = self.parse_order_id(order_link_id)?;
         let (asset_no, mut order) = self
             .orders
@@ -188,7 +188,7 @@ impl OrderManager {
     pub fn update_cancel_fail(
         &mut self,
         order_link_id: &str,
-    ) -> Result<(usize, Order<()>), HandleError> {
+    ) -> Result<(usize, Order), HandleError> {
         let order_id = self.parse_order_id(order_link_id)?;
         let (asset_no, mut order) = self
             .orders
@@ -199,8 +199,8 @@ impl OrderManager {
         Ok((asset_no, order))
     }
 
-    pub fn clear_orders(&mut self) -> Vec<(usize, Order<()>)> {
-        let mut values: Vec<(usize, Order<()>)> = Vec::new();
+    pub fn clear_orders(&mut self) -> Vec<(usize, Order)> {
+        let mut values: Vec<(usize, Order)> = Vec::new();
         values.extend(self.orders.drain().map(|(_, (asset_no, mut order))| {
             order.status = Status::Canceled;
             (asset_no, order)
