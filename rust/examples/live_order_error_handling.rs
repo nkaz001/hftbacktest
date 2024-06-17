@@ -2,8 +2,8 @@ use algo::gridtrading;
 use chrono::Utc;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, BinanceFuturesError, Endpoint},
-    live::{Bot, BotError, LoggingRecorder},
-    prelude::{ErrorKind, HashMapMarketDepth, Interface},
+    live::{LiveBot, BotError, LoggingRecorder},
+    prelude::{ErrorKind, HashMapMarketDepth, Bot},
 };
 use tracing::{error, info};
 
@@ -13,7 +13,7 @@ const ORDER_PREFIX: &str = "prefix";
 const API_KEY: &str = "apikey";
 const SECRET: &str = "secret";
 
-fn prepare_live() -> Bot<HashMapMarketDepth> {
+fn prepare_live() -> LiveBot<HashMapMarketDepth> {
     let binance_futures = BinanceFutures::builder()
         .endpoint(Endpoint::Testnet)
         .api_key(API_KEY)
@@ -22,7 +22,7 @@ fn prepare_live() -> Bot<HashMapMarketDepth> {
         .build()
         .unwrap();
 
-    let mut hbt = Bot::builder()
+    let mut hbt = LiveBot::builder()
         .register("binancefutures", binance_futures)
         .add("binancefutures", "SOLUSDT", 0.001, 1.0)
         .error_handler(|error| {

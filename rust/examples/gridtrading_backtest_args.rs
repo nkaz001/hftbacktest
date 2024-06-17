@@ -12,7 +12,7 @@ use hftbacktest::{
         reader::read_npz,
         recorder::BacktestRecorder,
     },
-    prelude::{ApplySnapshot, HashMapMarketDepth, Interface},
+    prelude::{ApplySnapshot, HashMapMarketDepth, Bot},
 };
 
 mod algo;

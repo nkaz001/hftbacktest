@@ -14,8 +14,8 @@ pub fn gridtrading<MD, I, R>(
 ) -> Result<(), i64>
 where
     MD: MarketDepth,
-    I: Interface + BotTypedDepth<MD>,
-    <I as Interface>::Error: Debug,
+    I: Bot + BotTypedDepth<MD>,
+    <I as Bot>::Error: Debug,
     R: Recorder,
     <R as Recorder>::Error: Debug,
 {

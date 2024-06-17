@@ -26,7 +26,7 @@ use crate::{
         Error as ErrorEvent,
         Error,
         Event,
-        Interface,
+        Bot,
         LiveEvent,
         OrdType,
         Order,
@@ -41,6 +41,7 @@ use crate::{
         WAIT_ORDER_RESPONSE_NONE,
     },
 };
+use crate::depth::L2MarketDepth;
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -112,7 +113,7 @@ async fn thread_main(
 pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
-/// Live [`Bot`] builder.
+/// Live [`LiveBot`] builder.
 pub struct BotBuilder<MD> {
     conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     assets: Vec<(String, Asset)>,
@@ -201,8 +202,8 @@ impl<MD> BotBuilder<MD> {
         }
     }
 
-    /// Builds a live [`Bot`] based on the registered connectors and assets.
-    pub fn build(self) -> Result<Bot<MD>, BuildError> {
+    /// Builds a live [`LiveBot`] based on the registered connectors and assets.
+    pub fn build(self) -> Result<LiveBot<MD>, BuildError> {
         let mut dup = HashSet::new();
         let mut conns = self.conns;
         for (asset_no, (name, asset_info)) in self.assets.iter().enumerate() {
@@ -241,7 +242,7 @@ impl<MD> BotBuilder<MD> {
         let last_feed_latency = self.assets.iter().map(|_| None).collect();
         let last_order_latency = self.assets.iter().map(|_| None).collect();
 
-        Ok(Bot {
+        Ok(LiveBot {
             ev_tx: Some(ev_tx),
             ev_rx,
             req_rx: Some(req_rx),
@@ -265,16 +266,16 @@ impl<MD> BotBuilder<MD> {
 /// Provides the same interface as the backtesters in [`backtest`](`crate::backtest`).
 ///
 /// ```
-/// use hftbacktest::{live::Bot, prelude::HashMapMarketDepth};
+/// use hftbacktest::{live::LiveBot, prelude::HashMapMarketDepth};
 ///
-/// let mut hbt = Bot::builder()
+/// let mut hbt = LiveBot::builder()
 ///     .register("connector_name", connector)
 ///     .add("connector_name", "symbol", tick_size, lot_size)
 ///     .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
 ///     .build()
 ///     .unwrap();
 /// ```
-pub struct Bot<MD> {
+pub struct LiveBot<MD> {
     req_tx: UnboundedSender<Request>,
     req_rx: Option<UnboundedReceiver<Request>>,
     ev_tx: Option<Sender<LiveEvent>>,
@@ -291,11 +292,11 @@ pub struct Bot<MD> {
     last_order_latency: Vec<Option<(i64, i64)>>,
 }
 
-impl<MD> Bot<MD>
+impl<MD> LiveBot<MD>
 where
-    MD: MarketDepth,
+    MD: MarketDepth + L2MarketDepth,
 {
-    /// Builder to construct [`Bot`] instances.
+    /// Builder to construct [`LiveBot`] instances.
     pub fn builder() -> BotBuilder<MD> {
         BotBuilder {
             conns: HashMap::new(),
@@ -306,7 +307,7 @@ where
         }
     }
 
-    /// Runs the [`Bot`]. Spawns a thread to run [`Connector`]s and to handle sending [`Request`]
+    /// Runs the [`LiveBot`]. Spawns a thread to run [`Connector`]s and to handle sending [`Request`]
     /// to [`Connector`]s without blocking.
     pub fn run(&mut self) -> Result<(), BotError> {
         let ev_tx = self.ev_tx.take().unwrap();
@@ -491,9 +492,9 @@ where
     }
 }
 
-impl<MD> Interface for Bot<MD>
+impl<MD> Bot for LiveBot<MD>
 where
-    MD: MarketDepth,
+    MD: MarketDepth + L2MarketDepth,
 {
     type Error = BotError;
 
@@ -710,7 +711,7 @@ where
     }
 }
 
-impl<MD> BotTypedDepth<MD> for Bot<MD>
+impl<MD> BotTypedDepth<MD> for LiveBot<MD>
 where
     MD: MarketDepth,
 {
@@ -719,7 +720,7 @@ where
     }
 }
 
-impl<MD> BotTypedTrade<Event> for Bot<MD>
+impl<MD> BotTypedTrade<Event> for LiveBot<MD>
 where
     MD: MarketDepth,
 {

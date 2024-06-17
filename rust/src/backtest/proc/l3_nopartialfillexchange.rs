@@ -373,9 +373,9 @@ where
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row_num = self.row_num;
         if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(BUY, f32::NEG_INFINITY);
+            self.depth.clear_depth(BUY);
         } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(SELL, f32::INFINITY);
+            self.depth.clear_depth(SELL);
         } else if self.data[row_num].is(EXCH_BID_ADD_ORDER_EVENT) {
             let (prev_best_bid_tick, best_bid_tick) = self.depth.add_buy_order(
                 self.data[row_num].order_id,
@@ -421,7 +421,7 @@ where
                 }
             }
         } else if self.data[row_num].is(EXCH_CANCEL_ORDER_EVENT) {
-            self.depth
+            let _ = self.depth
                 .delete_order(self.data[row_num].order_id, self.data[row_num].exch_ts)?;
             self.queue_model
                 .cancel_order(L3OrderId::Market(self.data[row_num].order_id))?;

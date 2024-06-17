@@ -15,6 +15,7 @@ use crate::{
     depth::MarketDepth,
     types::{BuildError, Event},
 };
+use crate::depth::L2MarketDepth;
 
 /// Provides asset types.
 pub mod assettype;
@@ -85,7 +86,7 @@ impl<L, E> Asset<L, E> {
     pub fn builder<Q, LM, AT, QM, MD>() -> AssetBuilder<LM, AT, QM, MD>
     where
         AT: AssetType + Clone + 'static,
-        MD: MarketDepth + 'static,
+        MD: MarketDepth + L2MarketDepth + 'static,
         QM: QueueModel<MD> + 'static,
         LM: LatencyModel + Clone + 'static,
     {
@@ -115,7 +116,7 @@ pub struct AssetBuilder<LM, AT, QM, MD> {
 impl<LM, AT, QM, MD> AssetBuilder<LM, AT, QM, MD>
 where
     AT: AssetType + Clone + 'static,
-    MD: MarketDepth + 'static,
+    MD: MarketDepth + L2MarketDepth + 'static,
     QM: QueueModel<MD> + 'static,
     LM: LatencyModel + Clone + 'static,
 {

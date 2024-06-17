@@ -35,6 +35,7 @@ use crate::{
         SELL,
     },
 };
+use crate::depth::L2MarketDepth;
 
 /// The exchange model with partial fills.
 ///
@@ -777,7 +778,7 @@ where
     AT: AssetType,
     LM: LatencyModel,
     QM: QueueModel<MD>,
-    MD: MarketDepth,
+    MD: MarketDepth + L2MarketDepth,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
         self.data = self.reader.next()?;

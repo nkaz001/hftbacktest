@@ -4,7 +4,7 @@ use tracing::info;
 
 use crate::{
     depth::MarketDepth,
-    prelude::{get_precision, Interface},
+    prelude::{get_precision, Bot},
     types::{Recorder, StateValues},
 };
 
@@ -18,7 +18,7 @@ impl Recorder for LoggingRecorder {
 
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Interface,
+        I: Bot,
         MD: MarketDepth,
     {
         for asset_no in 0..hbt.num_assets() {

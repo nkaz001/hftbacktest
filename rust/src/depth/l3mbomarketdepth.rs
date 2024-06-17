@@ -2,16 +2,9 @@ use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use crate::{
     backtest::BacktestError,
-    depth::{L3MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::{L3MarketDepth, MarketDepth, L3Order, INVALID_MAX, INVALID_MIN},
     types::{Side, BUY, SELL},
 };
-
-pub struct MarketOrder {
-    order_id: i64,
-    side: Side,
-    price_tick: i32,
-    qty: f32,
-}
 
 pub struct L3MBOMarketDepth {
     pub tick_size: f32,
@@ -19,13 +12,13 @@ pub struct L3MBOMarketDepth {
     pub timestamp: i64,
     pub bid_depth: BTreeMap<i32, f32>,
     pub ask_depth: BTreeMap<i32, f32>,
-    pub orders: HashMap<i64, MarketOrder>,
+    pub orders: HashMap<i64, L3Order>,
     pub best_bid_tick: i32,
     pub best_ask_tick: i32,
 }
 
 impl L3MBOMarketDepth {
-    pub fn add(&mut self, order: MarketOrder) -> Result<(), BacktestError> {
+    pub fn add(&mut self, order: L3Order) -> Result<(), BacktestError> {
         if order.side == Side::Buy {
             *self.bid_depth.entry(order.price_tick).or_insert(0.0) += order.qty;
         } else {
@@ -52,7 +45,7 @@ impl L3MarketDepth for L3MBOMarketDepth {
         timestamp: i64,
     ) -> Result<(i32, i32), Self::Error> {
         let price_tick = (px / self.tick_size).round() as i32;
-        self.add(MarketOrder {
+        self.add(L3Order {
             order_id,
             side: Side::Buy,
             price_tick,
@@ -73,7 +66,7 @@ impl L3MarketDepth for L3MBOMarketDepth {
         timestamp: i64,
     ) -> Result<(i32, i32), Self::Error> {
         let price_tick = (px / self.tick_size).round() as i32;
-        self.add(MarketOrder {
+        self.add(L3Order {
             order_id,
             side: Side::Sell,
             price_tick,
@@ -86,25 +79,36 @@ impl L3MarketDepth for L3MBOMarketDepth {
         Ok((prev_best_tick, self.best_ask_tick))
     }
 
-    fn delete_order(&mut self, order_id: i64, timestamp: i64) -> Result<(), Self::Error> {
+    fn delete_order(&mut self, order_id: i64, timestamp: i64) -> Result<(i64, i32, i32), Self::Error> {
         let order = self
             .orders
             .remove(&order_id)
             .ok_or(BacktestError::OrderNotFound)?;
         if order.side == Side::Buy {
+            let prev_best_tick = self.best_bid_tick;
+
             let depth_qty = self.bid_depth.get_mut(&order.price_tick).unwrap();
             *depth_qty -= order.qty;
-            if (*depth_qty / self.lot_size as f32).round() as i32 == 0 {
+            if (*depth_qty / self.lot_size).round() as i32 == 0 {
                 self.bid_depth.remove(&order.price_tick).unwrap();
+                if order.price_tick == self.best_bid_tick {
+                    self.best_bid_tick = *self.bid_depth.keys().next().unwrap_or(&INVALID_MIN);
+                }
             }
+            Ok((SELL, prev_best_tick, self.best_bid_tick))
         } else {
+            let prev_best_tick = self.best_ask_tick;
+
             let depth_qty = self.ask_depth.get_mut(&order.price_tick).unwrap();
             *depth_qty -= order.qty;
-            if (*depth_qty / self.lot_size as f32).round() as i32 == 0 {
+            if (*depth_qty / self.lot_size).round() as i32 == 0 {
                 self.ask_depth.remove(&order.price_tick).unwrap();
+                if order.price_tick == self.best_ask_tick {
+                    self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
+                }
             }
+            Ok((SELL, prev_best_tick, self.best_ask_tick))
         }
-        Ok(())
     }
 
     fn modify_order(
@@ -170,35 +174,24 @@ impl L3MarketDepth for L3MBOMarketDepth {
             }
         }
     }
-}
 
-impl MarketDepth for L3MBOMarketDepth {
-    fn update_bid_depth(
-        &mut self,
-        price: f32,
-        qty: f32,
-        timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        todo!()
-    }
-
-    fn update_ask_depth(
-        &mut self,
-        price: f32,
-        qty: f32,
-        timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        todo!()
-    }
-
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f32) {
+    fn clear_depth(&mut self, side: i64) {
         if side == BUY {
             self.bid_depth.clear();
+        } else if side == SELL {
+            self.ask_depth.clear();
         } else {
+            self.bid_depth.clear();
             self.ask_depth.clear();
         }
     }
 
+    fn orders(&self) -> &HashMap<i64, L3Order> {
+        &self.orders
+    }
+}
+
+impl MarketDepth for L3MBOMarketDepth {
     #[inline(always)]
     fn best_bid(&self) -> f32 {
         self.best_bid_tick() as f32 * self.tick_size

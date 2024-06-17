@@ -255,9 +255,9 @@ where
         let ev = &self.data[self.row_num];
         // Processes a depth event
         if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(BUY, f32::NEG_INFINITY);
+            self.depth.clear_depth(BUY);
         } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(SELL, f32::INFINITY);
+            self.depth.clear_depth(SELL);
         } else if ev.is(LOCAL_BID_ADD_ORDER_EVENT) {
             self.depth
                 .add_buy_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;

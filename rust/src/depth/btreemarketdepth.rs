@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN};
+use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN, L2MarketDepth};
 use crate::{
     backtest::reader::Data,
     types::{Event, BUY, SELL},
@@ -33,7 +33,7 @@ impl BTreeMarketDepth {
     }
 }
 
-impl MarketDepth for BTreeMarketDepth {
+impl L2MarketDepth for BTreeMarketDepth {
     fn update_bid_depth(
         &mut self,
         price: f32,
@@ -111,7 +111,9 @@ impl MarketDepth for BTreeMarketDepth {
             self.ask_depth.clear();
         }
     }
+}
 
+impl MarketDepth for BTreeMarketDepth {
     #[inline(always)]
     fn best_bid(&self) -> f32 {
         self.best_bid_tick() as f32 * self.tick_size
@@ -153,7 +155,7 @@ impl MarketDepth for BTreeMarketDepth {
     }
 }
 
-impl ApplySnapshot for BTreeMarketDepth {
+impl ApplySnapshot<Event> for BTreeMarketDepth {
     fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.bid_depth.clear();
         self.ask_depth.clear();

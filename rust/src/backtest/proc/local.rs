@@ -36,6 +36,7 @@ use crate::{
         WAIT_ORDER_RESPONSE_ANY,
     },
 };
+use crate::depth::L2MarketDepth;
 
 /// The local model.
 pub struct Local<AT, LM, MD>
@@ -111,7 +112,7 @@ impl<AT, LM, MD> LocalProcessor<MD, Event> for Local<AT, LM, MD>
 where
     AT: AssetType,
     LM: LatencyModel,
-    MD: MarketDepth,
+    MD: MarketDepth + L2MarketDepth,
 {
     fn submit_order(
         &mut self,
@@ -235,7 +236,7 @@ impl<AT, LM, MD> Processor for Local<AT, LM, MD>
 where
     AT: AssetType,
     LM: LatencyModel,
-    MD: MarketDepth,
+    MD: MarketDepth + L2MarketDepth,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
         self.data = self.reader.next()?;

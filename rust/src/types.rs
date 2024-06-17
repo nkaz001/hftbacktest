@@ -659,7 +659,7 @@ pub struct OrderRequest {
 }
 
 /// Provides an interface for a backtester or a bot.
-pub trait Interface {
+pub trait Bot {
     type Error;
 
     /// In backtesting, this timestamp reflects the time at which the backtesting is conducted
@@ -839,7 +839,7 @@ pub trait Recorder {
     type Error;
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Interface + BotTypedDepth<MD>,
+        I: Bot + BotTypedDepth<MD>,
         MD: MarketDepth;
 }
 

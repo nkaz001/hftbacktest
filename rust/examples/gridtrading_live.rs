@@ -1,8 +1,8 @@
 use algo::gridtrading;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, Endpoint},
-    live::{Bot, LoggingRecorder},
-    prelude::{HashMapMarketDepth, Interface},
+    live::{LiveBot, LoggingRecorder},
+    prelude::{HashMapMarketDepth, Bot},
 };
 
 mod algo;
@@ -11,7 +11,7 @@ const ORDER_PREFIX: &str = "prefix";
 const API_KEY: &str = "apikey";
 const SECRET: &str = "secret";
 
-fn prepare_live() -> Bot<HashMapMarketDepth> {
+fn prepare_live() -> LiveBot<HashMapMarketDepth> {
     let binance_futures = BinanceFutures::builder()
         .endpoint(Endpoint::Testnet)
         .api_key(API_KEY)
@@ -20,7 +20,7 @@ fn prepare_live() -> Bot<HashMapMarketDepth> {
         .build()
         .unwrap();
 
-    let mut hbt = Bot::builder()
+    let mut hbt = LiveBot::builder()
         .register("binancefutures", binance_futures)
         .add("binancefutures", "1000SHIBUSDT", 0.000001, 1.0)
         .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))

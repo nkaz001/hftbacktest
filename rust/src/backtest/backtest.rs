@@ -13,7 +13,7 @@ use crate::{
         BotTypedTrade,
         BuildError,
         Event,
-        Interface,
+        Bot,
         OrdType,
         Order,
         Side,
@@ -205,7 +205,7 @@ where
     }
 }
 
-impl<MD> Interface for MultiAssetMultiExchangeBacktest<MD>
+impl<MD> Bot for MultiAssetMultiExchangeBacktest<MD>
 where
     MD: MarketDepth,
 {
@@ -718,7 +718,7 @@ where
     }
 }
 
-impl<MD, Local, Exchange> Interface for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+impl<MD, Local, Exchange> Bot for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
     Local: LocalProcessor<MD, Event>,

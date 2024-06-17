@@ -5,6 +5,7 @@ use crate::{
     backtest::reader::Data,
     types::{Event, BUY, SELL},
 };
+use crate::prelude::L2MarketDepth;
 
 /// L2 Market depth implementation based on a hash map.
 ///
@@ -65,7 +66,7 @@ impl HashMapMarketDepth {
     }
 }
 
-impl MarketDepth for HashMapMarketDepth {
+impl L2MarketDepth for HashMapMarketDepth {
     fn update_bid_depth(
         &mut self,
         price: f32,
@@ -211,7 +212,9 @@ impl MarketDepth for HashMapMarketDepth {
             self.high_ask_tick = INVALID_MIN;
         }
     }
+}
 
+impl MarketDepth for HashMapMarketDepth {
     #[inline(always)]
     fn best_bid(&self) -> f32 {
         self.best_bid_tick as f32 * self.tick_size
@@ -253,7 +256,7 @@ impl MarketDepth for HashMapMarketDepth {
     }
 }
 
-impl ApplySnapshot for HashMapMarketDepth {
+impl ApplySnapshot<Event> for HashMapMarketDepth {
     fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.best_bid_tick = INVALID_MIN;
         self.best_ask_tick = INVALID_MAX;

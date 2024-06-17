@@ -1,6 +1,6 @@
 [package]
 name = "hftbacktest"
-version = "0.1.5"
+version = "0.2.0"
 edition = "2021"
 authors = ["nkaz001 <nkaz001@protonmail.com>"]
 license = "MIT"

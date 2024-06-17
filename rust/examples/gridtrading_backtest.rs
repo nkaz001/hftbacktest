@@ -12,7 +12,7 @@ use hftbacktest::{
         ExchangeKind,
         MultiAssetMultiExchangeBacktest,
     },
-    prelude::{ApplySnapshot, HashMapMarketDepth, Interface},
+    prelude::{ApplySnapshot, HashMapMarketDepth, Bot},
 };
 
 mod algo;
