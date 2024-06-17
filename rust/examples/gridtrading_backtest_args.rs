@@ -1,15 +1,16 @@
-use algo::gridtrading;
 use clap::Parser;
+
+use algo::gridtrading;
 use hftbacktest::{
     backtest::{
-        assettype::LinearAsset,
-        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
-        reader::read_npz,
-        recorder::BacktestRecorder,
         AssetBuilder,
+        assettype::LinearAsset,
         DataSource,
         ExchangeKind,
+        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel},
         MultiAssetMultiExchangeBacktest,
+        reader::read_npz,
+        recorder::BacktestRecorder,
     },
     prelude::{ApplySnapshot, HashMapMarketDepth, Interface},
 };

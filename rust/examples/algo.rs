@@ -14,7 +14,7 @@ pub fn gridtrading<MD, I, R>(
 ) -> Result<(), i64>
 where
     MD: MarketDepth,
-    I: Interface + BotDepth<MD>,
+    I: Interface + BotTypedDepth<MD>,
     <I as Interface>::Error: Debug,
     R: Recorder,
     <R as Recorder>::Error: Debug,
@@ -29,7 +29,7 @@ where
             recorder.record(hbt).unwrap();
         }
 
-        let depth = hbt.depth_concrete(0);
+        let depth = hbt.depth_typed(0);
         let position = hbt.position(0);
 
         if depth.best_bid_tick() == INVALID_MIN || depth.best_ask_tick() == INVALID_MAX {

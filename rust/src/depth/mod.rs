@@ -80,7 +80,7 @@ pub trait ApplySnapshot {
 }
 
 #[cfg(feature = "unstable_l3")]
-pub trait L3MarketDepth: MarketDepth {
+pub trait L3MarketDepth : MarketDepth {
     type Error;
 
     fn add_buy_order(

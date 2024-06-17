@@ -107,7 +107,7 @@ where
     }
 }
 
-impl<AT, LM, MD> LocalProcessor<MD> for L3Local<AT, LM, MD>
+impl<AT, LM, MD> LocalProcessor<MD, L3Event> for L3Local<AT, LM, MD>
 where
     AT: AssetType,
     LM: LatencyModel,
@@ -215,9 +215,8 @@ where
         &self.orders
     }
 
-    fn trade(&self) -> &Vec<Event> {
-        todo!()
-        // &self.trades
+    fn trade(&self) -> &Vec<L3Event> {
+        &self.trades
     }
 
     fn clear_last_trades(&mut self) {

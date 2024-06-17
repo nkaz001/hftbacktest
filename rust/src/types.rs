@@ -820,26 +820,26 @@ pub trait Interface {
 }
 
 /// Provides an interface for a backtester or a bot.
-pub trait BotDepth<MD> {
+pub trait BotTypedDepth<MD> {
     /// Returns the [MarketDepth](crate::depth::MarketDepth).
     ///
     /// * `asset_no` - Asset number from which the market depth will be retrieved.
-    fn depth_concrete(&self, asset_no: usize) -> &MD;
+    fn depth_typed(&self, asset_no: usize) -> &MD;
 }
 
 /// Provides an interface for a backtester or a bot.
-pub trait BotTrade<Event> {
+pub trait BotTypedTrade<Event> {
     /// Returns the last market trades.
     ///
     /// * `asset_no` - Asset number from which the last market trades will be retrieved.
-    fn trade_concrete(&self, asset_no: usize) -> &Vec<Event>;
+    fn trade_typed(&self, asset_no: usize) -> &Vec<Event>;
 }
 
 pub trait Recorder {
     type Error;
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Interface + BotDepth<MD>,
+        I: Interface + BotTypedDepth<MD>,
         MD: MarketDepth;
 }
 

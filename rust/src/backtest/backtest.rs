@@ -8,9 +8,9 @@ use crate::{
         BacktestError,
     },
     depth::{HashMapMarketDepth, MarketDepth},
-    prelude::{BotDepth, OrderRequest},
+    prelude::{BotTypedDepth, OrderRequest},
     types::{
-        BotTrade,
+        BotTypedTrade,
         BuildError,
         Event,
         Interface,
@@ -23,16 +23,21 @@ use crate::{
         WAIT_ORDER_RESPONSE_NONE,
     },
 };
+#[cfg(feature = "unstable_l3")]
+use crate::{
+    backtest::proc::GenLocalProcessor,
+    depth::L3MarketDepth
+};
 
 /// [`MultiAssetMultiExchangeBacktest`] builder.
 pub struct MultiAssetMultiExchangeBacktestBuilder<MD> {
-    local: Vec<Box<dyn LocalProcessor<MD>>>,
+    local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
     exch: Vec<Box<dyn Processor>>,
 }
 
 impl<MD> MultiAssetMultiExchangeBacktestBuilder<MD> {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add(self, asset: Asset<dyn LocalProcessor<MD>, dyn Processor>) -> Self {
+    pub fn add(self, asset: Asset<dyn LocalProcessor<MD, Event>, dyn Processor>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(asset.local);
         self_.exch.push(asset.exch);
@@ -60,7 +65,7 @@ impl<MD> MultiAssetMultiExchangeBacktestBuilder<MD> {
 pub struct MultiAssetMultiExchangeBacktest<MD> {
     cur_ts: i64,
     evs: EventSet,
-    local: Vec<Box<dyn LocalProcessor<MD>>>,
+    local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
     exch: Vec<Box<dyn Processor>>,
 }
 
@@ -75,7 +80,7 @@ where
         }
     }
 
-    pub fn new(local: Vec<Box<dyn LocalProcessor<MD>>>, exch: Vec<Box<dyn Processor>>) -> Self {
+    pub fn new(local: Vec<Box<dyn LocalProcessor<MD, Event>>>, exch: Vec<Box<dyn Processor>>) -> Self {
         let num_assets = local.len();
         if local.len() != num_assets || exch.len() != num_assets {
             panic!();
@@ -509,22 +514,22 @@ where
     }
 }
 
-impl<MD> BotDepth<MD> for MultiAssetMultiExchangeBacktest<MD>
+impl<MD> BotTypedDepth<MD> for MultiAssetMultiExchangeBacktest<MD>
 where
     MD: MarketDepth,
 {
     #[inline]
-    fn depth_concrete(&self, asset_no: usize) -> &MD {
+    fn depth_typed(&self, asset_no: usize) -> &MD {
         &self.local.get(asset_no).unwrap().depth()
     }
 }
 
-impl<MD> BotTrade<Event> for MultiAssetMultiExchangeBacktest<MD>
+impl<MD> BotTypedTrade<Event> for MultiAssetMultiExchangeBacktest<MD>
 where
     MD: MarketDepth,
 {
     #[inline]
-    fn trade_concrete(&self, asset_no: usize) -> &Vec<Event> {
+    fn trade_typed(&self, asset_no: usize) -> &Vec<Event> {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }
@@ -538,7 +543,7 @@ pub struct MultiAssetSingleExchangeBacktestBuilder<Local, Exchange> {
 
 impl<Local, Exchange> MultiAssetSingleExchangeBacktestBuilder<Local, Exchange>
 where
-    Local: LocalProcessor<HashMapMarketDepth> + 'static,
+    Local: LocalProcessor<HashMapMarketDepth, Event> + 'static,
     Exchange: Processor + 'static,
 {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
@@ -583,7 +588,7 @@ pub struct MultiAssetSingleExchangeBacktest<MD, Local, Exchange> {
 impl<MD, Local, Exchange> MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
-    Local: LocalProcessor<MD>,
+    Local: LocalProcessor<MD, Event>,
     Exchange: Processor,
 {
     pub fn builder() -> MultiAssetSingleExchangeBacktestBuilder<Local, Exchange> {
@@ -716,7 +721,7 @@ where
 impl<MD, Local, Exchange> Interface for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
-    Local: LocalProcessor<MD>,
+    Local: LocalProcessor<MD, Event>,
     Exchange: Processor,
 {
     type Error = BacktestError;
@@ -1025,26 +1030,26 @@ where
     }
 }
 
-impl<MD, Local, Exchange> BotDepth<MD> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+impl<MD, Local, Exchange> BotTypedDepth<MD> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
-    Local: LocalProcessor<MD>,
+    Local: LocalProcessor<MD, Event>,
     Exchange: Processor,
 {
     #[inline]
-    fn depth_concrete(&self, asset_no: usize) -> &MD {
+    fn depth_typed(&self, asset_no: usize) -> &MD {
         &self.local.get(asset_no).unwrap().depth()
     }
 }
 
-impl<MD, Local, Exchange> BotTrade<Event> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+impl<MD, Local, Exchange> BotTypedTrade<Event> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
-    Local: LocalProcessor<MD>,
+    Local: LocalProcessor<MD, Event>,
     Exchange: Processor,
 {
     #[inline]
-    fn trade_concrete(&self, asset_no: usize) -> &Vec<Event> {
+    fn trade_typed(&self, asset_no: usize) -> &Vec<Event> {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }

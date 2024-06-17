@@ -107,7 +107,7 @@ where
     }
 }
 
-impl<AT, LM, MD> LocalProcessor<MD> for Local<AT, LM, MD>
+impl<AT, LM, MD> LocalProcessor<MD, Event> for Local<AT, LM, MD>
 where
     AT: AssetType,
     LM: LatencyModel,

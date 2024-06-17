@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::HashMap;
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
 };
 
 /// Provides local-specific interaction.
-pub trait LocalProcessor<MD>: Processor
+pub trait LocalProcessor<MD, EventT> : Processor
 where
     MD: MarketDepth,
 {
@@ -56,7 +57,7 @@ where
     fn orders(&self) -> &HashMap<i64, Order>;
 
     /// Returns the last market trades.
-    fn trade(&self) -> &Vec<Event>;
+    fn trade(&self) -> &Vec<EventT>;
 
     /// Clears the last market trades from the buffer.
     fn clear_last_trades(&mut self);
@@ -95,4 +96,63 @@ pub trait Processor {
     /// Returns the foremost timestamp at which an order sent by this processor is to be received by
     /// the corresponding processor.
     fn earliest_send_order_timestamp(&self) -> i64;
+}
+
+pub trait GenLocalProcessor : Processor {
+    /// Submits a new order.
+    ///
+    /// * `order_id` - The unique order ID; there should not be any existing order with the same ID
+    ///                on both local and exchange sides.
+    /// * `price` - Order price.
+    /// * `qty` - Quantity to buy.
+    /// * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
+    ///                   the exchange model for details.
+    /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
+    ///                     See to the exchange model for details.
+    /// * `current_timestamp` - The current backtesting timestamp.
+    fn submit_order(
+        &mut self,
+        order_id: i64,
+        side: Side,
+        price: f32,
+        qty: f32,
+        order_type: OrdType,
+        time_in_force: TimeInForce,
+        current_timestamp: i64,
+    ) -> Result<(), BacktestError>;
+
+    /// Cancels the specified order.
+    ///
+    /// * `order_id` - Order ID to cancel.
+    /// * `current_timestamp` - The current backtesting timestamp.
+    fn cancel(&mut self, order_id: i64, current_timestamp: i64) -> Result<(), BacktestError>;
+
+    /// Clears inactive orders from the local orders whose status is neither
+    /// [`Status::New`] nor [`Status::PartiallyFilled`].
+    fn clear_inactive_orders(&mut self);
+
+    /// Returns the position you currently hold.
+    fn position(&self) -> f64;
+
+    /// Returns the state's values such as balance, fee, and so on.
+    fn state_values(&self) -> StateValues;
+
+    /// Returns the [`MarketDepth`].
+    fn depth(&self) -> &dyn Any;
+
+    /// Returns a hash map of order IDs and their corresponding [`Order`]s.
+    fn orders(&self) -> &HashMap<i64, Order>;
+
+    /// Returns the last market trades.
+    fn trade(&self) -> Vec<&dyn Any>;
+
+    /// Clears the last market trades from the buffer.
+    fn clear_last_trades(&mut self);
+
+    /// Returns the last feed's exchange timestamp and local receipt timestamp.
+    fn feed_latency(&self) -> Option<(i64, i64)>;
+
+    /// Returns the last order's request timestamp, exchange timestamp, and response receipt
+    /// timestamp.
+    fn order_latency(&self) -> Option<(i64, i64, i64)>;
 }

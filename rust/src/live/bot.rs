@@ -20,8 +20,8 @@ use crate::{
     live::Asset,
     prelude::OrderRequest,
     types::{
-        BotDepth,
-        BotTrade,
+        BotTypedDepth,
+        BotTypedTrade,
         BuildError,
         Error as ErrorEvent,
         Error,
@@ -710,20 +710,20 @@ where
     }
 }
 
-impl<MD> BotDepth<MD> for Bot<MD>
+impl<MD> BotTypedDepth<MD> for Bot<MD>
 where
     MD: MarketDepth,
 {
-    fn depth_concrete(&self, asset_no: usize) -> &MD {
+    fn depth_typed(&self, asset_no: usize) -> &MD {
         self.depth.get(asset_no).unwrap()
     }
 }
 
-impl<MD> BotTrade<Event> for Bot<MD>
+impl<MD> BotTypedTrade<Event> for Bot<MD>
 where
     MD: MarketDepth,
 {
-    fn trade_concrete(&self, asset_no: usize) -> &Vec<Event> {
+    fn trade_typed(&self, asset_no: usize) -> &Vec<Event> {
         self.trade.get(asset_no).unwrap()
     }
 }
