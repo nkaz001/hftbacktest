@@ -1,15 +1,16 @@
-use algo::gridtrading;
 use clap::Parser;
+
+use algo::gridtrading;
 use hftbacktest::{
     backtest::{
-        assettype::LinearAsset,
-        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
-        reader::read_npz,
-        recorder::BacktestRecorder,
         AssetBuilder,
+        assettype::LinearAsset,
         DataSource,
         ExchangeKind,
+        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel},
         MultiAssetMultiExchangeBacktest,
+        reader::read_npz,
+        recorder::BacktestRecorder,
     },
     prelude::{ApplySnapshot, HashMapMarketDepth, Interface},
 };
@@ -59,7 +60,7 @@ fn prepare_backtest(
     lot_size: f32,
     maker_fee: f64,
     taker_fee: f64,
-) -> MultiAssetMultiExchangeBacktest<QueuePos, HashMapMarketDepth> {
+) -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {
     let latency_model = IntpOrderLatency::new(
         latency_files
             .iter()

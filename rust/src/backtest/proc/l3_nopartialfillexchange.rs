@@ -187,10 +187,8 @@ where
                     let mut i = 0;
                     while i < orders.len() {
                         let order = orders.get(i).unwrap();
-                        let order_source = order.q
-                            .as_any()
-                            .downcast_ref::<L3OrderSource>()
-                            .unwrap();
+                        let order_source =
+                            order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
                         if *order_source == L3OrderSource::Backtesting {
                             filled_orders.push(orders.remove(i));
                         }
@@ -236,10 +234,8 @@ where
                     let mut i = 0;
                     while i < orders.len() {
                         let order = orders.get(i).unwrap();
-                        let order_source = order.q
-                            .as_any()
-                            .downcast_ref::<L3OrderSource>()
-                            .unwrap();
+                        let order_source =
+                            order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
                         if *order_source == L3OrderSource::Backtesting {
                             filled_orders.push(orders.remove(i));
                         }
@@ -254,11 +250,7 @@ where
         Ok(())
     }
 
-    fn ack_new(
-        &mut self,
-        mut order: Order,
-        timestamp: i64,
-    ) -> Result<(), BacktestError> {
+    fn ack_new(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
         if self
             .queue_model
             .orders
@@ -326,11 +318,7 @@ where
         }
     }
 
-    fn ack_cancel(
-        &mut self,
-        mut order: Order,
-        timestamp: i64,
-    ) -> Result<i64, BacktestError> {
+    fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<i64, BacktestError> {
         match self
             .queue_model
             .cancel_order(L3OrderId::Backtesting(order.order_id))
@@ -359,11 +347,7 @@ where
         }
     }
 
-    fn ack_modify(
-        &mut self,
-        mut order: Order,
-        timestamp: i64,
-    ) -> Result<(), BacktestError> {
+    fn ack_modify(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
         todo!()
     }
 }

@@ -38,8 +38,8 @@ pub mod recorder;
 
 mod evs;
 
-#[cfg(features = "unstable_l3")]
-pub mod l3backtest;
+#[cfg(feature = "unstable_l3")]
+mod l3backtest;
 
 #[derive(Error, Debug)]
 pub enum BacktestError {
@@ -209,7 +209,7 @@ where
     }
 
     /// Builds an `Asset`.
-    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor>, BuildError> {
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD, Event>, dyn Processor>, BuildError> {
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 

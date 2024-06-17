@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use hftbacktest::prelude::*;
 
-pub fn gridtrading<Q, MD, I, R>(
+pub fn gridtrading<MD, I, R>(
     hbt: &mut I,
     recorder: &mut R,
     relative_half_spread: f64,
@@ -13,10 +13,9 @@ pub fn gridtrading<Q, MD, I, R>(
     max_position: f64,
 ) -> Result<(), i64>
 where
-    Q: Sized + Clone,
     MD: MarketDepth,
-    I: Interface<Q, MD>,
-    <I as Interface<Q, MD>>::Error: Debug,
+    I: Interface + BotTypedDepth<MD>,
+    <I as Interface>::Error: Debug,
     R: Recorder,
     <R as Recorder>::Error: Debug,
 {
@@ -30,7 +29,7 @@ where
             recorder.record(hbt).unwrap();
         }
 
-        let depth = hbt.depth(0);
+        let depth = hbt.depth_typed(0);
         let position = hbt.position(0);
 
         if depth.best_bid_tick() == INVALID_MIN || depth.best_ask_tick() == INVALID_MAX {

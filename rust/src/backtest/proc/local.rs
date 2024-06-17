@@ -2,6 +2,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     mem,
 };
+use std::any::Any;
 
 use crate::{
     backtest::{
@@ -106,7 +107,7 @@ where
     }
 }
 
-impl<AT, LM, MD> LocalProcessor<MD> for Local<AT, LM, MD>
+impl<AT, LM, MD> LocalProcessor<MD, Event> for Local<AT, LM, MD>
 where
     AT: AssetType,
     LM: LatencyModel,

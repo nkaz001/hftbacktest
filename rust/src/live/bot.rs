@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::{hash_map::Entry, HashMap, HashSet},
     sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender},
     thread,
@@ -19,6 +20,8 @@ use crate::{
     live::Asset,
     prelude::OrderRequest,
     types::{
+        BotTypedDepth,
+        BotTypedTrade,
         BuildError,
         Error as ErrorEvent,
         Error,
@@ -488,7 +491,7 @@ where
     }
 }
 
-impl<MD> Interface<MD> for Bot<MD>
+impl<MD> Interface for Bot<MD>
 where
     MD: MarketDepth,
 {
@@ -524,13 +527,18 @@ where
     }
 
     #[inline]
-    fn depth(&self, asset_no: usize) -> &MD {
+    fn depth(&self, asset_no: usize) -> &dyn MarketDepth {
         self.depth.get(asset_no).unwrap()
     }
 
     #[inline]
-    fn trade(&self, asset_no: usize) -> &Vec<Event> {
-        self.trade.get(asset_no).unwrap()
+    fn trade(&self, asset_no: usize) -> Vec<&dyn Any> {
+        self.trade
+            .get(asset_no)
+            .unwrap()
+            .iter()
+            .map(|ev| ev as &dyn Any)
+            .collect()
     }
 
     fn clear_last_trades(&mut self, asset_no: Option<usize>) {
@@ -699,5 +707,23 @@ where
 
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
         todo!()
+    }
+}
+
+impl<MD> BotTypedDepth<MD> for Bot<MD>
+where
+    MD: MarketDepth,
+{
+    fn depth_typed(&self, asset_no: usize) -> &MD {
+        self.depth.get(asset_no).unwrap()
+    }
+}
+
+impl<MD> BotTypedTrade<Event> for Bot<MD>
+where
+    MD: MarketDepth,
+{
+    fn trade_typed(&self, asset_no: usize) -> &Vec<Event> {
+        self.trade.get(asset_no).unwrap()
     }
 }
