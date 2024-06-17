@@ -14,15 +14,12 @@ feed data. You can also run the live bot using the same algo code.
 
 ## Key Features
 
-* Complete tick-by-tick simulation with a variable time interval.
-* Full order book reconstruction based on L2 feeds(Market-By-Price).
+* Complete tick-by-tick simulation with a customizable time interval or based on the feed and order receipt.
+* Full order book reconstruction based on L2 Market-By-Price and L3 Market-By-Order (WIP) feeds.
 * Backtest accounting for both feed and order latency, using provided models or your own custom model.
 * Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
-
-The following features are only provided in Rust implementation:
-
 * Backtesting of multi-asset and multi-exchange models
-* Deployment of a live trading bot using the same algo code
+* Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit (WIP).
 
 ## Getting started
 
@@ -46,6 +43,11 @@ part of [Data Preparation](https://hftbacktest.readthedocs.io/en/latest/tutorial
 [gridtrading](https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb): The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Please see [examples](https://github.com/nkaz001/hftbacktest/tree/master/rust/examples).
+
+## Documentation
+
+For general information, please see [document here](https://hftbacktest.readthedocs.io/).  
+For the Rust implementation, please see [document here](https://docs.rs/hftbacktest/latest/hftbacktest/).
 
 ## Roadmap
 
