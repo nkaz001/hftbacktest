@@ -8,9 +8,6 @@ use crate::{backtest::reader::Data, prelude::Side};
 mod btreemarketdepth;
 mod hashmapmarketdepth;
 
-#[cfg(feature = "unstable_l3")]
-mod l3mbomarketdepth;
-
 /// Represents no best bid.
 pub const INVALID_MIN: i32 = i32::MIN;
 
@@ -86,6 +83,7 @@ pub trait ApplySnapshot<EventT> {
 
 /// Level3 order from the market feed.
 #[cfg(feature = "unstable_l3")]
+#[derive(Debug)]
 pub struct L3Order {
     pub order_id: i64,
     pub side: Side,
