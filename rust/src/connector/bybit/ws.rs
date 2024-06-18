@@ -32,7 +32,17 @@ use crate::{
     },
     live::Asset,
     prelude::{ErrorKind, Position},
-    types::{Depth, Error, LiveEvent, OrderResponse, Side, Trade, BUY, SELL},
+    types::{
+        Error,
+        Event,
+        LiveEvent,
+        OrderResponse,
+        Side,
+        LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_BID_DEPTH_EVENT,
+        LOCAL_BUY_TRADE_EVENT,
+        LOCAL_SELL_TRADE_EVENT,
+    },
 };
 
 pub struct OrderOp {
@@ -74,35 +84,54 @@ async fn handle_public_stream(
             if stream.topic.starts_with("orderbook") {
                 let data: OrderBook = serde_json::from_value(stream.data)?;
                 let (bids, asks) = parse_depth(data.bids, data.asks)?;
-                let asset_info = assets.get(&data.symbol).ok_or(HandleError::AssetNotFound)?;
-                ev_tx
-                    .send(LiveEvent::Depth(Depth {
-                        asset_no: asset_info.asset_no,
+                let asset = assets.get(&data.symbol).ok_or(HandleError::AssetNotFound)?;
+                let mut bid_events: Vec<_> = bids
+                    .iter()
+                    .map(|&(px, qty)| Event {
+                        ev: LOCAL_BID_DEPTH_EVENT,
                         exch_ts: stream.cts.unwrap() * 1_000_000,
                         local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                        bids,
-                        asks,
-                    }))
+                        px,
+                        qty,
+                    })
+                    .collect();
+                let mut ask_events: Vec<_> = asks
+                    .iter()
+                    .map(|&(px, qty)| Event {
+                        ev: LOCAL_ASK_DEPTH_EVENT,
+                        exch_ts: stream.cts.unwrap() * 1_000_000,
+                        local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                        px,
+                        qty,
+                    })
+                    .collect();
+                let mut events = Vec::new();
+                events.append(&mut bid_events);
+                events.append(&mut ask_events);
+                ev_tx
+                    .send(LiveEvent::L2Feed(asset.asset_no, events))
                     .unwrap();
             } else if stream.topic.starts_with("publicTrade") {
                 let data: Vec<msg::Trade> = serde_json::from_value(stream.data)?;
                 for item in data {
                     let asset_info = assets.get(&item.symbol).ok_or(HandleError::AssetNotFound)?;
                     ev_tx
-                        .send(LiveEvent::Trade(Trade {
-                            asset_no: asset_info.asset_no,
-                            exch_ts: item.ts * 1_000_000,
-                            local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                            side: {
-                                if item.side == Side::Sell {
-                                    SELL as i8
-                                } else {
-                                    BUY as i8
-                                }
-                            },
-                            price: item.trade_price,
-                            qty: item.trade_size,
-                        }))
+                        .send(LiveEvent::L2Feed(
+                            asset_info.asset_no,
+                            vec![Event {
+                                ev: {
+                                    if item.side == Side::Sell {
+                                        LOCAL_SELL_TRADE_EVENT
+                                    } else {
+                                        LOCAL_BUY_TRADE_EVENT
+                                    }
+                                },
+                                exch_ts: item.ts * 1_000_000,
+                                local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                px: item.trade_price,
+                                qty: item.trade_size,
+                            }],
+                        ))
                         .unwrap();
                 }
             }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN, L2MarketDepth};
+use super::{ApplySnapshot, L2MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::reader::Data,
     types::{Event, BUY, SELL},

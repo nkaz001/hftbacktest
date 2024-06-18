@@ -421,7 +421,8 @@ where
                 }
             }
         } else if self.data[row_num].is(EXCH_CANCEL_ORDER_EVENT) {
-            let _ = self.depth
+            let _ = self
+                .depth
                 .delete_order(self.data[row_num].order_id, self.data[row_num].exch_ts)?;
             self.queue_model
                 .cancel_order(L3OrderId::Market(self.data[row_num].order_id))?;

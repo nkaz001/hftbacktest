@@ -2,8 +2,8 @@ use algo::gridtrading;
 use chrono::Utc;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, BinanceFuturesError, Endpoint},
-    live::{LiveBot, BotError, LoggingRecorder},
-    prelude::{ErrorKind, HashMapMarketDepth, Bot},
+    live::{BotError, LiveBot, LoggingRecorder},
+    prelude::{Bot, ErrorKind, HashMapMarketDepth},
 };
 use tracing::{error, info};
 

@@ -15,7 +15,7 @@ use crate::{
         state::State,
         BacktestError,
     },
-    depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::{L2MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
     types::{
         Event,
         Order,
@@ -35,7 +35,6 @@ use crate::{
         SELL,
     },
 };
-use crate::depth::L2MarketDepth;
 
 /// The exchange model without partial fills.
 ///

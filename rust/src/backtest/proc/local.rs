@@ -2,7 +2,6 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     mem,
 };
-use std::any::Any;
 
 use crate::{
     backtest::{
@@ -14,7 +13,7 @@ use crate::{
         state::State,
         BacktestError,
     },
-    depth::MarketDepth,
+    depth::{L2MarketDepth, MarketDepth},
     types::{
         Event,
         OrdType,
@@ -36,7 +35,6 @@ use crate::{
         WAIT_ORDER_RESPONSE_ANY,
     },
 };
-use crate::depth::L2MarketDepth;
 
 /// The local model.
 pub struct Local<AT, LM, MD>

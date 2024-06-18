@@ -16,17 +16,17 @@ use tracing::{debug, error};
 
 use crate::{
     connector::Connector,
-    depth::MarketDepth,
+    depth::{L2MarketDepth, MarketDepth},
     live::Asset,
     prelude::OrderRequest,
     types::{
+        Bot,
         BotTypedDepth,
         BotTypedTrade,
         BuildError,
         Error as ErrorEvent,
         Error,
         Event,
-        Bot,
         LiveEvent,
         OrdType,
         Order,
@@ -35,13 +35,14 @@ use crate::{
         StateValues,
         Status,
         TimeInForce,
-        BUY,
-        SELL,
+        LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_BID_DEPTH_EVENT,
+        LOCAL_BUY_TRADE_EVENT,
+        LOCAL_SELL_TRADE_EVENT,
         WAIT_ORDER_RESPONSE_ANY,
         WAIT_ORDER_RESPONSE_NONE,
     },
 };
-use crate::depth::L2MarketDepth;
 
 #[derive(Error, Eq, PartialEq, Clone, Debug)]
 pub enum BotError {
@@ -288,8 +289,8 @@ pub struct LiveBot<MD> {
     assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
-    last_feed_latency: Vec<Option<i64>>,
-    last_order_latency: Vec<Option<(i64, i64)>>,
+    last_feed_latency: Vec<Option<(i64, i64)>>,
+    last_order_latency: Vec<Option<(i64, i64, i64)>>,
 }
 
 impl<MD> LiveBot<MD>
@@ -331,45 +332,31 @@ where
         loop {
             let timeout = Duration::from_nanos(remaining_duration as u64);
             match self.ev_rx.recv_timeout(timeout) {
-                Ok(LiveEvent::Depth(data)) => {
-                    // fixme: updates the depth only if exch_ts is greater than that of the existing
-                    //        level.
-                    let depth = unsafe { self.depth.get_unchecked_mut(data.asset_no) };
-                    // depth.timestamp = data.exch_ts;
-                    for (px, qty) in data.bids {
-                        depth.update_bid_depth(px, qty, 0);
+                Ok(LiveEvent::L2Feed(asset_no, data)) => {
+                    // todo: updates the depth only if exch_ts is greater than that of the existing
+                    //       level.
+                    for event in data {
+                        *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
+                            Some((event.exch_ts, event.local_ts));
+                        if event.is(LOCAL_BID_DEPTH_EVENT) {
+                            let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                            depth.update_bid_depth(event.px, event.qty, event.exch_ts);
+                        } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
+                            let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                            depth.update_ask_depth(event.px, event.qty, event.exch_ts);
+                        } else if event.is(LOCAL_BUY_TRADE_EVENT)
+                            || event.is(LOCAL_SELL_TRADE_EVENT)
+                        {
+                            let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+                            trade.push(event);
+                        }
                     }
-                    for (px, qty) in data.asks {
-                        depth.update_ask_depth(px, qty, 0);
-                    }
-                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } =
-                        Some(data.exch_ts - data.local_ts);
                     if wait_next_feed {
                         return Ok(true);
                     }
                 }
-                Ok(LiveEvent::Trade(data)) => {
-                    let trade = unsafe { self.trade.get_unchecked_mut(data.asset_no) };
-                    trade.push(Event {
-                        exch_ts: data.exch_ts,
-                        local_ts: data.local_ts,
-                        ev: {
-                            if data.side == 1 {
-                                BUY
-                            } else if data.side == -1 {
-                                SELL
-                            } else {
-                                0
-                            }
-                        },
-                        px: data.price,
-                        qty: data.qty,
-                    });
-                    *unsafe { self.last_feed_latency.get_unchecked_mut(data.asset_no) } =
-                        Some(data.exch_ts - data.local_ts);
-                    if wait_next_feed {
-                        return Ok(true);
-                    }
+                Ok(LiveEvent::L3Feed(asset_no, data)) => {
+                    todo!();
                 }
                 Ok(LiveEvent::Order(data)) => {
                     debug!(?data, "Event::Order");
@@ -382,8 +369,9 @@ where
                         false
                     };
                     *unsafe { self.last_order_latency.get_unchecked_mut(data.asset_no) } = Some((
-                        data.order.exch_timestamp - data.order.local_timestamp,
-                        Utc::now().timestamp_nanos_opt().unwrap() - data.order.local_timestamp,
+                        data.order.local_timestamp,
+                        data.order.exch_timestamp,
+                        Utc::now().timestamp_nanos_opt().unwrap(),
                     ));
                     match self
                         .orders
@@ -703,11 +691,11 @@ where
     }
 
     fn feed_latency(&self, asset_no: usize) -> Option<(i64, i64)> {
-        todo!()
+        *self.last_feed_latency.get(asset_no).unwrap()
     }
 
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
-        todo!()
+        *self.last_order_latency.get(asset_no).unwrap()
     }
 }
 

@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use crate::{
     backtest::BacktestError,
-    depth::{L3MarketDepth, MarketDepth, L3Order, INVALID_MAX, INVALID_MIN},
+    depth::{L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN},
     types::{Side, BUY, SELL},
 };
 
@@ -50,6 +50,7 @@ impl L3MarketDepth for L3MBOMarketDepth {
             side: Side::Buy,
             price_tick,
             qty,
+            timestamp,
         })?;
         let prev_best_tick = self.best_bid_tick;
         if price_tick > self.best_bid_tick {
@@ -71,6 +72,7 @@ impl L3MarketDepth for L3MBOMarketDepth {
             side: Side::Sell,
             price_tick,
             qty,
+            timestamp,
         })?;
         let prev_best_tick = self.best_ask_tick;
         if price_tick < self.best_ask_tick {
@@ -79,7 +81,11 @@ impl L3MarketDepth for L3MBOMarketDepth {
         Ok((prev_best_tick, self.best_ask_tick))
     }
 
-    fn delete_order(&mut self, order_id: i64, timestamp: i64) -> Result<(i64, i32, i32), Self::Error> {
+    fn delete_order(
+        &mut self,
+        order_id: i64,
+        _timestamp: i64,
+    ) -> Result<(i64, i32, i32), Self::Error> {
         let order = self
             .orders
             .remove(&order_id)
@@ -133,6 +139,7 @@ impl L3MarketDepth for L3MBOMarketDepth {
 
                 order.price_tick = price_tick;
                 order.qty = qty;
+                order.timestamp = timestamp;
 
                 *self.bid_depth.entry(order.price_tick).or_insert(0.0) += order.qty;
 
@@ -158,6 +165,7 @@ impl L3MarketDepth for L3MBOMarketDepth {
 
                 order.price_tick = price_tick;
                 order.qty = qty;
+                order.timestamp = timestamp;
 
                 *self.ask_depth.entry(order.price_tick).or_insert(0.0) += order.qty;
 

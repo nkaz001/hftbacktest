@@ -24,7 +24,18 @@ use crate::{
         ordermanager::OrderManager,
     },
     live::Asset,
-    types::{self, Depth, LiveEvent, Order, OrderResponse, Position, Status, BUY, SELL},
+    types::{
+        Event,
+        LiveEvent,
+        Order,
+        OrderResponse,
+        Position,
+        Status,
+        LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_BID_DEPTH_EVENT,
+        LOCAL_BUY_TRADE_EVENT,
+        LOCAL_SELL_TRADE_EVENT,
+    },
 };
 
 fn parse_depth(
@@ -85,18 +96,36 @@ pub async fn connect(
                 // Processes the REST depth.
                 match parse_depth(data.bids, data.asks) {
                     Ok((bids, asks)) => {
-                        let ai = assets
+                        let asset = assets
                             .get(&symbol)
                             .ok_or(BinanceFuturesError::AssetNotFound)?;
-                        ev_tx.send(
-                            LiveEvent::Depth(
-                                Depth {
-                                    asset_no: ai.asset_no,
+                        let mut bid_events: Vec<_> = bids
+                            .iter()
+                            .map(|&(px, qty)| Event {
+                                    ev: LOCAL_BID_DEPTH_EVENT,
                                     exch_ts: data.transaction_time * 1_000_000,
                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                                    bids,
-                                    asks,
-                                }
+                                    px,
+                                    qty,
+                                })
+                            .collect();
+                        let mut ask_events: Vec<_> = asks
+                            .iter()
+                            .map(|&(px, qty)| Event {
+                                    ev: LOCAL_ASK_DEPTH_EVENT,
+                                    exch_ts: data.transaction_time * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    px,
+                                    qty,
+                                })
+                            .collect();
+                        let mut events = Vec::new();
+                        events.append(&mut bid_events);
+                        events.append(&mut ask_events);
+                        ev_tx.send(
+                            LiveEvent::L2Feed(
+                                asset.asset_no,
+                                events
                             )
                         ).unwrap();
                     }
@@ -188,15 +217,33 @@ pub async fn connect(
                                         let asset_info = assets
                                             .get(&data.symbol)
                                             .ok_or(BinanceFuturesError::AssetNotFound)?;
-                                        ev_tx.send(
-                                            LiveEvent::Depth(
-                                                Depth {
-                                                    asset_no: asset_info.asset_no,
+                                        let mut bid_events: Vec<_> = bids
+                                            .iter()
+                                            .map(|&(px, qty)| Event {
+                                                    ev: LOCAL_BID_DEPTH_EVENT,
                                                     exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                                                    bids,
-                                                    asks,
-                                                }
+                                                    px,
+                                                    qty,
+                                                })
+                                            .collect();
+                                        let mut ask_events: Vec<_> = asks
+                                            .iter()
+                                            .map(|&(px, qty)| Event {
+                                                    ev: LOCAL_ASK_DEPTH_EVENT,
+                                                    exch_ts: data.transaction_time * 1_000_000,
+                                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                                    px,
+                                                    qty,
+                                                })
+                                            .collect();
+                                        let mut events = Vec::new();
+                                        events.append(&mut bid_events);
+                                        events.append(&mut ask_events);
+                                        ev_tx.send(
+                                            LiveEvent::L2Feed(
+                                                asset_info.asset_no,
+                                                events
                                             )
                                         ).unwrap();
                                     }
@@ -207,26 +254,26 @@ pub async fn connect(
                             }
                             Data::Trade(data) => {
                                 match parse_px_qty_tup(data.price, data.qty) {
-                                    Ok((price, qty)) => {
+                                    Ok((px, qty)) => {
                                         let asset_info = assets
                                             .get(&data.symbol)
                                         .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
-                                            LiveEvent::Trade(
-                                                types::Trade {
-                                                    asset_no: asset_info.asset_no,
-                                                    exch_ts: data.transaction_time * 1_000_000,
-                                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                                                    side: {
+                                            LiveEvent::L2Feed(
+                                                asset_info.asset_no,
+                                                vec![Event {
+                                                    ev: {
                                                         if data.is_the_buyer_the_market_maker {
-                                                            SELL as i8
+                                                            LOCAL_SELL_TRADE_EVENT
                                                         } else {
-                                                            BUY as i8
+                                                            LOCAL_BUY_TRADE_EVENT
                                                         }
                                                     },
-                                                    price,
+                                                    exch_ts: data.transaction_time * 1_000_000,
+                                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                                    px,
                                                     qty,
-                                                }
+                                                }]
                                             )
                                         ).unwrap();
                                     }

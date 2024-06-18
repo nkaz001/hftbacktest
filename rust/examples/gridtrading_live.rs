@@ -2,7 +2,7 @@ use algo::gridtrading;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, Endpoint},
     live::{LiveBot, LoggingRecorder},
-    prelude::{HashMapMarketDepth, Bot},
+    prelude::{Bot, HashMapMarketDepth},
 };
 
 mod algo;

@@ -3,9 +3,9 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::reader::Data,
+    prelude::L2MarketDepth,
     types::{Event, BUY, SELL},
 };
-use crate::prelude::L2MarketDepth;
 
 /// L2 Market depth implementation based on a hash map.
 ///

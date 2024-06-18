@@ -262,7 +262,7 @@ impl Connector for BinanceFutures {
 
                 // Cancel all orders before connecting to the stream in order to start with the
                 // clean state.
-                for (symbol, asset) in assets.iter() {
+                for (symbol, _) in assets.iter() {
                     if let Err(error) = client.cancel_all_orders(symbol).await {
                         error!(?error, %symbol, "Couldn't cancel all open orders.");
                         ev_tx
@@ -283,6 +283,7 @@ impl Connector for BinanceFutures {
                 }
 
                 // Fetches the initial states such as positions and open orders.
+                // todo: it may need to clear the holding position information first.
                 match client.get_position_information().await {
                     Ok(positions) => {
                         positions.into_iter().for_each(|position| {

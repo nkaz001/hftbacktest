@@ -3,8 +3,7 @@ use std::collections::HashMap;
 pub use btreemarketdepth::BTreeMarketDepth;
 pub use hashmapmarketdepth::HashMapMarketDepth;
 
-use crate::backtest::reader::Data;
-use crate::prelude::Side;
+use crate::{backtest::reader::Data, prelude::Side};
 
 mod btreemarketdepth;
 mod hashmapmarketdepth;
@@ -92,11 +91,12 @@ pub struct L3Order {
     pub side: Side,
     pub price_tick: i32,
     pub qty: f32,
+    pub timestamp: i64,
 }
 
 /// Provides Level3-specific market depth functions.
 #[cfg(feature = "unstable_l3")]
-pub trait L3MarketDepth : MarketDepth {
+pub trait L3MarketDepth: MarketDepth {
     type Error;
 
     /// Adds a buy order to the order book and returns a tuple containing (the previous best bid
@@ -123,7 +123,7 @@ pub trait L3MarketDepth : MarketDepth {
     fn delete_order(
         &mut self,
         order_id: i64,
-        timestamp: i64
+        timestamp: i64,
     ) -> Result<(i64, i32, i32), Self::Error>;
 
     /// Modifies the order in the order book and returns a tuple containing (side, the previous best

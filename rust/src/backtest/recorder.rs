@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     depth::MarketDepth,
-    types::{BotTypedDepth, Bot, Recorder},
+    types::{Bot, BotTypedDepth, Recorder},
 };
 
 /// Provides recording of the backtesting strategy's state values, which are needed to compute

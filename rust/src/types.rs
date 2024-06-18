@@ -60,8 +60,8 @@ impl Error {
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
-    Depth(Depth),
-    Trade(Trade),
+    L2Feed(usize, Vec<Event>),
+    L3Feed(usize, L3Event),
     Order(OrderResponse),
     Position(Position),
     Error(Error),
@@ -243,7 +243,6 @@ impl Event {
 }
 
 /// Exchange Level3 Market-By-Order event data.
-#[cfg(feature = "unstable_l3")]
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(64))]
 pub struct L3Event {
@@ -262,7 +261,6 @@ pub struct L3Event {
     pub _reserved: [i64; 3],
 }
 
-#[cfg(feature = "unstable_l3")]
 impl L3Event {
     /// Checks if this `L3Event` corresponds to the given event.
     #[inline(always)]
@@ -278,40 +276,6 @@ impl L3Event {
             }
         }
     }
-}
-
-/// Market depth feed
-#[derive(Clone, PartialEq, Debug)]
-pub struct Depth {
-    /// Corresponding asset number
-    pub asset_no: usize,
-    /// Exchange timestamp
-    pub exch_ts: i64,
-    /// Local(Receipt) timestamp
-    pub local_ts: i64,
-    /// Market depth on the bid side consists of a list of tuples, each containing price and
-    /// quantity.
-    pub bids: Vec<(f32, f32)>,
-    /// Market depth on the ask side consists of a list of tuples, each containing price and
-    /// quantity.
-    pub asks: Vec<(f32, f32)>,
-}
-
-/// Market trade feed
-#[derive(Clone, PartialEq, Debug)]
-pub struct Trade {
-    /// Corresponding asset number
-    pub asset_no: usize,
-    /// Exchange timestamp
-    pub exch_ts: i64,
-    /// Local(Receipt) timestamp
-    pub local_ts: i64,
-    /// Trade initiator's side
-    pub side: i8,
-    /// Price
-    pub price: f32,
-    /// Quantity
-    pub qty: f32,
 }
 
 /// Holding position

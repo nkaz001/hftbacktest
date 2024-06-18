@@ -12,10 +12,9 @@ use crate::{
         reader::{Cache, Data, Reader},
         state::State,
     },
-    depth::MarketDepth,
+    depth::{L2MarketDepth, MarketDepth},
     types::{BuildError, Event},
 };
-use crate::depth::L2MarketDepth;
 
 /// Provides asset types.
 pub mod assettype;

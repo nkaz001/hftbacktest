@@ -53,7 +53,7 @@ where
     MD: MarketDepth,
 {
     fn new_order(&self, order: &mut Order, depth: &MD) {
-        let mut front_q_qty: f32;
+        let front_q_qty: f32;
         if order.side == Side::Buy {
             front_q_qty = depth.bid_qty_at_tick(order.price_tick);
         } else {
@@ -372,11 +372,7 @@ impl L3QueueModel {
             ask_priority: Default::default(),
         }
     }
-    pub fn add_order(
-        &mut self,
-        order_id: L3OrderId,
-        mut order: Order,
-    ) -> Result<(), BacktestError> {
+    pub fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), BacktestError> {
         let order_price_tick = order.price_tick;
         let side = order.side;
 
@@ -445,11 +441,7 @@ impl L3QueueModel {
         }
     }
 
-    pub fn modify_order(
-        &mut self,
-        order_id: L3OrderId,
-        mut order: Order,
-    ) -> Result<(), BacktestError> {
+    pub fn modify_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), BacktestError> {
         let (side, order_price_tick) = self
             .orders
             .get(&order_id)

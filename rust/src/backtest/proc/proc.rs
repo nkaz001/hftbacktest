@@ -1,14 +1,13 @@
-use std::any::Any;
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 use crate::{
     backtest::BacktestError,
     depth::MarketDepth,
-    types::{Event, OrdType, Order, Side, StateValues, TimeInForce},
+    types::{OrdType, Order, Side, StateValues, TimeInForce},
 };
 
 /// Provides local-specific interaction.
-pub trait LocalProcessor<MD, EventT> : Processor
+pub trait LocalProcessor<MD, EventT>: Processor
 where
     MD: MarketDepth,
 {
@@ -98,7 +97,7 @@ pub trait Processor {
     fn earliest_send_order_timestamp(&self) -> i64;
 }
 
-pub trait GenLocalProcessor : Processor {
+pub trait GenLocalProcessor: Processor {
     /// Submits a new order.
     ///
     /// * `order_id` - The unique order ID; there should not be any existing order with the same ID

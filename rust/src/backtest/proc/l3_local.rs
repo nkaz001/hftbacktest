@@ -15,7 +15,6 @@ use crate::{
     },
     depth::L3MarketDepth,
     types::{
-        Event,
         L3Event,
         OrdType,
         Order,

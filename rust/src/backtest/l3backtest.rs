@@ -1,19 +1,33 @@
-use std::any::Any;
-use std::collections::HashMap;
-use std::marker::PhantomData;
+use std::{any::Any, collections::HashMap, marker::PhantomData};
 
-use crate::backtest::BacktestError;
-use crate::backtest::evs::{EventSet, EventType};
-use crate::backtest::proc::{GenLocalProcessor, LocalProcessor, Processor};
-use crate::depth::{L3MarketDepth, MarketDepth};
-use crate::prelude::{BotTypedDepth, BotTypedTrade, Bot, Order, OrderRequest, OrdType, Side, StateValues, TimeInForce, UNTIL_END_OF_DATA, WAIT_ORDER_RESPONSE_NONE};
-use crate::types::L3Event;
+use crate::{
+    backtest::{
+        evs::{EventSet, EventType},
+        proc::{GenLocalProcessor, LocalProcessor, Processor},
+        BacktestError,
+    },
+    depth::{L3MarketDepth, MarketDepth},
+    prelude::{
+        Bot,
+        BotTypedDepth,
+        BotTypedTrade,
+        OrdType,
+        Order,
+        OrderRequest,
+        Side,
+        StateValues,
+        TimeInForce,
+        UNTIL_END_OF_DATA,
+        WAIT_ORDER_RESPONSE_NONE,
+    },
+    types::L3Event,
+};
 
 pub struct L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
-    where
-        MD: L3MarketDepth,
-        Local: LocalProcessor<MD, L3Event>,
-        Exchange: Processor
+where
+    MD: L3MarketDepth,
+    Local: LocalProcessor<MD, L3Event>,
+    Exchange: Processor,
 {
     cur_ts: i64,
     evs: EventSet,
@@ -23,10 +37,10 @@ pub struct L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 }
 
 impl<MD, Local, Exchange> L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
-    where
-        MD: L3MarketDepth,
-        Local: LocalProcessor<MD, L3Event>,
-        Exchange: Processor
+where
+    MD: L3MarketDepth,
+    Local: LocalProcessor<MD, L3Event>,
+    Exchange: Processor,
 {
     pub fn new(local: Vec<Local>, exch: Vec<Exchange>) -> Self {
         let num_assets = local.len();
@@ -149,10 +163,10 @@ impl<MD, Local, Exchange> L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange
 }
 
 impl<MD, Local, Exchange> Bot for L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
-    where
-        MD: L3MarketDepth,
-        Local: LocalProcessor<MD, L3Event>,
-        Exchange: Processor
+where
+    MD: L3MarketDepth,
+    Local: LocalProcessor<MD, L3Event>,
+    Exchange: Processor,
 {
     type Error = BacktestError;
 
@@ -460,11 +474,12 @@ impl<MD, Local, Exchange> Bot for L3MultiAssetSingleExchangeBacktest<MD, Local, 
     }
 }
 
-impl<MD, Local, Exchange> BotTypedDepth<MD> for L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
-    where
-        MD: L3MarketDepth,
-        Local: LocalProcessor<MD, L3Event>,
-        Exchange: Processor,
+impl<MD, Local, Exchange> BotTypedDepth<MD>
+    for L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+where
+    MD: L3MarketDepth,
+    Local: LocalProcessor<MD, L3Event>,
+    Exchange: Processor,
 {
     #[inline]
     fn depth_typed(&self, asset_no: usize) -> &MD {
@@ -472,11 +487,12 @@ impl<MD, Local, Exchange> BotTypedDepth<MD> for L3MultiAssetSingleExchangeBackte
     }
 }
 
-impl<MD, Local, Exchange> BotTypedTrade<L3Event> for L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
-    where
-        MD: L3MarketDepth,
-        Local: LocalProcessor<MD, L3Event>,
-        Exchange: Processor,
+impl<MD, Local, Exchange> BotTypedTrade<L3Event>
+    for L3MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+where
+    MD: L3MarketDepth,
+    Local: LocalProcessor<MD, L3Event>,
+    Exchange: Processor,
 {
     #[inline]
     fn trade_typed(&self, asset_no: usize) -> &Vec<L3Event> {

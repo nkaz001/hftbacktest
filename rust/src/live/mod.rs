@@ -1,7 +1,7 @@
 mod bot;
 mod recorder;
 
-pub use bot::{LiveBot, BotBuilder, BotError};
+pub use bot::{BotBuilder, BotError, LiveBot};
 pub use recorder::LoggingRecorder;
 
 /// Provides asset information for internal use.

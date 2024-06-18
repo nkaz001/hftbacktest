@@ -10,10 +10,10 @@ use crate::{
     depth::{HashMapMarketDepth, MarketDepth},
     prelude::{BotTypedDepth, OrderRequest},
     types::{
+        Bot,
         BotTypedTrade,
         BuildError,
         Event,
-        Bot,
         OrdType,
         Order,
         Side,
@@ -22,11 +22,6 @@ use crate::{
         UNTIL_END_OF_DATA,
         WAIT_ORDER_RESPONSE_NONE,
     },
-};
-#[cfg(feature = "unstable_l3")]
-use crate::{
-    backtest::proc::GenLocalProcessor,
-    depth::L3MarketDepth
 };
 
 /// [`MultiAssetMultiExchangeBacktest`] builder.
@@ -80,7 +75,10 @@ where
         }
     }
 
-    pub fn new(local: Vec<Box<dyn LocalProcessor<MD, Event>>>, exch: Vec<Box<dyn Processor>>) -> Self {
+    pub fn new(
+        local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
+        exch: Vec<Box<dyn Processor>>,
+    ) -> Self {
         let num_assets = local.len();
         if local.len() != num_assets || exch.len() != num_assets {
             panic!();
@@ -1030,7 +1028,8 @@ where
     }
 }
 
-impl<MD, Local, Exchange> BotTypedDepth<MD> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+impl<MD, Local, Exchange> BotTypedDepth<MD>
+    for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
     Local: LocalProcessor<MD, Event>,
@@ -1042,7 +1041,8 @@ where
     }
 }
 
-impl<MD, Local, Exchange> BotTypedTrade<Event> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+impl<MD, Local, Exchange> BotTypedTrade<Event>
+    for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
     Local: LocalProcessor<MD, Event>,
