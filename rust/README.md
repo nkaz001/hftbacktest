@@ -51,7 +51,7 @@ For the Rust implementation, please see [document here](https://docs.rs/hftbackt
 
 ## Roadmap
 
-Please see [ROADMAP](https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>).
+Please see [ROADMAP](https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md).
 
 ## Contributing
 
@@ -60,4 +60,4 @@ idea for an enhancement or a bug fix, please open an issue or discussion on GitH
 
 The following items are examples of contributions you can make to this project:
 
-Please see [ROADMAP](https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>).
+Please see [ROADMAP](https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md).
