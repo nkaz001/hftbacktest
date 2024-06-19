@@ -2,7 +2,7 @@
 HftBacktest
 ===========
 
-|codacy| |codeql| |python| |pypi| |downloads| |license| |docs| |github|
+|codacy| |codeql| |python| |pypi| |downloads| |crates| |license| |docs| |roadmap| |github|
 
 High-Frequency Trading Backtesting Tool
 =======================================
@@ -166,7 +166,7 @@ The imminent task is to integrate hftbacktest in Python with hftbacktest in Rust
 Meanwhile, the data format, which is currently different, needs to be unified.
 On the pure Python side, the performance reporting tool should be improved to provide more performance metrics with increased speed.
 
-For the roadmap of the Rust implementation, please see the hftbacktest in Rust's README.
+Please see `ROADMAP <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
 
 Contributing
 ============
@@ -176,12 +176,7 @@ idea for an enhancement or a bug fix, please open an issue or discussion on GitH
 
 The following items are examples of contributions you can make to this project:
 
-* GitHub workflow.
-* Improve performance statistics reporting
-* Implement test code
-* Update documentation and examples
-* Implement a live bot connector
-* Add additional queue or exchange models
+Please see `ROADMAP <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
 
 .. |python| image:: https://shields.io/badge/python-3.10-blue
     :alt: Python Version
@@ -203,6 +198,10 @@ The following items are examples of contributions you can make to this project:
     :alt: Downloads
     :target: https://pepy.tech/project/hftbacktest
 
+.. |crates| image:: https://img.shields.io/crates/v/hftbacktest.svg
+    :alt: Rust crates.io version
+    :target: https://crates.io/crates/hftbacktest
+
 .. |license| image:: https://img.shields.io/badge/License-MIT-green.svg
     :alt: License
     :target: https://github.com/nkaz001/hftbacktest/blob/master/LICENSE
@@ -210,6 +209,10 @@ The following items are examples of contributions you can make to this project:
 .. |docs| image:: https://readthedocs.org/projects/hftbacktest/badge/?version=latest
     :target: https://hftbacktest.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+
+.. |roadmap| image:: https://img.shields.io/badge/Roadmap-gray
+    :target: https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md
+    :alt: Roadmap
 
 .. |github| image:: https://img.shields.io/github/stars/nkaz001/hftbacktest?style=social
     :target: https://github.com/nkaz001/hftbacktest

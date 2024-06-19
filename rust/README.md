@@ -51,13 +51,7 @@ For the Rust implementation, please see [document here](https://docs.rs/hftbackt
 
 ## Roadmap
 
-The following features are planned to be developed after API stabilization:
-
-* Backtesting and live support for L3 feeds (Market-By-Order).
-* Support for external connectors through sockets and/or IPC for multiple bots via a unified connection.
-* Addition of more connectors, including DataBento.
-* Implementing data fusion to obtain the finest granularity and up-to-date market depth information from various
-  conflated market depth streams.
+Please see `ROADMAP <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
 
 ## Contributing
 
@@ -66,8 +60,4 @@ idea for an enhancement or a bug fix, please open an issue or discussion on GitH
 
 The following items are examples of contributions you can make to this project:
 
-* Improve performance statistics reporting
-* Implement test code
-* Add additional queue or exchange models
-* Update documentation and examples
-* Implement a live bot connector
+Please see `ROADMAP <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
