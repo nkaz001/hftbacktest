@@ -82,7 +82,6 @@ pub trait ApplySnapshot<EventT> {
 }
 
 /// Level3 order from the market feed.
-#[cfg(feature = "unstable_l3")]
 #[derive(Debug)]
 pub struct L3Order {
     pub order_id: i64,
@@ -93,7 +92,6 @@ pub struct L3Order {
 }
 
 /// Provides Level3-specific market depth functions.
-#[cfg(feature = "unstable_l3")]
 pub trait L3MarketDepth: MarketDepth {
     type Error;
 
