@@ -156,7 +156,7 @@ Tutorials
 Examples
 ========
 
-You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory.
+You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/tree/master/rust/examples>`_.
 
 Roadmap
 =======
@@ -166,7 +166,7 @@ The imminent task is to integrate hftbacktest in Python with hftbacktest in Rust
 Meanwhile, the data format, which is currently different, needs to be unified.
 On the pure Python side, the performance reporting tool should be improved to provide more performance metrics with increased speed.
 
-Please see `ROADMAP <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
+Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
 
 Contributing
 ============
@@ -176,7 +176,7 @@ idea for an enhancement or a bug fix, please open an issue or discussion on GitH
 
 The following items are examples of contributions you can make to this project:
 
-Please see `ROADMAP <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
+Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
 
 .. |python| image:: https://shields.io/badge/python-3.10-blue
     :alt: Python Version
