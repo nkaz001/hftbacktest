@@ -8,6 +8,7 @@ pub fn gridtrading<MD, I, R>(
     relative_half_spread: f64,
     relative_grid_interval: f64,
     grid_num: usize,
+    min_grid_step: f64,
     skew: f64,
     order_qty: f64,
     max_position: f64,
@@ -20,6 +21,8 @@ where
     <R as Recorder>::Error: Debug,
 {
     let tick_size = hbt.depth(0).tick_size() as f64;
+    // min_grid_step should be in multiples of tick_size.
+    let min_grid_step = (min_grid_step / tick_size).round() * tick_size;
     let mut int = 0;
     // Running interval in nanoseconds
     while hbt.elapse(100_000_000).unwrap() {
@@ -51,9 +54,11 @@ where
         let ask_price =
             (forecast_mid_price * (1.0 + relative_ask_depth)).max(depth.best_ask() as f64);
 
-        let grid_interval = ((forecast_mid_price * relative_grid_interval / tick_size).round()
-            * tick_size)
-            .max(tick_size);
+        // min_grid_step enforces grid interval changes to be no less than min_grid_step, which
+        // stabilizes the grid_interval and keeps the orders on the grid more stable.
+        let grid_interval = ((forecast_mid_price * relative_grid_interval / min_grid_step).round()
+            * min_grid_step)
+            .max(min_grid_step);
 
         let mut bid_price = (bid_price / grid_interval).floor() * grid_interval;
         let mut ask_price = (ask_price / grid_interval).ceil() * grid_interval;

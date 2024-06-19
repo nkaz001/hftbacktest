@@ -42,6 +42,8 @@ struct Args {
     #[arg(long)]
     grid_num: usize,
     #[arg(long)]
+    min_grid_step: Option<f64>,
+    #[arg(long)]
     order_qty: f64,
     #[arg(long)]
     max_position: f64,
@@ -121,6 +123,7 @@ fn main() {
         args.relative_half_spread,
         args.relative_grid_interval,
         args.grid_num,
+        args.min_grid_step.unwrap_or(args.tick_size as f64),
         args.skew,
         args.order_qty,
         args.max_position,
