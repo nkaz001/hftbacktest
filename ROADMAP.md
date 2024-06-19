@@ -28,7 +28,7 @@ Currently, the Rust implementation is being more actively developed especially f
 ### Others
 * [ ] Support Level 3 Market-By-Order for Live Bot.
 * [ ] Support external connectors through IPC for multiple bots via a unified connection.  
-[<img src="https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
+[<img src="https://raw.githubusercontent.com/nkaz001/hftbacktest/master/docs/images/arch.png">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
 * [ ] Telegram bot integration.
 * [ ] Increase documentation and test coverage.
 * [ ] Github workflow.
