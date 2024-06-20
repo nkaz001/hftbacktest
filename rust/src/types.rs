@@ -258,7 +258,9 @@ pub struct L3Event {
     pub px: f32,
     /// Quantity
     pub qty: f32,
-    pub _reserved: [i64; 3],
+    /// Priority, which is required when the order book needs to be recovered from the snapshot.
+    pub priority: u64,
+    pub _reserved: [i64; 2],
 }
 
 impl L3Event {
