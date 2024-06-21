@@ -355,7 +355,20 @@ impl L3OrderId {
 }
 
 #[cfg(feature = "unstable_l3")]
-pub struct L3QueueModel {
+pub trait L3QueueModel {
+    type Error;
+
+    fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error>;
+
+    fn cancel_order(&mut self, order_id: L3OrderId) -> Result<Order, Self::Error>;
+
+    fn modify_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error>;
+
+    fn fill(&mut self, order_id: L3OrderId, delete: bool) -> Result<Vec<Order>, Self::Error>;
+}
+
+#[cfg(feature = "unstable_l3")]
+pub struct L3PriceTimePriorityQueueModel {
     pub orders: HashMap<L3OrderId, (Side, i32)>,
     // Since LinkedList's cursor is still unstable, there is no efficient way to delete an item in a
     // linked list, so it is better to use a vector.
@@ -364,7 +377,7 @@ pub struct L3QueueModel {
 }
 
 #[cfg(feature = "unstable_l3")]
-impl L3QueueModel {
+impl L3PriceTimePriorityQueueModel {
     pub fn new() -> Self {
         Self {
             orders: Default::default(),
@@ -372,7 +385,13 @@ impl L3QueueModel {
             ask_priority: Default::default(),
         }
     }
-    pub fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), BacktestError> {
+}
+
+#[cfg(feature = "unstable_l3")]
+impl L3QueueModel for L3PriceTimePriorityQueueModel {
+    type Error = BacktestError;
+
+    fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error> {
         let order_price_tick = order.price_tick;
         let side = order.side;
 
@@ -398,7 +417,7 @@ impl L3QueueModel {
         }
     }
 
-    pub fn cancel_order(&mut self, order_id: L3OrderId) -> Result<Order, BacktestError> {
+    fn cancel_order(&mut self, order_id: L3OrderId) -> Result<Order, Self::Error> {
         let (side, order_price_tick) = self
             .orders
             .remove(&order_id)
@@ -441,7 +460,7 @@ impl L3QueueModel {
         }
     }
 
-    pub fn modify_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), BacktestError> {
+    fn modify_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error> {
         let (side, order_price_tick) = self
             .orders
             .get(&order_id)
@@ -526,7 +545,7 @@ impl L3QueueModel {
         Ok(())
     }
 
-    pub fn fill(&mut self, order_id: L3OrderId, delete: bool) -> Result<Vec<Order>, BacktestError> {
+    fn fill(&mut self, order_id: L3OrderId, delete: bool) -> Result<Vec<Order>, Self::Error> {
         let (side, order_price_tick) = self
             .orders
             .remove(&order_id)

@@ -22,7 +22,7 @@ struct OrderWrapper {
     removed_by_rest: bool,
 }
 
-pub type WrappedOrderManager = Arc<Mutex<OrderManager>>;
+pub type OrderManagerWrapper = Arc<Mutex<OrderManager>>;
 
 /// Binance has separated channels for REST APIs and Websocket. Order responses are delivered
 /// through these channels, with no guaranteed order of transmission. To prevent duplicate handling

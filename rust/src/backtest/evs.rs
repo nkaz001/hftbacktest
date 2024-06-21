@@ -5,17 +5,17 @@ use std::{
 
 #[derive(Clone, Copy)]
 #[repr(C, align(32))]
-pub(crate) struct Event {
+pub struct EventIntent {
     pub timestamp: i64,
     pub asset_no: usize,
-    pub ty: EventType,
+    pub kind: EventIntentKind,
 }
 
-// This is constructed by using transmute in `EventSet::next`.
+/// This is constructed by using transmute in `EventSet::next`.
 #[allow(dead_code)]
 #[derive(Eq, PartialEq, Clone, Copy)]
 #[repr(usize)]
-pub enum EventType {
+pub enum EventIntentKind {
     LocalData = 0,
     LocalOrder = 1,
     ExchData = 2,
@@ -65,7 +65,7 @@ impl EventSet {
     }
 
     /// Returns the next event to be processed, which has the earliest timestamp.
-    pub fn next(&self) -> Option<Event> {
+    pub fn next(&self) -> Option<EventIntent> {
         if self.invalid == self.num_assets {
             return None;
         }
@@ -79,10 +79,10 @@ impl EventSet {
         }
         let asset_no = evst_no >> 2;
         let ty = unsafe { mem::transmute(evst_no & 3) };
-        Some(Event {
+        Some(EventIntent {
             timestamp,
             asset_no,
-            ty,
+            kind: ty,
         })
     }
 

@@ -15,14 +15,14 @@ use tracing::{debug, error, warn};
 use crate::{
     connector::{
         binancefutures::{
-            ordermanager::{OrderManager, WrappedOrderManager},
+            ordermanager::{OrderManager, OrderManagerWrapper},
             rest::BinanceFuturesClient,
             ws::connect,
         },
         Connector,
     },
     live::Asset,
-    types::{BuildError, Error, ErrorKind, LiveEvent, Order, OrderResponse, Position, Status},
+    types::{BuildError, Error, ErrorKind, LiveEvent, Order, Status},
     util::get_precision,
 };
 
@@ -173,7 +173,7 @@ impl BinanceFuturesBuilder {
             return Err(BuildError::BuilderIncomplete("secret"));
         }
 
-        let order_manager: WrappedOrderManager =
+        let order_manager: OrderManagerWrapper =
             Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
         Ok(BinanceFutures {
             url: self.stream_url.to_string(),
@@ -193,7 +193,7 @@ pub struct BinanceFutures {
     prefix: String,
     assets: HashMap<String, Asset>,
     inv_assets: HashMap<usize, Asset>,
-    order_manager: WrappedOrderManager,
+    order_manager: OrderManagerWrapper,
     client: BinanceFuturesClient,
     streams: HashSet<String>,
 }
@@ -213,7 +213,7 @@ impl BinanceFutures {
 
     /// Constructs an instance of `BinanceFutures`.
     pub fn new(stream_url: &str, api_url: &str, prefix: &str, api_key: &str, secret: &str) -> Self {
-        let order_manager: WrappedOrderManager = Arc::new(Mutex::new(OrderManager::new(prefix)));
+        let order_manager: OrderManagerWrapper = Arc::new(Mutex::new(OrderManager::new(prefix)));
         Self {
             url: stream_url.to_string(),
             prefix: prefix.to_string(),
@@ -276,9 +276,7 @@ impl Connector for BinanceFutures {
                     let mut order_manager_ = order_manager.lock().unwrap();
                     let orders = order_manager_.clear_orders();
                     for (asset_no, order) in orders {
-                        ev_tx
-                            .send(LiveEvent::Order(OrderResponse { asset_no, order }))
-                            .unwrap();
+                        ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                     }
                 }
 
@@ -290,11 +288,10 @@ impl Connector for BinanceFutures {
                         positions.into_iter().for_each(|position| {
                             assets.get(&position.symbol).map(|asset_info| {
                                 ev_tx
-                                    .send(LiveEvent::Position(Position {
+                                    .send(LiveEvent::Position {
                                         asset_no: asset_info.asset_no,
-                                        symbol: position.symbol,
                                         qty: position.position_amount,
-                                    }))
+                                    })
                                     .unwrap();
                             });
                         });
@@ -410,8 +407,7 @@ impl Connector for BinanceFutures {
                                 .unwrap()
                                 .update_submit_success(asset_no, order, resp);
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
-                                    .unwrap();
+                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                             }
                         }
                         Err(error) => {
@@ -422,8 +418,7 @@ impl Connector for BinanceFutures {
                                 client_order_id,
                             );
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
-                                    .unwrap();
+                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                             }
 
                             tx.send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
@@ -439,8 +434,7 @@ impl Connector for BinanceFutures {
                     );
                     order.req = Status::None;
                     order.status = Status::Expired;
-                    tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
-                        .unwrap();
+                    tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                 }
             }
         });
@@ -472,8 +466,7 @@ impl Connector for BinanceFutures {
                                 .unwrap()
                                 .update_cancel_success(asset_no, order, resp);
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
-                                    .unwrap();
+                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                             }
                         }
                         Err(error) => {
@@ -484,8 +477,7 @@ impl Connector for BinanceFutures {
                                 client_order_id,
                             );
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order(OrderResponse { asset_no, order }))
-                                    .unwrap();
+                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                             }
 
                             tx.send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))

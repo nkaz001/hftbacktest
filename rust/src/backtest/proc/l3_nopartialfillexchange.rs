@@ -3,7 +3,13 @@ use std::mem;
 use crate::{
     backtest::{
         assettype::AssetType,
-        models::{L3OrderId, L3OrderSource, L3QueueModel, LatencyModel},
+        models::{
+            L3OrderId,
+            L3OrderSource,
+            L3PriceTimePriorityQueueModel,
+            L3QueueModel,
+            LatencyModel,
+        },
         order::OrderBus,
         proc::proc::Processor,
         reader::{Data, Reader},
@@ -70,7 +76,7 @@ where
     depth: MD,
     state: State<AT>,
     order_latency: LM,
-    queue_model: L3QueueModel,
+    queue_model: L3PriceTimePriorityQueueModel,
 }
 
 impl<AT, LM, MD> L3NoPartialFillExchange<AT, LM, MD>
@@ -98,7 +104,7 @@ where
             depth,
             state,
             order_latency,
-            queue_model: L3QueueModel::new(),
+            queue_model: L3PriceTimePriorityQueueModel::new(),
         }
     }
 

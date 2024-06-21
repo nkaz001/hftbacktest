@@ -72,7 +72,7 @@ async fn thread_main(
         select! {
             req = req_rx.recv() => {
                 match req {
-                    Some(Request::Order((asset_no, order))) => {
+                    Some(Request::Order { asset_no, order }) => {
                         if let Some((connector_name, _)) = mapping.get(asset_no) {
                             let conn_ = conns.get_mut(connector_name).unwrap();
                             let ev_tx_ = ev_tx.clone();
@@ -115,7 +115,7 @@ pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
 /// Live [`LiveBot`] builder.
-pub struct BotBuilder<MD> {
+pub struct LiveBotBuilder<MD> {
     conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
@@ -123,7 +123,7 @@ pub struct BotBuilder<MD> {
     depth_builder: Option<Box<dyn FnMut(&Asset) -> MD>>,
 }
 
-impl<MD> BotBuilder<MD> {
+impl<MD> LiveBotBuilder<MD> {
     /// Registers a [`Connector`] with a specified name.
     /// The specified name for this connector is used when using [`add()`](`BotBuilder::add()`) to
     /// add an asset for trading through this connector.
@@ -298,8 +298,8 @@ where
     MD: MarketDepth + L2MarketDepth,
 {
     /// Builder to construct [`LiveBot`] instances.
-    pub fn builder() -> BotBuilder<MD> {
-        BotBuilder {
+    pub fn builder() -> LiveBotBuilder<MD> {
+        LiveBotBuilder {
             conns: HashMap::new(),
             assets: Vec::new(),
             error_handler: None,
@@ -332,10 +332,10 @@ where
         loop {
             let timeout = Duration::from_nanos(remaining_duration as u64);
             match self.ev_rx.recv_timeout(timeout) {
-                Ok(LiveEvent::L2Feed(asset_no, data)) => {
+                Ok(LiveEvent::L2Feed { asset_no, events }) => {
                     // todo: updates the depth only if exch_ts is greater than that of the existing
                     //       level.
-                    for event in data {
+                    for event in events {
                         *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
                             Some((event.exch_ts, event.local_ts));
                         if event.is(LOCAL_BID_DEPTH_EVENT) {
@@ -355,61 +355,62 @@ where
                         return Ok(true);
                     }
                 }
-                Ok(LiveEvent::L3Feed(asset_no, data)) => {
+                Ok(LiveEvent::L3Feed { asset_no, event }) => {
                     todo!();
                 }
-                Ok(LiveEvent::Order(data)) => {
-                    debug!(?data, "Event::Order");
-                    let received_order_resp = if wait_order_response.0 == data.asset_no
-                        && (wait_order_response.1 == data.order.order_id
+                Ok(LiveEvent::Order { asset_no, order }) => {
+                    debug!(%asset_no, ?order, "Event::Order");
+                    let received_order_resp = if wait_order_response.0 == asset_no
+                        && (wait_order_response.1 == order.order_id
                             || wait_order_response.1 == WAIT_ORDER_RESPONSE_ANY)
                     {
                         true
                     } else {
                         false
                     };
-                    *unsafe { self.last_order_latency.get_unchecked_mut(data.asset_no) } = Some((
-                        data.order.local_timestamp,
-                        data.order.exch_timestamp,
+                    *unsafe { self.last_order_latency.get_unchecked_mut(asset_no) } = Some((
+                        order.local_timestamp,
+                        order.exch_timestamp,
                         Utc::now().timestamp_nanos_opt().unwrap(),
                     ));
                     match self
                         .orders
-                        .get_mut(data.asset_no)
+                        .get_mut(asset_no)
                         .ok_or(BotError::AssetNotFound)?
-                        .entry(data.order.order_id)
+                        .entry(order.order_id)
                     {
                         Entry::Occupied(mut entry) => {
                             let ex_order = entry.get_mut();
                             if let Some(hook) = self.order_hook.as_mut() {
-                                hook(ex_order, &data.order)?;
+                                hook(ex_order, &order)?;
                             }
-                            if data.order.exch_timestamp >= ex_order.exch_timestamp {
+                            if order.exch_timestamp >= ex_order.exch_timestamp {
                                 if ex_order.status == Status::Canceled
                                     || ex_order.status == Status::Expired
                                     || ex_order.status == Status::Filled
                                 {
                                     // Ignores the update since the current status is the final status.
                                 } else {
-                                    ex_order.update(&data.order);
+                                    ex_order.update(&order);
                                 }
                             }
                         }
                         Entry::Vacant(entry) => {
                             error!(
-                                ?data,
+                                %asset_no,
+                                ?order,
                                 "Bot received an unmanaged order. \
                                 This should be handled by a Connector."
                             );
-                            entry.insert(data.order);
+                            entry.insert(order);
                         }
                     }
                     if received_order_resp || wait_next_feed {
                         return Ok(true);
                     }
                 }
-                Ok(LiveEvent::Position(data)) => {
-                    *(unsafe { self.position.get_unchecked_mut(data.asset_no) }) = data.qty;
+                Ok(LiveEvent::Position { asset_no, qty }) => {
+                    *(unsafe { self.position.get_unchecked_mut(asset_no) }) = qty;
                 }
                 Ok(LiveEvent::Error(error)) => {
                     if let Some(handler) = self.error_handler.as_mut() {
@@ -471,7 +472,9 @@ where
         };
         let order_id = order.order_id;
         orders.insert(order_id, order.clone());
-        self.req_tx.send(Request::Order((asset_no, order))).unwrap();
+        self.req_tx
+            .send(Request::Order { asset_no, order })
+            .unwrap();
         if wait {
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
@@ -625,7 +628,10 @@ where
         order.req = Status::Canceled;
         order.local_timestamp = Utc::now().timestamp_nanos_opt().unwrap();
         self.req_tx
-            .send(Request::Order((asset_no, order.clone())))
+            .send(Request::Order {
+                asset_no,
+                order: order.clone(),
+            })
             .unwrap();
         if wait {
             // fixme: timeout should be specified by the argument.

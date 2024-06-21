@@ -15,7 +15,7 @@ use crate::{
     types::{Order, Status},
 };
 
-pub type WrappedOrderManager = Arc<Mutex<OrderManager>>;
+pub type OrderManagerWrapper = Arc<Mutex<OrderManager>>;
 
 #[derive(Error, Debug)]
 pub(super) enum HandleError {

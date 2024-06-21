@@ -16,7 +16,7 @@ use super::{
     msg::stream::{Data, Stream},
     rest::BinanceFuturesClient,
     BinanceFuturesError,
-    WrappedOrderManager,
+    OrderManagerWrapper,
 };
 use crate::{
     connector::binancefutures::{
@@ -28,8 +28,6 @@ use crate::{
         Event,
         LiveEvent,
         Order,
-        OrderResponse,
-        Position,
         Status,
         LOCAL_ASK_DEPTH_EVENT,
         LOCAL_BID_DEPTH_EVENT,
@@ -68,7 +66,7 @@ pub async fn connect(
     ev_tx: Sender<LiveEvent>,
     assets: HashMap<String, Asset>,
     prefix: &str,
-    orders: WrappedOrderManager,
+    orders: OrderManagerWrapper,
     client: BinanceFuturesClient,
 ) -> Result<(), anyhow::Error> {
     let mut request = url.into_client_request()?;
@@ -123,10 +121,10 @@ pub async fn connect(
                         events.append(&mut bid_events);
                         events.append(&mut ask_events);
                         ev_tx.send(
-                            LiveEvent::L2Feed(
-                                asset.asset_no,
+                            LiveEvent::L2Feed {
+                                asset_no: asset.asset_no,
                                 events
-                            )
+                            }
                         ).unwrap();
                     }
                     Err(error) => {
@@ -241,10 +239,10 @@ pub async fn connect(
                                         events.append(&mut bid_events);
                                         events.append(&mut ask_events);
                                         ev_tx.send(
-                                            LiveEvent::L2Feed(
-                                                asset_info.asset_no,
+                                            LiveEvent::L2Feed {
+                                                asset_no: asset_info.asset_no,
                                                 events
-                                            )
+                                            }
                                         ).unwrap();
                                     }
                                     Err(error) => {
@@ -259,9 +257,9 @@ pub async fn connect(
                                             .get(&data.symbol)
                                         .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
-                                            LiveEvent::L2Feed(
-                                                asset_info.asset_no,
-                                                vec![Event {
+                                            LiveEvent::L2Feed {
+                                                asset_no: asset_info.asset_no,
+                                                events: vec![Event {
                                                     ev: {
                                                         if data.is_the_buyer_the_market_maker {
                                                             LOCAL_SELL_TRADE_EVENT
@@ -274,7 +272,7 @@ pub async fn connect(
                                                     px,
                                                     qty,
                                                 }]
-                                            )
+                                            }
                                         ).unwrap();
                                     }
                                     Err(e) => {
@@ -291,13 +289,10 @@ pub async fn connect(
                                 for position in data.account.position {
                                     if let Some(asset_info) = assets.get(&position.symbol) {
                                         ev_tx.send(
-                                            LiveEvent::Position(
-                                                Position {
-                                                    asset_no: asset_info.asset_no,
-                                                    symbol: position.symbol,
-                                                    qty: position.position_amount
-                                                }
-                                            )
+                                            LiveEvent::Position {
+                                                asset_no: asset_info.asset_no,
+                                                qty: position.position_amount
+                                            }
                                         ).unwrap();
                                     }
                                 }
@@ -335,12 +330,10 @@ pub async fn connect(
                                             );
                                         if let Some(order) = order {
                                             ev_tx.send(
-                                                LiveEvent::Order(
-                                                    OrderResponse {
-                                                        asset_no: asset_info.asset_no,
-                                                        order
-                                                    }
-                                                )
+                                                LiveEvent::Order {
+                                                    asset_no: asset_info.asset_no,
+                                                    order
+                                                }
                                             ).unwrap();
                                         }
                                     }

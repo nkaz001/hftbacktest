@@ -1,6 +1,6 @@
 use algo::gridtrading;
 use hftbacktest::{
-    connector::bybit::{Bybit, BybitError},
+    connector::bybit::{Bybit, BybitError, Endpoint},
     live::{LiveBot, LoggingRecorder},
     prelude::{Bot, ErrorKind, HashMapMarketDepth},
 };
@@ -13,16 +13,15 @@ const API_KEY: &str = "apikey";
 const SECRET: &str = "secret";
 
 fn prepare_live() -> LiveBot<HashMapMarketDepth> {
-    let bybit_futures = Bybit::new(
-        "wss://stream-testnet.bybit.com/v5/public/linear",
-        "wss://stream-testnet.bybit.com/v5/private",
-        "wss://stream-testnet.bybit.com/v5/trade",
-        "https://api-testnet.bybit.com",
-        API_KEY,
-        SECRET,
-        ORDER_PREFIX,
-        "linear",
-    );
+    // Currently only `linear` (linear futures) is supported.
+    let bybit_futures = Bybit::builder()
+        .endpoint(Endpoint::Testnet)
+        .api_key(API_KEY)
+        .secret(SECRET)
+        .order_prefix(ORDER_PREFIX)
+        .category("linear")
+        .build()
+        .unwrap();
 
     let mut hbt = LiveBot::builder()
         .register("bybit-futures", bybit_futures)

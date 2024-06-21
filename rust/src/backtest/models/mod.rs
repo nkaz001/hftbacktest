@@ -3,7 +3,7 @@ mod queue;
 
 pub use latencies::{ConstantLatency, IntpOrderLatency, LatencyModel};
 #[cfg(feature = "unstable_l3")]
-pub use queue::{L3OrderId, L3OrderSource, L3QueueModel};
+pub use queue::{L3OrderId, L3OrderSource, L3PriceTimePriorityQueueModel, L3QueueModel};
 pub use queue::{
     LogProbQueueFunc,
     LogProbQueueFunc2,

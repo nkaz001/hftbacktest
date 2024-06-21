@@ -2,7 +2,7 @@ use std::{any::Any, collections::HashMap, marker::PhantomData};
 
 use crate::{
     backtest::{
-        evs::{EventSet, EventType},
+        evs::{EventIntentKind, EventSet},
         proc::{GenLocalProcessor, LocalProcessor, Processor},
         BacktestError,
     },
@@ -95,8 +95,8 @@ where
                         self.cur_ts = timestamp;
                         return Ok(true);
                     }
-                    match ev.ty {
-                        EventType::LocalData => {
+                    match ev.kind {
+                        EventIntentKind::LocalData => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
                             match local.process_data() {
                                 Ok((next_ts, _)) => {
@@ -110,7 +110,7 @@ where
                                 }
                             }
                         }
-                        EventType::LocalOrder => {
+                        EventIntentKind::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
                             let wait_order_resp_id = if ev.asset_no == wait_order_response.0 {
                                 wait_order_response.1
@@ -125,7 +125,7 @@ where
                                 local.earliest_recv_order_timestamp(),
                             );
                         }
-                        EventType::ExchData => {
+                        EventIntentKind::ExchData => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
                             match exch.process_data() {
                                 Ok((next_ts, _)) => {
@@ -143,7 +143,7 @@ where
                                 exch.earliest_send_order_timestamp(),
                             );
                         }
-                        EventType::ExchOrder => {
+                        EventIntentKind::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
                             let _ =
                                 exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
@@ -373,8 +373,8 @@ where
                         self.cur_ts = timestamp;
                         return Ok(true);
                     }
-                    match ev.ty {
-                        EventType::LocalData => {
+                    match ev.kind {
+                        EventIntentKind::LocalData => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
                             match local.process_data() {
                                 Ok((next_ts, _)) => {
@@ -389,7 +389,7 @@ where
                             }
                             timestamp = ev.timestamp;
                         }
-                        EventType::LocalOrder => {
+                        EventIntentKind::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
                             let _ =
                                 local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
@@ -401,7 +401,7 @@ where
                                 timestamp = ev.timestamp;
                             }
                         }
-                        EventType::ExchData => {
+                        EventIntentKind::ExchData => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
                             match exch.process_data() {
                                 Ok((next_ts, _)) => {
@@ -419,7 +419,7 @@ where
                                 exch.earliest_send_order_timestamp(),
                             );
                         }
-                        EventType::ExchOrder => {
+                        EventIntentKind::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
                             let _ =
                                 exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
