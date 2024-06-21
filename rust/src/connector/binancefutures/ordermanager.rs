@@ -4,11 +4,13 @@ use std::{
 };
 
 use chrono::Utc;
-use rand::{distributions::Alphanumeric, Rng};
 use tracing::{debug, error};
 
 use crate::{
-    connector::binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
+    connector::{
+        binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
+        util::gen_random_string,
+    },
     types::{Order, Status},
 };
 
@@ -271,11 +273,7 @@ impl OrderManager {
             return None;
         }
 
-        let rand_id: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect();
+        let rand_id = gen_random_string(16);
 
         let client_order_id = format!("{}{}{}", self.prefix, &rand_id, order.order_id);
         if self.orders.contains_key(&client_order_id) {

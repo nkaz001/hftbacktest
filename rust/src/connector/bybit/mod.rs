@@ -6,7 +6,7 @@ use std::{
 
 use thiserror::Error;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     connector::{
@@ -18,8 +18,7 @@ use crate::{
         Connector,
     },
     live::Asset,
-    prelude::OrderResponse,
-    types::{Error, ErrorKind, LiveEvent, Order, Position},
+    types::{BuildError, Error, ErrorKind, LiveEvent, Order, OrderResponse, Position},
 };
 
 mod msg;
@@ -56,6 +55,134 @@ pub enum BybitError {
     OrderError(i64, String),
 }
 
+// /// Binance Futures USD-M connector [`BinanceFutures`] builder.
+// pub struct BybitBuilder {
+//     stream_url: String,
+//     api_url: String,
+//     order_prefix: String,
+//     api_key: String,
+//     secret: String,
+//     streams: HashSet<String>,
+// }
+//
+// impl BybitBuilder {
+//     /// Sets an endpoint to connect.
+//     pub fn endpoint(self, endpoint: crate::connector::binancefutures::Endpoint) -> Self {
+//         if let crate::connector::binancefutures::Endpoint::Custom(_) = endpoint {
+//             panic!("Use `stream_url` and `api_url` to set a custom endpoint instead");
+//         }
+//         self.stream_url(endpoint.clone()).api_url(endpoint)
+//     }
+//
+//     /// Sets the Websocket streams endpoint url.
+//     pub fn stream_url<E: Into<crate::connector::binancefutures::Endpoint>>(self, endpoint: E) -> Self {
+//         match endpoint.into() {
+//             crate::connector::binancefutures::Endpoint::Public => {
+//                 Self {
+//                     // wss://ws-fapi.binance.com/ws-fapi/v1
+//                     stream_url: "wss://fstream.binance.com".to_string(),
+//                     ..self
+//                 }
+//             }
+//             crate::connector::binancefutures::Endpoint::Private => Self {
+//                 stream_url: "wss://fstream-auth.binance.com".to_string(),
+//                 ..self
+//             },
+//             crate::connector::binancefutures::Endpoint::Testnet => Self {
+//                 stream_url: "wss://fstream.binancefuture.com".to_string(),
+//                 ..self
+//             },
+//             crate::connector::binancefutures::Endpoint::LowLatency => Self {
+//                 stream_url: "wss://fstream-mm.binance.com".to_string(),
+//                 ..self
+//             },
+//             crate::connector::binancefutures::Endpoint::Custom(stream_url) => Self { stream_url, ..self },
+//         }
+//     }
+//
+//     /// Sets the REST APIs endpoint url.
+//     pub fn api_url<E: Into<crate::connector::binancefutures::Endpoint>>(self, endpoint: E) -> Self {
+//         match endpoint.into() {
+//             crate::connector::binancefutures::Endpoint::Public => Self {
+//                 api_url: "https://fapi.binance.com".to_string(),
+//                 ..self
+//             },
+//             crate::connector::binancefutures::Endpoint::Private => Self {
+//                 api_url: "https://fapi.binance.com".to_string(),
+//                 ..self
+//             },
+//             crate::connector::binancefutures::Endpoint::Testnet => Self {
+//                 api_url: "https://testnet.binancefuture.com".to_string(),
+//                 ..self
+//             },
+//             crate::connector::binancefutures::Endpoint::LowLatency => Self {
+//                 api_url: "https://fapi-mm.binance.com".to_string(),
+//                 ..self
+//             },
+//             crate::connector::binancefutures::Endpoint::Custom(api_url) => Self { api_url, ..self },
+//         }
+//     }
+//
+//     /// Sets the API key
+//     pub fn api_key(self, api_key: &str) -> Self {
+//         Self {
+//             api_key: api_key.to_string(),
+//             ..self
+//         }
+//     }
+//
+//     /// Sets the secret key
+//     pub fn secret(self, secret: &str) -> Self {
+//         Self {
+//             secret: secret.to_string(),
+//             ..self
+//         }
+//     }
+//
+//     /// Sets the order prefix, which is used to differentiate the orders submitted through this
+//     /// connector.
+//     pub fn order_prefix(self, order_prefix: &str) -> Self {
+//         Self {
+//             order_prefix: order_prefix.to_string(),
+//             ..self
+//         }
+//     }
+//
+//     /// Adds an additional stream to receive through the WebSocket connection.
+//     pub fn add_stream(mut self, stream: &str) -> Self {
+//         self.streams.insert(stream.to_string());
+//         self
+//     }
+//
+//     /// Builds [`BinanceFutures`] connector.
+//     pub fn build(self) -> Result<BinanceFutures, BuildError> {
+//         if self.stream_url.is_empty() {
+//             return Err(BuildError::BuilderIncomplete("stream_url"));
+//         }
+//         if self.api_url.is_empty() {
+//             return Err(BuildError::BuilderIncomplete("api_url"));
+//         }
+//         if self.api_key.is_empty() {
+//             return Err(BuildError::BuilderIncomplete("api_key"));
+//         }
+//         if self.secret.is_empty() {
+//             return Err(BuildError::BuilderIncomplete("secret"));
+//         }
+//
+//         let order_manager: WrappedOrderManager =
+//             Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
+//         Ok(BinanceFutures {
+//             url: self.stream_url.to_string(),
+//             prefix: self.order_prefix,
+//             assets: Default::default(),
+//             inv_assets: Default::default(),
+//             order_manager,
+//             client: BybitClient::new(&self.api_url, &self.api_key, &self.secret),
+//             streams: self.streams,
+//         })
+//     }
+// }
+
 pub struct Bybit {
     public_url: String,
     private_url: String,
@@ -83,6 +210,12 @@ impl Bybit {
         prefix: &str,
         category: &str,
     ) -> Self {
+        if prefix.contains("/") {
+            panic!("prefix cannot include '/'.");
+        }
+        if prefix.len() > 8 {
+            panic!("prefix length should be not greater than 8.");
+        }
         Self {
             public_url: public_url.to_string(),
             private_url: private_url.to_string(),
@@ -173,6 +306,7 @@ impl Connector for Bybit {
         let assets_private = self.assets.clone();
         let api_key_private = self.api_key.clone();
         let secret_private = self.secret.clone();
+        let category_private = self.category.clone();
         let order_man_private = self.order_man.clone();
         let client_private = self.client.clone();
         let _ = tokio::spawn(async move {
@@ -184,13 +318,18 @@ impl Connector for Bybit {
 
                 // Cancel all orders before connecting to the stream in order to start with the
                 // clean state.
-                if let Err(error) = client_private.cancel_all_orders().await {
-                    error!(?error, "Couldn't cancel all open orders.");
-                    ev_tx_private
-                        .send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
-                        .unwrap();
-                    error_count += 1;
-                    continue 'connection;
+                for (symbol, _) in assets_private.iter() {
+                    if let Err(error) = client_private
+                        .cancel_all_orders(&category_private, symbol)
+                        .await
+                    {
+                        error!(?error, %symbol, "Couldn't cancel all open orders.");
+                        ev_tx_private
+                            .send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
+                            .unwrap();
+                        error_count += 1;
+                        continue 'connection;
+                    }
                 }
                 {
                     let mut order_manager_ = order_man_private.lock().unwrap();
@@ -203,24 +342,29 @@ impl Connector for Bybit {
                 }
 
                 // Fetches the initial states such as positions and open orders.
-                match client_private.get_position_information().await {
-                    Ok(positions) => {
-                        positions.into_iter().for_each(|position| {
-                            assets_private.get(&position.symbol).map(|asset_info| {
-                                ev_tx_private
-                                    .send(LiveEvent::Position(Position {
-                                        asset_no: asset_info.asset_no,
-                                        symbol: position.symbol,
-                                        qty: position.size,
-                                    }))
-                                    .unwrap();
+                for (symbol, _) in assets_private.iter() {
+                    match client_private
+                        .get_position_information(&category_private, symbol)
+                        .await
+                    {
+                        Ok(positions) => {
+                            positions.into_iter().for_each(|position| {
+                                assets_private.get(&position.symbol).map(|asset_info| {
+                                    ev_tx_private
+                                        .send(LiveEvent::Position(Position {
+                                            asset_no: asset_info.asset_no,
+                                            symbol: position.symbol,
+                                            qty: position.size,
+                                        }))
+                                        .unwrap();
+                                });
                             });
-                        });
-                    }
-                    Err(error) => {
-                        error!(?error, "Couldn't get position information.");
-                        error_count += 1;
-                        continue 'connection;
+                        }
+                        Err(error) => {
+                            error!(?error, "Couldn't get position information.");
+                            error_count += 1;
+                            continue 'connection;
+                        }
                     }
                 }
 

@@ -1,13 +1,19 @@
-use std::collections::{BTreeMap, HashMap};
-use std::collections::hash_map::Entry;
+use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
-use super::{ApplySnapshot, L2MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN, L3Order, L3MarketDepth};
+use super::{
+    ApplySnapshot,
+    L2MarketDepth,
+    L3MarketDepth,
+    L3Order,
+    MarketDepth,
+    INVALID_MAX,
+    INVALID_MIN,
+};
 use crate::{
-    backtest::reader::Data,
+    backtest::{reader::Data, BacktestError},
+    prelude::Side,
     types::{Event, BUY, SELL},
 };
-use crate::backtest::BacktestError;
-use crate::prelude::Side;
 
 /// L2 Market depth implementation based on a B-Tree map.
 ///
@@ -37,16 +43,14 @@ impl BTreeMarketDepth {
             ask_depth: Default::default(),
             best_bid_tick: INVALID_MIN,
             best_ask_tick: INVALID_MAX,
-            orders: Default::default()
+            orders: Default::default(),
         }
     }
 
     fn add(&mut self, order: L3Order) -> Result<(), BacktestError> {
         let order = match self.orders.entry(order.order_id) {
             Entry::Occupied(_) => return Err(BacktestError::OrderIdExist),
-            Entry::Vacant(entry) => {
-                entry.insert(order)
-            }
+            Entry::Vacant(entry) => entry.insert(order),
         };
         if order.side == Side::Buy {
             *self.bid_depth.entry(order.price_tick).or_insert(0.0) += order.qty;
@@ -374,15 +378,25 @@ impl L3MarketDepth for BTreeMarketDepth {
 
 #[cfg(test)]
 mod test {
-    use crate::depth::{BTreeMarketDepth, HashMapMarketDepth, INVALID_MAX, INVALID_MIN, L3MarketDepth, MarketDepth};
-    use crate::types::{BUY, SELL};
+    use crate::{
+        depth::{
+            BTreeMarketDepth,
+            HashMapMarketDepth,
+            L3MarketDepth,
+            MarketDepth,
+            INVALID_MAX,
+            INVALID_MIN,
+        },
+        types::{BUY, SELL},
+    };
 
     macro_rules! assert_eq_qty {
-        ( $a:expr, $b:expr, $lot_size:ident ) => {
-            {
-                assert_eq!(($a / $lot_size).round() as i32, ($b / $lot_size).round() as i32);
-            }
-        };
+        ( $a:expr, $b:expr, $lot_size:ident ) => {{
+            assert_eq!(
+                ($a / $lot_size).round() as i32,
+                ($b / $lot_size).round() as i32
+            );
+        }};
     }
 
     #[test]
@@ -508,7 +522,7 @@ mod test {
         assert_eq!(depth.best_ask_tick(), INVALID_MAX);
         assert_eq_qty!(depth.ask_qty_at_tick(5001), 0.0, lot_size);
     }
-    
+
     #[test]
     fn test_l3_modify_buy_order() {
         let lot_size = 0.001;

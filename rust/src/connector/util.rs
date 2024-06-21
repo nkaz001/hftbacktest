@@ -1,6 +1,7 @@
 use std::{fmt, fmt::Write};
 
 use hmac::{Hmac, KeyInit, Mac};
+use rand::{distributions::Alphanumeric, Rng};
 use serde::{
     de,
     de::{Error, Visitor},
@@ -62,7 +63,17 @@ impl<'de> Visitor<'de> for OptionF32Visitor {
     where
         D: Deserializer<'de>,
     {
-        Ok(Some(deserializer.deserialize_str(F32Visitor)?))
+        match deserializer.deserialize_str(F32Visitor) {
+            Ok(num) => Ok(Some(num)),
+            Err(e) => {
+                // fixme: dirty
+                if format!("{e:?}").starts_with("Error(\"cannot parse float from empty string\"") {
+                    Ok(None)
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 }
 
@@ -120,4 +131,12 @@ pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {
         write!(&mut tmp, "{:02x}", c).unwrap();
     }
     tmp
+}
+
+pub fn gen_random_string(len: usize) -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
 }

@@ -1,13 +1,11 @@
 use std::collections::{hash_map::Entry, HashMap};
 
-use super::{ApplySnapshot, MarketDepth, INVALID_MAX, INVALID_MIN, L3Order, L3MarketDepth};
+use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
-    backtest::reader::Data,
-    prelude::L2MarketDepth,
+    backtest::{reader::Data, BacktestError},
+    prelude::{L2MarketDepth, Side},
     types::{Event, BUY, SELL},
 };
-use crate::backtest::BacktestError;
-use crate::prelude::Side;
 
 /// L2/L3 Market depth implementation based on a hash map.
 ///
@@ -66,16 +64,14 @@ impl HashMapMarketDepth {
             best_ask_tick: INVALID_MAX,
             low_bid_tick: INVALID_MAX,
             high_ask_tick: INVALID_MIN,
-            orders: HashMap::new()
+            orders: HashMap::new(),
         }
     }
 
     fn add(&mut self, order: L3Order) -> Result<(), BacktestError> {
         let order = match self.orders.entry(order.order_id) {
             Entry::Occupied(_) => return Err(BacktestError::OrderIdExist),
-            Entry::Vacant(entry) => {
-                entry.insert(order)
-            }
+            Entry::Vacant(entry) => entry.insert(order),
         };
         if order.side == Side::Buy {
             *self.bid_depth.entry(order.price_tick).or_insert(0.0) += order.qty;
@@ -511,15 +507,18 @@ impl L3MarketDepth for HashMapMarketDepth {
 
 #[cfg(test)]
 mod test {
-    use crate::depth::{HashMapMarketDepth, INVALID_MAX, INVALID_MIN, L3MarketDepth, MarketDepth};
-    use crate::types::{BUY, SELL};
+    use crate::{
+        depth::{HashMapMarketDepth, L3MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
+        types::{BUY, SELL},
+    };
 
     macro_rules! assert_eq_qty {
-        ( $a:expr, $b:expr, $lot_size:ident ) => {
-            {
-                assert_eq!(($a / $lot_size).round() as i32, ($b / $lot_size).round() as i32);
-            }
-        };
+        ( $a:expr, $b:expr, $lot_size:ident ) => {{
+            assert_eq!(
+                ($a / $lot_size).round() as i32,
+                ($b / $lot_size).round() as i32
+            );
+        }};
     }
 
     #[test]

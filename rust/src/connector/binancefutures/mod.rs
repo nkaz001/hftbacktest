@@ -283,9 +283,10 @@ impl Connector for BinanceFutures {
                 }
 
                 // Fetches the initial states such as positions and open orders.
-                // todo: it may need to clear the holding position information first.
                 match client.get_position_information().await {
                     Ok(positions) => {
+                        // todo: check if there is no position info when there is no holding
+                        //       position. In that case, it needs to send zero-position to the bot.
                         positions.into_iter().for_each(|position| {
                             assets.get(&position.symbol).map(|asset_info| {
                                 ev_tx

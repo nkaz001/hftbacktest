@@ -75,11 +75,15 @@ impl BybitClient {
         Ok(resp)
     }
 
-    pub async fn cancel_all_orders(&self) -> Result<(), anyhow::Error> {
+    pub async fn cancel_all_orders(
+        &self,
+        category: &str,
+        symbol: &str,
+    ) -> Result<(), anyhow::Error> {
         let resp: RestResponse = self
             .post(
                 "/v5/order/cancel-all",
-                "{\"category\":\"linear\"}".to_string(),
+                format!("{{\"category\":\"{category}\",\"symbol\":\"{symbol}\"}}"),
                 &self.api_key,
                 &self.secret,
             )
@@ -90,12 +94,15 @@ impl BybitClient {
         Ok(())
     }
 
-    pub async fn get_position_information(&self) -> Result<Vec<Position>, anyhow::Error> {
-        // Position
+    pub async fn get_position_information(
+        &self,
+        category: &str,
+        symbol: &str,
+    ) -> Result<Vec<Position>, anyhow::Error> {
         let resp: RestResponse = self
             .get(
                 "/v5/position/list",
-                "category=linear",
+                &format!("category={category}&symbol={symbol}"),
                 &self.api_key,
                 &self.secret,
             )
@@ -103,7 +110,7 @@ impl BybitClient {
         if resp.ret_code != 0 {
             return Err(anyhow::Error::msg(resp.ret_msg));
         } else {
-            let position: Vec<Position> = serde_json::from_value(resp.result.list)?;
+            let position: Vec<Position> = serde_json::from_value(resp.result.list.unwrap())?;
             Ok(position)
         }
     }

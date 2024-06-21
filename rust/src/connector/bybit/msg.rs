@@ -240,6 +240,8 @@ pub enum PrivateStreamMsg {
 pub enum PrivateStreamTopicMsg {
     #[serde(rename = "position")]
     Position(PrivateStream<Vec<Position>>),
+    #[serde(rename = "execution")]
+    Execution(PrivateStream<Vec<Execution>>),
     #[serde(rename = "execution.fast")]
     FastExecution(PrivateStream<Vec<FastExecution>>),
     #[serde(rename = "order")]
@@ -252,8 +254,8 @@ pub struct PrivateStream<T>
 where
     for<'a> T: Deserialize<'a> + Debug,
 {
-    pub id: String,
-    pub topic: String,
+    #[serde(default)]
+    pub id: Option<String>,
     #[serde(rename = "creationTime")]
     pub creation_time: i64,
     pub data: T,
@@ -273,9 +275,9 @@ pub struct Position {
     pub side: String,
     #[serde(deserialize_with = "from_str_to_f64")]
     pub size: f64,
-    #[serde(rename = "entryPrice")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub entry_price: f32,
+    #[serde(rename = "entryPrice", default)]
+    #[serde(deserialize_with = "from_str_to_f32_opt")]
+    pub entry_price: Option<f32>,
     pub leverage: String,
     #[serde(rename = "positionValue")]
     #[serde(deserialize_with = "from_str_to_f64")]
@@ -312,13 +314,14 @@ pub struct Position {
     pub updated_time: String,
     #[serde(rename = "tpslMode")]
     pub tpsl_mode: String,
-    #[serde(rename = "liqPrice")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub liq_price: f32,
-    #[serde(rename = "bustPrice")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub bust_price: f32,
-    pub category: String,
+    #[serde(rename = "liqPrice", default)]
+    #[serde(deserialize_with = "from_str_to_f32_opt")]
+    pub liq_price: Option<f32>,
+    #[serde(rename = "bustPrice", default)]
+    #[serde(deserialize_with = "from_str_to_f32_opt")]
+    pub bust_price: Option<f32>,
+    #[serde(default)]
+    pub category: Option<String>,
     #[serde(rename = "positionStatus")]
     pub position_status: String,
     #[serde(rename = "adlRankIndicator")]
@@ -332,6 +335,68 @@ pub struct Position {
     pub seq: i64,
     #[serde(rename = "isReduceOnly")]
     pub is_reduce_only: bool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Execution {
+    pub category: String,
+    pub symbol: String,
+    #[serde(rename = "execFee")]
+    pub exec_fee: String,
+    #[serde(rename = "execId")]
+    pub exec_id: String,
+    #[serde(rename = "execPrice")]
+    #[serde(deserialize_with = "from_str_to_f32")]
+    pub exec_price: f32,
+    #[serde(rename = "execQty")]
+    #[serde(deserialize_with = "from_str_to_f32")]
+    pub exec_qty: f32,
+    #[serde(rename = "execType")]
+    pub exec_type: String,
+    #[serde(rename = "execValue")]
+    pub exec_value: String,
+    #[serde(rename = "isMaker")]
+    pub is_maker: bool,
+    #[serde(rename = "feeRate")]
+    pub fee_rate: String,
+    #[serde(rename = "tradeIv")]
+    pub trade_iv: String,
+    #[serde(rename = "markIv")]
+    pub mark_iv: String,
+    #[serde(rename = "blockTradeId")]
+    pub block_trade_id: String,
+    #[serde(rename = "markPrice")]
+    pub mark_price: String,
+    #[serde(rename = "indexPrice")]
+    pub index_price: String,
+    #[serde(rename = "underlyingPrice")]
+    pub underlying_price: String,
+    #[serde(rename = "leavesQty")]
+    #[serde(deserialize_with = "from_str_to_f32")]
+    pub leaves_qty: f32,
+    #[serde(rename = "orderId")]
+    pub order_id: String,
+    #[serde(rename = "orderLinkId")]
+    pub order_link_id: String,
+    #[serde(rename = "orderPrice")]
+    #[serde(deserialize_with = "from_str_to_f32")]
+    pub order_price: f32,
+    #[serde(rename = "orderQty")]
+    #[serde(deserialize_with = "from_str_to_f32")]
+    pub order_qty: f32,
+    #[serde(rename = "orderType")]
+    pub order_type: String,
+    #[serde(rename = "stopOrderType")]
+    pub stop_order_type: String,
+    pub side: String,
+    #[serde(rename = "execTime")]
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub exec_time: i64,
+    #[serde(rename = "isLeverage")]
+    pub is_leverage: String,
+    #[serde(rename = "closedSize")]
+    pub closed_size: String,
+    pub seq: i64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -511,9 +576,9 @@ pub struct Order {
     pub order_link_id: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct RestResult {
-    pub list: serde_json::Value,
+    pub list: Option<serde_json::Value>,
     #[serde(default)]
     pub success: String,
     #[serde(rename = "next_page_cursor")]
@@ -523,7 +588,7 @@ pub struct RestResult {
     pub category: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct RestResponse {
     #[serde(rename = "retCode")]
     pub ret_code: i64,

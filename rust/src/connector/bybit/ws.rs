@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
 
 use chrono::Utc;
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
+use rand::{distributions::Alphanumeric, Rng};
 use tokio::{net::TcpStream, select, sync::mpsc::UnboundedReceiver, time};
 use tokio_tungstenite::{
     connect_async,
@@ -9,7 +10,7 @@ use tokio_tungstenite::{
     MaybeTlsStream,
     WebSocketStream,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     connector::{
@@ -28,7 +29,7 @@ use crate::{
             ordermanager::{HandleError, WrappedOrderManager},
             BybitError,
         },
-        util::sign_hmac_sha256,
+        util::{gen_random_string, sign_hmac_sha256},
     },
     live::Asset,
     prelude::{ErrorKind, Position},
@@ -221,13 +222,20 @@ async fn handle_private_stream(
     let stream = serde_json::from_str::<PrivateStreamMsg>(&text)?;
     match stream {
         PrivateStreamMsg::Op(resp) => {
-            info!(?resp, "OpResponse");
+            debug!(?resp, "OpResponse");
             if resp.op == "auth" {
                 if resp.success.unwrap() {
                     let op = Op {
                         req_id: "3".to_string(),
                         op: "subscribe".to_string(),
-                        args: vec!["position".to_string(), "execution.fast".to_string()],
+                        args: vec![
+                            "order".to_string(),
+                            "position".to_string(),
+                            "execution".to_string(),
+                            // todo: there is no orderLinkId, it requires a separate orderId
+                            //       management
+                            // "execution.fast".to_string()
+                        ],
                     };
                     let s = serde_json::to_string(&op).unwrap();
                     write.send(Message::Text(s)).await?;
@@ -237,7 +245,7 @@ async fn handle_private_stream(
             }
         }
         PrivateStreamMsg::Topic(PrivateStreamTopicMsg::Position(data)) => {
-            info!(?data, "Position");
+            debug!(?data, "Position");
             for item in data.data {
                 let asset = assets.get(&item.symbol).ok_or(HandleError::AssetNotFound)?;
                 ev_tx
@@ -249,8 +257,8 @@ async fn handle_private_stream(
                     .unwrap();
             }
         }
-        PrivateStreamMsg::Topic(PrivateStreamTopicMsg::FastExecution(data)) => {
-            info!(?data, "FastExecution");
+        PrivateStreamMsg::Topic(PrivateStreamTopicMsg::Execution(data)) => {
+            debug!(?data, "Execution");
             let mut order_man_ = order_man.lock().unwrap();
             for item in &data.data {
                 match order_man_.update_execution(&item) {
@@ -265,7 +273,24 @@ async fn handle_private_stream(
                 }
             }
         }
+        PrivateStreamMsg::Topic(PrivateStreamTopicMsg::FastExecution(data)) => {
+            debug!(?data, "FastExecution");
+            let mut order_man_ = order_man.lock().unwrap();
+            for item in &data.data {
+                match order_man_.update_fast_execution(&item) {
+                    Ok((asset_no, order)) => {
+                        ev_tx
+                            .send(LiveEvent::Order(OrderResponse { asset_no, order }))
+                            .unwrap();
+                    }
+                    Err(error) => {
+                        error!(?error, ?data, "Couldn't update the fast execution data");
+                    }
+                }
+            }
+        }
         PrivateStreamMsg::Topic(PrivateStreamTopicMsg::Order(data)) => {
+            debug!(?data, "Order");
             for item in &data.data {
                 let mut order_man_ = order_man.lock().unwrap();
                 match order_man_.update_order(&item) {
@@ -275,7 +300,7 @@ async fn handle_private_stream(
                             .unwrap();
                     }
                     Err(error) => {
-                        error!(?error, ?data, "Couldn't update the execution data");
+                        error!(?error, ?data, "Couldn't update the order data");
                     }
                 }
             }
@@ -404,8 +429,16 @@ pub async fn connect_trade(
             order = order_rx.recv() => {
                 match order {
                     Some(order) => {
+                        let req_id = {
+                            let rand_id = gen_random_string(8);
+                            format!(
+                                "{}/{}",
+                                order.bybit_order.order_link_id.clone(),
+                                rand_id,
+                            )
+                        };
                         let op = TradeOp {
-                            req_id: order.bybit_order.order_link_id.clone(),
+                            req_id,
                             header: {
                                 let mut header = HashMap::new();
                                 header.insert(
@@ -486,7 +519,7 @@ async fn handle_trade_stream(
             )));
         }
     } else if stream.op == "order.create" {
-        let req_id = stream.req_id.ok_or(HandleError::ReqIdNotExist)?;
+        let req_id = stream.req_id.ok_or(HandleError::InvalidReqId)?;
         if stream.ret_code != 0 {
             /*
             10404: 1. op type is not found; 2. category is not correct/supported
@@ -496,7 +529,8 @@ async fn handle_trade_stream(
             10019: ws trade service is restarting, do not accept new request, but the request in the process is not affected. You can build new connection to be routed to normal service
              */
             let mut order_man_ = order_man.lock().unwrap();
-            let (asset_no, order) = order_man_.update_submit_fail(&req_id)?;
+            let order_link_id = req_id.split('/').next().ok_or(HandleError::InvalidReqId)?;
+            let (asset_no, order) = order_man_.update_submit_fail(order_link_id)?;
             ev_tx
                 .send(LiveEvent::Order(OrderResponse { asset_no, order }))
                 .unwrap();
@@ -508,7 +542,7 @@ async fn handle_trade_stream(
                 .unwrap();
         }
     } else if stream.op == "order.cancel" {
-        let req_id = stream.req_id.ok_or(HandleError::ReqIdNotExist)?;
+        let req_id = stream.req_id.ok_or(HandleError::InvalidReqId)?;
         if stream.ret_code != 0 {
             /*
             10404: 1. op type is not found; 2. category is not correct/supported
@@ -518,7 +552,8 @@ async fn handle_trade_stream(
             10019: ws trade service is restarting, do not accept new request, but the request in the process is not affected. You can build new connection to be routed to normal service
              */
             let mut order_man_ = order_man.lock().unwrap();
-            let (asset_no, order) = order_man_.update_cancel_fail(&req_id)?;
+            let order_link_id = req_id.split('/').next().ok_or(HandleError::InvalidReqId)?;
+            let (asset_no, order) = order_man_.update_cancel_fail(order_link_id)?;
             ev_tx
                 .send(LiveEvent::Order(OrderResponse { asset_no, order }))
                 .unwrap();
