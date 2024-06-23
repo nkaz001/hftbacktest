@@ -5,7 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .. import validate_data
-from ..validation import correct_event_order, convert_to_struct_arr
+from ..validation import correct_event_order, convert_to_struct_arr, validate_event_order
 from ... import (
     DEPTH_CLEAR_EVENT,
     DEPTH_SNAPSHOT_EVENT,
@@ -224,6 +224,7 @@ def convert(
     if structured_array:
         # EXCH_EVENT and LOCAL_EVENT are already applied.
         data = convert_to_struct_arr(data, False)
+        validate_event_order(data)
 
     if output_filename is not None:
         print('Saving to %s' % output_filename)

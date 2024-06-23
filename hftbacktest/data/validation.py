@@ -402,11 +402,36 @@ def correct_event_order(
 
             out_rn += 1
             local_rn += 1
+        elif exch_rn < len(data):
+            # exchange
+            sorted_final[out_rn] = sorted_exch[:]
+            if add_exch_local_ev:
+                sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT
+            else:
+                sorted_final[out_rn, COL_LOCAL_TIMESTAMP] = -1
+
+            out_rn += 1
+            exch_rn += 1
         else:
             assert exch_rn == len(data)
             assert local_rn == len(data)
             break
     return sorted_final[:out_rn]
+
+
+def validate_event_order(data: np.ndarray) -> None:
+    r"""
+    Validates that the order of events is correct.
+
+    Args:
+        data: event structured array.
+    """
+    exch_ev = data['ev'] & EXCH_EVENT == EXCH_EVENT
+    local_ev = data['ev'] & LOCAL_EVENT == LOCAL_EVENT
+    if np.sum(np.diff(data['exch_ts'][exch_ev]) < 0) > 0:
+        raise ValueError('exchange events are out of order.')
+    if np.sum(np.diff(data['local_ts'][local_ev]) < 0) > 0:
+        raise ValueError('local events are out of order.')
 
 
 def convert_to_struct_arr(data: np.ndarray, add_exch_local_ev: bool = True) -> np.ndarray:
