@@ -6,7 +6,7 @@ use crate::{
         models::{
             L3OrderId,
             L3OrderSource,
-            L3PriceTimePriorityQueueModel,
+            L3FIFOQueueModel,
             L3QueueModel,
             LatencyModel,
         },
@@ -76,7 +76,7 @@ where
     depth: MD,
     state: State<AT>,
     order_latency: LM,
-    queue_model: L3PriceTimePriorityQueueModel,
+    queue_model: L3FIFOQueueModel,
 }
 
 impl<AT, LM, MD> L3NoPartialFillExchange<AT, LM, MD>
@@ -104,7 +104,7 @@ where
             depth,
             state,
             order_latency,
-            queue_model: L3PriceTimePriorityQueueModel::new(),
+            queue_model: L3FIFOQueueModel::new(),
         }
     }
 
@@ -176,7 +176,7 @@ where
             let mut filled_orders = Vec::new();
             for (order_id, &mut (side, price_tick)) in self.queue_model.orders.iter_mut() {
                 if side == Side::Sell && price_tick <= new_best_tick {
-                    let priority = self.queue_model.ask_priority.get_mut(&price_tick).unwrap();
+                    let priority = self.queue_model.ask_queue.get_mut(&price_tick).unwrap();
                     let mut i = 0;
                     while i < priority.len() {
                         let order = priority.get(i).unwrap();
@@ -189,13 +189,13 @@ where
             }
         } else {
             for t in (prev_best_tick + 1)..=new_best_tick {
-                if let Some(orders) = self.queue_model.ask_priority.get_mut(&t) {
+                if let Some(orders) = self.queue_model.ask_queue.get_mut(&t) {
                     let mut i = 0;
                     while i < orders.len() {
                         let order = orders.get(i).unwrap();
                         let order_source =
                             order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
-                        if *order_source == L3OrderSource::Backtesting {
+                        if *order_source == L3OrderSource::Backtest {
                             filled_orders.push(orders.remove(i));
                         }
                     }
@@ -223,7 +223,7 @@ where
         {
             for (order_id, &mut (side, price_tick)) in self.queue_model.orders.iter_mut() {
                 if side == Side::Buy && price_tick >= new_best_tick {
-                    let priority = self.queue_model.ask_priority.get_mut(&price_tick).unwrap();
+                    let priority = self.queue_model.ask_queue.get_mut(&price_tick).unwrap();
                     let mut i = 0;
                     while i < priority.len() {
                         let order = priority.get(i).unwrap();
@@ -236,13 +236,13 @@ where
             }
         } else {
             for t in new_best_tick..prev_best_tick {
-                if let Some(orders) = self.queue_model.bid_priority.get_mut(&t) {
+                if let Some(orders) = self.queue_model.bid_queue.get_mut(&t) {
                     let mut i = 0;
                     while i < orders.len() {
                         let order = orders.get(i).unwrap();
                         let order_source =
                             order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
-                        if *order_source == L3OrderSource::Backtesting {
+                        if *order_source == L3OrderSource::Backtest {
                             filled_orders.push(orders.remove(i));
                         }
                     }
@@ -260,7 +260,7 @@ where
         if self
             .queue_model
             .orders
-            .contains_key(&L3OrderId::Backtesting(order.order_id))
+            .contains_key(&L3OrderId::Backtest(order.order_id))
         {
             return Err(BacktestError::OrderIdExist);
         }
@@ -286,7 +286,7 @@ where
                 order.exch_timestamp = timestamp;
 
                 self.queue_model
-                    .add_order(L3OrderId::Backtesting(order.order_id), order.clone())?;
+                    .add_order(L3OrderId::Backtest(order.order_id), order.clone())?;
 
                 let local_recv_timestamp =
                     timestamp + self.order_latency.response(timestamp, &order);
@@ -314,7 +314,7 @@ where
                 order.exch_timestamp = timestamp;
 
                 self.queue_model
-                    .add_order(L3OrderId::Backtesting(order.order_id), order.clone())?;
+                    .add_order(L3OrderId::Backtest(order.order_id), order.clone())?;
 
                 let local_recv_timestamp =
                     timestamp + self.order_latency.response(timestamp, &order);
@@ -327,7 +327,7 @@ where
     fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<i64, BacktestError> {
         match self
             .queue_model
-            .cancel_order(L3OrderId::Backtesting(order.order_id))
+            .cancel_order(L3OrderId::Backtest(order.order_id))
         {
             Ok(mut exch_order) => {
                 // Makes the response.

@@ -82,10 +82,12 @@ where
         Ok(())
     }
 
-    pub fn goto(
+    pub fn goto<const WAIT_NEXT_FEED: bool>(
         &mut self,
         timestamp: i64,
         wait_order_response: (usize, i64),
+        // include_order_resp is valid only if WaitNextFeed is true.
+        include_order_resp: bool,
     ) -> Result<bool, BacktestError> {
         let mut timestamp = timestamp;
         loop {
@@ -109,13 +111,22 @@ where
                                     return Err(e);
                                 }
                             }
+                            if WAIT_NEXT_FEED {
+                                timestamp = ev.timestamp;
+                            }
                         }
                         EventIntentKind::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let wait_order_resp_id = if ev.asset_no == wait_order_response.0 {
-                                wait_order_response.1
-                            } else {
-                                WAIT_ORDER_RESPONSE_NONE
+                            let wait_order_resp_id = {
+                                if WAIT_NEXT_FEED {
+                                    WAIT_ORDER_RESPONSE_NONE
+                                } else {
+                                    if ev.asset_no == wait_order_response.0 {
+                                        wait_order_response.1
+                                    } else {
+                                        WAIT_ORDER_RESPONSE_NONE
+                                    }
+                                }
                             };
                             if local.process_recv_order(ev.timestamp, wait_order_resp_id)? {
                                 timestamp = ev.timestamp;
@@ -124,6 +135,9 @@ where
                                 ev.asset_no,
                                 local.earliest_recv_order_timestamp(),
                             );
+                            if WAIT_NEXT_FEED && include_order_resp {
+                                timestamp = ev.timestamp;
+                            }
                         }
                         EventIntentKind::ExchData => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
@@ -249,7 +263,7 @@ where
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
+            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
         }
         Ok(true)
     }
@@ -279,7 +293,7 @@ where
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
+            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
         }
         Ok(true)
     }
@@ -304,7 +318,7 @@ where
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, (asset_no, order.order_id));
+            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order.order_id), false);
         }
         Ok(true)
     }
@@ -317,7 +331,7 @@ where
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto(UNTIL_END_OF_DATA, (asset_no, order_id));
+            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
         }
         Ok(true)
     }
@@ -346,7 +360,7 @@ where
         order_id: i64,
         timeout: i64,
     ) -> Result<bool, BacktestError> {
-        self.goto(self.cur_ts + timeout, (asset_no, order_id))
+        self.goto::<false>(self.cur_ts + timeout, (asset_no, order_id), false)
     }
 
     fn wait_next_feed(
@@ -365,76 +379,11 @@ where
                 }
             }
         }
-        let mut timestamp = self.cur_ts + timeout;
-        loop {
-            match self.evs.next() {
-                Some(ev) => {
-                    if ev.timestamp > timestamp {
-                        self.cur_ts = timestamp;
-                        return Ok(true);
-                    }
-                    match ev.kind {
-                        EventIntentKind::LocalData => {
-                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            match local.process_data() {
-                                Ok((next_ts, _)) => {
-                                    self.evs.update_local_data(ev.asset_no, next_ts);
-                                }
-                                Err(BacktestError::EndOfData) => {
-                                    self.evs.invalidate_local_data(ev.asset_no);
-                                }
-                                Err(e) => {
-                                    return Err(e);
-                                }
-                            }
-                            timestamp = ev.timestamp;
-                        }
-                        EventIntentKind::LocalOrder => {
-                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let _ =
-                                local.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
-                            self.evs.update_local_order(
-                                ev.asset_no,
-                                local.earliest_recv_order_timestamp(),
-                            );
-                            if include_order_resp {
-                                timestamp = ev.timestamp;
-                            }
-                        }
-                        EventIntentKind::ExchData => {
-                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            match exch.process_data() {
-                                Ok((next_ts, _)) => {
-                                    self.evs.update_exch_data(ev.asset_no, next_ts);
-                                }
-                                Err(BacktestError::EndOfData) => {
-                                    self.evs.invalidate_exch_data(ev.asset_no);
-                                }
-                                Err(e) => {
-                                    return Err(e);
-                                }
-                            }
-                            self.evs.update_local_order(
-                                ev.asset_no,
-                                exch.earliest_send_order_timestamp(),
-                            );
-                        }
-                        EventIntentKind::ExchOrder => {
-                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let _ =
-                                exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
-                            self.evs.update_exch_order(
-                                ev.asset_no,
-                                exch.earliest_recv_order_timestamp(),
-                            );
-                        }
-                    }
-                }
-                None => {
-                    return Ok(false);
-                }
-            }
-        }
+        self.goto::<false>(
+            self.cur_ts + timeout,
+            (0, WAIT_ORDER_RESPONSE_NONE),
+            include_order_resp,
+        )
     }
 
     #[inline]
@@ -450,7 +399,7 @@ where
                 }
             }
         }
-        self.goto(self.cur_ts + duration, (0, WAIT_ORDER_RESPONSE_NONE))
+        self.goto::<false>(self.cur_ts + duration, (0, WAIT_ORDER_RESPONSE_NONE), false)
     }
 
     #[inline]

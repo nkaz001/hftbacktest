@@ -314,14 +314,12 @@ impl Probability for PowerProbQueueFunc3 {
     }
 }
 
-#[cfg(feature = "unstable_l3")]
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum L3OrderSource {
     Market,
-    Backtesting,
+    Backtest,
 }
 
-#[cfg(feature = "unstable_l3")]
 impl AnyClone for L3OrderSource {
     fn as_any(&self) -> &dyn Any {
         self
@@ -332,14 +330,12 @@ impl AnyClone for L3OrderSource {
     }
 }
 
-#[cfg(feature = "unstable_l3")]
 #[derive(Hash, Eq, PartialEq)]
 pub enum L3OrderId {
     Market(i64),
-    Backtesting(i64),
+    Backtest(i64),
 }
 
-#[cfg(feature = "unstable_l3")]
 impl L3OrderId {
     pub fn is(&self, order: &Order) -> bool {
         let order_source = order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
@@ -347,14 +343,13 @@ impl L3OrderId {
             L3OrderId::Market(order_id) => {
                 order.order_id == *order_id && *order_source == L3OrderSource::Market
             }
-            L3OrderId::Backtesting(order_id) => {
-                order.order_id == *order_id && *order_source == L3OrderSource::Backtesting
+            L3OrderId::Backtest(order_id) => {
+                order.order_id == *order_id && *order_source == L3OrderSource::Backtest
             }
         }
     }
 }
 
-#[cfg(feature = "unstable_l3")]
 pub trait L3QueueModel {
     type Error;
 
@@ -368,27 +363,27 @@ pub trait L3QueueModel {
 }
 
 #[cfg(feature = "unstable_l3")]
-pub struct L3PriceTimePriorityQueueModel {
+pub struct L3FIFOQueueModel {
     pub orders: HashMap<L3OrderId, (Side, i32)>,
     // Since LinkedList's cursor is still unstable, there is no efficient way to delete an item in a
     // linked list, so it is better to use a vector.
-    pub bid_priority: HashMap<i32, Vec<Order>>,
-    pub ask_priority: HashMap<i32, Vec<Order>>,
+    pub bid_queue: HashMap<i32, Vec<Order>>,
+    pub ask_queue: HashMap<i32, Vec<Order>>,
 }
 
 #[cfg(feature = "unstable_l3")]
-impl L3PriceTimePriorityQueueModel {
+impl L3FIFOQueueModel {
     pub fn new() -> Self {
         Self {
             orders: Default::default(),
-            bid_priority: Default::default(),
-            ask_priority: Default::default(),
+            bid_queue: Default::default(),
+            ask_queue: Default::default(),
         }
     }
 }
 
 #[cfg(feature = "unstable_l3")]
-impl L3QueueModel for L3PriceTimePriorityQueueModel {
+impl L3QueueModel for L3FIFOQueueModel {
     type Error = BacktestError;
 
     fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error> {
@@ -396,14 +391,8 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
         let side = order.side;
 
         let priority = match side {
-            Side::Buy => self
-                .bid_priority
-                .entry(order_price_tick)
-                .or_insert(Vec::new()),
-            Side::Sell => self
-                .ask_priority
-                .entry(order_price_tick)
-                .or_insert(Vec::new()),
+            Side::Buy => self.bid_queue.entry(order_price_tick).or_insert(Vec::new()),
+            Side::Sell => self.ask_queue.entry(order_price_tick).or_insert(Vec::new()),
             Side::Unsupported => unreachable!(),
         };
 
@@ -425,32 +414,32 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
 
         match side {
             Side::Buy => {
-                let priority = self.bid_priority.get_mut(&order_price_tick).unwrap();
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
                 let mut pos = None;
-                for (i, order_in_q) in priority.iter().enumerate() {
+                for (i, order_in_q) in queue.iter().enumerate() {
                     if order_id.is(order_in_q) {
                         pos = Some(i);
                         break;
                     }
                 }
 
-                let order = priority.remove(pos.ok_or(BacktestError::OrderNotFound)?);
+                let order = queue.remove(pos.ok_or(BacktestError::OrderNotFound)?);
                 // if priority.len() == 0 {
                 //     self.bid_priority.remove(&order_price_tick);
                 // }
                 Ok(order)
             }
             Side::Sell => {
-                let priority = self.ask_priority.get_mut(&order_price_tick).unwrap();
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
                 let mut pos = None;
-                for (i, order_in_q) in priority.iter().enumerate() {
+                for (i, order_in_q) in queue.iter().enumerate() {
                     if order_id.is(order_in_q) {
                         pos = Some(i);
                         break;
                     }
                 }
 
-                let order = priority.remove(pos.ok_or(BacktestError::OrderNotFound)?);
+                let order = queue.remove(pos.ok_or(BacktestError::OrderNotFound)?);
                 // if priority.len() == 0 {
                 //     self.ask_priority.remove(&order_price_tick);
                 // }
@@ -468,10 +457,10 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
 
         match side {
             Side::Buy => {
-                let priority = self.bid_priority.get_mut(&order_price_tick).unwrap();
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
                 let mut processed = false;
                 let mut pos = None;
-                for (i, order_in_q) in priority.iter_mut().enumerate() {
+                for (i, order_in_q) in queue.iter_mut().enumerate() {
                     if order_id.is(order_in_q) {
                         if (order_in_q.price_tick != order.price_tick)
                             || (order_in_q.leaves_qty < order.leaves_qty)
@@ -491,23 +480,23 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
                 }
 
                 if let Some(pos) = pos {
-                    let prev_order = priority.remove(pos);
+                    let prev_order = queue.remove(pos);
                     // if priority.len() == 0 {
                     //     self.bid_priority.remove(&order_price_tick);
                     // }
                     if prev_order.price_tick != order.price_tick {
-                        let priority = self.bid_priority.get_mut(&order.price_tick).unwrap();
-                        priority.push(order);
+                        let queue_ = self.bid_queue.get_mut(&order.price_tick).unwrap();
+                        queue_.push(order);
                     } else {
-                        priority.push(order);
+                        queue.push(order);
                     }
                 }
             }
             Side::Sell => {
-                let priority = self.ask_priority.get_mut(&order_price_tick).unwrap();
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
                 let mut processed = false;
                 let mut pos = None;
-                for (i, order_in_q) in priority.iter_mut().enumerate() {
+                for (i, order_in_q) in queue.iter_mut().enumerate() {
                     if order_id.is(order_in_q) {
                         if (order_in_q.price_tick != order.price_tick)
                             || (order_in_q.leaves_qty < order.leaves_qty)
@@ -527,15 +516,15 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
                 }
 
                 if let Some(pos) = pos {
-                    let prev_order = priority.remove(pos);
+                    let prev_order = queue.remove(pos);
                     // if priority.len() == 0 {
                     //     self.bid_priority.remove(&order_price_tick);
                     // }
                     if prev_order.price_tick != order.price_tick {
-                        let priority = self.ask_priority.get_mut(&order.price_tick).unwrap();
-                        priority.push(order);
+                        let queue_ = self.ask_queue.get_mut(&order.price_tick).unwrap();
+                        queue_.push(order);
                     } else {
-                        priority.push(order);
+                        queue.push(order);
                     }
                 }
             }
@@ -553,13 +542,13 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
 
         match side {
             Side::Buy => {
-                let priority = self.bid_priority.get_mut(&order_price_tick).unwrap();
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
                 let mut filled = Vec::new();
 
                 let mut pos = None;
                 let mut i = 0;
-                while i < priority.len() {
-                    let order_in_q = priority.get(i).unwrap();
+                while i < queue.len() {
+                    let order_in_q = queue.get(i).unwrap();
                     let order_source = order_in_q
                         .q
                         .as_any()
@@ -568,8 +557,8 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
                     if order_id.is(order_in_q) {
                         pos = Some(i);
                         break;
-                    } else if *order_source == L3OrderSource::Backtesting {
-                        let order = priority.remove(i);
+                    } else if *order_source == L3OrderSource::Backtest {
+                        let order = queue.remove(i);
                         filled.push(order);
                     } else {
                         i += 1;
@@ -577,7 +566,7 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
                 }
                 let pos = pos.ok_or(BacktestError::OrderNotFound)?;
                 if delete {
-                    priority.remove(pos);
+                    queue.remove(pos);
                     // if priority.len() == 0 {
                     //     self.ask_priority.remove(&order_price_tick);
                     // }
@@ -585,13 +574,13 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
                 Ok(filled)
             }
             Side::Sell => {
-                let priority = self.ask_priority.get_mut(&order_price_tick).unwrap();
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
                 let mut filled = Vec::new();
 
                 let mut pos = None;
                 let mut i = 0;
-                while i < priority.len() {
-                    let order_in_q = priority.get(i).unwrap();
+                while i < queue.len() {
+                    let order_in_q = queue.get(i).unwrap();
                     let order_source = order_in_q
                         .q
                         .as_any()
@@ -600,8 +589,8 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
                     if order_id.is(order_in_q) {
                         pos = Some(i);
                         break;
-                    } else if *order_source == L3OrderSource::Backtesting {
-                        let order = priority.remove(i);
+                    } else if *order_source == L3OrderSource::Backtest {
+                        let order = queue.remove(i);
                         filled.push(order);
                     } else {
                         i += 1;
@@ -609,7 +598,7 @@ impl L3QueueModel for L3PriceTimePriorityQueueModel {
                 }
                 let pos = pos.ok_or(BacktestError::OrderNotFound)?;
                 if delete {
-                    priority.remove(pos);
+                    queue.remove(pos);
                     // if priority.len() == 0 {
                     //     self.ask_priority.remove(&order_price_tick);
                     // }
