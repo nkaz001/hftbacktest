@@ -21,7 +21,7 @@ categories = ["finance", "mathematics", "science", "algorithms", "simulation"]
 
 [features]
 default = ["backtest", "live", "binancefutures", "bybit"]
-backtest = ["zip", "uuid"]
+backtest = ["zip", "uuid", "npyz", "zip_old"]
 live = ["chrono", "tokio", "futures-util"]
 binancefutures = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
 bybit = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
@@ -38,12 +38,14 @@ serde_json = { version = "1.0.113", optional = true }
 tokio = { version = "1.35.1", features = ["full"], optional = true }
 tokio-tungstenite = { version = "0.23.0", features = ["native-tls"], optional = true }
 reqwest = { version = "0.12.3", features = ["json"], optional = true }
-zip = { version = "2.1.1", optional = true }
+zip = { version = "2.1.3", optional = true }
 futures-util = { version = "0.3.30", optional = true }
 sha2 = { version = "0.11.0-pre.3", optional = true }
 hmac = { version = "0.13.0-pre.3", optional = true }
 rand = { version = "0.8.5", optional = true }
 uuid = { version = "1.8.0", features = ["v4"], optional = true }
+npyz = { version = "0.8.3", features = ["derive", "npz"], optional = true }
+zip_old = { package = "zip", version = "0.6.6", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.18", features = [] }
