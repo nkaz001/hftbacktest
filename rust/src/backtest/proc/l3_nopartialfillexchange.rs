@@ -3,13 +3,7 @@ use std::mem;
 use crate::{
     backtest::{
         assettype::AssetType,
-        models::{
-            L3OrderId,
-            L3OrderSource,
-            L3FIFOQueueModel,
-            L3QueueModel,
-            LatencyModel,
-        },
+        models::{L3FIFOQueueModel, L3OrderId, L3OrderSource, L3QueueModel, LatencyModel},
         order::OrderBus,
         proc::proc::Processor,
         reader::{Data, Reader},

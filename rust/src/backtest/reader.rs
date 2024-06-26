@@ -14,11 +14,14 @@ use uuid::Uuid;
 use crate::backtest::BacktestError;
 
 pub unsafe trait POD: Sized {}
-pub unsafe trait NpyFile : POD {}
+pub unsafe trait NpyFile: POD {}
 
 /// Provides access to an array of structs from the buffer.
 #[derive(Clone, Debug)]
-pub struct Data<D> where D: POD + Clone {
+pub struct Data<D>
+where
+    D: POD + Clone,
+{
     buf: Rc<Box<[u8]>>,
     header_len: usize,
     _d_marker: PhantomData<D>,

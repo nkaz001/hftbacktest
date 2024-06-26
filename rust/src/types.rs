@@ -7,9 +7,11 @@ use std::{
 
 use dyn_clone::DynClone;
 use thiserror::Error;
-use crate::backtest::reader::{POD, NpyFile};
 
-use crate::depth::MarketDepth;
+use crate::{
+    backtest::reader::{NpyFile, POD},
+    depth::MarketDepth,
+};
 
 /// Error type assigned to [`Error`].
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]

@@ -2,13 +2,12 @@ use std::mem;
 
 use crate::{
     backtest::{
-        reader::{Cache, Data, Reader},
+        reader::{Cache, Data, NpyFile, Reader, POD},
         BacktestError,
         DataSource,
     },
     types::Order,
 };
-use crate::backtest::reader::{POD, NpyFile};
 
 /// Provides the order entry latency and the order response latency.
 pub trait LatencyModel {
