@@ -16,7 +16,9 @@ mod l3_nopartialfillexchange;
 
 #[cfg(feature = "unstable_l3")]
 pub use l3_local::L3Local;
+
 #[cfg(feature = "unstable_l3")]
 pub use l3_nopartialfillexchange::L3NoPartialFillExchange;
+
 #[cfg(feature = "unstable_l3")]
 pub use proc::GenLocalProcessor;

@@ -94,16 +94,16 @@ pub const DEPTH_CLEAR_EVENT: i64 = 3;
 /// Indicates that the market depth snapshot is received.
 pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
 
-#[cfg(feature = "unstable_l3")]
+/// Indicates that an order has been added to the order book.
 pub const ADD_ORDER_EVENT: i64 = 10;
 
-#[cfg(feature = "unstable_l3")]
+/// Indicates that an order in the order book has been canceled.
 pub const CANCEL_ORDER_EVENT: i64 = 11;
 
-#[cfg(feature = "unstable_l3")]
+/// Indicates that an order in the order book has been modified.
 pub const MODIFY_ORDER_EVENT: i64 = 12;
 
-#[cfg(feature = "unstable_l3")]
+/// Indicates that an order in the order book has been filled.
 pub const FILL_EVENT: i64 = 13;
 
 /// Indicates that it is a valid event to be handled by the exchange processor at the exchange
@@ -161,46 +161,46 @@ pub const EXCH_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | EXC
 /// Represents a combination of [`TRADE_EVENT`], and `EXCH_EVENT`.
 pub const EXCH_TRADE_EVENT: i64 = TRADE_EVENT | EXCH_EVENT;
 
-/// Represents a combination of [`TRADE_EVENT`], [`BUY`], and `EXCH_EVENT`.
+/// Represents a combination of `EXCH_TRADE_EVENT` and `BUY`.
 pub const EXCH_BUY_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | BUY;
 
-/// Represents a combination of [`TRADE_EVENT`], [`SELL`], and `EXCH_EVENT`.
+/// Represents a combination of `EXCH_TRADE_EVENT` and `SELL`.
 pub const EXCH_SELL_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | SELL;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `LOCAL_EVENT` and `ADD_ORDER_EVENT`.
 pub const LOCAL_ADD_ORDER_EVENT: i64 = LOCAL_EVENT | ADD_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `BUY` and `LOCAL_ADD_ORDER_EVENT`.
 pub const LOCAL_BID_ADD_ORDER_EVENT: i64 = BUY | LOCAL_ADD_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `SELL` and `LOCAL_ADD_ORDER_EVENT`.
 pub const LOCAL_ASK_ADD_ORDER_EVENT: i64 = SELL | LOCAL_ADD_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `LOCAL_EVENT` and `CANCEL_ORDER_EVENT`.
 pub const LOCAL_CANCEL_ORDER_EVENT: i64 = LOCAL_EVENT | CANCEL_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `LOCAL_EVENT` and `MODIFY_ORDER_EVENT`.
 pub const LOCAL_MODIFY_ORDER_EVENT: i64 = LOCAL_EVENT | MODIFY_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `LOCAL_EVENT` and `FILL_EVENT`.
 pub const LOCAL_FILL_EVENT: i64 = LOCAL_EVENT | FILL_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `EXCH_EVENT` and `ADD_ORDER_EVENT`.
 pub const EXCH_ADD_ORDER_EVENT: i64 = EXCH_EVENT | ADD_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `BUY` and `EXCH_ADD_ORDER_EVENT`.
 pub const EXCH_BID_ADD_ORDER_EVENT: i64 = BUY | EXCH_ADD_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `SELL` and `EXCH_ADD_ORDER_EVENT`.
 pub const EXCH_ASK_ADD_ORDER_EVENT: i64 = SELL | EXCH_ADD_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `EXCH_EVENT` and `CANCEL_ORDER_EVENT`.
 pub const EXCH_CANCEL_ORDER_EVENT: i64 = EXCH_EVENT | CANCEL_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `EXCH_EVENT` and `MODIFY_ORDER_EVENT`.
 pub const EXCH_MODIFY_ORDER_EVENT: i64 = EXCH_EVENT | MODIFY_ORDER_EVENT;
 
-#[cfg(feature = "unstable_l3")]
+/// Represents a combination of `EXCH_EVENT` and `FILL_EVENT`.
 pub const EXCH_FILL_EVENT: i64 = EXCH_EVENT | FILL_EVENT;
 
 /// Indicates that one should not wait for an order response.

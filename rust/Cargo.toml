@@ -1,6 +1,6 @@
 [package]
 name = "hftbacktest"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["nkaz001 <nkaz001@protonmail.com>"]
 license = "MIT"
@@ -51,6 +51,10 @@ zip_old = { package = "zip", version = "0.6.6", optional = true }
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.18", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [profile.dev]
 opt-level = 0
