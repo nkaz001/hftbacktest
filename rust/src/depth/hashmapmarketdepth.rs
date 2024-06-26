@@ -506,7 +506,7 @@ impl L3MarketDepth for HashMapMarketDepth {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::{
         depth::{HashMapMarketDepth, L3MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
         types::{BUY, SELL},

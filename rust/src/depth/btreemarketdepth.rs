@@ -377,7 +377,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::{
         depth::{
             BTreeMarketDepth,

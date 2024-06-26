@@ -9,6 +9,9 @@ use crate::backtest::reader::POD;
 mod btreemarketdepth;
 mod hashmapmarketdepth;
 
+#[cfg(feature = "unstable_fuse")]
+mod fuse;
+
 /// Represents no best bid.
 pub const INVALID_MIN: i32 = i32::MIN;
 
