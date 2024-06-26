@@ -197,6 +197,10 @@ The following items are examples of contributions you can make to this project:
     :target: https://github.com/nkaz001/hftbacktest
     :alt: Github
 
+.. |roadmap| image:: https://img.shields.io/badge/Roadmap-gray
+    :target: https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md
+    :alt: Roadmap
+
 .. toctree::
    :maxdepth: 1
    :caption: Tutorials
