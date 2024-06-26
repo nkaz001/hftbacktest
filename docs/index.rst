@@ -10,7 +10,7 @@
 HftBacktest
 ===========
 
-|codacy| |codeql| |pypi| |downloads| |license| |docs| |github|
+|codacy| |codeql| |python| |pypi| |downloads| |crates| |license| |docs| |roadmap| |github|
 
 High-Frequency Trading Backtesting Tool
 =======================================
@@ -23,10 +23,18 @@ Rust implementation with experimental features
 The experimental features are currently in the early stages of development, having been completely rewritten in Rust to
 support the following features.
 
+* Complete tick-by-tick simulation with a customizable time interval or based on the feed and order receipt.
+* Full order book reconstruction based on L2 Market-By-Price and L3 Market-By-Order (WIP) feeds.
+* Backtest accounting for both feed and order latency, using provided models or your own custom model.
+* Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 * Backtesting of multi-asset and multi-exchange models
-* Deployment of a live trading bot using the same algo code.
+* Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit.
 
 Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ directory.
+
+Example: The complete process of backtesting Binance Futures
+------------------------------------------------------------
+`high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Key Features
 ============
@@ -153,9 +161,9 @@ The following items are examples of contributions you can make to this project:
 * Add additional queue or exchange models
 * Update documentation and examples
 
-.. |python| image:: https://img.shields.io/pypi/pyversions/hftbacktest.svg?style=plastic
+.. |python| image:: https://shields.io/badge/python-3.10-blue
     :alt: Python Version
-    :target: https://badge.fury.io/py/hftbacktest
+    :target: https://pypi.org/project/hftbacktest
 
 .. |codacy| image:: https://app.codacy.com/project/badge/Grade/e2cef673757a45b18abfc361779feada
     :alt: Codacy
@@ -172,6 +180,10 @@ The following items are examples of contributions you can make to this project:
 .. |downloads| image:: https://static.pepy.tech/badge/hftbacktest
     :alt: Downloads
     :target: https://pepy.tech/project/hftbacktest
+
+.. |crates| image:: https://img.shields.io/crates/v/hftbacktest.svg
+    :alt: Rust crates.io version
+    :target: https://crates.io/crates/hftbacktest
 
 .. |license| image:: https://img.shields.io/badge/License-MIT-green.svg
     :alt: License

@@ -20,13 +20,13 @@ support the following features.
 * Backtest accounting for both feed and order latency, using provided models or your own custom model.
 * Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 * Backtesting of multi-asset and multi-exchange models
-* Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit (WIP).
+* Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit.
 
 Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ directory.
 
 Example: The complete process of backtesting Binance Futures
 ------------------------------------------------------------
-`gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
+`high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Key Features
 ============
