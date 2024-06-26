@@ -1,23 +1,22 @@
 use std::collections::{hash_map::Entry, HashMap};
 
+use super::{ApplySnapshot, L1MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
-    backtest::{BacktestError, reader::Data},
+    backtest::{reader::Data, BacktestError},
     prelude::{L2MarketDepth, Side},
-    types::{BUY, Event, SELL},
+    types::{Event, BUY, SELL},
 };
-
-use super::{ApplySnapshot, INVALID_MAX, INVALID_MIN, L3Order, MarketDepth};
 
 struct QtyTimestamp {
     qty: f32,
-    timestamp: i64
+    timestamp: i64,
 }
 
 impl Default for QtyTimestamp {
     fn default() -> Self {
         Self {
             qty: 0.0,
-            timestamp: 0
+            timestamp: 0,
         }
     }
 }
@@ -93,9 +92,15 @@ impl FusedHashMapMarketDepth {
             Entry::Vacant(entry) => entry.insert(order),
         };
         if order.side == Side::Buy {
-            self.bid_depth.entry(order.price_tick).or_insert(Default::default()).qty += order.qty;
+            self.bid_depth
+                .entry(order.price_tick)
+                .or_insert(Default::default())
+                .qty += order.qty;
         } else {
-            self.ask_depth.entry(order.price_tick).or_insert(Default::default()).qty += order.qty;
+            self.ask_depth
+                .entry(order.price_tick)
+                .or_insert(Default::default())
+                .qty += order.qty;
         }
         Ok(())
     }
@@ -114,7 +119,10 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
         let prev_qty;
         match self.bid_depth.entry(price_tick) {
             Entry::Occupied(mut entry) => {
-                let QtyTimestamp { qty: prev_qty_, timestamp: prev_timestamp } = *entry.get();
+                let QtyTimestamp {
+                    qty: prev_qty_,
+                    timestamp: prev_timestamp,
+                } = *entry.get();
                 prev_qty = prev_qty_;
                 if timestamp > prev_timestamp {
                     if qty_lot > 0 {
@@ -181,7 +189,10 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
         let prev_qty;
         match self.ask_depth.entry(price_tick) {
             Entry::Occupied(mut entry) => {
-                let QtyTimestamp { qty: prev_qty_, timestamp: prev_timestamp } = *entry.get();
+                let QtyTimestamp {
+                    qty: prev_qty_,
+                    timestamp: prev_timestamp,
+                } = *entry.get();
                 prev_qty = prev_qty_;
                 if timestamp > prev_timestamp {
                     if qty_lot > 0 {
@@ -306,12 +317,18 @@ impl MarketDepth for FusedHashMapMarketDepth {
 
     #[inline(always)]
     fn bid_qty_at_tick(&self, price_tick: i32) -> f32 {
-        self.bid_depth.get(&price_tick).unwrap_or(&Default::default()).qty
+        self.bid_depth
+            .get(&price_tick)
+            .unwrap_or(&Default::default())
+            .qty
     }
 
     #[inline(always)]
     fn ask_qty_at_tick(&self, price_tick: i32) -> f32 {
-        self.ask_depth.get(&price_tick).unwrap_or(&Default::default()).qty
+        self.ask_depth
+            .get(&price_tick)
+            .unwrap_or(&Default::default())
+            .qty
     }
 }
 
@@ -332,20 +349,130 @@ impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
             if data[row_num].ev & BUY == BUY {
                 self.best_bid_tick = self.best_bid_tick.max(price_tick);
                 self.low_bid_tick = self.low_bid_tick.min(price_tick);
-                *self.bid_depth.entry(price_tick).or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
+                *self
+                    .bid_depth
+                    .entry(price_tick)
+                    .or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
             } else if data[row_num].ev & SELL == SELL {
                 self.best_ask_tick = self.best_ask_tick.min(price_tick);
                 self.high_ask_tick = self.high_ask_tick.max(price_tick);
-                *self.ask_depth.entry(price_tick).or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
+                *self
+                    .ask_depth
+                    .entry(price_tick)
+                    .or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
             }
         }
     }
 }
 
+impl L1MarketDepth for FusedHashMapMarketDepth {
+    fn update_best_bid(
+        &mut self,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64) {
+        let price_tick = (px / self.tick_size).round() as i32;
+        let prev_best_bid_tick = self.best_bid_tick;
+        let prev_qty;
+        match self.bid_depth.entry(price_tick) {
+            Entry::Occupied(mut entry) => {
+                let QtyTimestamp {
+                    qty: prev_qty_,
+                    timestamp: prev_timestamp,
+                } = *entry.get();
+                prev_qty = prev_qty_;
+                if timestamp > prev_timestamp {
+                    *entry.get_mut() = QtyTimestamp { qty, timestamp };
+                }
+            }
+            Entry::Vacant(entry) => {
+                prev_qty = 0f32;
+                entry.insert(QtyTimestamp { qty, timestamp });
+            }
+        }
+
+        if timestamp >= self.best_bid_timestamp {
+            self.best_bid_tick = price_tick;
+            self.best_bid_timestamp = timestamp;
+            if self.best_bid_tick >= self.best_ask_tick {
+                if timestamp >= self.best_ask_timestamp {
+                    self.best_ask_tick =
+                        depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
+                    self.best_ask_timestamp = timestamp;
+                } else {
+                    self.best_bid_tick =
+                        depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
+                    self.best_bid_timestamp = self.best_ask_timestamp;
+                }
+            }
+        }
+        (
+            price_tick,
+            prev_best_bid_tick,
+            self.best_bid_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
+    }
+
+    fn update_best_ask(
+        &mut self,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64) {
+        let price_tick = (px / self.tick_size).round() as i32;
+        let qty_lot = (qty / self.lot_size).round() as i32;
+        let prev_best_ask_tick = self.best_ask_tick;
+        let prev_qty;
+        match self.ask_depth.entry(price_tick) {
+            Entry::Occupied(mut entry) => {
+                let QtyTimestamp {
+                    qty: prev_qty_,
+                    timestamp: prev_timestamp,
+                } = *entry.get();
+                prev_qty = prev_qty_;
+                if timestamp > prev_timestamp {
+                    *entry.get_mut() = QtyTimestamp { qty, timestamp };
+                }
+            }
+            Entry::Vacant(entry) => {
+                prev_qty = 0f32;
+                entry.insert(QtyTimestamp { qty, timestamp });
+            }
+        }
+
+        if timestamp >= self.best_ask_timestamp {
+            self.best_ask_tick = price_tick;
+            self.best_ask_timestamp = timestamp;
+            if self.best_bid_tick >= self.best_ask_tick {
+                if timestamp >= self.best_bid_timestamp {
+                    self.best_bid_tick =
+                        depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
+                    self.best_bid_timestamp = timestamp;
+                } else {
+                    self.best_ask_tick =
+                        depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
+                    self.best_ask_timestamp = self.best_bid_timestamp;
+                }
+            }
+        }
+        (
+            price_tick,
+            prev_best_ask_tick,
+            self.best_ask_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::depth::fuse::FusedHashMapMarketDepth;
-    use crate::depth::{L2MarketDepth, MarketDepth};
+    use crate::depth::{fuse::FusedHashMapMarketDepth, L1MarketDepth, L2MarketDepth, MarketDepth};
 
     #[test]
     fn test_update_bid_depth() {
@@ -413,5 +540,63 @@ mod tests {
         depth.update_bid_depth(10.3, 0.01, 6);
         assert_eq!(depth.best_bid_tick(), 102);
         assert_eq!(depth.best_ask_tick(), 103);
+    }
+
+    #[test]
+    fn test_update_best_bid() {
+        let mut depth = FusedHashMapMarketDepth::new(0.1, 0.01);
+
+        depth.update_bid_depth(10.1, 0.01, 1);
+        depth.update_bid_depth(10.2, 0.02, 1);
+        depth.update_ask_depth(10.3, 0.02, 1);
+        depth.update_ask_depth(10.4, 0.01, 1);
+
+        depth.update_best_bid(10.3, 0.03, 0);
+        assert_eq!(depth.best_bid_tick(), 102);
+        depth.update_best_bid(10.2, 0.03, 2);
+        assert_eq!(depth.bid_qty_at_tick(102), 0.03);
+        depth.update_best_bid(10.3, 0.01, 3);
+        assert_eq!(depth.best_bid_tick(), 103);
+        assert_eq!(depth.bid_qty_at_tick(103), 0.01);
+        assert_eq!(depth.best_ask_tick(), 104);
+
+        depth.update_bid_depth(10.1, 0.01, 5);
+        depth.update_bid_depth(10.2, 0.02, 5);
+        depth.update_best_bid(10.1, 0.05, 2);
+        assert_eq!(depth.best_bid_tick(), 103);
+        assert_eq!(depth.best_ask_tick(), 104);
+        assert_eq!(depth.bid_qty_at_tick(101), 0.01);
+
+        depth.update_best_bid(10.1, 0.05, 6);
+        assert_eq!(depth.best_bid_tick(), 101);
+    }
+
+    #[test]
+    fn test_update_best_ask() {
+        let mut depth = FusedHashMapMarketDepth::new(0.1, 0.01);
+
+        depth.update_bid_depth(10.1, 0.01, 1);
+        depth.update_bid_depth(10.2, 0.02, 1);
+        depth.update_ask_depth(10.3, 0.02, 1);
+        depth.update_ask_depth(10.4, 0.01, 1);
+
+        depth.update_best_ask(10.2, 0.03, 0);
+        assert_eq!(depth.best_ask_tick(), 103);
+        depth.update_best_ask(10.3, 0.03, 2);
+        assert_eq!(depth.ask_qty_at_tick(103), 0.03);
+        depth.update_best_ask(10.2, 0.01, 3);
+        assert_eq!(depth.best_bid_tick(), 101);
+        assert_eq!(depth.ask_qty_at_tick(102), 0.01);
+        assert_eq!(depth.best_ask_tick(), 102);
+
+        depth.update_ask_depth(10.3, 0.02, 5);
+        depth.update_ask_depth(10.4, 0.01, 5);
+        depth.update_best_ask(10.4, 0.05, 2);
+        assert_eq!(depth.best_bid_tick(), 101);
+        assert_eq!(depth.best_ask_tick(), 102);
+        assert_eq!(depth.ask_qty_at_tick(104), 0.01);
+
+        depth.update_best_ask(10.4, 0.05, 6);
+        assert_eq!(depth.best_ask_tick(), 104);
     }
 }

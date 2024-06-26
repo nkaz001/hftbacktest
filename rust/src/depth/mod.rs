@@ -3,8 +3,10 @@ use std::collections::HashMap;
 pub use btreemarketdepth::BTreeMarketDepth;
 pub use hashmapmarketdepth::HashMapMarketDepth;
 
-use crate::{backtest::reader::Data, prelude::Side};
-use crate::backtest::reader::POD;
+use crate::{
+    backtest::reader::{Data, POD},
+    prelude::Side,
+};
 
 mod btreemarketdepth;
 mod hashmapmarketdepth;
@@ -80,7 +82,10 @@ pub trait L2MarketDepth {
 
 /// Provides a method to initialize the `MarketDepth` from the given snapshot data, such as
 /// Start-Of-Day snapshot or End-Of-Day snapshot, for backtesting purpose.
-pub trait ApplySnapshot<EventT> where EventT: POD + Clone {
+pub trait ApplySnapshot<EventT>
+where
+    EventT: POD + Clone,
+{
     /// Applies the snapshot from the given data to this market depth.
     fn apply_snapshot(&mut self, data: &Data<EventT>);
 }
@@ -142,4 +147,21 @@ pub trait L3MarketDepth: MarketDepth {
 
     /// Returns the orders held in the order book.
     fn orders(&self) -> &HashMap<i64, L3Order>;
+}
+
+#[cfg(feature = "unstable_fuse")]
+pub trait L1MarketDepth {
+    fn update_best_bid(
+        &mut self,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64);
+
+    fn update_best_ask(
+        &mut self,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64);
 }

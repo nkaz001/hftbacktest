@@ -379,14 +379,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 #[cfg(test)]
 mod tests {
     use crate::{
-        depth::{
-            BTreeMarketDepth,
-            HashMapMarketDepth,
-            L3MarketDepth,
-            MarketDepth,
-            INVALID_MAX,
-            INVALID_MIN,
-        },
+        depth::{BTreeMarketDepth, L3MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
         types::{BUY, SELL},
     };
 
