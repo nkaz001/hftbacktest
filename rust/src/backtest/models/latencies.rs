@@ -8,6 +8,7 @@ use crate::{
     },
     types::Order,
 };
+use crate::backtest::reader::{POD, NpyFile};
 
 /// Provides the order entry latency and the order response latency.
 pub trait LatencyModel {
@@ -66,6 +67,10 @@ pub struct OrderLatencyRow {
     /// For the alignment.
     pub _reserved: i64,
 }
+
+unsafe impl POD for OrderLatencyRow {}
+
+unsafe impl NpyFile for OrderLatencyRow {}
 
 /// Provides order latency based on actual historical order latency data through interpolation.
 ///

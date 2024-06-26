@@ -7,6 +7,7 @@ use std::{
 
 use dyn_clone::DynClone;
 use thiserror::Error;
+use crate::backtest::reader::{POD, NpyFile};
 
 use crate::depth::MarketDepth;
 
@@ -242,6 +243,10 @@ impl Event {
     }
 }
 
+unsafe impl POD for Event {}
+
+unsafe impl NpyFile for Event {}
+
 /// Exchange Level3 Market-By-Order event data.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(64))]
@@ -262,6 +267,10 @@ pub struct L3Event {
     pub priority: u64,
     pub _reserved: [i64; 2],
 }
+
+unsafe impl POD for L3Event {}
+
+unsafe impl NpyFile for L3Event {}
 
 impl L3Event {
     /// Checks if this `L3Event` corresponds to the given event.

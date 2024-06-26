@@ -4,6 +4,7 @@ pub use btreemarketdepth::BTreeMarketDepth;
 pub use hashmapmarketdepth::HashMapMarketDepth;
 
 use crate::{backtest::reader::Data, prelude::Side};
+use crate::backtest::reader::POD;
 
 mod btreemarketdepth;
 mod hashmapmarketdepth;
@@ -76,7 +77,7 @@ pub trait L2MarketDepth {
 
 /// Provides a method to initialize the `MarketDepth` from the given snapshot data, such as
 /// Start-Of-Day snapshot or End-Of-Day snapshot, for backtesting purpose.
-pub trait ApplySnapshot<EventT> {
+pub trait ApplySnapshot<EventT> where EventT: POD + Clone {
     /// Applies the snapshot from the given data to this market depth.
     fn apply_snapshot(&mut self, data: &Data<EventT>);
 }

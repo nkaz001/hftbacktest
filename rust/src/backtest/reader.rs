@@ -13,9 +13,12 @@ use uuid::Uuid;
 
 use crate::backtest::BacktestError;
 
+pub unsafe trait POD: Sized {}
+pub unsafe trait NpyFile : POD {}
+
 /// Provides access to an array of structs from the buffer.
 #[derive(Clone, Debug)]
-pub struct Data<D> {
+pub struct Data<D> where D: POD + Clone {
     buf: Rc<Box<[u8]>>,
     header_len: usize,
     _d_marker: PhantomData<D>,
@@ -23,7 +26,7 @@ pub struct Data<D> {
 
 impl<D> Data<D>
 where
-    D: Sized,
+    D: POD + Clone,
 {
     /// Returns the length of the array.
     pub fn len(&self) -> usize {
@@ -43,7 +46,7 @@ where
 
 impl<D> Index<usize> for Data<D>
 where
-    D: Sized,
+    D: POD + Clone,
 {
     type Output = D;
 
@@ -62,11 +65,11 @@ where
 #[derive(Clone, Debug)]
 pub struct Cache<D>(Rc<RefCell<HashMap<String, (Cell<usize>, Data<D>)>>>)
 where
-    D: Sized;
+    D: POD + Clone;
 
 impl<D> Cache<D>
 where
-    D: Sized + Clone,
+    D: POD + Clone,
 {
     /// Constructs an instance of `Cache`.
     pub fn new() -> Self {
@@ -113,7 +116,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Reader<D>
 where
-    D: Sized,
+    D: NpyFile + Clone,
 {
     file_list: Vec<String>,
     cache: Cache<D>,
@@ -122,7 +125,7 @@ where
 
 impl<D> Reader<D>
 where
-    D: Sized + Clone,
+    D: NpyFile + Clone,
 {
     /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
     pub fn new(cache: Cache<D>) -> Self {
@@ -199,7 +202,7 @@ fn aligned_vec(size: usize) -> Box<[u8]> {
 
 /// Reads a structured array `numpy` file. Currently, it doesn't check if the data structure is the
 /// same as what the file contains. Users should be cautious about this.
-pub fn read_npy<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
+pub fn read_npy<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> {
     let mut file = File::open(filepath)?;
 
     file.sync_all()?;
@@ -223,7 +226,7 @@ pub fn read_npy<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
 
 /// Reads a structured array `numpy` zip archived file. Currently, it doesn't check if the data
 /// structure is the same as what the file contains. Users should be cautious about this.
-pub fn read_npz<D: Sized>(filepath: &str) -> Result<Data<D>, IoError> {
+pub fn read_npz<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> {
     let mut archive = zip::ZipArchive::new(File::open(filepath)?)?;
 
     let mut file = archive.by_index(0)?;
