@@ -3,6 +3,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     marker::PhantomData,
 };
+use std::collections::VecDeque;
 
 use crate::{
     backtest::BacktestError,
@@ -314,9 +315,13 @@ impl Probability for PowerProbQueueFunc3 {
     }
 }
 
+/// Represents the order source for the Level 3 Market-By-Order queue model, which is stored in
+/// [`order.q`](crate::types::Order::q)
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum L3OrderSource {
+    /// Represents an order originating from the market feed.
     Market,
+    /// Represents an order originating from the backtest.
     Backtest,
 }
 
@@ -330,9 +335,12 @@ impl AnyClone for L3OrderSource {
     }
 }
 
+/// Order ID with the order source for Level 3 Market-By-Order.
 #[derive(Hash, Eq, PartialEq)]
 pub enum L3OrderId {
+    /// Represents an order ID originating from the market feed.
     Market(i64),
+    /// Represents an order ID originating from the backtest.
     Backtest(i64),
 }
 
@@ -350,20 +358,40 @@ impl L3OrderId {
     }
 }
 
+/// Provides an estimation of the order's queue position for Level 3 Market-By-Order feed.
 pub trait L3QueueModel {
     type Error;
 
+    /// This function is called when an order is added.
     fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error>;
 
+    /// This function is called when an order is canceled.
+    /// It does not necessarily mean that the order is canceled by the person who submitted it. It
+    /// may simply mean that the order has been deleted in the market.
     fn cancel_order(&mut self, order_id: L3OrderId) -> Result<Order, Self::Error>;
 
+    /// This function is called when an order is modified.
     fn modify_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error>;
 
+    /// This function is called when an order is filled.
+    /// According to the exchange, the market feed may send fill and delete order events separately.
+    /// This means that after a fill event is received, a delete order event can be received
+    /// subsequently. The `delete` argument is used to indicate whether the order should be deleted
+    /// immediately or if it should be deleted upon receiving a delete order event, which is handled
+    /// by [`cancel_order`](L3QueueModel::cancel_order).
     fn fill(&mut self, order_id: L3OrderId, delete: bool) -> Result<Vec<Order>, Self::Error>;
 }
 
-#[cfg(feature = "unstable_l3")]
+/// This provides a Level 3 Market-By-Order queue model for backtesting in a FIFO manner. This means
+/// that all orders, including backtest orders, are managed in a FIFO queue based on price-time
+/// priority and executed in the FIFO order. Backtest orders are assumed to be executed in the queue
+/// when the market order, order from the market feed, behind the backtest order is executed.
+/// Exchanges may have different matching algorithms, such as Pro-Rata, and may have exotic order
+/// types that aren't executed in a FIFO manner. Therefore, you should carefully choose the queue
+/// model, even when dealing with a Level 3 Market-By-Order feed.
+#[cfg(any(feature = "unstable_l3", doc))]
 pub struct L3FIFOQueueModel {
+    // Stores the location of the queue that holds the order by (side, price in ticks).
     pub orders: HashMap<L3OrderId, (Side, i32)>,
     // Since LinkedList's cursor is still unstable, there is no efficient way to delete an item in a
     // linked list, so it is better to use a vector.
@@ -371,8 +399,9 @@ pub struct L3FIFOQueueModel {
     pub ask_queue: HashMap<i32, Vec<Order>>,
 }
 
-#[cfg(feature = "unstable_l3")]
+#[cfg(any(feature = "unstable_l3", doc))]
 impl L3FIFOQueueModel {
+    /// Constructs an instance of `L3FIFOQueueModel`.
     pub fn new() -> Self {
         Self {
             orders: Default::default(),
@@ -382,7 +411,7 @@ impl L3FIFOQueueModel {
     }
 }
 
-#[cfg(feature = "unstable_l3")]
+#[cfg(any(feature = "unstable_l3", doc))]
 impl L3QueueModel for L3FIFOQueueModel {
     type Error = BacktestError;
 

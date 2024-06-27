@@ -20,7 +20,7 @@ use crate::{
 pub mod assettype;
 
 mod backtest;
-/// Latency and queue position models
+
 pub mod models;
 
 /// OrderBus implementation
@@ -32,15 +32,18 @@ pub mod proc;
 /// The data reader
 pub mod reader;
 
+/// Trading state.
 pub mod state;
 
+/// Recorder for a bot's trading statistics.
 pub mod recorder;
 
 mod evs;
 
-#[cfg(feature = "unstable_l3")]
+#[cfg(any(feature = "unstable_l3", doc))]
 mod l3backtest;
 
+/// Errors that can occur during backtesting.
 #[derive(Error, Debug)]
 pub enum BacktestError {
     #[error("Order related to a given order id already exists")]
@@ -59,9 +62,13 @@ pub enum BacktestError {
     DataError(#[from] IoError),
 }
 
+/// Data source for the [`reader`].
 #[derive(Clone, Debug)]
 pub enum DataSource {
+    /// Data needs to be loaded from the specified  file. It will be loaded when needed and released
+    /// when no processor is reading the data.
     File(String),
+    /// Data is loaded and set by the user.
     Data(Data<Event>),
 }
 

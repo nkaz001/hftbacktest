@@ -80,8 +80,6 @@ pub const BUY: i64 = 1 << 29;
 /// event, it means that the trade initiator is a seller.
 pub const SELL: i64 = 1 << 28;
 
-pub const SIDE: i64 = BUY | SELL;
-
 /// Indicates that the market depth is changed.
 pub const DEPTH_EVENT: i64 = 1;
 
@@ -113,94 +111,94 @@ pub const EXCH_EVENT: i64 = 1 << 31;
 /// Indicates that it is a valid event to be handled by the local processor at the local timestamp.
 pub const LOCAL_EVENT: i64 = 1 << 30;
 
-/// Represents a combination of a [`DEPTH_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+/// Represents a combination of a [`DEPTH_EVENT`], [`BUY`], and [`LOCAL_EVENT`].
 pub const LOCAL_BID_DEPTH_EVENT: i64 = DEPTH_EVENT | BUY | LOCAL_EVENT;
 
-/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and [`LOCAL_EVENT`].
 pub const LOCAL_ASK_DEPTH_EVENT: i64 = DEPTH_EVENT | SELL | LOCAL_EVENT;
 
-/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and [`LOCAL_EVENT`].
 pub const LOCAL_BID_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | BUY | LOCAL_EVENT;
 
-/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and [`LOCAL_EVENT`].
 pub const LOCAL_ASK_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | SELL | LOCAL_EVENT;
 
-/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and [`LOCAL_EVENT`].
 pub const LOCAL_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | LOCAL_EVENT;
 
-/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and [`LOCAL_EVENT`].
 pub const LOCAL_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | LOCAL_EVENT;
 
-/// Represents a combination of [`TRADE_EVENT`], and `LOCAL_EVENT`.
+/// Represents a combination of [`TRADE_EVENT`], and [`LOCAL_EVENT`].
 pub const LOCAL_TRADE_EVENT: i64 = TRADE_EVENT | LOCAL_EVENT;
 
-/// Represents a combination of [`TRADE_EVENT`], [`SELL`], and `LOCAL_EVENT`.
+/// Represents a combination of [`LOCAL_TRADE_EVENT`] and [`BUY`].
 pub const LOCAL_BUY_TRADE_EVENT: i64 = LOCAL_TRADE_EVENT | BUY;
 
-/// Represents a combination of [`TRADE_EVENT`], [`BUY`], and `LOCAL_EVENT`.
+/// Represents a combination of [`LOCAL_TRADE_EVENT`] and [`SELL`].
 pub const LOCAL_SELL_TRADE_EVENT: i64 = LOCAL_TRADE_EVENT | SELL;
 
-/// Represents a combination of [`DEPTH_EVENT`], [`BUY`], and `EXCH_EVENT`.
+/// Represents a combination of [`DEPTH_EVENT`], [`BUY`], and [`EXCH_EVENT`].
 pub const EXCH_BID_DEPTH_EVENT: i64 = DEPTH_EVENT | BUY | EXCH_EVENT;
 
-/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and `EXCH_EVENT`.
+/// Represents a combination of [`DEPTH_EVENT`], [`SELL`], and [`EXCH_EVENT`].
 pub const EXCH_ASK_DEPTH_EVENT: i64 = DEPTH_EVENT | SELL | EXCH_EVENT;
 
-/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and `EXCH_EVENT`.
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`BUY`], and [`EXCH_EVENT`].
 pub const EXCH_BID_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | BUY | EXCH_EVENT;
 
-/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and `EXCH_EVENT`.
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], [`SELL`], and [`EXCH_EVENT`].
 pub const EXCH_ASK_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | SELL | EXCH_EVENT;
 
-/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and `EXCH_EVENT`.
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`BUY`], and [`EXCH_EVENT`].
 pub const EXCH_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | EXCH_EVENT;
 
-/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and `EXCH_EVENT`.
+/// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and [`EXCH_EVENT`].
 pub const EXCH_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | EXCH_EVENT;
 
-/// Represents a combination of [`TRADE_EVENT`], and `EXCH_EVENT`.
+/// Represents a combination of [`TRADE_EVENT`], and [`EXCH_EVENT`].
 pub const EXCH_TRADE_EVENT: i64 = TRADE_EVENT | EXCH_EVENT;
 
-/// Represents a combination of `EXCH_TRADE_EVENT` and `BUY`.
+/// Represents a combination of [`EXCH_TRADE_EVENT`] and [`BUY`].
 pub const EXCH_BUY_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | BUY;
 
-/// Represents a combination of `EXCH_TRADE_EVENT` and `SELL`.
+/// Represents a combination of [`EXCH_TRADE_EVENT`] and [`SELL`].
 pub const EXCH_SELL_TRADE_EVENT: i64 = EXCH_TRADE_EVENT | SELL;
 
-/// Represents a combination of `LOCAL_EVENT` and `ADD_ORDER_EVENT`.
+/// Represents a combination of [`LOCAL_EVENT`] and [`ADD_ORDER_EVENT`].
 pub const LOCAL_ADD_ORDER_EVENT: i64 = LOCAL_EVENT | ADD_ORDER_EVENT;
 
-/// Represents a combination of `BUY` and `LOCAL_ADD_ORDER_EVENT`.
+/// Represents a combination of [`BUY`] and [`LOCAL_ADD_ORDER_EVENT`].
 pub const LOCAL_BID_ADD_ORDER_EVENT: i64 = BUY | LOCAL_ADD_ORDER_EVENT;
 
-/// Represents a combination of `SELL` and `LOCAL_ADD_ORDER_EVENT`.
+/// Represents a combination of [`SELL`] and [`LOCAL_ADD_ORDER_EVENT`].
 pub const LOCAL_ASK_ADD_ORDER_EVENT: i64 = SELL | LOCAL_ADD_ORDER_EVENT;
 
-/// Represents a combination of `LOCAL_EVENT` and `CANCEL_ORDER_EVENT`.
+/// Represents a combination of [`LOCAL_EVENT`] and [`CANCEL_ORDER_EVENT`].
 pub const LOCAL_CANCEL_ORDER_EVENT: i64 = LOCAL_EVENT | CANCEL_ORDER_EVENT;
 
-/// Represents a combination of `LOCAL_EVENT` and `MODIFY_ORDER_EVENT`.
+/// Represents a combination of [`LOCAL_EVENT`] and [`MODIFY_ORDER_EVENT`].
 pub const LOCAL_MODIFY_ORDER_EVENT: i64 = LOCAL_EVENT | MODIFY_ORDER_EVENT;
 
-/// Represents a combination of `LOCAL_EVENT` and `FILL_EVENT`.
+/// Represents a combination of [`LOCAL_EVENT`] and [`FILL_EVENT`].
 pub const LOCAL_FILL_EVENT: i64 = LOCAL_EVENT | FILL_EVENT;
 
-/// Represents a combination of `EXCH_EVENT` and `ADD_ORDER_EVENT`.
+/// Represents a combination of [`EXCH_EVENT`] and [`ADD_ORDER_EVENT`].
 pub const EXCH_ADD_ORDER_EVENT: i64 = EXCH_EVENT | ADD_ORDER_EVENT;
 
-/// Represents a combination of `BUY` and `EXCH_ADD_ORDER_EVENT`.
+/// Represents a combination of [`BUY`] and [`EXCH_ADD_ORDER_EVENT`].
 pub const EXCH_BID_ADD_ORDER_EVENT: i64 = BUY | EXCH_ADD_ORDER_EVENT;
 
-/// Represents a combination of `SELL` and `EXCH_ADD_ORDER_EVENT`.
+/// Represents a combination of [`SELL`] and [`EXCH_ADD_ORDER_EVENT`].
 pub const EXCH_ASK_ADD_ORDER_EVENT: i64 = SELL | EXCH_ADD_ORDER_EVENT;
 
-/// Represents a combination of `EXCH_EVENT` and `CANCEL_ORDER_EVENT`.
+/// Represents a combination of [`EXCH_EVENT`] and [`CANCEL_ORDER_EVENT`].
 pub const EXCH_CANCEL_ORDER_EVENT: i64 = EXCH_EVENT | CANCEL_ORDER_EVENT;
 
-/// Represents a combination of `EXCH_EVENT` and `MODIFY_ORDER_EVENT`.
+/// Represents a combination of [`EXCH_EVENT`] and [`MODIFY_ORDER_EVENT`].
 pub const EXCH_MODIFY_ORDER_EVENT: i64 = EXCH_EVENT | MODIFY_ORDER_EVENT;
 
-/// Represents a combination of `EXCH_EVENT` and `FILL_EVENT`.
+/// Represents a combination of [`EXCH_EVENT`] and [`FILL_EVENT`].
 pub const EXCH_FILL_EVENT: i64 = EXCH_EVENT | FILL_EVENT;
 
 /// Indicates that one should not wait for an order response.
@@ -291,6 +289,8 @@ impl L3Event {
     }
 }
 
+/// Represents a side, which can refer to either the side of an order or the initiator's side in a
+/// trade event, with the meaning varying depending on the context.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 #[repr(i8)]
 pub enum Side {
@@ -608,6 +608,7 @@ pub enum BuildError {
     Error(#[from] anyhow::Error),
 }
 
+/// Used to submit an order in a live bot.
 pub struct OrderRequest {
     pub order_id: i64,
     pub price: f32,

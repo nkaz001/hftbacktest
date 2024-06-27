@@ -31,7 +31,7 @@
 //!                    up-to-date market depth information
 
 /// Provides backtesting features.
-#[cfg(feature = "backtest")]
+#[cfg(any(feature = "backtest", doc))]
 pub mod backtest;
 
 /// Provides exchange connectors.
