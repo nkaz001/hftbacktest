@@ -2,9 +2,8 @@ use std::mem;
 
 use crate::{
     backtest::{
-        reader::{Cache, Data, NpyFile, Reader, POD},
+        reader::{Cache, Data, DataSource, NpyFile, Reader, POD},
         BacktestError,
-        DataSource,
     },
     types::Order,
 };
@@ -105,15 +104,15 @@ pub struct IntpOrderLatency {
 
 impl IntpOrderLatency {
     /// Constructs an instance of `IntpOrderLatency`.
-    pub fn new(data: Vec<DataSource>) -> Result<Self, BacktestError> {
+    pub fn new(data: Vec<DataSource<OrderLatencyRow>>) -> Result<Self, BacktestError> {
         let mut reader = Reader::new(Cache::new());
         for file in data {
             match file {
                 DataSource::File(file) => {
                     reader.add_file(file);
                 }
-                DataSource::Data(_) => {
-                    todo!();
+                DataSource::Data(data) => {
+                    reader.add_data(data);
                 }
             }
         }
