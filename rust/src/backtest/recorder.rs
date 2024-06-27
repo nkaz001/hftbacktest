@@ -133,7 +133,7 @@ impl BacktestRecorder {
         let file_path = path.as_ref().join(format!("{prefix}.npz"));
         let mut npz = NpzWriter::create(file_path)?;
         let options = FileOptions::default()
-            .compression_method(CompressionMethod::Bzip2)
+            .compression_method(CompressionMethod::DEFLATE)
             .compression_level(Some(9));
         for (asset_no, values) in self.values.iter().enumerate() {
             let mut writer = npz
