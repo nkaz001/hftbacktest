@@ -3,7 +3,6 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     marker::PhantomData,
 };
-use std::collections::VecDeque;
 
 use crate::{
     backtest::BacktestError,

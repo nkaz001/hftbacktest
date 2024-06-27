@@ -1,14 +1,11 @@
-use std::time::Instant;
-
 use algo::gridtrading;
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
-        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, QueuePos},
-        reader::read_npz,
+        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel},
+        reader::{read_npz, DataSource},
         recorder::BacktestRecorder,
         AssetBuilder,
-        DataSource,
         ExchangeKind,
         MultiAssetMultiExchangeBacktest,
     },

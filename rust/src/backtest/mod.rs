@@ -40,6 +40,8 @@ pub mod recorder;
 
 mod evs;
 
+pub use reader::DataSource;
+
 #[cfg(any(feature = "unstable_l3", doc))]
 mod l3backtest;
 
@@ -60,16 +62,6 @@ pub enum BacktestError {
     EndOfData,
     #[error("data error: {0:?}")]
     DataError(#[from] IoError),
-}
-
-/// Data source for the [`reader`].
-#[derive(Clone, Debug)]
-pub enum DataSource {
-    /// Data needs to be loaded from the specified  file. It will be loaded when needed and released
-    /// when no processor is reading the data.
-    File(String),
-    /// Data is loaded and set by the user.
-    Data(Data<Event>),
 }
 
 /// Backtesting Asset
@@ -145,7 +137,7 @@ where
     }
 
     /// Sets the feed data. Currently, only `DataSource::File` is supported.
-    pub fn data(mut self, data: Vec<DataSource>) -> Self {
+    pub fn data(mut self, data: Vec<DataSource<Event>>) -> Self {
         for item in data {
             match item {
                 DataSource::File(filename) => {
