@@ -1,3 +1,4 @@
+use core::slice;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -11,9 +12,28 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::backtest::BacktestError;
+use crate::{
+    backtest::{reader, BacktestError},
+    prelude::Event,
+};
 
+/// Data source for the [`reader`].
+#[derive(Clone, Debug)]
+pub enum DataSource<D>
+where
+    D: POD + Clone,
+{
+    /// Data needs to be loaded from the specified  file. It will be loaded when needed and released
+    /// when no processor is reading the data.
+    File(String),
+    /// Data is loaded and set by the user.
+    Data(Data<D>),
+}
+
+/// Marker trait for plain old data.
 pub unsafe trait POD: Sized {}
+
+/// Marker trait that indicates it can be directly cast from the loaded npy file data.
 pub unsafe trait NpyFile: POD {}
 
 /// Provides access to an array of structs from the buffer.
@@ -23,7 +43,7 @@ where
     D: POD + Clone,
 {
     buf: Rc<Box<[u8]>>,
-    header_len: usize,
+    offset: usize,
     _d_marker: PhantomData<D>,
 }
 
@@ -32,18 +52,27 @@ where
     D: POD + Clone,
 {
     /// Returns the length of the array.
+    #[inline(always)]
     pub fn len(&self) -> usize {
         let size = size_of::<D>();
-        (self.buf.len() - self.header_len) / size
+        (self.buf.len() - self.offset) / size
     }
 
     /// Constructs an empty `Data`.
     pub fn empty() -> Self {
         Self {
             buf: Default::default(),
-            header_len: 0,
+            offset: 0,
             _d_marker: Default::default(),
         }
+    }
+
+    /// Returns a reference to an element, without doing bounds checking.
+    #[inline(always)]
+    pub unsafe fn get_unchecked(&self, index: usize) -> &D {
+        let size = size_of::<D>();
+        let i = self.offset + index * size;
+        unsafe { &*(self.buf[i..(i + size)].as_ptr() as *const D) }
     }
 }
 
@@ -53,9 +82,10 @@ where
 {
     type Output = D;
 
+    #[inline(always)]
     fn index(&self, index: usize) -> &Self::Output {
         let size = size_of::<D>();
-        let i = self.header_len + index * size;
+        let i = self.offset + index * size;
         if i + size > self.buf.len() {
             panic!("Out of the size.");
         }
@@ -222,7 +252,7 @@ pub fn read_npy<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
 
     Ok(Data {
         buf: Rc::new(buf),
-        header_len: 10 + header_len,
+        offset: 10 + header_len,
         _d_marker: Default::default(),
     })
 }
@@ -247,7 +277,7 @@ pub fn read_npz<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
 
     Ok(Data {
         buf: Rc::new(buf),
-        header_len: 10 + header_len,
+        offset: 10 + header_len,
         _d_marker: Default::default(),
     })
 }
