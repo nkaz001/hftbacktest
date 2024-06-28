@@ -33,12 +33,14 @@ use crate::{
     },
     live::Asset,
     types::{
-        Error,
         ErrorKind,
         Event,
+        LiveError,
         LiveEvent,
         Side,
+        LOCAL_ASK_DEPTH_BBO_EVENT,
         LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_BID_DEPTH_BBO_EVENT,
         LOCAL_BID_DEPTH_EVENT,
         LOCAL_BUY_TRADE_EVENT,
         LOCAL_SELL_TRADE_EVENT,
@@ -81,7 +83,42 @@ async fn handle_public_stream(
             info!(?resp, "Op");
         }
         PublicStreamMsg::Topic(stream) => {
-            if stream.topic.starts_with("orderbook") {
+            if stream.topic.starts_with("orderbook.1") {
+                let data: OrderBook = serde_json::from_value(stream.data)?;
+                let (bids, asks) = parse_depth(data.bids, data.asks)?;
+                let asset = assets.get(&data.symbol).ok_or(HandleError::AssetNotFound)?;
+                assert_eq!(bids.len(), 1);
+                let mut bid_events: Vec<_> = bids
+                    .iter()
+                    .map(|&(px, qty)| Event {
+                        ev: LOCAL_BID_DEPTH_BBO_EVENT,
+                        exch_ts: stream.cts.unwrap() * 1_000_000,
+                        local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                        px,
+                        qty,
+                    })
+                    .collect();
+                assert_eq!(asks.len(), 1);
+                let mut ask_events: Vec<_> = asks
+                    .iter()
+                    .map(|&(px, qty)| Event {
+                        ev: LOCAL_ASK_DEPTH_BBO_EVENT,
+                        exch_ts: stream.cts.unwrap() * 1_000_000,
+                        local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                        px,
+                        qty,
+                    })
+                    .collect();
+                let mut events = Vec::new();
+                events.append(&mut bid_events);
+                events.append(&mut ask_events);
+                ev_tx
+                    .send(LiveEvent::L2Feed {
+                        asset_no: asset.asset_no,
+                        events,
+                    })
+                    .unwrap();
+            } else if stream.topic.starts_with("orderbook") {
                 let data: OrderBook = serde_json::from_value(stream.data)?;
                 let (bids, asks) = parse_depth(data.bids, data.asks)?;
                 let asset = assets.get(&data.symbol).ok_or(HandleError::AssetNotFound)?;
@@ -503,7 +540,7 @@ async fn handle_trade_stream(
     if stream.op == "auth" {
         if stream.ret_code != 0 {
             ev_tx
-                .send(LiveEvent::Error(Error::with(
+                .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::CriticalConnectionError,
                     BybitError::AuthError(stream.ret_code, stream.ret_msg.clone()),
                 )))
@@ -528,7 +565,7 @@ async fn handle_trade_stream(
             let (asset_no, order) = order_man_.update_submit_fail(order_link_id)?;
             ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
             ev_tx
-                .send(LiveEvent::Error(Error::with(
+                .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::OrderError,
                     BybitError::OrderError(stream.ret_code, stream.ret_msg.clone()),
                 )))
@@ -549,7 +586,7 @@ async fn handle_trade_stream(
             let (asset_no, order) = order_man_.update_cancel_fail(order_link_id)?;
             ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
             ev_tx
-                .send(LiveEvent::Error(Error::with(
+                .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::OrderError,
                     BybitError::OrderError(stream.ret_code, stream.ret_msg.clone()),
                 )))
