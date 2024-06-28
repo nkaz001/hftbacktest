@@ -18,7 +18,7 @@ use crate::{
         Connector,
     },
     live::Asset,
-    types::{BuildError, Error, ErrorKind, LiveEvent, Order},
+    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order},
 };
 
 mod msg;
@@ -180,9 +180,18 @@ impl BybitBuilder {
     }
 
     /// Adds an additional topic to receive through the public WebSocket stream.
-    pub fn add_topic(mut self, stream: &str) -> Self {
-        todo!();
-        self.topics.insert(stream.to_string());
+    pub fn add_topic(mut self, topic: &str) -> Self {
+        self.topics.insert(topic.to_string());
+        self
+    }
+
+    /// Subscribes to the orderbook.1 and orderbook.500 topics to obtain a wider range of depth and
+    /// the most frequent updates. `MarketDepth` that can handle data fusion should be used, such as
+    /// [FusedHashMapMarketDepth](crate::depth::FusedHashMapMarketDepth).
+    /// Please see: https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook
+    pub fn subscribe_multiple_depth(mut self) -> Self {
+        self.topics.insert("orderbook.1".to_string());
+        self.topics.insert("orderbook.500".to_string());
         self
     }
 
@@ -210,18 +219,26 @@ impl BybitBuilder {
             return Err(BuildError::BuilderIncomplete("category"));
         }
 
-        let order_manager: OrderManagerWrapper =
-            Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
-        Ok(Bybit::new(
-            &self.public_url,
-            &self.private_url,
-            &self.trade_url,
-            &self.rest_url,
-            &self.api_key,
-            &self.secret,
-            &self.order_prefix,
-            &self.category,
-        ))
+        if self.order_prefix.contains("/") {
+            panic!("order prefix cannot include '/'.");
+        }
+        if self.order_prefix.len() > 8 {
+            panic!("order prefix length should be not greater than 8.");
+        }
+        Ok(Bybit {
+            public_url: self.public_url,
+            private_url: self.private_url,
+            trade_url: self.trade_url,
+            assets: Default::default(),
+            inv_assets: Default::default(),
+            topics: self.topics,
+            api_key: self.api_key.clone(),
+            secret: self.secret.clone(),
+            order_tx: None,
+            order_man: Arc::new(Mutex::new(OrderManager::new(&self.order_prefix))),
+            category: self.category,
+            client: BybitClient::new(&self.rest_url, &self.api_key, &self.secret),
+        })
     }
 }
 
@@ -254,39 +271,6 @@ impl Bybit {
             order_prefix: "".to_string(),
         }
     }
-
-    /// Currently, only `linear` category is supported.
-    pub fn new(
-        public_url: &str,
-        private_url: &str,
-        trade_url: &str,
-        rest_url: &str,
-        api_key: &str,
-        secret: &str,
-        prefix: &str,
-        category: &str,
-    ) -> Self {
-        if prefix.contains("/") {
-            panic!("prefix cannot include '/'.");
-        }
-        if prefix.len() > 8 {
-            panic!("prefix length should be not greater than 8.");
-        }
-        Self {
-            public_url: public_url.to_string(),
-            private_url: private_url.to_string(),
-            trade_url: trade_url.to_string(),
-            assets: Default::default(),
-            inv_assets: Default::default(),
-            topics: Default::default(),
-            api_key: api_key.to_string(),
-            secret: secret.to_string(),
-            order_tx: None,
-            order_man: Arc::new(Mutex::new(OrderManager::new(prefix))),
-            category: category.to_string(),
-            client: BybitClient::new(rest_url, api_key, secret),
-        }
-    }
 }
 
 impl Connector for Bybit {
@@ -313,13 +297,7 @@ impl Connector for Bybit {
         let public_url = self.public_url.clone();
         let ev_tx_public = ev_tx.clone();
         let assets_public = self.assets.clone();
-        // todo: for the finest and most frequent updates, fusing multiple depth topics is needed.
-        let mut topics = vec![
-            // "orderbook.1".to_string(),
-            "orderbook.50".to_string(),
-            // "orderbook.500".to_string(),
-            "publicTrade".to_string(),
-        ];
+        let mut topics = vec!["orderbook.50".to_string(), "publicTrade".to_string()];
         for topic in self.topics.iter() {
             topics.push(topic.clone());
         }
@@ -340,14 +318,14 @@ impl Connector for Bybit {
                 {
                     error!(?error, "A connection error occurred.");
                     ev_tx_public
-                        .send(LiveEvent::Error(Error::with(
+                        .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
                             error,
                         )))
                         .unwrap();
                 } else {
                     ev_tx_public
-                        .send(LiveEvent::Error(Error::new(
+                        .send(LiveEvent::Error(LiveError::new(
                             ErrorKind::ConnectionInterrupted,
                         )))
                         .unwrap();
@@ -381,7 +359,10 @@ impl Connector for Bybit {
                     {
                         error!(?error, %symbol, "Couldn't cancel all open orders.");
                         ev_tx_private
-                            .send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
+                            .send(LiveEvent::Error(LiveError::with(
+                                ErrorKind::OrderError,
+                                error,
+                            )))
                             .unwrap();
                         error_count += 1;
                         continue 'connection;
@@ -435,14 +416,14 @@ impl Connector for Bybit {
                 {
                     error!(?error, "A connection error occurred.");
                     ev_tx_private
-                        .send(LiveEvent::Error(Error::with(
+                        .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
                             error,
                         )))
                         .unwrap();
                 } else {
                     ev_tx_private
-                        .send(LiveEvent::Error(Error::new(
+                        .send(LiveEvent::Error(LiveError::new(
                             ErrorKind::ConnectionInterrupted,
                         )))
                         .unwrap();
@@ -477,14 +458,14 @@ impl Connector for Bybit {
                 {
                     error!(?error, "A connection error occurred.");
                     ev_tx_trade
-                        .send(LiveEvent::Error(Error::with(
+                        .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
                             error,
                         )))
                         .unwrap();
                 } else {
                     ev_tx_trade
-                        .send(LiveEvent::Error(Error::new(
+                        .send(LiveEvent::Error(LiveError::new(
                             ErrorKind::ConnectionInterrupted,
                         )))
                         .unwrap();

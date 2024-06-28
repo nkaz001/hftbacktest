@@ -13,32 +13,22 @@ use crate::{
     depth::MarketDepth,
 };
 
-/// Error type assigned to [`Error`].
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-#[repr(i64)]
-pub enum ErrorKind {
-    ConnectionInterrupted = 0,
-    CriticalConnectionError = 1,
-    OrderError = 2,
-    Custom(i64),
-}
-
 /// Error conveyed through [`LiveEvent`].
 #[derive(Clone, Debug)]
-pub struct Error {
+pub struct LiveError {
     pub kind: ErrorKind,
     pub value: Option<Arc<Box<dyn Any + Send + Sync>>>,
 }
 
-impl Error {
-    /// Constructs an instance of `Error`.
-    pub fn new(kind: ErrorKind) -> Error {
+impl LiveError {
+    /// Constructs an instance of `LiveError`.
+    pub fn new(kind: ErrorKind) -> LiveError {
         Self { kind, value: None }
     }
 
-    /// Constructs an instance of `Error` with a value that is either the original error or contains
-    /// detailed error information.
-    pub fn with<T>(kind: ErrorKind, value: T) -> Error
+    /// Constructs an instance of `LiveError` with a value that is either the original error or
+    /// contains detailed error information.
+    pub fn with<T>(kind: ErrorKind, value: T) -> LiveError
     where
         T: Send + Sync + 'static,
     {
@@ -60,6 +50,15 @@ impl Error {
     }
 }
 
+/// Error type assigned to [`LiveError`].
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum ErrorKind {
+    ConnectionInterrupted,
+    CriticalConnectionError,
+    OrderError,
+    Custom(i64),
+}
+
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
@@ -67,7 +66,7 @@ pub enum LiveEvent {
     L3Feed { asset_no: usize, event: L3Event },
     Order { asset_no: usize, order: Order },
     Position { asset_no: usize, qty: f64 },
-    Error(Error),
+    Error(LiveError),
 }
 
 /// Indicates a buy, with specific meaning that can vary depending on the situation. For example,
@@ -91,6 +90,9 @@ pub const DEPTH_CLEAR_EVENT: i64 = 3;
 
 /// Indicates that the market depth snapshot is received.
 pub const DEPTH_SNAPSHOT_EVENT: i64 = 4;
+
+/// Indicates that the best bid and best ask update event is received.
+pub const DEPTH_BBO_EVENT: i64 = 5;
 
 /// Indicates that an order has been added to the order book.
 pub const ADD_ORDER_EVENT: i64 = 10;
@@ -129,6 +131,12 @@ pub const LOCAL_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | LOC
 /// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and [`LOCAL_EVENT`].
 pub const LOCAL_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | LOCAL_EVENT;
 
+/// Represents a combination of [`DEPTH_BBO_EVENT`], [`BUY`], and [`LOCAL_EVENT`].
+pub const LOCAL_BID_DEPTH_BBO_EVENT: i64 = DEPTH_BBO_EVENT | BUY | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_BBO_EVENT`], [`SELL`], and [`LOCAL_EVENT`].
+pub const LOCAL_ASK_DEPTH_BBO_EVENT: i64 = DEPTH_BBO_EVENT | SELL | LOCAL_EVENT;
+
 /// Represents a combination of [`TRADE_EVENT`], and [`LOCAL_EVENT`].
 pub const LOCAL_TRADE_EVENT: i64 = TRADE_EVENT | LOCAL_EVENT;
 
@@ -155,6 +163,12 @@ pub const EXCH_BID_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | BUY | EXCH
 
 /// Represents a combination of [`DEPTH_SNAPSHOT_EVENT`], [`SELL`], and [`EXCH_EVENT`].
 pub const EXCH_ASK_DEPTH_SNAPSHOT_EVENT: i64 = DEPTH_SNAPSHOT_EVENT | SELL | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_BBO_EVENT`], [`BUY`], and [`EXCH_EVENT`].
+pub const EXCH_BID_DEPTH_BBO_EVENT: i64 = DEPTH_BBO_EVENT | BUY | EXCH_EVENT;
+
+/// Represents a combination of [`DEPTH_BBO_EVENT`], [`SELL`], and [`EXCH_EVENT`].
+pub const EXCH_ASK_DEPTH_BBO_EVENT: i64 = DEPTH_BBO_EVENT | SELL | EXCH_EVENT;
 
 /// Represents a combination of [`TRADE_EVENT`], and [`EXCH_EVENT`].
 pub const EXCH_TRADE_EVENT: i64 = TRADE_EVENT | EXCH_EVENT;
@@ -305,27 +319,26 @@ pub enum Side {
     Unsupported = 127,
 }
 
-impl Side {
-    /// Returns `1` if this is a [`Buy`], `-1` if this is a `Sell`; otherwise, it will panic.
-    pub fn as_f64(&self) -> f64 {
+impl AsRef<f32> for Side {
+    fn as_ref(&self) -> &f32 {
         match self {
-            Side::Buy => 1f64,
-            Side::Sell => -1f64,
-            Side::Unsupported => panic!("Side::Unsupported"),
-        }
-    }
-
-    /// Returns `1` if this is a [`Buy`], `-1` if this is a `Sell`; otherwise, it will panic.
-    pub fn as_f32(&self) -> f32 {
-        match self {
-            Side::Buy => 1f32,
-            Side::Sell => -1f32,
+            Side::Buy => &1.0f32,
+            Side::Sell => &-1.0f32,
             Side::Unsupported => panic!("Side::Unsupported"),
         }
     }
 }
 
-/// Side
+impl AsRef<f64> for Side {
+    fn as_ref(&self) -> &f64 {
+        match self {
+            Side::Buy => &1.0f64,
+            Side::Sell => &-1.0f64,
+            Side::Unsupported => panic!("Side::Unsupported"),
+        }
+    }
+}
+
 impl AsRef<str> for Side {
     fn as_ref(&self) -> &'static str {
         match self {
@@ -583,13 +596,21 @@ pub enum Request {
 }
 
 /// Provides state values.
+///
+/// **Note:** In a live bot, currently only `position` value is delivered correctly, and other
+/// values are invalid.
 #[derive(PartialEq, Clone, Debug)]
 pub struct StateValues {
     pub position: f64,
+    /// Backtest only
     pub balance: f64,
+    /// Backtest only
     pub fee: f64,
+    /// Backtest only
     pub trade_num: i32,
+    /// Backtest only
     pub trade_qty: f64,
+    /// Backtest only
     pub trade_amount: f64,
 }
 
@@ -618,7 +639,7 @@ pub struct OrderRequest {
     pub order_type: OrdType,
 }
 
-/// Provides an interface for a backtester or a bot.
+/// Provides a bot interface for backtesting and live trading.
 pub trait Bot {
     type Error;
 
@@ -779,7 +800,8 @@ pub trait Bot {
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)>;
 }
 
-/// Provides an interface for a backtester or a bot.
+/// Provides a method that returns a typed `MarketDepth` instead of `dyn Any`. This is faster than
+/// casting from `dyn Any`, especially during backtesting.
 pub trait BotTypedDepth<MD> {
     /// Returns the [MarketDepth](crate::depth::MarketDepth).
     ///
@@ -787,7 +809,8 @@ pub trait BotTypedDepth<MD> {
     fn depth_typed(&self, asset_no: usize) -> &MD;
 }
 
-/// Provides an interface for a backtester or a bot.
+/// Provides a method that returns a typed trade `Event` instead of `dyn Any`. This is faster than
+/// casting from `dyn Any`, especially during backtesting.
 pub trait BotTypedTrade<Event> {
     /// Returns the last market trades.
     ///
@@ -795,8 +818,12 @@ pub trait BotTypedTrade<Event> {
     fn trade_typed(&self, asset_no: usize) -> &Vec<Event>;
 }
 
+/// Provides bot statistics and [`StateValues`] recording features for backtesting result analysis
+/// or live bot logging.
 pub trait Recorder {
     type Error;
+
+    /// Records the current [`StateValues`].
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
         I: Bot + BotTypedDepth<MD>,
@@ -804,7 +831,7 @@ pub trait Recorder {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::{
         prelude::LOCAL_EVENT,
         types::{

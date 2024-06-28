@@ -41,8 +41,8 @@ where
             self.taker_fee
         };
         let amount = self.asset_type.amount(order.exec_price(), order.exec_qty);
-        self.position += order.exec_qty as f64 * order.side.as_f64();
-        self.balance -= amount * order.side.as_f64();
+        self.position += order.exec_qty as f64 * AsRef::<f64>::as_ref(&order.side);
+        self.balance -= amount * AsRef::<f64>::as_ref(&order.side);
         self.fee += amount * fee;
         self.trade_num += 1;
         self.trade_qty += order.exec_qty as f64;

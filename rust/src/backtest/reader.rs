@@ -12,10 +12,7 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::{
-    backtest::{reader, BacktestError},
-    prelude::Event,
-};
+use crate::backtest::{reader, BacktestError};
 
 /// Data source for the [`reader`].
 #[derive(Clone, Debug)]

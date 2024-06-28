@@ -22,7 +22,7 @@ use crate::{
         Connector,
     },
     live::Asset,
-    types::{BuildError, Error, ErrorKind, LiveEvent, Order, Status},
+    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status},
     util::get_precision,
 };
 
@@ -266,7 +266,10 @@ impl Connector for BinanceFutures {
                     if let Err(error) = client.cancel_all_orders(symbol).await {
                         error!(?error, %symbol, "Couldn't cancel all open orders.");
                         ev_tx
-                            .send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
+                            .send(LiveEvent::Error(LiveError::with(
+                                ErrorKind::OrderError,
+                                error,
+                            )))
                             .unwrap();
                         error_count += 1;
                         continue 'connection;
@@ -309,7 +312,7 @@ impl Connector for BinanceFutures {
                         error!(?error, "Couldn't start user data stream.");
                         // 1000 indicates user data stream starting error.
                         ev_tx
-                            .send(LiveEvent::Error(Error::with(
+                            .send(LiveEvent::Error(LiveError::with(
                                 ErrorKind::Custom(1000),
                                 error,
                             )))
@@ -349,14 +352,14 @@ impl Connector for BinanceFutures {
                 {
                     error!(?error, "A connection error occurred.");
                     ev_tx
-                        .send(LiveEvent::Error(Error::with(
+                        .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
                             error,
                         )))
                         .unwrap();
                 } else {
                     ev_tx
-                        .send(LiveEvent::Error(Error::new(
+                        .send(LiveEvent::Error(LiveError::new(
                             ErrorKind::ConnectionInterrupted,
                         )))
                         .unwrap();
@@ -421,8 +424,11 @@ impl Connector for BinanceFutures {
                                 tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                             }
 
-                            tx.send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
-                                .unwrap();
+                            tx.send(LiveEvent::Error(LiveError::with(
+                                ErrorKind::OrderError,
+                                error,
+                            )))
+                            .unwrap();
                         }
                     }
                 }
@@ -480,8 +486,11 @@ impl Connector for BinanceFutures {
                                 tx.send(LiveEvent::Order { asset_no, order }).unwrap();
                             }
 
-                            tx.send(LiveEvent::Error(Error::with(ErrorKind::OrderError, error)))
-                                .unwrap();
+                            tx.send(LiveEvent::Error(LiveError::with(
+                                ErrorKind::OrderError,
+                                error,
+                            )))
+                            .unwrap();
                         }
                     }
                 }

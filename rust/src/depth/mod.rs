@@ -11,8 +11,10 @@ use crate::{
 mod btreemarketdepth;
 mod hashmapmarketdepth;
 
-#[cfg(feature = "unstable_fuse")]
+#[cfg(any(feature = "unstable_fuse", doc))]
 mod fuse;
+#[cfg(any(feature = "unstable_fuse", doc))]
+pub use fuse::FusedHashMapMarketDepth;
 
 /// Represents no best bid.
 pub const INVALID_MIN: i32 = i32::MIN;
