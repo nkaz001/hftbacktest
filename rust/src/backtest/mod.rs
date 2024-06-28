@@ -1,7 +1,9 @@
 use std::io::Error as IoError;
 
-pub use backtest::*;
 use thiserror::Error;
+
+pub use backtest::*;
+pub use reader::DataSource;
 
 use crate::{
     backtest::{
@@ -9,7 +11,7 @@ use crate::{
         models::{LatencyModel, QueueModel},
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
-        reader::{Cache, Data, Reader},
+        reader::{Cache, Reader},
         state::State,
     },
     depth::{L2MarketDepth, MarketDepth},
@@ -39,8 +41,6 @@ pub mod state;
 pub mod recorder;
 
 mod evs;
-
-pub use reader::DataSource;
 
 #[cfg(any(feature = "unstable_l3", doc))]
 mod l3backtest;
@@ -94,7 +94,9 @@ impl<L, E> Asset<L, E> {
 
 /// Exchange model kind.
 pub enum ExchangeKind {
+    /// Uses [NoPartialFillExchange](`NoPartialFillExchange`).
     NoPartialFillExchange,
+    /// Uses [PartialFillExchange](`PartialFillExchange`).
     PartialFillExchange,
 }
 
@@ -132,7 +134,7 @@ where
             maker_fee: 0.0,
             taker_fee: 0.0,
             exch_kind: ExchangeKind::NoPartialFillExchange,
-            trade_len: 1000,
+            trade_len: 0,
         }
     }
 
@@ -202,7 +204,7 @@ where
     }
 
     /// Sets the length of market trades to be stored in the local processor. The default value is
-    /// `1000`.
+    /// `0`.
     pub fn trade_len(self, trade_len: usize) -> Self {
         Self { trade_len, ..self }
     }
@@ -283,7 +285,9 @@ where
         }
     }
 
-    pub fn build_wip(
+    /// Builds an asset for multi-asset single-exchange backtest, which may be slightly faster than
+    /// a multi-asset multi-exchange backtest.
+    pub fn build_single(
         self,
     ) -> Result<Asset<Local<AT, LM, MD>, NoPartialFillExchange<AT, LM, QM, MD>>, BuildError> {
         let ob_local_to_exch = OrderBus::new();

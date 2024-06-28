@@ -24,9 +24,9 @@ use crate::{
         BotTypedDepth,
         BotTypedTrade,
         BuildError,
-        Error as ErrorEvent,
-        Error,
         Event,
+        LiveError as ErrorEvent,
+        LiveError,
         LiveEvent,
         OrdType,
         Order,
@@ -121,6 +121,7 @@ pub struct LiveBotBuilder<MD> {
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
     depth_builder: Option<Box<dyn FnMut(&Asset) -> MD>>,
+    trade_len: usize,
 }
 
 impl<MD> LiveBotBuilder<MD> {
@@ -173,7 +174,7 @@ impl<MD> LiveBotBuilder<MD> {
     /// Registers the error handler to deal with an error from connectors.
     pub fn error_handler<Handler>(self, handler: Handler) -> Self
     where
-        Handler: Fn(Error) -> Result<(), BotError> + 'static,
+        Handler: Fn(LiveError) -> Result<(), BotError> + 'static,
     {
         Self {
             error_handler: Some(Box::new(handler)),
@@ -201,6 +202,12 @@ impl<MD> LiveBotBuilder<MD> {
             depth_builder: Some(Box::new(builder)),
             ..self
         }
+    }
+
+    /// Sets the length of market trades to be stored in the local processor. The default value is
+    /// `0`.
+    pub fn trade_len(self, trade_len: usize) -> Self {
+        Self { trade_len, ..self }
     }
 
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
@@ -239,7 +246,11 @@ impl<MD> LiveBotBuilder<MD> {
 
         let orders = self.assets.iter().map(|_| HashMap::new()).collect();
         let position = self.assets.iter().map(|_| 0.0).collect();
-        let trade = self.assets.iter().map(|_| Vec::new()).collect();
+        let trade = self
+            .assets
+            .iter()
+            .map(|_| Vec::with_capacity(self.trade_len))
+            .collect();
         let last_feed_latency = self.assets.iter().map(|_| None).collect();
         let last_order_latency = self.assets.iter().map(|_| None).collect();
 
@@ -254,6 +265,7 @@ impl<MD> LiveBotBuilder<MD> {
             conns: Some(conns),
             assets: self.assets,
             trade,
+            trade_len: self.trade_len,
             error_handler: self.error_handler,
             order_hook: self.order_hook,
             last_feed_latency,
@@ -285,6 +297,7 @@ pub struct LiveBot<MD> {
     orders: Vec<HashMap<i64, Order>>,
     position: Vec<f64>,
     trade: Vec<Vec<Event>>,
+    trade_len: usize,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
     assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
@@ -305,6 +318,7 @@ where
             error_handler: None,
             order_hook: None,
             depth_builder: None,
+            trade_len: 0,
         }
     }
 
@@ -321,11 +335,11 @@ where
         Ok(())
     }
 
-    fn elapse_(
+    fn elapse_<const WAIT_NEXT_FEED: bool>(
         &mut self,
         duration: i64,
         wait_order_response: (usize, i64),
-        wait_next_feed: bool,
+        include_order_recv: bool,
     ) -> Result<bool, BotError> {
         let now = Instant::now();
         let mut remaining_duration = duration;
@@ -333,8 +347,6 @@ where
             let timeout = Duration::from_nanos(remaining_duration as u64);
             match self.ev_rx.recv_timeout(timeout) {
                 Ok(LiveEvent::L2Feed { asset_no, events }) => {
-                    // todo: updates the depth only if exch_ts is greater than that of the existing
-                    //       level.
                     for event in events {
                         *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
                             Some((event.exch_ts, event.local_ts));
@@ -347,11 +359,13 @@ where
                         } else if event.is(LOCAL_BUY_TRADE_EVENT)
                             || event.is(LOCAL_SELL_TRADE_EVENT)
                         {
-                            let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-                            trade.push(event);
+                            if self.trade_len > 0 {
+                                let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+                                trade.push(event);
+                            }
                         }
                     }
-                    if wait_next_feed {
+                    if WAIT_NEXT_FEED {
                         return Ok(true);
                     }
                 }
@@ -405,7 +419,7 @@ where
                             entry.insert(order);
                         }
                     }
-                    if received_order_resp || wait_next_feed {
+                    if received_order_resp || (WAIT_NEXT_FEED && include_order_recv) {
                         return Ok(true);
                     }
                 }
@@ -663,7 +677,7 @@ where
         order_id: i64,
         timeout: i64,
     ) -> Result<bool, Self::Error> {
-        self.elapse_(timeout, (asset_no, order_id), false)
+        self.elapse_::<false>(timeout, (asset_no, order_id), false)
     }
 
     #[inline]
@@ -672,19 +686,12 @@ where
         include_order_resp: bool,
         timeout: i64,
     ) -> Result<bool, Self::Error> {
-        if include_order_resp {
-            todo!();
-            // todo: It should return when it receives the order response, regardless of which asset
-            //       the response comes from.
-            // self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_ANY), true)
-        } else {
-            self.elapse_(timeout, (0, WAIT_ORDER_RESPONSE_NONE), true)
-        }
+        self.elapse_::<true>(timeout, (0, WAIT_ORDER_RESPONSE_NONE), include_order_resp)
     }
 
     #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
-        self.elapse_(duration, (0, WAIT_ORDER_RESPONSE_NONE), false)
+        self.elapse_::<false>(duration, (0, WAIT_ORDER_RESPONSE_NONE), false)
     }
 
     #[inline]
