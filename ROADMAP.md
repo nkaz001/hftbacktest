@@ -3,8 +3,7 @@
 Currently, the Rust implementation is being more actively developed especially for new features.
 
 ## Python
-* [ ] Standardize data format to match the Rust implementation.
-* [ ] Rust implementation as the backend.
+* [X] Rust implementation as the backend. (WIP: [rust_backend](https://github.com/nkaz001/hftbacktest/tree/rust_backend) branch)
   * https://numba.readthedocs.io/en/stable/user/cfunc.html#calling-c-code-from-numba
   * https://numba.readthedocs.io/en/stable/user/cfunc.html#handling-c-structures
   * https://numba.readthedocs.io/en/stable/extending/index.html

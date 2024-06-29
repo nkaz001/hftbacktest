@@ -9,8 +9,8 @@ High-Frequency Trading Backtesting Tool
 
 This framework is designed for developing high-frequency trading and market-making strategies. It focuses on accounting for both feed and order latencies, as well as the order queue position for order fill simulation. The framework aims to provide more accurate market replay-based backtesting, based on full order book and trade tick feed data.
 
-Rust implementation with experimental features
-==============================================
+Rust implementation
+===================
 
 The experimental features are currently in the early stages of development, having been completely rewritten in Rust to
 support the following features.
@@ -27,6 +27,11 @@ Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ dir
 Example: The complete process of backtesting Binance Futures
 ------------------------------------------------------------
 `high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
+
+Python HftBacktest2 based on Rust implementation
+------------------------------------------------
+The development of hftbacktest2, a Python version of hftbacktest that uses the Rust hftbacktest as its backend, has just begun.
+Please check it out [rust_backend](https://github.com/nkaz001/hftbacktest/tree/rust_backend).
 
 Key Features
 ============
