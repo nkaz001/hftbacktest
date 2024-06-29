@@ -1,8 +1,13 @@
+mod backtest;
+mod depth;
+
 use std::ffi::c_void;
 
+pub use backtest::*;
+pub use depth::*;
 use hftbacktest::{
     backtest::{
-        assettype::{AssetType, LinearAsset},
+        assettype::LinearAsset,
         models::{ConstantLatency, RiskAdverseQueueModel},
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, Processor},
@@ -10,47 +15,39 @@ use hftbacktest::{
         state::State,
         MultiAssetMultiExchangeBacktest,
     },
-    prelude::{
-        ApplySnapshot,
-        Bot,
-        BotTypedDepth,
-        BuildError,
-        Event,
-        HashMapMarketDepth,
-        MarketDepth,
-    },
+    prelude::{BuildError, Event, HashMapMarketDepth},
 };
 use pyo3::prelude::*;
 
-#[pyclass]
-#[derive(Clone)]
+#[pyclass(eq, eq_int)]
+#[derive(Clone, PartialEq)]
 pub enum PyAssetType {
     LinearAsset,
     InverseAsset,
 }
 
-#[pyclass]
-#[derive(Clone)]
+#[pyclass(eq, eq_int)]
+#[derive(Clone, PartialEq)]
 pub enum PyLatencyModel {
     ConstantLatency,
     IntpLatencyModel,
 }
 
-#[pyclass]
-#[derive(Clone)]
+#[pyclass(eq, eq_int)]
+#[derive(Clone, PartialEq)]
 pub enum PyQueueModel {
     ConstantLatency,
     IntpLatencyModel,
 }
 
-#[pyclass]
-#[derive(Clone)]
+#[pyclass(eq)]
+#[derive(Clone, PartialEq)]
 pub enum PyDepth {
     HashMapMarketDepth(f64, f64),
 }
 
-#[pyclass]
-#[derive(Clone)]
+#[pyclass(eq, eq_int)]
+#[derive(Clone, PartialEq)]
 pub enum PyExchangeKind {
     NoPartialFillExchange,
     PartialFillExchange,
@@ -268,42 +265,4 @@ pub fn build_backtester(
 
     let hbt = MultiAssetMultiExchangeBacktest::new(locals, exchs);
     Ok(PyMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
-}
-
-#[no_mangle]
-pub extern "C" fn hbt_elapse(hbt_ptr: usize, duration: i64) -> i64 {
-    let hbt =
-        unsafe { &mut *(hbt_ptr as *mut MultiAssetMultiExchangeBacktest<HashMapMarketDepth>) };
-    match hbt.elapse(duration) {
-        Ok(true) => 0,
-        Ok(false) => 1,
-        Err(_) => -1,
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn hbt_current_timestamp(hbt_ptr: usize) -> i64 {
-    let hbt =
-        unsafe { &mut *(hbt_ptr as *mut MultiAssetMultiExchangeBacktest<HashMapMarketDepth>) };
-    hbt.current_timestamp()
-}
-
-#[no_mangle]
-pub extern "C" fn hbt_depth_typed(hbt_ptr: usize, asset_no: usize) -> usize {
-    let hbt =
-        unsafe { &mut *(hbt_ptr as *mut MultiAssetMultiExchangeBacktest<HashMapMarketDepth>) };
-    let depth = hbt.depth_typed(asset_no);
-    depth as *const _ as usize
-}
-
-#[no_mangle]
-pub extern "C" fn depth_best_bid_tick(depth_ptr: usize) -> i32 {
-    let depth = unsafe { &*(depth_ptr as *const HashMapMarketDepth) };
-    depth.best_bid_tick()
-}
-
-#[no_mangle]
-pub extern "C" fn depth_best_ask_tick(depth_ptr: usize) -> i32 {
-    let depth = unsafe { &*(depth_ptr as *const HashMapMarketDepth) };
-    depth.best_ask_tick()
 }
