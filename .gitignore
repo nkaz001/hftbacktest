@@ -1,9 +1,12 @@
 dist
 build
 *.egg-info
+*.npz
 __pycache__
+venv
 docs/_build
 rust/Cargo.lock
 rust/target
-*.npz
 rust/**/tmp_*
+hftbacktest-ffi/Cargo.lock
+hftbacktest-ffi/target
