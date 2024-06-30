@@ -1,5 +1,6 @@
 mod backtest;
 mod depth;
+mod order;
 
 use std::ffi::c_void;
 

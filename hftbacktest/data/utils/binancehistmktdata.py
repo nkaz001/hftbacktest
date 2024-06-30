@@ -286,6 +286,6 @@ def convert(
 
     if output_filename is not None:
         print('Saving to %s' % output_filename)
-        np.savez(output_filename, data=data)
+        np.savez_compressed(output_filename, data=data)
 
     return data

@@ -24,9 +24,6 @@ def convert(
         ss_buffer_size: int = 1_000_000,
         base_latency: float = 0,
         snapshot_mode: Literal['process', 'ignore_sod', 'ignore'] = 'process',
-        compress: bool = False,
-        structured_array: bool = False,
-        timestamp_unit: Literal['us', 'ns'] = 'us'
 ) -> NDArray:
     r"""
     Converts Tardis.dev data files into a format compatible with HftBacktest.
@@ -57,12 +54,7 @@ def convert(
     Returns:
         Converted data compatible with HftBacktest.
     """
-    if timestamp_unit == 'us':
-        timestamp_mul = 1
-    elif timestamp_unit == 'ns':
-        timestamp_mul = 1000
-    else:
-        raise ValueError
+    timestamp_mul = 1000
 
     TRADE = 0
     DEPTH = 1
@@ -211,26 +203,13 @@ def convert(
     data = correct_event_order(
         merged,
         np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort'),
-        np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort'),
-        structured_array
+        np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort')
     )
 
-    if not structured_array:
-        # Validate again.
-        num_corr = validate_data(data)
-        if num_corr < 0:
-            raise ValueError
-
-    if structured_array:
-        # EXCH_EVENT and LOCAL_EVENT are already applied.
-        data = convert_to_struct_arr(data, False)
-        validate_event_order(data)
+    validate_event_order(data)
 
     if output_filename is not None:
         print('Saving to %s' % output_filename)
-        if compress:
-            np.savez_compressed(output_filename, data=data)
-        else:
-            np.savez(output_filename, data=data)
+        np.savez_compressed(output_filename, data=data)
 
     return data

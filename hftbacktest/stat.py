@@ -11,43 +11,6 @@ import numpy as np
 from .typing import HftBacktestType
 
 
-class Recorder:
-    timestamp: ListType(int64)
-    mid: ListType(float64)
-    balance: ListType(float64)
-    position: ListType(float64)
-    fee: ListType(float64)
-    trade_num: ListType(int64)
-    trade_qty: ListType(float64)
-    trade_amount: ListType(float64)
-
-    def __init__(self, timestamp, mid, balance, position, fee, trade_num, trade_qty, trade_amount):
-        self.timestamp = timestamp
-        self.mid = mid
-        self.balance = balance
-        self.position = position
-        self.fee = fee
-        self.trade_num = trade_num
-        self.trade_qty = trade_qty
-        self.trade_amount = trade_amount
-
-    def record(self, hbt):
-        """
-        Records the current stats.
-
-        Args:
-            hbt: An instance of the HftBacktest class.
-        """
-        self.timestamp.append(hbt.current_timestamp)
-        self.mid.append((hbt.best_bid + hbt.best_ask) / 2.0)
-        self.balance.append(hbt.balance)
-        self.position.append(hbt.position)
-        self.fee.append(hbt.fee)
-        self.trade_num.append(hbt.trade_num)
-        self.trade_qty.append(hbt.trade_qty)
-        self.trade_amount.append(hbt.trade_amount)
-
-
 class Stat:
     r"""
     Calculates performance statistics and generates a summary of performance metrics.
@@ -77,22 +40,6 @@ class Stat:
         self.trade_num = List.empty_list(int64, allocated=allocated)
         self.trade_qty = List.empty_list(float64, allocated=allocated)
         self.trade_amount = List.empty_list(float64, allocated=allocated)
-
-    @property
-    def recorder(self):
-        r"""
-        Returns a ``Recorder`` instance to record performance statistics.
-        """
-        return jitclass()(Recorder)(
-            self.timestamp,
-            self.mid,
-            self.balance,
-            self.position,
-            self.fee,
-            self.trade_num,
-            self.trade_qty,
-            self.trade_amount
-        )
 
     def datetime(self):
         r"""

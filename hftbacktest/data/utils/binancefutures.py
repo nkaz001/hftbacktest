@@ -24,9 +24,6 @@ def convert(
         output_filename: Optional[str] = None,
         opt: Literal['', 'm', 't', 'mt'] = '',
         base_latency: float = 0,
-        compress: bool = False,
-        structured_array: bool = False,
-        timestamp_unit: Literal['us', 'ns'] = 'us',
         combined_stream: bool = True
 ) -> NDArray:
     r"""
@@ -66,10 +63,6 @@ def convert(
 
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
-        compress: If this is set to True, the output file will be compressed.
-        structured_array: If this is set to True, the output is converted into the new format(currently only Rust impl).
-        timestamp_unit: The timestamp unit for exchange timestamp to be converted in. Binance provides timestamps in
-                        milliseconds. Both local timestamp and exchange timestamp should be in the same unit.
         combined_stream: Raw stream type.
                          combined stream:
                          {"stream":"solusdt@bookTicker","data":{"e":"bookTicker","u":4456408609867,"s":"SOLUSDT","b":"142.4440","B":"50","a":"142.4450","A":"3","T":1713571200009,"E":1713571200010}}
@@ -79,14 +72,9 @@ def convert(
     Returns:
         Converted data compatible with HftBacktest.
     """
-    if timestamp_unit == 'us':
-        timestamp_slice = 16
-        timestamp_mul = 1000
-    elif timestamp_unit == 'ns':
-        timestamp_slice = 19
-        timestamp_mul = 1000000
-    else:
-        raise ValueError
+    timestamp_slice = 19
+    timestamp_mul = 1000000
+
     rows = []
     with gzip.open(input_filename, 'r') as f:
         while True:

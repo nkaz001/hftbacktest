@@ -3,10 +3,9 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from ..validation import convert_to_struct_arr
-from ... import HftBacktest, Linear, ConstantLatency
+from ... import HftBacktest
 from ...typing import DataCollection, Data
-from ...reader import UNTIL_END_OF_DATA, DEPTH_SNAPSHOT_EVENT
+from ...reader import UNTIL_END_OF_DATA, DEPTH_SNAPSHOT_EVENT, SELL, LOCAL_EVENT, EXCH_EVENT, BUY
 
 
 def create_last_snapshot(
@@ -15,8 +14,7 @@ def create_last_snapshot(
         lot_size: float,
         initial_snapshot: Optional[Data] = None,
         output_snapshot_filename: Optional[str] = None,
-        compress: bool = False,
-        structured_array: bool = False
+        snapshot_size: int = 100_000_000
 ) -> NDArray:
     r"""
     Creates a snapshot of the last market depth for the specified data, which can be used as the initial snapshot data
@@ -29,14 +27,12 @@ def create_last_snapshot(
          initial_snapshot: The initial market depth snapshot.
          output_snapshot_filename: If provided, the snapshot data will be saved to the specified filename in ``npz``
                                    format.
-         compress: If this is set to True, the output file will be compressed.
-         structured_array: If this is set to True, the output is converted into the new
-                           format(currently only Rust impl).
 
     Returns:
         Snapshot of the last market depth compatible with HftBacktest.
     """
     # Just to reconstruct order book from the given snapshot to the end of the given data.
+    # fixme: use rust-backend version.
     hbt = HftBacktest(
         data,
         tick_size,
@@ -51,33 +47,31 @@ def create_last_snapshot(
     # Go to the end of the data.
     hbt.goto(UNTIL_END_OF_DATA)
 
-    snapshot = []
-    snapshot += [[
-        DEPTH_SNAPSHOT_EVENT,
-        hbt.last_timestamp,
-        -1,
-        1,
-        float(bid * tick_size),
-        float(qty)
-    ] for bid, qty in sorted(hbt.bid_depth.items(), key=lambda v: -float(v[0]))]
-    snapshot += [[
-        DEPTH_SNAPSHOT_EVENT,
-        hbt.last_timestamp,
-        -1,
-        -1,
-        float(ask * tick_size),
-        float(qty)
-    ] for ask, qty in sorted(hbt.ask_depth.items(), key=lambda v: float(v[0]))]
-
-    snapshot = np.asarray(snapshot, np.float64)
-
-    if structured_array:
-        snapshot = convert_to_struct_arr(snapshot)
+    dtype = [('ev', 'i8'), ('exch_ts', 'i8'), ('local_ts', 'i8'), ('px', 'f4'), ('qty', 'f4')]
+    snapshot = np.empty(snapshot_size, dtype)
+    out_rn = 0
+    for bid, qty in sorted(hbt.bid_depth.items(), key=lambda v: -float(v[0])):
+        snapshot[out_rn] = (
+            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | BUY,
+            # fixme: timestamp
+            hbt.last_timestamp,
+            hbt.last_timestamp,
+            float(bid * tick_size),
+            float(qty)
+        )
+        out_rn += 1
+    for ask, qty in sorted(hbt.ask_depth.items(), key=lambda v: float(v[0])):
+        snapshot[out_rn] = (
+            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | SELL,
+            # fixme: timestamp
+            hbt.last_timestamp,
+            hbt.last_timestamp,
+            float(ask * tick_size),
+            float(qty)
+        )
+        out_rn += 1
 
     if output_snapshot_filename is not None:
-        if compress:
-            np.savez_compressed(output_snapshot_filename, data=snapshot)
-        else:
-            np.savez(output_snapshot_filename, data=snapshot)
+        np.savez_compressed(output_snapshot_filename, data=snapshot)
 
     return snapshot

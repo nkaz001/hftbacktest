@@ -445,6 +445,7 @@ impl AnyClone for () {
 
 /// Order
 #[derive(Clone)]
+#[repr(C)]
 pub struct Order {
     /// Order quantity
     pub qty: f32,
@@ -455,30 +456,30 @@ pub struct Order {
     pub price_tick: i32,
     /// The tick size of the asset associated with this order.
     pub tick_size: f32,
-    pub side: Side,
-    pub time_in_force: TimeInForce,
     /// The time at which the exchange processes this order, ideally when the matching engine
     /// processes the order, will be set if the value is available.
     pub exch_timestamp: i64,
-    pub status: Status,
     /// The time at which the local receives this order or sent this order to the exchange.
     pub local_timestamp: i64,
-    /// Request status:
-    ///   * [`Status::New`]: Request to open a new order.
-    ///   * [`Status::Canceled`]: Request to cancel an opened order.
-    pub req: Status,
     /// Executed price in ticks (`executed_price / tick_size`), only available when this order is
     /// executed.
     pub exec_price_tick: i32,
     /// Executed quantity, only available when this order is executed.
     pub exec_qty: f32,
     pub order_id: i64,
-    /// Additional data used for [`QueueModel`](`crate::backtest::models::QueueModel`).
-    /// This is only available in backtesting, and the type `Q` is set to `()` in a live bot.
-    pub q: Box<dyn AnyClone + Send>,
     /// Whether the order is executed as a maker, only available when this order is executed.
     pub maker: bool,
     pub order_type: OrdType,
+    /// Request status:
+    ///   * [`Status::New`]: Request to open a new order.
+    ///   * [`Status::Canceled`]: Request to cancel an opened order.
+    pub req: Status,
+    pub status: Status,
+    pub side: Side,
+    pub time_in_force: TimeInForce,
+    /// Additional data used for [`QueueModel`](`crate::backtest::models::QueueModel`).
+    /// This is only available in backtesting, and the type `Q` is set to `()` in a live bot.
+    pub q: Box<dyn AnyClone + Send>,
 }
 
 impl Order {
