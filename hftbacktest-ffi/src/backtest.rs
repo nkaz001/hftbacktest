@@ -1,14 +1,11 @@
-use std::collections::HashMap;
-use std::mem;
-use std::os::raw::c_void;
+use std::{collections::HashMap, mem, os::raw::c_void};
 
 use hftbacktest::{
     backtest::MultiAssetMultiExchangeBacktest,
     depth::HashMapMarketDepth,
-    prelude::{Bot, BotTypedDepth, BotTypedTrade},
+    prelude::{Bot, BotTypedDepth, BotTypedTrade, Order},
     types::{OrdType, TimeInForce},
 };
-use hftbacktest::prelude::Order;
 
 type Backtest = MultiAssetMultiExchangeBacktest<HashMapMarketDepth>;
 
@@ -26,7 +23,11 @@ pub extern "C" fn hbt_depth_typed(hbt_ptr: *const Backtest, asset_no: usize) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn hbt_trade_typed(hbt_ptr: *const Backtest, asset_no: usize, len_ptr: *mut usize) -> *mut c_void {
+pub extern "C" fn hbt_trade_typed(
+    hbt_ptr: *const Backtest,
+    asset_no: usize,
+    len_ptr: *mut usize,
+) -> *mut c_void {
     let hbt = unsafe { &*hbt_ptr };
     let trade = hbt.trade_typed(asset_no);
     unsafe {
@@ -92,7 +93,11 @@ pub extern "C" fn hbt_wait_order_response(
 }
 
 #[no_mangle]
-pub extern "C" fn hbt_wait_next_feed(hbt_ptr: *mut Backtest, include_resp: bool, timeout: i64) -> i64 {
+pub extern "C" fn hbt_wait_next_feed(
+    hbt_ptr: *mut Backtest,
+    include_resp: bool,
+    timeout: i64,
+) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_next_feed(include_resp, timeout) {
         Ok(true) => 0,
@@ -157,7 +162,12 @@ pub extern "C" fn hbt_submit_sell_order(
 }
 
 #[no_mangle]
-pub extern "C" fn hbt_cancel(hbt_ptr: *mut Backtest, asset_no: usize, order_id: i64, wait: bool) -> i64 {
+pub extern "C" fn hbt_cancel(
+    hbt_ptr: *mut Backtest,
+    asset_no: usize,
+    order_id: i64,
+    wait: bool,
+) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.cancel(asset_no, order_id, wait) {
         Ok(true) => 0,
@@ -187,7 +197,10 @@ pub extern "C" fn hbt_clear_inactive_orders(hbt_ptr: *mut Backtest, asset_no: us
 }
 
 #[no_mangle]
-pub extern "C" fn hbt_orders(hbt_ptr: *const Backtest, asset_no: usize) -> *const HashMap<i64, Order> {
+pub extern "C" fn hbt_orders(
+    hbt_ptr: *const Backtest,
+    asset_no: usize,
+) -> *const HashMap<i64, Order> {
     let hbt = unsafe { &*hbt_ptr };
     hbt.orders(asset_no) as *const _
 }

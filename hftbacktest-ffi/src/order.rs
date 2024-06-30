@@ -1,7 +1,8 @@
-use std::collections::hash_map::Values;
-use std::collections::HashMap;
-use std::os::raw::c_void;
-use std::ptr::null;
+use std::{
+    collections::{hash_map::Values, HashMap},
+    os::raw::c_void,
+    ptr::null,
+};
 
 use hftbacktest::prelude::Order;
 
@@ -10,7 +11,7 @@ pub extern "C" fn orders_get(orders: *const HashMap<i64, Order>, order_id: i64) 
     let orders = unsafe { &*orders };
     match orders.get(&order_id) {
         None => null(),
-        Some(order) => order as *const _
+        Some(order) => order as *const _,
     }
 }
 
@@ -29,7 +30,7 @@ pub extern "C" fn orders_values_next(it: *mut Values<i64, Order>) -> *const Orde
         None => {
             let _ = unsafe { Box::from_raw(it) };
             null()
-        },
-        Some(order) => order as *const _
+        }
+        Some(order) => order as *const _,
     }
 }

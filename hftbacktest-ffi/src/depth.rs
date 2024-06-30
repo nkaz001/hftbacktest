@@ -37,13 +37,19 @@ pub extern "C" fn depth_lot_size(depth_ptr: *const HashMapMarketDepth) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn depth_bid_qty_at_tick(depth_ptr: *const HashMapMarketDepth, price_tick: i32) -> f32 {
+pub extern "C" fn depth_bid_qty_at_tick(
+    depth_ptr: *const HashMapMarketDepth,
+    price_tick: i32,
+) -> f32 {
     let depth = unsafe { &*depth_ptr };
     depth.bid_qty_at_tick(price_tick)
 }
 
 #[no_mangle]
-pub extern "C" fn depth_ask_qty_at_tick(depth_ptr: *const HashMapMarketDepth, price_tick: i32) -> f32 {
+pub extern "C" fn depth_ask_qty_at_tick(
+    depth_ptr: *const HashMapMarketDepth,
+    price_tick: i32,
+) -> f32 {
     let depth = unsafe { &*depth_ptr };
     depth.ask_qty_at_tick(price_tick)
 }
