@@ -48,75 +48,75 @@ order_dtype = np.dtype([
 
 @jitclass
 class Order:
-    _arr: from_dtype(order_dtype)[:]
+    arr: from_dtype(order_dtype)[:]
 
     def __init__(self, arr: order_dtype):
-        self._arr = arr
+        self.arr = arr
 
     @property
     def price(self) -> float32:
-        return self._arr[0].price_tick * self._arr[0].tick_size
+        return self.arr[0].price_tick * self.arr[0].tick_size
 
     @property
     def exec_price(self) -> float32:
-        return self._arr[0].exec_price_tick * self._arr[0].tick_size
+        return self.arr[0].exec_price_tick * self.arr[0].tick_size
 
     @property
     def cancellable(self) -> bool:
-        return (self._arr[0].status == NEW or self._arr[0].status == PARTIALLY_FILLED) and self._arr[0].req == NONE
+        return (self.arr[0].status == NEW or self.arr[0].status == PARTIALLY_FILLED) and self.arr[0].req == NONE
 
     @property
     def qty(self) -> float32:
-        return self._arr[0].qty
+        return self.arr[0].qty
 
     @property
     def leaves_qty(self) -> float32:
-        return self._arr[0].leaves_qty
+        return self.arr[0].leaves_qty
 
     @property
     def price_tick(self) -> int32:
-        return self._arr[0].price_tick
+        return self.arr[0].price_tick
 
     @property
     def tick_size(self) -> float32:
-        return self._arr[0].price_tick
+        return self.arr[0].price_tick
 
     @property
     def exch_timestamp(self) -> int64:
-        return self._arr[0].exch_timestamp
+        return self.arr[0].exch_timestamp
 
     @property
     def local_timestamp(self) -> int64:
-        return self._arr[0].local_timestamp
+        return self.arr[0].local_timestamp
 
     @property
     def exec_price_tick(self) -> int32:
-        return self._arr[0].exec_price_tick
+        return self.arr[0].exec_price_tick
 
     @property
     def exec_qty(self) -> float32:
-        return self._arr[0].exec_qty
+        return self.arr[0].exec_qty
 
     @property
     def order_id(self) -> int64:
-        return self._arr[0].order_id
+        return self.arr[0].order_id
 
     @property
     def order_type(self) -> uint8:
-        return self._arr[0].order_type
+        return self.arr[0].order_type
 
     @property
     def req(self) -> uint8:
-        return self._arr[0].req
+        return self.arr[0].req
 
     @property
     def status(self) -> uint8:
-        return self._arr[0].status
+        return self.arr[0].status
 
     @property
     def side(self) -> uint8:
-        return self._arr[0].side
+        return self.arr[0].side
 
     @property
     def time_in_force(self) -> uint8:
-        return self._arr[0].time_in_force
+        return self.arr[0].time_in_force
