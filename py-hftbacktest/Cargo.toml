@@ -1,5 +1,5 @@
 [package]
-name = "hftbacktest-ffi"
+name = "py-hftbacktest"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,5 +8,5 @@ pyo3 = { version = "0.22.0", features = ["extension-module"] }
 hftbacktest = { path = "../rust", features = ["backtest"] }
 
 [lib]
-name = "hftbacktest_ffi"
+name = "py_hftbacktest"
 crate-type = ["cdylib"]

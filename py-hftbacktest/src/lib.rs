@@ -126,7 +126,7 @@ impl PyAssetBuilder {
 }
 
 #[pymodule]
-fn hftbacktest_ffi(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn py_hftbacktest(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_backtester, m)?)?;
     m.add_class::<PyAssetBuilder>()?;
     m.add_class::<PyAssetType>()?;
@@ -154,6 +154,54 @@ impl PyMultiAssetMultiExchangeBacktest {
     }
 }
 
+
+macro_rules! build_backtester {
+    (
+        $reader:expr ;
+        $maker_fee: expr ;
+        $taker_fee: expr ;
+        $trade_len: expr ;
+        $AT:ident: { $($AT_args:expr),* } ;
+        $LM:ident: { $($LM_args:expr),* } ;
+        $QM:ident: { $($QM_args:expr),* } ;
+        $MD:ident: { $($MD_args:expr),* } ;
+        $EM:ident
+    ) => {
+        {
+            let ob_local_to_exch = OrderBus::new();
+            let ob_exch_to_local = OrderBus::new();
+
+            let asset_type = $AT::new($($AT_args),*);
+            let latency_model = $LM::new($($LM_args),*);
+            let market_depth = $MD::new($($MD_args),*);
+
+            let local: Box<dyn LocalProcessor<$MD, Event>> = Box::new(Local::new(
+                $reader.clone(),
+                market_depth,
+                State::new(asset_type.clone(), $maker_fee, $taker_fee),
+                latency_model.clone(),
+                $trade_len,
+                ob_local_to_exch.clone(),
+                ob_exch_to_local.clone(),
+            ));
+
+            let market_depth = $MD::new($($MD_args),*);
+            let queue_model = $QM::new($($QM_args),*);
+            let exch: Box<dyn Processor> = Box::new($EM::new(
+                $reader,
+                market_depth,
+                State::new(asset_type, $maker_fee, $taker_fee),
+                latency_model,
+                queue_model,
+                ob_exch_to_local,
+                ob_local_to_exch,
+            ));
+
+            (local, exch)
+        }
+    }
+}
+
 #[pyfunction]
 pub fn build_backtester(
     assets: Vec<PyRefMut<PyAssetBuilder>>,
@@ -164,8 +212,6 @@ pub fn build_backtester(
     for asset in assets {
         let cache = Cache::new();
         let mut reader = Reader::new(cache);
-        let ob_local_to_exch = OrderBus::new();
-        let ob_exch_to_local = OrderBus::new();
 
         for file in asset.data.iter() {
             reader.add_file(file.to_string());
@@ -182,86 +228,19 @@ pub fn build_backtester(
             .ok_or(BuildError::BuilderIncomplete("asset_type"))
             .unwrap();
 
-        let local: Box<dyn LocalProcessor<HashMapMarketDepth, Event>> =
-            match (&asset_type, &order_latency) {
-                (PyAssetType::LinearAsset, PyLatencyModel::ConstantLatency) => {
-                    let asset_type = LinearAsset::new(1.0);
-                    let order_latency = ConstantLatency::new(10_000_000, 10_000_000);
-                    Box::new(Local::new(
-                        reader.clone(),
-                        { HashMapMarketDepth::new(0.000001, 1.0) },
-                        State::new(asset_type, asset.maker_fee, asset.taker_fee),
-                        order_latency,
-                        asset.trade_len,
-                        ob_local_to_exch.clone(),
-                        ob_exch_to_local.clone(),
-                    ))
-                }
-                (PyAssetType::LinearAsset, PyLatencyModel::IntpLatencyModel) => {
-                    let asset_type = LinearAsset::new(1.0);
-                    let order_latency = ConstantLatency::new(10_000_000, 10_000_000);
-                    Box::new(Local::new(
-                        reader.clone(),
-                        { HashMapMarketDepth::new(0.000001, 1.0) },
-                        State::new(asset_type, asset.maker_fee, asset.taker_fee),
-                        order_latency,
-                        asset.trade_len,
-                        ob_local_to_exch.clone(),
-                        ob_exch_to_local.clone(),
-                    ))
-                }
-                (PyAssetType::InverseAsset, PyLatencyModel::ConstantLatency) => {
-                    let asset_type = LinearAsset::new(1.0);
-                    let order_latency = ConstantLatency::new(10_000_000, 10_000_000);
-                    Box::new(Local::new(
-                        reader.clone(),
-                        { HashMapMarketDepth::new(0.000001, 1.0) },
-                        State::new(asset_type, asset.maker_fee, asset.taker_fee),
-                        order_latency,
-                        asset.trade_len,
-                        ob_local_to_exch.clone(),
-                        ob_exch_to_local.clone(),
-                    ))
-                }
-                (PyAssetType::InverseAsset, PyLatencyModel::IntpLatencyModel) => {
-                    let asset_type = LinearAsset::new(1.0);
-                    let order_latency = ConstantLatency::new(10_000_000, 10_000_000);
-                    Box::new(Local::new(
-                        reader.clone(),
-                        { HashMapMarketDepth::new(0.000001, 1.0) },
-                        State::new(asset_type, asset.maker_fee, asset.taker_fee),
-                        order_latency,
-                        asset.trade_len,
-                        ob_local_to_exch.clone(),
-                        ob_exch_to_local.clone(),
-                    ))
-                }
-            };
-        locals.push(local);
-
-        let exch_kind = asset.exch_kind.clone();
-        let exch: Box<dyn Processor> = match (asset_type, order_latency, exch_kind) {
-            (
-                PyAssetType::LinearAsset,
-                PyLatencyModel::ConstantLatency,
-                PyExchangeKind::NoPartialFillExchange,
-            ) => {
-                let asset_type = LinearAsset::new(1.0);
-                let order_latency = ConstantLatency::new(10_000_000, 10_000_000);
-                Box::new(NoPartialFillExchange::new(
-                    reader.clone(),
-                    { HashMapMarketDepth::new(0.000001, 1.0) },
-                    State::new(asset_type, asset.maker_fee, asset.taker_fee),
-                    order_latency,
-                    RiskAdverseQueueModel::new(),
-                    ob_exch_to_local,
-                    ob_local_to_exch,
-                ))
-            }
-            _ => {
-                panic!()
-            }
+        let (local, exch) = build_backtester!{
+            reader;
+            asset.maker_fee;
+            asset.taker_fee;
+            asset.trade_len;
+            LinearAsset: {1.0};
+            ConstantLatency: {10_000_000, 10_000_000};
+            RiskAdverseQueueModel: {};
+            HashMapMarketDepth: {0.000001, 1.0};
+            NoPartialFillExchange
         };
+
+        locals.push(local);
         exchs.push(exch);
     }
 

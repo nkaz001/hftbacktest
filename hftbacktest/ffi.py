@@ -13,7 +13,7 @@ from ctypes import (
 )
 from typing import Tuple
 
-import hftbacktest_ffi
+import py_hftbacktest
 import numba
 import numpy as np
 from numba import (
@@ -31,13 +31,13 @@ from numba.experimental import jitclass
 from .intrinsic import ptr_from_val, address_as_void_pointer, val_from_ptr, is_null_ptr
 from .order import order_dtype, Order
 
-lib_path = hftbacktest_ffi.__path__[0]
+lib_path = py_hftbacktest.__path__[0]
 so_file = [
     f for f in os.listdir(lib_path)
-    if os.path.isfile(os.path.join(lib_path, f)) and f.startswith('hftbacktest_ffi') and f.endswith('.so')
+    if os.path.isfile(os.path.join(lib_path, f)) and f.startswith('py_hftbacktest') and f.endswith('.so')
 ]
 if len(so_file) == 0:
-    raise RuntimeError('Couldn\'t find hftbackest_ffi.')
+    raise RuntimeError('Couldn\'t find py_hftbacktest.')
 
 
 lib = CDLL(os.path.join(lib_path, so_file[0]))

@@ -8,5 +8,5 @@ docs/_build
 rust/Cargo.lock
 rust/target
 rust/**/tmp_*
-hftbacktest-ffi/Cargo.lock
-hftbacktest-ffi/target
+py-hftbacktest/Cargo.lock
+py-hftbacktest/target
