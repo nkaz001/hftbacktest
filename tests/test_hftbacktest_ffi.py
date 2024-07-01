@@ -7,7 +7,8 @@ from hftbacktest import (
     PyExchangeKind,
     PyLatencyModel,
     build_backtester,
-    MultiAssetMultiExchangeBacktest, ANY_ASSET
+    MultiAssetMultiExchangeBacktest,
+    ALL_ASSETS
 )
 
 
@@ -29,7 +30,7 @@ def test_run(hbt):
         #     if i > 5:
         #         break
 
-        hbt.clear_last_trades(ANY_ASSET)
+        hbt.clear_last_trades(ALL_ASSETS)
 
         cnt = 0
         orders = hbt.orders(0)
@@ -41,7 +42,7 @@ def test_run(hbt):
             cnt += 1
             print(order.order_id, order.side, order.price_tick, order.qty)
 
-        hbt.clear_inactive_orders(ANY_ASSET)
+        hbt.clear_inactive_orders(ALL_ASSETS)
 
         if cnt <= 2:
             hbt.submit_buy_order(0, order_id, best_bid, 1, 1, 0, False)
