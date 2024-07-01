@@ -17,7 +17,7 @@ from .types import (
 )
 
 from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, MODIFY, GTC, GTX, order_dtype
-from .ffi import (
+from .binding import (
     MultiAssetMultiExchangeBacktest,
     MarketDepth,
     OrderDict
