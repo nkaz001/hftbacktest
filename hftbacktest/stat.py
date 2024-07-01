@@ -8,8 +8,6 @@ from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
 
-from .typing import HftBacktestType
-
 
 class Stat:
     r"""
@@ -24,7 +22,7 @@ class Stat:
 
     def __init__(
             self,
-            hbt: HftBacktestType,
+            hbt,
             utc: bool = True,
             unit: Literal['s', 'ms', 'us', 'ns'] = 'us',
             allocated: int = 100_000

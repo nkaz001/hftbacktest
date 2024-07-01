@@ -5,8 +5,7 @@ from typing import Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from .. import validate_data
-from ..validation import correct_event_order, convert_to_struct_arr
+from ..validation import correct_event_order
 from ... import (
     DEPTH_EVENT,
     DEPTH_CLEAR_EVENT,
@@ -159,24 +158,10 @@ def convert(
         merged,
         np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort'),
         np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort'),
-        structured_array
     )
-
-    if not structured_array:
-        # Validate again.
-        num_corr = validate_data(data)
-        if num_corr < 0:
-            raise ValueError
-
-    if structured_array:
-        # EXCH_EVENT and LOCAL_EVENT are already applied.
-        data = convert_to_struct_arr(data, False)
 
     if output_filename is not None:
         print('Saving to %s' % output_filename)
-        if compress:
-            np.savez_compressed(output_filename, data=data)
-        else:
-            np.savez(output_filename, data=data)
+        np.savez_compressed(output_filename, data=data)
 
     return data

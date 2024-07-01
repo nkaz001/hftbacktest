@@ -18,6 +18,7 @@ use hftbacktest::{
     },
     prelude::{BuildError, Event, HashMapMarketDepth},
 };
+pub use order::*;
 use pyo3::prelude::*;
 
 #[pyclass(eq, eq_int)]

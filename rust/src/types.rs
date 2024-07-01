@@ -467,6 +467,9 @@ pub struct Order {
     /// Executed quantity, only available when this order is executed.
     pub exec_qty: f32,
     pub order_id: i64,
+    /// Additional data used for [`QueueModel`](`crate::backtest::models::QueueModel`).
+    /// This is only available in backtesting, and the type `Q` is set to `()` in a live bot.
+    pub q: Box<dyn AnyClone + Send>,
     /// Whether the order is executed as a maker, only available when this order is executed.
     pub maker: bool,
     pub order_type: OrdType,
@@ -477,9 +480,6 @@ pub struct Order {
     pub status: Status,
     pub side: Side,
     pub time_in_force: TimeInForce,
-    /// Additional data used for [`QueueModel`](`crate::backtest::models::QueueModel`).
-    /// This is only available in backtesting, and the type `Q` is set to `()` in a live bot.
-    pub q: Box<dyn AnyClone + Send>,
 }
 
 impl Order {
@@ -600,7 +600,8 @@ pub enum Request {
 ///
 /// **Note:** In a live bot, currently only `position` value is delivered correctly, and other
 /// values are invalid.
-#[derive(PartialEq, Clone, Debug)]
+#[repr(C)]
+#[derive(PartialEq, Clone, Debug, Default)]
 pub struct StateValues {
     pub position: f64,
     /// Backtest only
@@ -608,11 +609,11 @@ pub struct StateValues {
     /// Backtest only
     pub fee: f64,
     /// Backtest only
-    pub trade_num: i32,
-    /// Backtest only
     pub trade_qty: f64,
     /// Backtest only
     pub trade_amount: f64,
+    /// Backtest only
+    pub trade_num: i32,
 }
 
 /// Provides errors that can occur in builders.
@@ -657,7 +658,7 @@ pub trait Bot {
     fn position(&self, asset_no: usize) -> f64;
 
     /// Returns the state's values such as balance, fee, and so on.
-    fn state_values(&self, asset_no: usize) -> StateValues;
+    fn state_values(&self, asset_no: usize) -> &StateValues;
 
     /// Returns the [MarketDepth](crate::depth::MarketDepth).
     ///

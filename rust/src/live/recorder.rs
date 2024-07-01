@@ -29,7 +29,7 @@ impl Recorder for LoggingRecorder {
             let updated = match self.state.entry(asset_no) {
                 Entry::Occupied(mut entry) => {
                     let (prev_mid, prev_state_values) = entry.get();
-                    if (*prev_mid != mid) || (*prev_state_values != state_values) {
+                    if (*prev_mid != mid) || (prev_state_values != state_values) {
                         *entry.get_mut() = (mid, state_values.clone());
                         true
                     } else {

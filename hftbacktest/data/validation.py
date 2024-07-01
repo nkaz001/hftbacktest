@@ -7,7 +7,7 @@ from numba import njit
 from numpy.typing import NDArray
 from pandas import DataFrame
 
-from ..reader import (
+from ..types import (
     COL_EVENT,
     COL_EXCH_TIMESTAMP,
     COL_LOCAL_TIMESTAMP,
@@ -20,8 +20,8 @@ from ..reader import (
     DEPTH_SNAPSHOT_EVENT,
     EXCH_EVENT,
     LOCAL_EVENT,
-    BUY,
-    SELL
+    BUY_EVENT,
+    SELL_EVENT
 )
 
 

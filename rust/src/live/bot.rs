@@ -245,7 +245,7 @@ impl<MD> LiveBotBuilder<MD> {
             .collect();
 
         let orders = self.assets.iter().map(|_| HashMap::new()).collect();
-        let position = self.assets.iter().map(|_| 0.0).collect();
+        let state = self.assets.iter().map(|_| Default::default()).collect();
         let trade = self
             .assets
             .iter()
@@ -261,7 +261,7 @@ impl<MD> LiveBotBuilder<MD> {
             req_tx,
             depth,
             orders,
-            position,
+            state,
             conns: Some(conns),
             assets: self.assets,
             trade,
@@ -295,7 +295,6 @@ pub struct LiveBot<MD> {
     ev_rx: Receiver<LiveEvent>,
     depth: Vec<MD>,
     orders: Vec<HashMap<i64, Order>>,
-    position: Vec<f64>,
     trade: Vec<Vec<Event>>,
     trade_len: usize,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
@@ -304,6 +303,7 @@ pub struct LiveBot<MD> {
     order_hook: Option<OrderRecvHook>,
     last_feed_latency: Vec<Option<(i64, i64)>>,
     last_order_latency: Vec<Option<(i64, i64, i64)>>,
+    state: Vec<StateValues>,
 }
 
 impl<MD> LiveBot<MD>
@@ -424,7 +424,7 @@ where
                     }
                 }
                 Ok(LiveEvent::Position { asset_no, qty }) => {
-                    *(unsafe { self.position.get_unchecked_mut(asset_no) }) = qty;
+                    unsafe { self.state.get_unchecked_mut(asset_no) }.position = qty;
                 }
                 Ok(LiveEvent::Error(error)) => {
                     if let Some(handler) = self.error_handler.as_mut() {
@@ -510,26 +510,19 @@ where
 
     #[inline]
     fn num_assets(&self) -> usize {
-        self.position.len()
+        self.state.len()
     }
 
     #[inline]
     fn position(&self, asset_no: usize) -> f64 {
-        *self.position.get(asset_no).unwrap_or(&0.0)
+        self.state_values(asset_no).position
     }
 
     #[inline]
-    fn state_values(&self, asset_no: usize) -> StateValues {
+    fn state_values(&self, asset_no: usize) -> &StateValues {
         // todo: implement the missing fields. Trade values need to be changed to a rolling manner,
         //       unlike the current Python implementation, to support live trading.
-        StateValues {
-            position: *self.position.get(asset_no).unwrap_or(&0.0),
-            balance: 0.0,
-            fee: 0.0,
-            trade_num: 0,
-            trade_qty: 0.0,
-            trade_amount: 0.0,
-        }
+        self.state.get(asset_no).unwrap()
     }
 
     #[inline]

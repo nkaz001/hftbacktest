@@ -4,8 +4,7 @@ from typing import List, Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from .. import validate_data
-from ..validation import correct_event_order, convert_to_struct_arr, validate_event_order
+from ..validation import correct_event_order, validate_event_order
 from ... import (
     DEPTH_CLEAR_EVENT,
     DEPTH_SNAPSHOT_EVENT,
@@ -48,9 +47,6 @@ def convert(
                          Please see https://docs.tardis.dev/historical-data-details#collected-order-book-data-details
                          for more details.
                        - Otherwise, all snapshot events will be processed.
-        compress: If this is set to True, the output file will be compressed.
-        structured_array: If this is set to True, the output is converted into the new format(currently only Rust impl).
-        timestamp_unit: The timestamp unit for timestamp to be converted in. Tardis provides timestamps in microseconds.
     Returns:
         Converted data compatible with HftBacktest.
     """

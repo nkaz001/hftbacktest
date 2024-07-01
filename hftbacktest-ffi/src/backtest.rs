@@ -3,7 +3,7 @@ use std::{collections::HashMap, mem, os::raw::c_void};
 use hftbacktest::{
     backtest::MultiAssetMultiExchangeBacktest,
     depth::HashMapMarketDepth,
-    prelude::{Bot, BotTypedDepth, BotTypedTrade, Order},
+    prelude::{Bot, BotTypedDepth, BotTypedTrade, Event, Order, StateValues},
     types::{OrdType, TimeInForce},
 };
 
@@ -16,10 +16,13 @@ pub extern "C" fn hbt_current_timestamp(hbt_ptr: *const Backtest) -> i64 {
 }
 
 #[no_mangle]
-pub extern "C" fn hbt_depth_typed(hbt_ptr: *const Backtest, asset_no: usize) -> usize {
+pub extern "C" fn hbt_depth_typed(
+    hbt_ptr: *const Backtest,
+    asset_no: usize,
+) -> *const HashMapMarketDepth {
     let hbt = unsafe { &*hbt_ptr };
     let depth = hbt.depth_typed(asset_no);
-    depth as *const _ as usize
+    depth as *const _
 }
 
 #[no_mangle]
@@ -27,7 +30,7 @@ pub extern "C" fn hbt_trade_typed(
     hbt_ptr: *const Backtest,
     asset_no: usize,
     len_ptr: *mut usize,
-) -> *mut c_void {
+) -> *const Event {
     let hbt = unsafe { &*hbt_ptr };
     let trade = hbt.trade_typed(asset_no);
     unsafe {
@@ -203,4 +206,55 @@ pub extern "C" fn hbt_orders(
 ) -> *const HashMap<i64, Order> {
     let hbt = unsafe { &*hbt_ptr };
     hbt.orders(asset_no) as *const _
+}
+
+#[no_mangle]
+pub extern "C" fn hbt_state_values(
+    hbt_ptr: *const Backtest,
+    asset_no: usize,
+) -> *const StateValues {
+    let hbt = unsafe { &*hbt_ptr };
+    hbt.state_values(asset_no) as *const _
+}
+
+#[no_mangle]
+pub extern "C" fn hbt_feed_latency(
+    hbt_ptr: *const Backtest,
+    asset_no: usize,
+    exch_ts: *mut i64,
+    local_ts: *mut i64,
+) -> bool {
+    let hbt = unsafe { &*hbt_ptr };
+    match hbt.feed_latency(asset_no) {
+        None => false,
+        Some((exch_ts_, local_ts_)) => {
+            unsafe {
+                *exch_ts = exch_ts_;
+                *local_ts = local_ts_;
+            }
+            true
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hbt_order_latency(
+    hbt_ptr: *const Backtest,
+    asset_no: usize,
+    req_ts: *mut i64,
+    exch_ts: *mut i64,
+    resp_ts: *mut i64,
+) -> bool {
+    let hbt = unsafe { &*hbt_ptr };
+    match hbt.order_latency(asset_no) {
+        None => false,
+        Some((req_ts_, exch_ts_, resp_ts_)) => {
+            unsafe {
+                *req_ts = req_ts_;
+                *exch_ts = exch_ts_;
+                *resp_ts = resp_ts_;
+            }
+            true
+        }
+    }
 }

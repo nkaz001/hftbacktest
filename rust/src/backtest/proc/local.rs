@@ -191,18 +191,11 @@ where
     }
 
     fn position(&self) -> f64 {
-        self.state.position
+        self.state.values().position
     }
 
-    fn state_values(&self) -> StateValues {
-        StateValues {
-            position: self.state.position,
-            balance: self.state.balance,
-            fee: self.state.fee,
-            trade_num: self.state.trade_num,
-            trade_qty: self.state.trade_qty,
-            trade_amount: self.state.trade_amount,
-        }
+    fn state_values(&self) -> &StateValues {
+        self.state.values()
     }
 
     fn depth(&self) -> &MD {

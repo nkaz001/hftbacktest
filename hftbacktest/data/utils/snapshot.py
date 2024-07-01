@@ -52,7 +52,7 @@ def create_last_snapshot(
     out_rn = 0
     for bid, qty in sorted(hbt.bid_depth.items(), key=lambda v: -float(v[0])):
         snapshot[out_rn] = (
-            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | BUY,
+            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | BUY_EVENT,
             # fixme: timestamp
             hbt.last_timestamp,
             hbt.last_timestamp,
@@ -62,7 +62,7 @@ def create_last_snapshot(
         out_rn += 1
     for ask, qty in sorted(hbt.ask_depth.items(), key=lambda v: float(v[0])):
         snapshot[out_rn] = (
-            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | SELL,
+            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | SELL_EVENT,
             # fixme: timestamp
             hbt.last_timestamp,
             hbt.last_timestamp,

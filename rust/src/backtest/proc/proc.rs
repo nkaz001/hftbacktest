@@ -47,7 +47,7 @@ where
     fn position(&self) -> f64;
 
     /// Returns the state's values such as balance, fee, and so on.
-    fn state_values(&self) -> StateValues;
+    fn state_values(&self) -> &StateValues;
 
     /// Returns the [`MarketDepth`].
     fn depth(&self) -> &MD;

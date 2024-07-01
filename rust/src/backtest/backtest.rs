@@ -239,7 +239,7 @@ where
     }
 
     #[inline]
-    fn state_values(&self, asset_no: usize) -> StateValues {
+    fn state_values(&self, asset_no: usize) -> &StateValues {
         self.local.get(asset_no).unwrap().state_values()
     }
 
@@ -703,7 +703,7 @@ where
     }
 
     #[inline]
-    fn state_values(&self, asset_no: usize) -> StateValues {
+    fn state_values(&self, asset_no: usize) -> &StateValues {
         self.local.get(asset_no).unwrap().state_values()
     }
 
