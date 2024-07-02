@@ -3,12 +3,7 @@
 Currently, the Rust implementation is being more actively developed especially for new features.
 
 ## Python
-* [X] Rust implementation as the backend. (WIP: [rust_backend](https://github.com/nkaz001/hftbacktest/tree/rust_backend) branch)
-  * https://numba.readthedocs.io/en/stable/user/cfunc.html#calling-c-code-from-numba
-  * https://numba.readthedocs.io/en/stable/user/cfunc.html#handling-c-structures
-  * https://numba.readthedocs.io/en/stable/extending/index.html
-  * https://github.com/callahad/python-rust-ffi
-  * https://github.com/pyo3/pyo3 
+* [X] Rust implementation as the backend. (WIP)
 * [ ] Improve performance reporting tools.
   * https://github.com/ranaroussi/quantstats
   * https://www.prestolabs.io/research/optimizing-risk-adjusted-return-in-constructing-portfolios-of-alphas

@@ -2,47 +2,35 @@
 HftBacktest
 ===========
 
-|codacy| |codeql| |python| |pypi| |downloads| |crates| |license| |docs| |roadmap| |github|
+|codeql| |python| |pypi| |downloads| |crates| |license| |docs| |roadmap| |github|
 
-**The master branch will be switched to hftbacktest-2.0.0-alpha, which uses the Rust implementation as the backend. If you want to see the current version 1.8.4, please check out the corresponding tag.**
+**The master branch is switched to hftbacktest-2.0.0-alpha, which uses the Rust implementation as the backend. If you want to see the current version 1.8.4, please check out the corresponding tag.**
+
+* `Browse v1.8.4 <https://github.com/nkaz001/hftbacktest/tree/20cd9470a431e90c526eca6975ef389073c9aca5>`_
+* `Docs v1.8.4 <https://hftbacktest.readthedocs.io/en/v1.8.4/>`_
 
 High-Frequency Trading Backtesting Tool
 =======================================
 
 This framework is designed for developing high-frequency trading and market-making strategies. It focuses on accounting for both feed and order latencies, as well as the order queue position for order fill simulation. The framework aims to provide more accurate market replay-based backtesting, based on full order book and trade tick feed data.
 
-Rust implementation
-===================
+Key Features
+============
 
 The experimental features are currently in the early stages of development, having been completely rewritten in Rust to
 support the following features.
 
+* Working in `Numba <https://numba.pydata.org/>`_ JIT function (Python).
 * Complete tick-by-tick simulation with a customizable time interval or based on the feed and order receipt.
-* Full order book reconstruction based on L2 Market-By-Price and L3 Market-By-Order (WIP) feeds.
+* Full order book reconstruction based on L2 Market-By-Price and L3 Market-By-Order (Rust-only, WIP) feeds.
 * Backtest accounting for both feed and order latency, using provided models or your own custom model.
 * Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 * Backtesting of multi-asset and multi-exchange models
-* Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit.
-
-Please see `rust <https://github.com/nkaz001/hftbacktest/tree/master/rust>`_ directory.
+* Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit. (Rust-only)
 
 Example: The complete process of backtesting Binance Futures
 ------------------------------------------------------------
-`high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
-
-Python HftBacktest2 based on Rust implementation
-------------------------------------------------
-The development of hftbacktest2, a Python version of hftbacktest that uses the Rust hftbacktest as its backend, has just begun.
-Please check it out `rust_backend <https://github.com/nkaz001/hftbacktest/tree/rust_backend>`_.
-
-Key Features
-============
-
-* Working in `Numba <https://numba.pydata.org/>`_ JIT function.
-* Complete tick-by-tick simulation with a variable time interval.
-* Full order book reconstruction based on L2 feeds(Market-By-Price).
-* Backtest accounting for both feed and order latency, using provided models or your own custom model.
-* Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
+`high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Documentation
 =============
@@ -188,10 +176,6 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
 .. |python| image:: https://shields.io/badge/python-3.10-blue
     :alt: Python Version
     :target: https://pypi.org/project/hftbacktest
-
-.. |codacy| image:: https://app.codacy.com/project/badge/Grade/e2cef673757a45b18abfc361779feada
-    :alt: Codacy
-    :target: https://www.codacy.com/gh/nkaz001/hftbacktest/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=nkaz001/hftbacktest&amp;utm_campaign=Badge_Grade
 
 .. |codeql| image:: https://github.com/nkaz001/hftbacktest/actions/workflows/codeql.yml/badge.svg?branch=master&event=push
     :alt: CodeQL
