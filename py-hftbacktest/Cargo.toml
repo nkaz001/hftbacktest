@@ -1,0 +1,12 @@
+[package]
+name = "py-hftbacktest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pyo3 = { version = "0.22.0", features = ["extension-module"] }
+hftbacktest = { path = "../hftbacktest", features = ["backtest"] }
+
+[lib]
+name = "hftbacktest"
+crate-type = ["cdylib"]
