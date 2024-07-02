@@ -1,5 +1,7 @@
-use crate::{backtest::assettype::AssetType, types::Order};
-use crate::types::StateValues;
+use crate::{
+    backtest::assettype::AssetType,
+    types::{Order, StateValues},
+};
 
 #[derive(Debug)]
 pub struct State<AT>
@@ -50,8 +52,12 @@ where
 
     #[inline]
     pub fn equity(&self, mid: f32) -> f64 {
-        self.asset_type
-            .equity(mid, self.state_values.balance, self.state_values.position, self.state_values.fee)
+        self.asset_type.equity(
+            mid,
+            self.state_values.balance,
+            self.state_values.position,
+            self.state_values.fee,
+        )
     }
 
     #[inline]

@@ -1,9 +1,8 @@
 use std::io::Error as IoError;
 
-use thiserror::Error;
-
 pub use backtest::*;
 pub use reader::DataSource;
+use thiserror::Error;
 
 use crate::{
     backtest::{

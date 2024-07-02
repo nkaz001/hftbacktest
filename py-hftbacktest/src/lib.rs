@@ -1,26 +1,28 @@
 use std::ffi::c_void;
 
-use pyo3::prelude::*;
-
 pub use backtest::*;
 pub use depth::*;
 use hftbacktest::{
     backtest::{
-        assettype::LinearAsset,
-        models::ConstantLatency,
-        MultiAssetMultiExchangeBacktest,
+        assettype::{InverseAsset, LinearAsset},
+        models::{
+            ConstantLatency,
+            IntpOrderLatency,
+            OrderLatencyRow,
+            PowerProbQueueFunc3,
+            ProbQueueModel,
+        },
         order::OrderBus,
-        proc::{Local, LocalProcessor, NoPartialFillExchange, Processor},
+        proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         reader::{Cache, Reader},
         state::State,
+        DataSource,
+        MultiAssetMultiExchangeBacktest,
     },
     prelude::{Event, HashMapMarketDepth},
 };
-use hftbacktest::backtest::assettype::InverseAsset;
-use hftbacktest::backtest::DataSource;
-use hftbacktest::backtest::models::{IntpOrderLatency, OrderLatencyRow, PowerProbQueueFunc3, ProbQueueModel};
-use hftbacktest::backtest::proc::PartialFillExchange;
 pub use order::*;
+use pyo3::prelude::*;
 
 mod backtest;
 mod depth;
@@ -34,8 +36,13 @@ pub enum AssetType {
 
 #[derive(Clone)]
 pub enum LatencyModel {
-    ConstantLatency { entry_latency: i64, resp_latency: i64 },
-    IntpOrderLatency { data: Vec<DataSource<OrderLatencyRow>>, },
+    ConstantLatency {
+        entry_latency: i64,
+        resp_latency: i64,
+    },
+    IntpOrderLatency {
+        data: Vec<DataSource<OrderLatencyRow>>,
+    },
 }
 
 #[derive(Clone)]
@@ -76,7 +83,10 @@ impl AssetBuilder {
     pub fn new() -> Self {
         Self {
             data: Vec::new(),
-            latency_model: LatencyModel::ConstantLatency { entry_latency: 0, resp_latency: 0 },
+            latency_model: LatencyModel::ConstantLatency {
+                entry_latency: 0,
+                resp_latency: 0,
+            },
             asset_type: AssetType::LinearAsset(1.0),
             queue_model: QueueModel::LogProbQueueModel2,
             tick_size: 0.0,
@@ -103,11 +113,19 @@ impl AssetBuilder {
     }
 
     pub fn constant_latency(&mut self, entry_latency: i64, resp_latency: i64) {
-        self.latency_model = LatencyModel::ConstantLatency { entry_latency, resp_latency };
+        self.latency_model = LatencyModel::ConstantLatency {
+            entry_latency,
+            resp_latency,
+        };
     }
 
     pub fn intp_order_latency(&mut self, data: Vec<String>) {
-        self.latency_model = LatencyModel::IntpOrderLatency { data: data.iter().map(|file| DataSource::File(file.to_string())).collect() };
+        self.latency_model = LatencyModel::IntpOrderLatency {
+            data: data
+                .iter()
+                .map(|file| DataSource::File(file.to_string()))
+                .collect(),
+        };
     }
 
     pub fn risk_adverse_queue_model(&mut self) {
@@ -189,7 +207,6 @@ impl PyMultiAssetMultiExchangeBacktest {
     }
 }
 
-
 macro_rules! build_asset {
     (
         $data:expr ;
@@ -249,7 +266,7 @@ macro_rules! build_asset {
 
 pub struct PyAsset {
     local: Box<dyn LocalProcessor<HashMapMarketDepth, Event>>,
-    exch: Box<dyn Processor>
+    exch: Box<dyn Processor>,
 }
 
 type PowerProbQueueModel3 = ProbQueueModel<PowerProbQueueFunc3, HashMapMarketDepth>;
@@ -261,14 +278,22 @@ pub fn build_backtester(
     let mut local = Vec::new();
     let mut exch = Vec::new();
     for asset in assets {
-        let asst = match (&asset.asset_type, &asset.latency_model, &asset.queue_model, &asset.exch_kind) {
+        let asst = match (
+            &asset.asset_type,
+            &asset.latency_model,
+            &asset.queue_model,
+            &asset.exch_kind,
+        ) {
             (
                 AssetType::LinearAsset(contract_size),
-                LatencyModel::ConstantLatency { entry_latency, resp_latency },
+                LatencyModel::ConstantLatency {
+                    entry_latency,
+                    resp_latency,
+                },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange
+                ExchangeKind::NoPartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -284,9 +309,9 @@ pub fn build_backtester(
                 AssetType::LinearAsset(contract_size),
                 LatencyModel::IntpOrderLatency { data: latency_data },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange
+                ExchangeKind::NoPartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -300,11 +325,14 @@ pub fn build_backtester(
             }
             (
                 AssetType::InverseAsset(contract_size),
-                LatencyModel::ConstantLatency { entry_latency, resp_latency },
+                LatencyModel::ConstantLatency {
+                    entry_latency,
+                    resp_latency,
+                },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange
+                ExchangeKind::NoPartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -320,9 +348,9 @@ pub fn build_backtester(
                 AssetType::InverseAsset(contract_size),
                 LatencyModel::IntpOrderLatency { data: latency_data },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange
+                ExchangeKind::NoPartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -336,11 +364,14 @@ pub fn build_backtester(
             }
             (
                 AssetType::LinearAsset(contract_size),
-                LatencyModel::ConstantLatency { entry_latency, resp_latency },
+                LatencyModel::ConstantLatency {
+                    entry_latency,
+                    resp_latency,
+                },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange
+                ExchangeKind::PartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -356,9 +387,9 @@ pub fn build_backtester(
                 AssetType::LinearAsset(contract_size),
                 LatencyModel::IntpOrderLatency { data: latency_data },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange
+                ExchangeKind::PartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -372,11 +403,14 @@ pub fn build_backtester(
             }
             (
                 AssetType::InverseAsset(contract_size),
-                LatencyModel::ConstantLatency { entry_latency, resp_latency },
+                LatencyModel::ConstantLatency {
+                    entry_latency,
+                    resp_latency,
+                },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange
+                ExchangeKind::PartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -392,9 +426,9 @@ pub fn build_backtester(
                 AssetType::InverseAsset(contract_size),
                 LatencyModel::IntpOrderLatency { data: latency_data },
                 QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange
+                ExchangeKind::PartialFillExchange,
             ) => {
-                build_asset!{
+                build_asset! {
                     asset.data;
                     asset.maker_fee;
                     asset.taker_fee;
@@ -406,7 +440,7 @@ pub fn build_backtester(
                     PartialFillExchange
                 }
             }
-            _ => todo!()
+            _ => todo!(),
         };
         local.push(asst.local);
         exch.push(asst.exch);
