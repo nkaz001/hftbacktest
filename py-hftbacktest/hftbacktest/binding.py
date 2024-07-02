@@ -1,4 +1,3 @@
-import os.path
 from ctypes import (
     c_void_p,
     c_bool,
@@ -13,7 +12,6 @@ from ctypes import (
 )
 from typing import Tuple
 
-import py_hftbacktest
 import numba
 import numpy as np
 from numba import (
@@ -28,19 +26,11 @@ from numba import (
 from numba.core.types import voidptr
 from numba.experimental import jitclass
 
+from . import hftbacktest
 from .intrinsic import ptr_from_val, address_as_void_pointer, val_from_ptr, is_null_ptr
 from .order import order_dtype, Order
 
-lib_path = py_hftbacktest.__path__[0]
-so_file = [
-    f for f in os.listdir(lib_path)
-    if os.path.isfile(os.path.join(lib_path, f)) and f.startswith('py_hftbacktest') and f.endswith('.so')
-]
-if len(so_file) == 0:
-    raise RuntimeError('Couldn\'t find py_hftbacktest.')
-
-
-lib = CDLL(os.path.join(lib_path, so_file[0]))
+lib = CDLL(hftbacktest.__file__)
 
 
 depth_best_bid_tick = lib.depth_best_bid_tick

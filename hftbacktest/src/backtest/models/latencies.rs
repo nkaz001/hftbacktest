@@ -104,7 +104,7 @@ pub struct IntpOrderLatency {
 
 impl IntpOrderLatency {
     /// Constructs an instance of `IntpOrderLatency`.
-    pub fn new(data: Vec<DataSource<OrderLatencyRow>>) -> Result<Self, BacktestError> {
+    pub fn build(data: Vec<DataSource<OrderLatencyRow>>) -> Result<Self, BacktestError> {
         let mut reader = Reader::new(Cache::new());
         for file in data {
             match file {
@@ -133,6 +133,11 @@ impl IntpOrderLatency {
             data,
             next_data,
         })
+    }
+
+    /// Constructs an instance of `IntpOrderLatency`.
+    pub fn new(data: Vec<DataSource<OrderLatencyRow>>) -> Self {
+        Self::build(data).unwrap()
     }
 
     fn intp(&self, x: i64, x1: i64, y1: i64, x2: i64, y2: i64) -> i64 {

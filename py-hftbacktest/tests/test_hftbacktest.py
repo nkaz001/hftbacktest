@@ -1,11 +1,9 @@
 import unittest
+
 from numba import njit
 
 from hftbacktest import (
-    PyAssetBuilder,
-    PyAssetType,
-    PyExchangeKind,
-    PyLatencyModel,
+    AssetBuilder,
     build_backtester,
     MultiAssetMultiExchangeBacktest,
     ALL_ASSETS
@@ -53,18 +51,20 @@ def test_run(hbt):
         print(current_timestamp, best_bid, best_ask)
 
 
-class TestFFI(unittest.TestCase):
+class TestPyHftBacktest(unittest.TestCase):
     def setUp(self) -> None:
         pass
 
     def test_run_backtest(self):
-        asset = PyAssetBuilder()
-        asset.asset_type(PyAssetType.LinearAsset)
+        asset = AssetBuilder()
+        asset.linear_asset(1.0)
         asset.data(['tmp_20240501.npz'])
-        asset.exchange(PyExchangeKind.NoPartialFillExchange)
-        asset.latency_model(PyLatencyModel.ConstantLatency)
+        asset.no_partial_fill_exchange()
+        asset.constant_latency(100, 100)
+        asset.power_prob_queue_model3(3.0)
+        asset.tick_size(0.000001)
+        asset.lot_size(1.0)
         asset.trade_len(1000)
-
         raw_hbt = build_backtester([asset])
 
         hbt = MultiAssetMultiExchangeBacktest(raw_hbt.as_ptr())

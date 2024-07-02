@@ -6,7 +6,7 @@
 mod latencies;
 mod queue;
 
-pub use latencies::{ConstantLatency, IntpOrderLatency, LatencyModel};
+pub use latencies::{ConstantLatency, IntpOrderLatency, OrderLatencyRow, LatencyModel};
 #[cfg(any(feature = "unstable_l3", doc))]
 pub use queue::{L3FIFOQueueModel, L3OrderId, L3OrderSource, L3QueueModel};
 pub use queue::{

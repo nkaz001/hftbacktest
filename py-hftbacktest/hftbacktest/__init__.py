@@ -1,13 +1,8 @@
 # Re-exports
 import sys
-from hftbacktest_ffi import (
-    PyAssetBuilder,
-    PyDepth,
-    PyQueueModel,
-    PyAssetType,
-    PyExchangeKind,
-    PyLatencyModel,
-    build_backtester,
+from .hftbacktest import (
+    AssetBuilder,
+    build_backtester
 )
 from .data import (
     correct_local_timestamp,
@@ -24,6 +19,8 @@ from .binding import (
 )
 
 __all__ = (
+    'AssetBuilder',
+
     # Side
     'BUY',
     'SELL',

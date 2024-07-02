@@ -19,7 +19,7 @@ fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {
         .map(|date| DataSource::File(format!("latency_{date}.npz")))
         .collect();
 
-    let latency_model = IntpOrderLatency::new(latency_data).unwrap();
+    let latency_model = IntpOrderLatency::new(latency_data);
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 

@@ -5,8 +5,9 @@ build
 __pycache__
 venv
 docs/_build
-rust/Cargo.lock
-rust/target
-rust/**/tmp_*
+hftbacktest/Cargo.lock
+hftbacktest/target
+hftbacktest/**/tmp_*
 py-hftbacktest/Cargo.lock
 py-hftbacktest/target
+py-hftbacktest/**/*.so

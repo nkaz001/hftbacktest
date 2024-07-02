@@ -67,8 +67,7 @@ fn prepare_backtest(
             .iter()
             .map(|file| DataSource::File(file.clone()))
             .collect(),
-    )
-    .unwrap();
+    );
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 
