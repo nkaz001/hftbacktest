@@ -1,32 +1,18 @@
 import sys
-from typing import Optional, Union, Literal
 
 import numpy as np
-import pandas as pd
 from numba import njit
 from numpy.typing import NDArray
-from pandas import DataFrame
 
+from ..binding import event_dtype
 from ..types import (
-    COL_EVENT,
-    COL_EXCH_TIMESTAMP,
-    COL_LOCAL_TIMESTAMP,
-    COL_SIDE,
-    COL_PRICE,
-    COL_QTY,
-    TRADE_EVENT,
-    DEPTH_EVENT,
-    DEPTH_CLEAR_EVENT,
-    DEPTH_SNAPSHOT_EVENT,
     EXCH_EVENT,
-    LOCAL_EVENT,
-    BUY_EVENT,
-    SELL_EVENT
+    LOCAL_EVENT
 )
 
 
 @njit
-def correct_local_timestamp(data: np.ndarray, base_latency: float) -> np.ndarray:
+def correct_local_timestamp(data: event_dtype, base_latency: float) -> event_dtype:
     r"""
     Adjusts the local timestamp if the feed latency is negative by offsetting the maximum negative latency value as
     follows:
@@ -49,8 +35,8 @@ def correct_local_timestamp(data: np.ndarray, base_latency: float) -> np.ndarray
 
     latency = sys.maxsize
     for row_num in range(len(data)):
-        exch_timestamp = data[row_num, COL_EXCH_TIMESTAMP]
-        local_timestamp = data[row_num, COL_LOCAL_TIMESTAMP]
+        exch_timestamp = data[row_num].exch_ts
+        local_timestamp = data[row_num].local_ts
 
         latency = min(latency, local_timestamp - exch_timestamp)
 
@@ -58,17 +44,17 @@ def correct_local_timestamp(data: np.ndarray, base_latency: float) -> np.ndarray
         local_timestamp_offset = -latency + base_latency
         print('local_timestamp is ahead of exch_timestamp by', -latency)
         for row_num in range(len(data)):
-            data[row_num, COL_LOCAL_TIMESTAMP] += local_timestamp_offset
+            data[row_num].local_ts += local_timestamp_offset
 
     return data
 
 
 @njit
 def correct_event_order(
-        data: np.ndarray,
-        sorted_exch_index: np.ndarray,
-        sorted_local_index: np.ndarray,
-) -> np.ndarray:
+        data: event_dtype,
+        sorted_exch_index: NDArray,
+        sorted_local_index: NDArray,
+) -> NDArray:
     r"""
     Corrects exchange timestamps that are reversed by splitting each row into separate events, ordered by both exchange
     and local timestamps, through duplication. See ``data`` for details.
@@ -81,7 +67,7 @@ def correct_event_order(
     Returns:
         Adjusted data with corrected exchange timestamps.
     """
-    sorted_final = np.zeros((data.shape[0] * 2, data.shape[1]), np.float64)
+    sorted_final = np.zeros(data.shape[0] * 2, event_dtype)
 
     out_rn = 0
     exch_rn = 0
@@ -92,15 +78,15 @@ def correct_event_order(
         if (
                 exch_rn < len(data)
                 and local_rn < len(data)
-                and sorted_exch[COL_EXCH_TIMESTAMP] == sorted_local[COL_EXCH_TIMESTAMP]
-                and sorted_exch[COL_LOCAL_TIMESTAMP] == sorted_local[COL_LOCAL_TIMESTAMP]
+                and sorted_exch.exch_ts == sorted_local.exch_ts
+                and sorted_exch.local_ts == sorted_local.local_ts
         ):
-            assert sorted_exch[COL_EVENT] == sorted_local[COL_EVENT]
-            assert sorted_exch[COL_PRICE] == sorted_local[COL_PRICE]
-            assert sorted_exch[COL_QTY] == sorted_local[COL_QTY]
+            assert sorted_exch.ev == sorted_local.ev
+            assert sorted_exch.px == sorted_local.px
+            assert sorted_exch.qty == sorted_local.qty
 
-            sorted_final[out_rn] = sorted_exch[:]
-            sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT | LOCAL_EVENT
+            sorted_final[out_rn] = sorted_exch
+            sorted_final[out_rn].ev = sorted_final[out_rn].ev | EXCH_EVENT | LOCAL_EVENT
 
             out_rn += 1
             exch_rn += 1
@@ -108,36 +94,36 @@ def correct_event_order(
         elif ((
                 exch_rn < len(data)
                 and local_rn < len(data)
-                and sorted_exch[COL_EXCH_TIMESTAMP] == sorted_local[COL_EXCH_TIMESTAMP]
-                and sorted_exch[COL_LOCAL_TIMESTAMP] < sorted_local[COL_LOCAL_TIMESTAMP]
+                and sorted_exch.exch_ts == sorted_local.exch_ts
+                and sorted_exch.local_ts < sorted_local.local_ts
         ) or (
                 exch_rn < len(data)
-                and sorted_exch[COL_EXCH_TIMESTAMP] < sorted_local[COL_EXCH_TIMESTAMP]
+                and sorted_exch.exch_ts < sorted_local.exch_ts
         )):
             # exchange
-            sorted_final[out_rn] = sorted_exch[:]
-            sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT
+            sorted_final[out_rn] = sorted_exch
+            sorted_final[out_rn].ev = sorted_final[out_rn].ev | EXCH_EVENT
 
             out_rn += 1
             exch_rn += 1
         elif ((
                 exch_rn < len(data)
                 and local_rn < len(data)
-                and sorted_exch[COL_EXCH_TIMESTAMP] == sorted_local[COL_EXCH_TIMESTAMP]
-                and sorted_exch[COL_LOCAL_TIMESTAMP] > sorted_local[COL_LOCAL_TIMESTAMP]
+                and sorted_exch.exch_ts == sorted_local.exch_ts
+                and sorted_exch.local_ts > sorted_local.local_ts
         ) or (
                 local_rn < len(data)
         )):
             # local
-            sorted_final[out_rn] = sorted_local[:]
-            sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | LOCAL_EVENT
+            sorted_final[out_rn] = sorted_local
+            sorted_final[out_rn].ev = sorted_final[out_rn].ev | LOCAL_EVENT
 
             out_rn += 1
             local_rn += 1
         elif exch_rn < len(data):
             # exchange
-            sorted_final[out_rn] = sorted_exch[:]
-            sorted_final[out_rn, COL_EVENT] = int(sorted_final[out_rn, COL_EVENT]) | EXCH_EVENT
+            sorted_final[out_rn] = sorted_exch
+            sorted_final[out_rn].ev = sorted_final[out_rn].ev | EXCH_EVENT
 
             out_rn += 1
             exch_rn += 1

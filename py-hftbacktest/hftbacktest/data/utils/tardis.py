@@ -4,15 +4,13 @@ from typing import List, Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from ..validation import correct_event_order, validate_event_order
-from ... import (
+from ..validation import correct_event_order, validate_event_order, correct_local_timestamp
+from ...binding import event_dtype
+from ...types import (
     DEPTH_CLEAR_EVENT,
     DEPTH_SNAPSHOT_EVENT,
     TRADE_EVENT,
-    DEPTH_EVENT,
-    COL_LOCAL_TIMESTAMP,
-    COL_EXCH_TIMESTAMP,
-    correct_local_timestamp
+    DEPTH_EVENT, SELL_EVENT, BUY_EVENT,
 )
 
 
@@ -55,7 +53,7 @@ def convert(
     TRADE = 0
     DEPTH = 1
 
-    tmp = np.empty((buffer_size, 6), np.float64)
+    tmp = np.empty(buffer_size, event_dtype)
     row_num = 0
     for file in input_files:
         file_type = None
@@ -100,14 +98,13 @@ def convert(
                         file_type = DEPTH
                 elif file_type == TRADE:
                     # Insert TRADE_EVENT
-                    tmp[row_num] = [
-                        TRADE_EVENT,
+                    tmp[row_num] = (
+                        TRADE_EVENT | (BUY_EVENT if cols[5] == 'buy' else SELL_EVENT),
                         int(cols[2]) * timestamp_mul,
                         int(cols[3]) * timestamp_mul,
-                        1 if cols[5] == 'buy' else -1,
                         float(cols[6]),
                         float(cols[7])
-                    ]
+                    )
                     row_num += 1
                 elif file_type == DEPTH:
                     if cols[4] == 'true':
@@ -116,29 +113,27 @@ def convert(
                         # Prepare to insert DEPTH_SNAPSHOT_EVENT
                         if not is_snapshot:
                             is_snapshot = True
-                            ss_bid = np.empty((ss_buffer_size, 6), np.float64)
-                            ss_ask = np.empty((ss_buffer_size, 6), np.float64)
+                            ss_bid = np.empty(ss_buffer_size, event_dtype)
+                            ss_ask = np.empty(ss_buffer_size, event_dtype)
                             ss_bid_rn = 0
                             ss_ask_rn = 0
                         if cols[5] == 'bid':
-                            ss_bid[ss_bid_rn] = [
-                                DEPTH_SNAPSHOT_EVENT,
+                            ss_bid[ss_bid_rn] = (
+                                DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
                                 int(cols[2]) * timestamp_mul,
                                 int(cols[3]) * timestamp_mul,
-                                1,
                                 float(cols[6]),
                                 float(cols[7])
-                            ]
+                            )
                             ss_bid_rn += 1
                         else:
-                            ss_ask[ss_ask_rn] = [
-                                DEPTH_SNAPSHOT_EVENT,
+                            ss_ask[ss_ask_rn] = (
+                                DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
                                 int(cols[2]) * timestamp_mul,
                                 int(cols[3]) * timestamp_mul,
-                                -1,
                                 float(cols[6]),
                                 float(cols[7])
-                            ]
+                            )
                             ss_ask_rn += 1
                     else:
                         is_sod_snapshot = False
@@ -150,14 +145,13 @@ def convert(
                             ss_bid = ss_bid[:ss_bid_rn]
                             if len(ss_bid) > 0:
                                 # Clear the bid market depth within the snapshot bid range.
-                                tmp[row_num] = [
-                                    DEPTH_CLEAR_EVENT,
-                                    ss_bid[0, 1],
-                                    ss_bid[0, 2],
-                                    1,
-                                    ss_bid[-1, 4],
+                                tmp[row_num] = (
+                                    DEPTH_CLEAR_EVENT | BUY_EVENT,
+                                    ss_bid[0]['exch_ts'],
+                                    ss_bid[0]['local_ts'],
+                                    ss_bid[-1]['px'],
                                     0
-                                ]
+                                )
                                 row_num += 1
                                 # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
                                 tmp[row_num:row_num + len(ss_bid)] = ss_bid[:]
@@ -167,39 +161,37 @@ def convert(
                             ss_ask = ss_ask[:ss_ask_rn]
                             if len(ss_ask) > 0:
                                 # Clear the ask market depth within the snapshot ask range.
-                                tmp[row_num] = [
-                                    DEPTH_CLEAR_EVENT,
-                                    ss_ask[0, 1],
-                                    ss_ask[0, 2],
-                                    -1,
-                                    ss_ask[-1, 4],
+                                tmp[row_num] = (
+                                    DEPTH_CLEAR_EVENT | SELL_EVENT,
+                                    ss_ask[0]['exch_ts'],
+                                    ss_ask[0]['local_ts'],
+                                    ss_ask[-1]['px'],
                                     0
-                                ]
+                                )
                                 row_num += 1
                                 # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
                                 tmp[row_num:row_num + len(ss_ask)] = ss_ask[:]
                                 row_num += len(ss_ask)
                             ss_ask = None
                         # Insert DEPTH_EVENT
-                        tmp[row_num] = [
-                            DEPTH_EVENT,
+                        tmp[row_num] = (
+                            DEPTH_EVENT | (BUY_EVENT if cols[5] == 'buy' else SELL_EVENT),
                             int(cols[2]) * timestamp_mul,
                             int(cols[3]) * timestamp_mul,
-                            1 if cols[5] == 'bid' else -1,
                             float(cols[6]),
                             float(cols[7])
-                        ]
+                        )
                         row_num += 1
-    merged = tmp[:row_num]
+    tmp = tmp[:row_num]
 
     print('Correcting the latency')
-    merged = correct_local_timestamp(merged, base_latency)
+    tmp = correct_local_timestamp(tmp, base_latency)
 
     print('Correcting the event order')
     data = correct_event_order(
-        merged,
-        np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort'),
-        np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort')
+        tmp,
+        np.argsort(tmp['exch_ts'], kind='mergesort'),
+        np.argsort(tmp['local_ts'], kind='mergesort')
     )
 
     validate_event_order(data)

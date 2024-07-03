@@ -5,16 +5,13 @@ from typing import Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from ..validation import correct_event_order
-from ... import (
+from ..validation import correct_event_order, correct_local_timestamp, validate_event_order
+from ...binding import event_dtype
+from ...types import (
     DEPTH_EVENT,
     DEPTH_CLEAR_EVENT,
     DEPTH_SNAPSHOT_EVENT,
-    TRADE_EVENT,
-    COL_EVENT,
-    COL_EXCH_TIMESTAMP,
-    COL_LOCAL_TIMESTAMP,
-    correct_local_timestamp
+    TRADE_EVENT, BUY_EVENT, SELL_EVENT
 )
 
 
@@ -23,7 +20,8 @@ def convert(
         output_filename: Optional[str] = None,
         opt: Literal['', 'm', 't', 'mt'] = '',
         base_latency: float = 0,
-        combined_stream: bool = True
+        combined_stream: bool = True,
+        buffer_size: int = 100_000_000
 ) -> NDArray:
     r"""
     Converts raw Binance Futures feed stream file into a format compatible with HftBacktest.
@@ -74,7 +72,8 @@ def convert(
     timestamp_slice = 19
     timestamp_mul = 1000000
 
-    rows = []
+    tmp = np.empty(buffer_size, event_dtype)
+    row_num = 0
     with gzip.open(input_filename, 'r') as f:
         while True:
             line = f.readline()
@@ -95,17 +94,37 @@ def convert(
                     transaction_time = data['T']
                     price = data['p']
                     qty = data['q']
-                    side = -1 if data['m'] else 1  # trade initiator's side
                     exch_timestamp = int(transaction_time) * timestamp_mul
-                    rows.append([TRADE_EVENT, exch_timestamp, local_timestamp, side, float(price), float(qty)])
+                    tmp[row_num] = (
+                        TRADE_EVENT | (SELL_EVENT if data['m'] else BUY_EVENT), # trade initiator's side
+                        exch_timestamp,
+                        local_timestamp,
+                        float(price),
+                        float(qty)
+                    )
+                    row_num += 1
                 elif evt == 'depthUpdate':
                     # event_time = data['E']
                     transaction_time = data['T']
-                    bids = data['b']
-                    asks = data['a']
                     exch_timestamp = int(transaction_time) * timestamp_mul
-                    rows += [[DEPTH_EVENT, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])] for bid in bids]
-                    rows += [[DEPTH_EVENT, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])] for ask in asks]
+                    for px, qty in data['b']:
+                        tmp[row_num] = (
+                            DEPTH_EVENT | BUY_EVENT,
+                            exch_timestamp,
+                            local_timestamp,
+                            float(px),
+                            float(qty)
+                        )
+                        row_num += 1
+                    for px, qty in data['a']:
+                        tmp[row_num] = (
+                            DEPTH_EVENT | SELL_EVENT,
+                            exch_timestamp,
+                            local_timestamp,
+                            float(px),
+                            float(qty)
+                        )
+                        row_num += 1
                 elif evt == 'markPriceUpdate' and 'm' in opt:
                     # event_time = data['E']
                     transaction_time = data['T']
@@ -113,9 +132,31 @@ def convert(
                     mark_price = data['p']
                     # est_settle_price = data['P']
                     funding_rate = data['r']
-                    rows.append([100, -1, local_timestamp, 0, float(index), 0])
-                    rows.append([101, -1, local_timestamp, 0, float(mark_price), 0])
-                    rows.append([102, -1, local_timestamp, 0, float(funding_rate), 0])
+                    exch_timestamp = int(transaction_time) * timestamp_mul
+                    tmp[row_num] = (
+                        100,
+                        exch_timestamp,
+                        local_timestamp,
+                        float(index),
+                        float(0)
+                    )
+                    row_num += 1
+                    tmp[row_num] = (
+                        101,
+                        exch_timestamp,
+                        local_timestamp,
+                        float(mark_price),
+                        float(0)
+                    )
+                    row_num += 1
+                    tmp[row_num] = (
+                        102,
+                        exch_timestamp,
+                        local_timestamp,
+                        float(funding_rate),
+                        float(0)
+                    )
+                    row_num += 1
                 elif evt == 'bookTicker' and 't' in opt:
                     # event_time = data['E']
                     transaction_time = data['T']
@@ -124,8 +165,22 @@ def convert(
                     ask_price = data['a']
                     ask_qty = data['A']
                     exch_timestamp = int(transaction_time) * timestamp_mul
-                    rows.append([103, exch_timestamp, local_timestamp, 1, float(bid_price), float(bid_qty)])
-                    rows.append([104, exch_timestamp, local_timestamp, -1, float(ask_price), float(ask_qty)])
+                    tmp[row_num] = (
+                        103,
+                        exch_timestamp,
+                        local_timestamp,
+                        float(bid_price),
+                        float(bid_qty)
+                    )
+                    row_num += 1
+                    tmp[row_num] = (
+                        104,
+                        exch_timestamp,
+                        local_timestamp,
+                        float(ask_price),
+                        float(ask_qty)
+                    )
+                    row_num += 1
             else:
                 # snapshot
                 # event_time = msg['E']
@@ -136,29 +191,58 @@ def convert(
                 if len(bids) > 0:
                     bid_clear_upto = float(bids[-1][0])
                     # clears the existing market depth upto the prices in the snapshot.
-                    rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, 1, bid_clear_upto, 0])
+                    tmp[row_num] = (
+                        DEPTH_CLEAR_EVENT | BUY_EVENT,
+                        exch_timestamp,
+                        local_timestamp,
+                        bid_clear_upto,
+                        0
+                    )
+                    row_num += 1
                     # inserts the snapshot.
-                    rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, 1, float(bid[0]), float(bid[1])]
-                             for bid in bids]
+                    for px, qty in bids:
+                        tmp[row_num] = (
+                            DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
+                            exch_timestamp,
+                            local_timestamp,
+                            float(px),
+                            float(qty)
+                        )
+                        row_num += 1
                 if len(asks) > 0:
                     ask_clear_upto = float(asks[-1][0])
                     # clears the existing market depth upto the prices in the snapshot.
-                    rows.append([DEPTH_CLEAR_EVENT, exch_timestamp, local_timestamp, -1, ask_clear_upto, 0])
+                    tmp[row_num] = (
+                        DEPTH_CLEAR_EVENT | SELL_EVENT,
+                        exch_timestamp,
+                        local_timestamp,
+                        ask_clear_upto,
+                        0
+                    )
+                    row_num += 1
                     # inserts the snapshot.
-                    rows += [[DEPTH_SNAPSHOT_EVENT, exch_timestamp, local_timestamp, -1, float(ask[0]), float(ask[1])]
-                             for ask in asks]
-
-    data = np.asarray(rows, np.float64)
+                    for px, qty in asks:
+                        tmp[row_num] = (
+                            DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
+                            exch_timestamp,
+                            local_timestamp,
+                            float(px),
+                            float(qty)
+                        )
+                        row_num += 1
+    tmp = tmp[:row_num]
 
     print('Correcting the latency')
-    merged = correct_local_timestamp(data, base_latency)
+    tmp = correct_local_timestamp(tmp, base_latency)
 
     print('Correcting the event order')
     data = correct_event_order(
-        merged,
-        np.argsort(merged[:, COL_EXCH_TIMESTAMP], kind='mergesort'),
-        np.argsort(merged[:, COL_LOCAL_TIMESTAMP], kind='mergesort'),
+        tmp,
+        np.argsort(tmp['exch_ts'], kind='mergesort'),
+        np.argsort(tmp['local_ts'], kind='mergesort')
     )
+
+    validate_event_order(data)
 
     if output_filename is not None:
         print('Saving to %s' % output_filename)

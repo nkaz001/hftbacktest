@@ -1,9 +1,3 @@
-# Re-exports
-import sys
-from .hftbacktest import (
-    AssetBuilder,
-    build_backtester
-)
 from .data import (
     correct_local_timestamp,
 )
@@ -16,6 +10,11 @@ from .binding import (
     MultiAssetMultiExchangeBacktest,
     MarketDepth,
     OrderDict
+)
+
+from ._hftbacktest import (
+    AssetBuilder,
+    build_backtester
 )
 
 __all__ = (
