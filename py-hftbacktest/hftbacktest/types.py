@@ -2,13 +2,6 @@ import sys
 
 ALL_ASSETS = -1  # the maximum value of uint64_t
 
-COL_EVENT = 0
-COL_EXCH_TIMESTAMP = 1
-COL_LOCAL_TIMESTAMP = 2
-COL_SIDE = 3
-COL_PRICE = 4
-COL_QTY = 5
-
 DEPTH_EVENT = 1
 TRADE_EVENT = 2
 DEPTH_CLEAR_EVENT = 3

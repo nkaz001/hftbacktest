@@ -10,7 +10,7 @@ from ctypes import (
     POINTER,
     CDLL
 )
-from typing import Tuple
+from typing import Tuple, Any
 
 import numba
 import numpy as np
@@ -25,12 +25,13 @@ from numba import (
 )
 from numba.core.types import voidptr
 from numba.experimental import jitclass
+from numpy.typing import NDArray
 
-from . import hftbacktest
+from . import _hftbacktest
 from .intrinsic import ptr_from_val, address_as_void_pointer, val_from_ptr, is_null_ptr
-from .order import order_dtype, Order
+from .order import order_dtype, Order, Order_
 
-lib = CDLL(hftbacktest.__file__)
+lib = CDLL(_hftbacktest.__file__)
 
 
 depth_best_bid_tick = lib.depth_best_bid_tick
@@ -66,7 +67,6 @@ depth_ask_qty_at_tick.restype = c_float
 depth_ask_qty_at_tick.argtypes = [c_void_p, c_int32]
 
 
-@jitclass
 class MarketDepth:
     ptr: voidptr
 
@@ -74,29 +74,67 @@ class MarketDepth:
         self.ptr = ptr
 
     def best_bid_tick(self) -> int32:
+        """
+        Returns the best bid price in ticks.
+        """
         return depth_best_bid_tick(self.ptr)
 
     def best_ask_tick(self) -> int32:
+        """
+        Returns the best ask price in ticks.
+        """
         return depth_best_ask_tick(self.ptr)
 
     def best_bid(self) -> float32:
+        """
+        Returns the best bid price.
+        """
         return depth_best_bid(self.ptr)
 
     def best_ask(self) -> float32:
+        """
+        Returns the best ask price.
+        """
         return depth_best_ask(self.ptr)
 
     def tick_size(self) -> float32:
+        """
+        Returns the tick size.
+        """
         return depth_tick_size(self.ptr)
 
     def lot_size(self) -> float32:
+        """
+        Returns the lot size.
+        """
         return depth_lot_size(self.ptr)
 
     def bid_qty_at_tick(self, price_tick: int32) -> float32:
+        """
+        Returns the quantity at the bid market depth for a given price in ticks.
+
+        Args:
+            price_tick: Price in ticks.
+
+        Returns:
+            The quantity at the specified price.
+        """
         return depth_bid_qty_at_tick(self.ptr, price_tick)
 
     def ask_qty_at_tick(self, price_tick: int32) -> float32:
+        """
+        Returns the quantity at the ask market depth for a given price in ticks.
+
+        Args:
+            price_tick: Price in ticks.
+
+        Returns:
+            The quantity at the specified price.
+        """
         return depth_ask_qty_at_tick(self.ptr, price_tick)
 
+
+MarketDepth_ = jitclass(MarketDepth)
 
 orders_get = lib.orders_get
 orders_get.restype = c_void_p
@@ -115,8 +153,22 @@ orders_values_next.restype = c_void_p
 orders_values_next.argtypes = [c_void_p]
 
 
-@jitclass
 class Values:
+    """
+    Since `numba` does not support `__next__` method in `njit`, you need to manually iterate using the :func:`next`
+    method.
+
+    **Usage:**
+
+    .. code-block:: python
+
+        while True:
+            order = values.next()
+            if order is None:
+                break
+            # Do what you need with the order.
+
+    """
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
@@ -138,6 +190,10 @@ class Values:
     #         return Order(arr)
 
     def next(self) -> Order | None:
+        """
+        Returns:
+            The next order value, if it exists; otherwise, `None`.
+        """
         if is_null_ptr(self.ptr):
             return None
         order_ptr = orders_values_next(self.ptr)
@@ -153,17 +209,30 @@ class Values:
             return Order(arr)
 
 
-@jitclass
+Values_ = jitclass(Values)
+
+
 class OrderDict:
+    """
+    This is a wrapper for the order dictionary. It only supports `get` method, `in` operator through `__contains__`, and
+    `values` method for iterating over values. Please note the limitations of the values iterator.
+    """
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
         self.ptr = ptr
 
     def values(self) -> Values:
-        return Values(orders_values(self.ptr))
+        return Values_(orders_values(self.ptr))
 
     def get(self, order_id: int64) -> Order | None:
+        """
+        Args:
+            order_id: Order ID to get an Order.
+
+        Returns:
+            Order with the specified order ID; `None` if it does not exist.
+        """
         order_ptr = orders_get(self.ptr, order_id)
         if is_null_ptr(order_ptr):
             return None
@@ -173,11 +242,13 @@ class OrderDict:
                 1,
                 dtype=order_dtype
             )
-            return Order(arr)
+            return Order_(arr)
 
     def __contains__(self, item: int64) -> bool:
         return orders_contains(self.ptr, item)
 
+
+OrderDict_ = jitclass(OrderDict)
 
 hbt_elapse = lib.hbt_elapse
 hbt_elapse.restype = c_int64
@@ -291,26 +362,54 @@ state_values_dtype = np.dtype([
 ])
 
 
-@jitclass
 class MultiAssetMultiExchangeBacktest:
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
         self.ptr = ptr
 
+    @property
     def current_timestamp(self) -> int64:
+        """
+        In backtesting, this timestamp reflects the time at which the backtesting is conducted within the provided data.
+        """
         return hbt_current_timestamp(self.ptr)
 
     def depth_typed(self, asset_no: uint64) -> MarketDepth:
-        return MarketDepth(hbt_depth_typed(self.ptr, asset_no))
+        """
+        Args:
+            asset_no: Asset number from which the market depth will be retrieved.
 
+        Returns:
+            The depth of market of the specific asset.
+        """
+        return MarketDepth_(hbt_depth_typed(self.ptr, asset_no))
+
+    @property
     def num_assets(self) -> uint64:
+        """
+        Returns the number of assets.
+        """
         return hbt_num_assets(self.ptr)
 
     def position(self, asset_no: uint64) -> float64:
+        """
+        Args:
+            asset_no: Asset number from which the position will be retrieved.
+
+        Returns:
+            The position you currently hold.
+        """
         return hbt_position(self.ptr, asset_no)
 
     def state_values(self, asset_no: uint64) -> state_values_dtype:
+        """
+        Args:
+            asset_no: Asset number from which the state values will be retrieved.
+
+        Returns:
+            The state’s values in a structured array.
+        """
         ptr = hbt_state_values(self.ptr, asset_no)
         return numba.carray(
             address_as_void_pointer(ptr),
@@ -318,7 +417,14 @@ class MultiAssetMultiExchangeBacktest:
             state_values_dtype
         )
 
-    def trade_typed(self, asset_no: uint64) -> event_dtype:
+    def trade_typed(self, asset_no: uint64) -> NDArray[event_dtype]:
+        """
+        Args:
+            asset_no: Asset number from which the trades will be retrieved.
+
+        Returns:
+            An array of `Event` representing trades occurring in the market for the specific asset.
+        """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = hbt_trade_typed(self.ptr, asset_no, len_ptr)
@@ -329,10 +435,24 @@ class MultiAssetMultiExchangeBacktest:
         )
 
     def clear_last_trades(self, asset_no: uint64) -> None:
+        """
+        Clears the last trades occurring in the market from the buffer for :func:`trade_typed`.
+
+        Args:
+            asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all last trades in
+                      any assets will be cleared.
+        """
         hbt_clear_last_trades(self.ptr, asset_no)
 
     def orders(self, asset_no: uint64) -> OrderDict:
-        return OrderDict(hbt_orders(self.ptr, asset_no))
+        """
+        Args:
+            asset_no: Asset number from which orders will be retrieved.
+
+        Returns:
+            An order dictionary where the keys are order IDs and the corresponding values are :obj:`Order`.
+        """
+        return OrderDict_(hbt_orders(self.ptr, asset_no))
 
     def submit_buy_order(
             self,
@@ -344,6 +464,29 @@ class MultiAssetMultiExchangeBacktest:
             order_type: uint8,
             wait: bool
     ) -> int64:
+        """
+        Submits a buy order.
+
+        Args:
+            asset_no: Asset number at which this command will be executed.
+            order_id: The unique order ID; there should not be any existing order with the same ID on both local and
+                      exchange sides.
+            price: Order price.
+            qty: Quantity to buy.
+            time_in_force: Available options vary depending on the exchange model. See to the exchange model for
+                           details.
+                           `NoPartiallFillExchange` supports:
+                             * GTX
+                             * GTC
+            order_type: Available options vary depending on the exchange model. See to the exchange model for details.
+                        `NoPartiallFillExchange` and `PartiallFillExchange` support:
+                         * LIMIT
+                         * MARKET
+            wait: If `True`, wait until the order placement response is received.
+
+        Returns:
+            -1 when an error occurs; otherwise, it succeeds in submitting a buy order.
+        """
         return hbt_submit_buy_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
     def submit_sell_order(
@@ -356,30 +499,141 @@ class MultiAssetMultiExchangeBacktest:
             order_type: uint8,
             wait: bool
     ) -> int64:
+        """
+        Submits a sell order.
+
+        Args:
+            asset_no: Asset number at which this command will be executed.
+            order_id: The unique order ID; there should not be any existing order with the same ID on both local and
+                      exchange sides.
+            price: Order price.
+            qty: Quantity to buy.
+            time_in_force: Available options vary depending on the exchange model. See to the exchange model for
+                           details.
+                           `NoPartiallFillExchange` supports:
+                             * GTX
+                             * GTC
+            order_type: Available options vary depending on the exchange model. See to the exchange model for details.
+                        `NoPartiallFillExchange` and `PartiallFillExchange` support:
+                         * LIMIT
+                         * MARKET
+            wait: If `True`, wait until the order placement response is received.
+
+        Returns:
+            -1 when an error occurs; otherwise, it succeeds in submitting a sell order.
+        """
         return hbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
     def cancel(self, asset_no: uint64, order_id: int64, wait: bool) -> int64:
+        """
+        Cancels the specified order.
+
+        Args:
+            asset_no: Asset number at which this command will be executed.
+            order_id: Order ID to cancel.
+            wait: If `True`, wait until the order cancel response is received.
+
+        Returns:
+            -1 when an error occurs; otherwise, it successfully submits a cancel order.
+        """
         return hbt_cancel(self.ptr, asset_no, order_id, wait)
 
     def clear_inactive_orders(self, asset_no: uint64) -> None:
+        """
+        Clears inactive orders from the local order dictionary whose status is neither :const:`NEW` nor
+        :const:`PARTIALLY_FILLED`.
+
+        Args:
+            asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all inactive orders
+                      in any assets will be cleared.
+        """
         hbt_clear_inactive_orders(self.ptr, asset_no)
 
     def wait_order_response(self, asset_no: uint64, order_id: int64, timeout: int64) -> int64:
+        """
+        Waits for the response of the order with the given order ID until timeout.
+
+        Args:
+            asset_no: Asset number where an order with `order_id` exists.
+            order_id: Order ID to wait for the response.
+            timeout: Timeout for waiting for the order response. Nanoseconds is the default unit. However, unit should
+                     be the same as the data’s timestamp unit.
+
+        Returns:
+            * 1 when it receives an order response for the specified order ID of the specified asset number.
+            * 0 when it reaches the end of the data.
+            * -1 when an error occurs.
+        """
         return hbt_hbt_wait_order_response(self.ptr, asset_no, order_id, timeout)
 
     def wait_next_feed(self, include_order_resp: bool, timeout: int64) -> int64:
+        """
+        Waits until the next feed is received, or until timeout.
+
+        Args:
+            include_order_resp: If set to `True`, it will return when any order response is received, in addition to the
+                                next feed.
+            timeout: Timeout for waiting for the next feed or an order response. Nanoseconds is the default unit.
+                     However, unit should be the same as the data’s timestamp unit.
+
+        Returns:
+            * 1 when it receives a feed or an order response.
+            * 0 when it reaches the end of the data.
+            * -1 when an error occurs.
+        """
         return hbt_wait_next_feed(self.ptr, include_order_resp, timeout)
 
     def elapse(self, duration: uint64) -> int64:
+        """
+        Elapses the specified duration.
+
+        Args:
+            duration: Duration to elapse. Nanoseconds is the default unit. However, unit should be the same as the
+                      data’s timestamp unit.
+
+        Returns:
+            * 1 when it reaches the specified timestamp within the data.
+            * 0 when it reaches the end of the data.
+            * -1 when an error occurs.
+        """
         return hbt_elapse(self.ptr, duration)
 
     def elapse_bt(self, duration: int64) -> int64:
+        """
+        Elapses time only in backtesting. In live mode, it is ignored. (Supported only in the Rust implementation)
+
+        The `elapse` method exclusively manages time during backtesting, meaning that factors such as computing time are
+        not properly accounted for. So, this method can be utilized to simulate such processing times.
+
+        Args:
+            duration: Duration to elapse. Nanoseconds is the default unit. However, unit should be the same as the
+                      data’s timestamp unit.
+
+        Returns:
+            * 1 when it reaches the specified timestamp within the data.
+            * 0 when it reaches the end of the data.
+            * -1 when an error occurs.
+        """
         return hbt_elapse_bt(self.ptr, duration)
 
     def close(self) -> int64:
+        """
+        Closes this backtester or bot.
+
+        Returns:
+            -1 when an error occurs; otherwise, it successfully closes the bot.
+        """
         return hbt_close(self.ptr)
 
     def feed_latency(self, asset_no: uint64) -> Tuple[int64, int64] | None:
+        """
+        Args:
+            asset_no: Asset number from which the last feed latency will be retrieved.
+
+        Returns:
+            The last feed’s exchange timestamp and local receipt timestamp if a feed has been received; otherwise,
+            returns `None`.
+        """
         exch_ts = int64(0)
         local_ts = int64(0)
         exch_ts_ptr = ptr_from_val(exch_ts)
@@ -389,6 +643,14 @@ class MultiAssetMultiExchangeBacktest:
         return None
 
     def order_latency(self, asset_no: uint64) -> Tuple[int64, int64, int64] | None:
+        """
+        Args:
+            asset_no: Asset number from which the last order latency will be retrieved.
+
+        Returns:
+            The last order’s request timestamp, exchange timestamp, and response receipt timestamp if there has been an
+            order submission; otherwise, returns `None`.
+        """
         req_ts = int64(0)
         exch_ts = int64(0)
         resp_ts = int64(0)
@@ -398,3 +660,6 @@ class MultiAssetMultiExchangeBacktest:
         if hbt_order_latency(self.ptr, asset_no, req_ts_ptr, exch_ts_ptr, resp_ts_ptr):
             return val_from_ptr(req_ts_ptr), val_from_ptr(exch_ts_ptr), val_from_ptr(resp_ts_ptr)
         return None
+
+
+MultiAssetMultiExchangeBacktest_ = jitclass(MultiAssetMultiExchangeBacktest)

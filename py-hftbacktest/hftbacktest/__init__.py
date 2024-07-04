@@ -5,12 +5,28 @@ from .types import (
     ALL_ASSETS
 )
 
-from .order import BUY, SELL, NONE, NEW, EXPIRED, FILLED, CANCELED, MODIFY, GTC, GTX, order_dtype
-from .binding import (
-    MultiAssetMultiExchangeBacktest,
-    MarketDepth,
-    OrderDict
+from .order import (
+    BUY,
+    SELL,
+    NONE,
+    NEW,
+    EXPIRED,
+    FILLED,
+    CANCELED,
+    MODIFY,
+    GTC,
+    GTX,
+    order_dtype,
+    Order_ as Order
 )
+from .binding import (
+    MultiAssetMultiExchangeBacktest_ as MultiAssetMultiExchangeBacktest,
+    MarketDepth_ as MarketDepth,
+    OrderDict_ as OrderDict,
+    Values_ as Values
+)
+
+from numba.experimental import jitclass
 
 from ._hftbacktest import (
     AssetBuilder,
@@ -19,6 +35,12 @@ from ._hftbacktest import (
 
 __all__ = (
     'AssetBuilder',
+
+    'Order',
+    'MultiAssetMultiExchangeBacktest',
+    'MarketDepth',
+    'OrderDict',
+    'Values',
 
     # Side
     'BUY',

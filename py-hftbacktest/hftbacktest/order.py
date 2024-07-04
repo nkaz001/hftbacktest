@@ -46,7 +46,6 @@ order_dtype = np.dtype([
 ])
 
 
-@jitclass
 class Order:
     arr: from_dtype(order_dtype)[:]
 
@@ -120,3 +119,6 @@ class Order:
     @property
     def time_in_force(self) -> uint8:
         return self.arr[0].time_in_force
+
+
+Order_ = jitclass(Order)
