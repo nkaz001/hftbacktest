@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-from hftbacktest.reader import EXCH_EVENT, LOCAL_EVENT
+from hftbacktest import EXCH_EVENT, LOCAL_EVENT
 from numba import njit
 
 date_from = 20240501
