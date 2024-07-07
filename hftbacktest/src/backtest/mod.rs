@@ -137,7 +137,7 @@ where
         }
     }
 
-    /// Sets the feed data. Currently, only `DataSource::File` is supported.
+    /// Sets the feed data.
     pub fn data(mut self, data: Vec<DataSource<Event>>) -> Self {
         for item in data {
             match item {
