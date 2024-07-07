@@ -20,8 +20,6 @@ from .metrics import (
 )
 from .utils import resample, monthly, daily, hourly
 
-hv.extension('bokeh')
-
 
 def compute_metrics(
         df: pl.DataFrame,
@@ -48,6 +46,8 @@ def compute_metrics(
 
 
 class Stats:
+    DEFAULT_EXTENSION = ('bokeh')
+
     def __init__(self, entire: pl.DataFrame, splits: List[Mapping[str, Any]], kwargs):
         self.entire = entire
         self.splits = splits
@@ -57,7 +57,10 @@ class Stats:
         df = pl.DataFrame(self.splits)
         return df
 
-    def plot(self, price_as_ret: bool = False):
+    def plot(self, price_as_ret: bool = False, extension: List[str] | None = DEFAULT_EXTENSION):
+        if extension is not None:
+            hv.extension(extension)
+
         entire_df = self.entire
         kwargs = self.kwargs
 
@@ -79,7 +82,7 @@ class Stats:
                         vdims=['Cumulative Return (%)']
                     ),
                     hv.Curve(
-                        (entire_df['timestamp'], entire_df['mid_price'] / entire_df['mid_price'][0] - 1.0),
+                        (entire_df['timestamp'], entire_df['price'] / entire_df['price'][0] - 1.0),
                         label='Price',
                         vdims=['Cumulative Return (%)']
                     ).opts(alpha=0.2, color='black')
@@ -97,7 +100,7 @@ class Stats:
                         vdims=['Cumulative Return (%)']
                     )
                 ]) * hv.Curve(
-                    (entire_df['timestamp'], entire_df['mid_price']),
+                    (entire_df['timestamp'], entire_df['price']),
                     label='Price',
                     vdims=['Price']
                 ).opts(alpha=0.2, color='black')
@@ -114,13 +117,13 @@ class Stats:
                     vdims=['Cumulative Return (%)']
                 )
             ]) * hv.Curve(
-                (entire_df['timestamp'], entire_df['mid_price']),
+                (entire_df['timestamp'], entire_df['price']),
                 label='Price',
                 vdims=['Price']
             ).opts(alpha=0.2, color='black')
 
         px_plt = hv.Curve(
-            (entire_df['timestamp'], entire_df['mid_price']),
+            (entire_df['timestamp'], entire_df['price']),
             label='Price',
             vdims=['Price']
         ).opts(alpha=0.2, color='black')
@@ -140,7 +143,7 @@ class Stats:
 
 
 class Record(ABC):
-    DEFAULT_METRICS = [
+    DEFAULT_METRICS = (
         SR,
         Sortino,
         Ret,
@@ -150,7 +153,7 @@ class Record(ABC):
         ReturnOverMDD,
         ReturnOverTrade,
         MaxPositionValue
-    ]
+    )
 
     def __init__(self, data: NDArray | pl.DataFrame):
         self._contract_size = 1.0
