@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-from ..binding import event_dtype
+from ..binding import event_dtype, EVENT_ARRAY
 from ..types import (
     EXCH_EVENT,
     LOCAL_EVENT
@@ -12,10 +12,10 @@ from ..types import (
 
 
 @njit
-def correct_local_timestamp(data: event_dtype, base_latency: float) -> event_dtype:
-    r"""
-    Adjusts the local timestamp if the feed latency is negative by offsetting the maximum negative latency value as
-    follows:
+def correct_local_timestamp(data: EVENT_ARRAY, base_latency: float) -> EVENT_ARRAY:
+    """
+    Adjusts the local timestamp `in place` if the feed latency is negative by offsetting it by the maximum negative
+    latency value as follows:
 
     .. code-block::
 
@@ -30,7 +30,7 @@ def correct_local_timestamp(data: event_dtype, base_latency: float) -> event_dty
                       more realistic values can be obtained. Unit should be the same as the feed data's timestamp unit.
 
     Returns:
-        Adjusted data with corrected timestamps
+        Data with the corrected timestamps.
     """
 
     latency = sys.maxsize
@@ -51,21 +51,22 @@ def correct_local_timestamp(data: event_dtype, base_latency: float) -> event_dty
 
 @njit
 def correct_event_order(
-        data: event_dtype,
+        data: EVENT_ARRAY,
         sorted_exch_index: NDArray,
         sorted_local_index: NDArray,
-) -> NDArray:
-    r"""
-    Corrects exchange timestamps that are reversed by splitting each row into separate events, ordered by both exchange
-    and local timestamps, through duplication. See ``data`` for details.
+) -> EVENT_ARRAY:
+    """
+    Corrects exchange timestamps that are reversed by splitting each row into separate events. These events are then
+    ordered by both exchange and local timestamps through duplication.
+    See the `data <https://hftbacktest.readthedocs.io/en/latest/data.html>`_ for details.
 
     Args:
-        data: Data to be reordered.
+        data: Data to be corrected.
         sorted_exch_index: Index of data sorted by exchange timestamp.
         sorted_local_index: Index of data sorted by local timestamp.
 
     Returns:
-        Adjusted data with corrected exchange timestamps.
+        Data with the corrected event order.
     """
     sorted_final = np.zeros(data.shape[0] * 2, event_dtype)
 
@@ -134,12 +135,13 @@ def correct_event_order(
     return sorted_final[:out_rn]
 
 
-def validate_event_order(data: np.ndarray) -> None:
-    r"""
-    Validates that the order of events is correct.
+def validate_event_order(data: EVENT_ARRAY) -> None:
+    """
+    Validates that the order of events is correct. If the data contains an incorrect event order, a :class:`ValueError`
+    will be raised.
 
     Args:
-        data: event structured array.
+        data: Data to validate.
     """
     exch_ev = data['ev'] & EXCH_EVENT == EXCH_EVENT
     local_ev = data['ev'] & LOCAL_EVENT == LOCAL_EVENT
