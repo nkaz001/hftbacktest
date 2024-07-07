@@ -61,6 +61,7 @@ pub enum ExchangeKind {
     PartialFillExchange,
 }
 
+/// Builds a backtesting asset.
 #[pyclass]
 pub struct AssetBuilder {
     data: Vec<String>,
@@ -79,6 +80,7 @@ unsafe impl Send for AssetBuilder {}
 
 #[pymethods]
 impl AssetBuilder {
+    /// Constructs an instance of `AssetBuilder`.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -98,20 +100,39 @@ impl AssetBuilder {
         }
     }
 
+    /// Sets the feed data.
+    ///
+    /// Args:
+    ///     data: a list of file paths for the normalized market feed data in `npz`.
     pub fn data(&mut self, data: Vec<String>) {
         for item in data {
             self.data.push(item);
         }
     }
 
+    /// Sets the asset as a `LinearAsset`.
+    ///
+    /// Args:
+    ///     contract_size: contract size of the asset.
     pub fn linear_asset(&mut self, contract_size: f64) {
         self.asset_type = AssetType::LinearAsset(contract_size);
     }
 
+    /// Sets the asset as a `InverseAsset`.
+    ///
+    /// Args:
+    ///     contract_size: contract size of the asset.
     pub fn inverse_asset(&mut self, contract_size: f64) {
         self.asset_type = AssetType::InverseAsset(contract_size);
     }
 
+    /// Uses `ConstantLatency` for the order latency model.
+    /// The units of the arguments should match the timestamp units of your data. Nanoseconds are
+    /// typically used in HftBacktest.
+    ///
+    /// Args:
+    ///     entry_latency: order entry latency.
+    ///     resp_latency: order response latency.
     pub fn constant_latency(&mut self, entry_latency: i64, resp_latency: i64) {
         self.latency_model = LatencyModel::ConstantLatency {
             entry_latency,
@@ -119,6 +140,13 @@ impl AssetBuilder {
         };
     }
 
+    /// Uses `IntpOrderLatency` for the order latency model.
+    /// Please see the data format.
+    /// The units of the historical latencies should match the timestamp units of your data.
+    /// Nanoseconds are typically used in HftBacktest.
+    ///
+    /// Args:
+    ///     data: a list of file paths for the historical order latency data in `npz`.
     pub fn intp_order_latency(&mut self, data: Vec<String>) {
         self.latency_model = LatencyModel::IntpOrderLatency {
             data: data
@@ -182,7 +210,7 @@ impl AssetBuilder {
 }
 
 #[pymodule]
-#[pyo3(name = "hftbacktest")]
+#[pyo3(name = "_hftbacktest")]
 fn pyhftbacktest(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_backtester, m)?)?;
     m.add_class::<AssetBuilder>()?;

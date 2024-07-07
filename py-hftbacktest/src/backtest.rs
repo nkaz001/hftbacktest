@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem, os::raw::c_void};
+use std::{collections::HashMap, mem};
 
 use hftbacktest::{
     backtest::MultiAssetMultiExchangeBacktest,
