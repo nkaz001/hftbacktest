@@ -25,7 +25,6 @@ from numba import (
 )
 from numba.core.types import voidptr
 from numba.experimental import jitclass
-from numpy.typing import NDArray
 
 from . import _hftbacktest
 from .intrinsic import ptr_from_val, address_as_void_pointer, val_from_ptr, is_null_ptr
@@ -154,21 +153,6 @@ orders_values_next.argtypes = [c_void_p]
 
 
 class Values:
-    """
-    Since `numba` does not support `__next__` method in `njit`, you need to manually iterate using the :func:`next`
-    method.
-
-    **Usage:**
-
-    .. code-block:: python
-
-        while True:
-            order = values.next()
-            if order is None:
-                break
-            # Do what you need with the order.
-
-    """
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
@@ -190,10 +174,6 @@ class Values:
     #         return Order(arr)
 
     def next(self) -> Order | None:
-        """
-        Returns:
-            The next order value, if it exists; otherwise, `None`.
-        """
         if is_null_ptr(self.ptr):
             return None
         order_ptr = orders_values_next(self.ptr)
@@ -214,8 +194,9 @@ Values_ = jitclass(Values)
 
 class OrderDict:
     """
-    This is a wrapper for the order dictionary. It only supports `get` method, `in` operator through `__contains__`, and
-    `values` method for iterating over values. Please note the limitations of the values iterator.
+    This is a wrapper for the order dictionary. It only supports :func:`get` method, ``in`` operator through
+    :func:`__contains__`, and :func:`values` method for iterating over values. Please note the limitations of the values
+    iterator.
     """
     ptr: voidptr
 
@@ -223,12 +204,29 @@ class OrderDict:
         self.ptr = ptr
 
     def values(self) -> Values:
+        """
+        Since `numba` does not support ``__next__`` method in `njit`, you need to manually iterate using the
+        ``next``, which returns the next order value if it exists; otherwise, it returns `None`.
+
+        **Usage:**
+
+        .. code-block:: python
+
+            order_dict = hbt.orders()
+            values = order_dict.values()
+            while True:
+                order = values.next()
+                if order is None:
+                    break
+                # Do what you need with the order.
+
+        """
         return Values_(orders_values(self.ptr))
 
     def get(self, order_id: int64) -> Order | None:
         """
         Args:
-            order_id: Order ID to get an Order.
+            order_id: Order ID
 
         Returns:
             Order with the specified order ID; `None` if it does not exist.
@@ -244,8 +242,14 @@ class OrderDict:
             )
             return Order_(arr)
 
-    def __contains__(self, item: int64) -> bool:
-        return orders_contains(self.ptr, item)
+    def __contains__(self, order_id: int64) -> bool:
+        """
+        Args:
+            order_id: Order ID
+        Returns:
+            `True` if the order with the specified order ID exists; otherwise, `False`.
+        """
+        return orders_contains(self.ptr, order_id)
 
 
 OrderDict_ = jitclass(OrderDict)
@@ -398,7 +402,7 @@ class MultiAssetMultiExchangeBacktest:
             asset_no: Asset number from which the position will be retrieved.
 
         Returns:
-            The position you currently hold.
+            The quantity of the held position.
         """
         return hbt_position(self.ptr, asset_no)
 
@@ -408,7 +412,7 @@ class MultiAssetMultiExchangeBacktest:
             asset_no: Asset number from which the state values will be retrieved.
 
         Returns:
-            The state’s values in a structured array.
+            The state’s values.
         """
         ptr = hbt_state_values(self.ptr, asset_no)
         return numba.carray(
@@ -417,7 +421,7 @@ class MultiAssetMultiExchangeBacktest:
             state_values_dtype
         )
 
-    def trade_typed(self, asset_no: uint64) -> NDArray[event_dtype]:
+    def trade_typed(self, asset_no: uint64) -> np.ndarray[Any, event_dtype]:
         """
         Args:
             asset_no: Asset number from which the trades will be retrieved.
@@ -450,7 +454,7 @@ class MultiAssetMultiExchangeBacktest:
             asset_no: Asset number from which orders will be retrieved.
 
         Returns:
-            An order dictionary where the keys are order IDs and the corresponding values are :obj:`Order`.
+            An order dictionary where the keys are order IDs and the corresponding values are :class:`Order`s.
         """
         return OrderDict_(hbt_orders(self.ptr, asset_no))
 
@@ -475,13 +479,15 @@ class MultiAssetMultiExchangeBacktest:
             qty: Quantity to buy.
             time_in_force: Available options vary depending on the exchange model. See to the exchange model for
                            details.
-                           `NoPartiallFillExchange` supports:
-                             * GTX
-                             * GTC
+
+                * :const:`GTC`
+                * :const:`GTX`
+                * :const:`FOK`
+                * :const:`IOC`
             order_type: Available options vary depending on the exchange model. See to the exchange model for details.
-                        `NoPartiallFillExchange` and `PartiallFillExchange` support:
-                         * LIMIT
-                         * MARKET
+
+                * :const:`LIMIT`
+                * :const:`MARKET`
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
@@ -510,17 +516,19 @@ class MultiAssetMultiExchangeBacktest:
             qty: Quantity to buy.
             time_in_force: Available options vary depending on the exchange model. See to the exchange model for
                            details.
-                           `NoPartiallFillExchange` supports:
-                             * GTX
-                             * GTC
+
+                * :const:`GTC`
+                * :const:`GTX`
+                * :const:`FOK`
+                * :const:`IOC`
             order_type: Available options vary depending on the exchange model. See to the exchange model for details.
-                        `NoPartiallFillExchange` and `PartiallFillExchange` support:
-                         * LIMIT
-                         * MARKET
+
+                * :const:`LIMIT`
+                * :const:`MARKET`
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
-            -1 when an error occurs; otherwise, it succeeds in submitting a sell order.
+            `-1` when an error occurs; otherwise, it succeeds in submitting a sell order.
         """
         return hbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
@@ -534,7 +542,7 @@ class MultiAssetMultiExchangeBacktest:
             wait: If `True`, wait until the order cancel response is received.
 
         Returns:
-            -1 when an error occurs; otherwise, it successfully submits a cancel order.
+            `-1` when an error occurs; otherwise, it successfully submits a cancel order.
         """
         return hbt_cancel(self.ptr, asset_no, order_id, wait)
 
@@ -560,9 +568,9 @@ class MultiAssetMultiExchangeBacktest:
                      be the same as the data’s timestamp unit.
 
         Returns:
-            * 1 when it receives an order response for the specified order ID of the specified asset number.
-            * 0 when it reaches the end of the data.
-            * -1 when an error occurs.
+            * `1` when it receives an order response for the specified order ID of the specified asset number.
+            * `0` when it reaches the end of the data.
+            * `-1` when an error occurs.
         """
         return hbt_hbt_wait_order_response(self.ptr, asset_no, order_id, timeout)
 
@@ -577,9 +585,9 @@ class MultiAssetMultiExchangeBacktest:
                      However, unit should be the same as the data’s timestamp unit.
 
         Returns:
-            * 1 when it receives a feed or an order response.
-            * 0 when it reaches the end of the data.
-            * -1 when an error occurs.
+            * `1` when it receives a feed or an order response.
+            * `0` when it reaches the end of the data.
+            * `-1` when an error occurs.
         """
         return hbt_wait_next_feed(self.ptr, include_order_resp, timeout)
 
@@ -592,9 +600,9 @@ class MultiAssetMultiExchangeBacktest:
                       data’s timestamp unit.
 
         Returns:
-            * 1 when it reaches the specified timestamp within the data.
-            * 0 when it reaches the end of the data.
-            * -1 when an error occurs.
+            * `1` when it reaches the specified timestamp within the data.
+            * `0` when it reaches the end of the data.
+            * `-1` when an error occurs.
         """
         return hbt_elapse(self.ptr, duration)
 
@@ -610,9 +618,9 @@ class MultiAssetMultiExchangeBacktest:
                       data’s timestamp unit.
 
         Returns:
-            * 1 when it reaches the specified timestamp within the data.
-            * 0 when it reaches the end of the data.
-            * -1 when an error occurs.
+            * `1` when it reaches the specified timestamp within the data.
+            * `0` when it reaches the end of the data.
+            * `-1` when an error occurs.
         """
         return hbt_elapse_bt(self.ptr, duration)
 
@@ -621,7 +629,7 @@ class MultiAssetMultiExchangeBacktest:
         Closes this backtester or bot.
 
         Returns:
-            -1 when an error occurs; otherwise, it successfully closes the bot.
+            `-1` when an error occurs; otherwise, it successfully closes the bot.
         """
         return hbt_close(self.ptr)
 

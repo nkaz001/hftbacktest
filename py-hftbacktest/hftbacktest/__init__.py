@@ -13,7 +13,6 @@ from .order import (
     EXPIRED,
     FILLED,
     CANCELED,
-    MODIFY,
     GTC,
     GTX,
     order_dtype,
@@ -25,8 +24,6 @@ from .binding import (
     OrderDict_ as OrderDict,
     Values_ as Values
 )
-
-from numba.experimental import jitclass
 
 from ._hftbacktest import (
     AssetBuilder,
@@ -52,14 +49,12 @@ __all__ = (
     'EXPIRED',
     'FILLED',
     'CANCELED',
-    'MODIFY',
 
     # Time-In-Force
     'GTC',
     'GTX',
 
     'correct_local_timestamp',
-
 )
 
 __version__ = '2.0.0-alpha'
