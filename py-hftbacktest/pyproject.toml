@@ -6,10 +6,9 @@ build-backend = "maturin"
 name = "hftbacktest"
 description = "file: ../README.rst"
 readme = "../README.rst"
-authors = [
-  { name = "nkaz001", email = "nkaz001@protonmail.com" },
-]
+authors = [{ name = "nkaz001", email = "nkaz001@protonmail.com" }]
 license = { file = "../LICENSE" }
+version = "2.0.0-alpha"
 requires-python = ">=3.10"
 
 keywords = ["hft", "high-frequency trading", "trading", "market-making", "backtest"]
@@ -38,8 +37,9 @@ Repository = "https://github.com/nkaz001/hftbacktest"
 [project.optional-dependencies]
 numpy = ["numpy >= 1.16.0, < 2.0.0"]
 numba = ["numba ~= 0.59"]
-pandas = ["pandas"]
-matplotlib = ["matplotlib"]
+polars = ["polars"]
+holoviews = ["holoviews"]
 
 [tool.maturin]
 include = [{ path = "rust-toolchain.toml", format = "sdist" }]
+module-name = "hftbacktest._hftbacktest"
