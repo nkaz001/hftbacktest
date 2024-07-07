@@ -72,36 +72,42 @@ class MarketDepth:
     def __init__(self, ptr: voidptr):
         self.ptr = ptr
 
+    @property
     def best_bid_tick(self) -> int32:
         """
         Returns the best bid price in ticks.
         """
         return depth_best_bid_tick(self.ptr)
 
+    @property
     def best_ask_tick(self) -> int32:
         """
         Returns the best ask price in ticks.
         """
         return depth_best_ask_tick(self.ptr)
 
+    @property
     def best_bid(self) -> float32:
         """
         Returns the best bid price.
         """
         return depth_best_bid(self.ptr)
 
+    @property
     def best_ask(self) -> float32:
         """
         Returns the best ask price.
         """
         return depth_best_ask(self.ptr)
 
+    @property
     def tick_size(self) -> float32:
         """
         Returns the tick size.
         """
         return depth_tick_size(self.ptr)
 
+    @property
     def lot_size(self) -> float32:
         """
         Returns the lot size.
@@ -171,7 +177,7 @@ class Values:
     #             1,
     #             dtype=order_dtype
     #         )
-    #         return Order(arr)
+    #         return Order_(arr)
 
     def next(self) -> Order | None:
         if is_null_ptr(self.ptr):
@@ -186,7 +192,7 @@ class Values:
                 1,
                 dtype=order_dtype
             )
-            return Order(arr)
+            return Order_(arr)
 
 
 Values_ = jitclass(Values)
@@ -354,6 +360,8 @@ event_dtype = np.dtype([
     ('px', 'f4'),
     ('qty', 'f4')
 ])
+
+EVENT_ARRAY = np.ndarray[Any, event_dtype]
 
 state_values_dtype = np.dtype([
     ('position', 'f8'),

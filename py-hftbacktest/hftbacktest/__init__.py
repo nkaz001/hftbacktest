@@ -1,3 +1,5 @@
+from typing import List
+
 from .data import (
     correct_local_timestamp,
 )
@@ -16,14 +18,8 @@ from .order import (
     GTC,
     GTX,
     order_dtype,
-    Order_ as Order
 )
-from .binding import (
-    MultiAssetMultiExchangeBacktest_ as MultiAssetMultiExchangeBacktest,
-    MarketDepth_ as MarketDepth,
-    OrderDict_ as OrderDict,
-    Values_ as Values
-)
+from .binding import MultiAssetMultiExchangeBacktest_
 
 from ._hftbacktest import (
     AssetBuilder,
@@ -32,12 +28,9 @@ from ._hftbacktest import (
 
 __all__ = (
     'AssetBuilder',
+    'build'
 
-    'Order',
-    'MultiAssetMultiExchangeBacktest',
-    'MarketDepth',
-    'OrderDict',
-    'Values',
+    'ALL_ASSETS',
 
     # Side
     'BUY',
@@ -53,8 +46,14 @@ __all__ = (
     # Time-In-Force
     'GTC',
     'GTX',
-
-    'correct_local_timestamp',
 )
 
 __version__ = '2.0.0-alpha'
+
+__hftbacktests__ = []
+
+
+def MultiAssetMultiExchangeBacktest(assets: List[AssetBuilder]):
+    raw_hbt = build_backtester(assets)
+    __hftbacktests__.append(raw_hbt)
+    return MultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())

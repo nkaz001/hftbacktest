@@ -4,7 +4,6 @@ from numba import njit
 
 from hftbacktest import (
     AssetBuilder,
-    build_backtester,
     MultiAssetMultiExchangeBacktest,
     ALL_ASSETS
 )
@@ -14,10 +13,10 @@ from hftbacktest import (
 def test_run(hbt):
     order_id = 0
     while hbt.elapse(10_000_000_000) == 0:
-        current_timestamp = hbt.current_timestamp()
+        current_timestamp = hbt.current_timestamp
         depth = hbt.depth_typed(0)
-        best_bid = depth.best_bid()
-        best_ask = depth.best_ask()
+        best_bid = depth.best_bid
+        best_ask = depth.best_ask
 
         # trades = hbt.trade_typed(0)
         #
@@ -56,16 +55,18 @@ class TestPyHftBacktest(unittest.TestCase):
         pass
 
     def test_run_backtest(self):
-        asset = AssetBuilder()
-        asset.linear_asset(1.0)
-        asset.data(['tmp_20240501.npz'])
-        asset.no_partial_fill_exchange()
-        asset.constant_latency(100, 100)
-        asset.power_prob_queue_model3(3.0)
-        asset.tick_size(0.000001)
-        asset.lot_size(1.0)
-        asset.trade_len(1000)
-        raw_hbt = build_backtester([asset])
+        asset = (
+            AssetBuilder()
+                .linear_asset(1.0)
+                .data(['tmp_20240501.npz'])
+                .no_partial_fill_exchange()
+                .constant_latency(100, 100)
+                .power_prob_queue_model3(3.0)
+                .tick_size(0.000001)
+                .lot_size(1.0)
+                .trade_len(1000)
+        )
+        # todo: providing the initial snapshot.
 
-        hbt = MultiAssetMultiExchangeBacktest(raw_hbt.as_ptr())
+        hbt = MultiAssetMultiExchangeBacktest([asset])
         test_run(hbt)
