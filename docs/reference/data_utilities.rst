@@ -1,8 +1,6 @@
 Data Utilities
 ==============
 
-.. autofunction:: hftbacktest.data.merge_on_local_timestamp
-
 .. toctree::
    :maxdepth: 4
 

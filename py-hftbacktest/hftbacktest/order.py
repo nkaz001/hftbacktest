@@ -64,7 +64,7 @@ class Order:
     @property
     def exec_price(self) -> float32:
         """
-        Returns the executed price. This is only valid if :func:`status` is :const:`FILLED` or :const:`PARTIALLY_FILLED`.
+        Returns the executed price. This is only valid if :obj:`status` is :const:`FILLED` or :const:`PARTIALLY_FILLED`.
         """
         return self.arr[0].exec_price_tick * self.arr[0].tick_size
 
@@ -72,7 +72,7 @@ class Order:
     def cancellable(self) -> bool:
         """
         Returns whether this order can be canceled. The order can be canceled only if it is active, meaning its
-        :func:`status` should be :const:`NEW` or :const:`PARTIALLY_FILLED`. It is not necessary for there to be no
+        :obj:`status` should be :const:`NEW` or :const:`PARTIALLY_FILLED`. It is not necessary for there to be no
         ongoing requests on the order to cancel it. However, HftBacktest currently enforces that there are no ongoing
         requests to cancel this order to simplify the implementation.
         """
@@ -124,7 +124,7 @@ class Order:
     @property
     def exec_price_tick(self) -> int32:
         """
-        Returns the executed price in ticks. This is only valid if :func:`status` is :const:`FILLED` or
+        Returns the executed price in ticks. This is only valid if :obj:`status` is :const:`FILLED` or
         :const:`PARTIALLY_FILLED`.
         """
         return self.arr[0].exec_price_tick
@@ -132,7 +132,7 @@ class Order:
     @property
     def exec_qty(self) -> float32:
         """
-        Returns the executed quantity. This is only valid if :func:`status` is :const:`FILLED` or
+        Returns the executed quantity. This is only valid if :obj:`status` is :const:`FILLED` or
         :const:`PARTIALLY_FILLED`.
         """
         return self.arr[0].exec_qty

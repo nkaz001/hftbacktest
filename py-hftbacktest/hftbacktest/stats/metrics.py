@@ -8,12 +8,33 @@ from .utils import get_total_days, get_num_samples_per_day
 
 
 class Metric(ABC):
+    """
+    A base class for computing a strategy's performance metrics. Implementing a custom metric class derived from this
+    base class enables the computation of the custom metric in the :class:`Stats` and displays the summary.
+    """
     @abstractmethod
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
+        """
+        Args:
+            df: Polars :class:`DataFrame <pl.DataFrame>` containing the strategy's state records.
+            context: A dictionary of calculated metrics or other values.
+
+        Returns:
+            A dictionary where the key is the name of the metric and the value is the computed metric.
+        """
         raise NotImplementedError
 
 
 class Ret(Metric):
+    """
+    Return
+
+    Parameters:
+        name: Name of this metric. The default value is `Return`.
+        book_size: If the book size, or capital allocation, is set, the metric is divided by the book size to express it
+                   as a percentage ratio of the book size; otherwise, the metric is in raw units.
+    """
+
     def __init__(self, name: str = None, book_size: float | None = None):
         self.name = name if name is not None else 'Return'
         self.book_size = book_size
@@ -29,7 +50,19 @@ class Ret(Metric):
 
 
 class AnnualRet(Ret):
-    def __init__(self, name: str = None, book_size: float | None = None, trading_days_per_year: float = 365):
+    """
+    Annualised return
+
+    Parameters:
+        name: Name of this metric. The default value is `AnnualReturn`.
+        book_size: If the book size, or capital allocation, is set, the metric is divided by the book size to express it
+                   as a percentage ratio of the book size; otherwise, the metric is in raw units.
+        trading_days_per_year: The number of trading days per year to annualise. Commonly, 252 is used in trad-fi, so
+                               the default value is 252 to match that scale. However, you can use 365 instead of 252 for
+                               crypto markets, which run 24/7.
+    """
+
+    def __init__(self, name: str = None, book_size: float | None = None, trading_days_per_year: float = 252):
         super().__init__(
             name if name is not None else 'AnnualReturn',
             book_size
@@ -43,7 +76,19 @@ class AnnualRet(Ret):
 
 
 class SR(Metric):
-    def __init__(self, name: str = None, trading_days_per_year: float = 365):
+    """
+    Sharpe Ratio without considering a benchmark.
+
+    Parameters:
+        name: Name of this metric. The default value is `SR`.
+        trading_days_per_year: Trading days per year to annualise. Commonly, 252 is used in trad-fi, so the default
+                               value is 252 to match that scale. However, you can use 365 instead of 252 for crypto
+                               markets, which run 24/7. Additionally, be aware that to compute the daily Sharpe Ratio,
+                               it also multiplies by `sqrt(the sample number per day)`, so the computed Sharpe Ratio is
+                               affected by the sampling interval.
+    """
+
+    def __init__(self, name: str = None, trading_days_per_year: float = 252):
         self.name = name if name is not None else 'SR'
         self.trading_days_per_year = trading_days_per_year
 
@@ -58,7 +103,19 @@ class SR(Metric):
 
 
 class Sortino(Metric):
-    def __init__(self, name=None, trading_days_per_year: float = 365):
+    """
+    Sortino Ratio without considering a benchmark.
+
+    Parameters:
+        name: Name of this metric. The default value is `Sortino`.
+        trading_days_per_year: Trading days per year to annualise. Commonly, 252 is used in trad-fi, so the default
+                               value is 252 to match that scale. However, you can use 365 instead of 252 for crypto
+                               markets, which run 24/7. Additionally, be aware that to compute the daily Sharpe Ratio,
+                               it also multiplies by `sqrt(the sample number per day)`, so the computed Sharpe Ratio is
+                               affected by the sampling interval.
+    """
+
+    def __init__(self, name=None, trading_days_per_year: float = 252):
         self.name = name if name is not None else 'Sortino'
         self.trading_days_per_year = trading_days_per_year
 
@@ -74,6 +131,13 @@ class Sortino(Metric):
 
 
 class ReturnOverMDD(Metric):
+    """
+    Return over Maximum Drawdown
+
+    Parameters:
+        name: Name of this metric. The default value is `ReturnOverMDD`.
+    """
+
     def __init__(self, name: str = None):
         self.name = (
             name if name is not None else 'ReturnOverMDD'
@@ -86,6 +150,14 @@ class ReturnOverMDD(Metric):
 
 
 class ReturnOverTrade(Metric):
+    """
+    Return over Trade value, which represents the profit made per unit of trading value, for instance,
+    `$profit / $trading_value`.
+
+    Parameters:
+        name: Name of this metric. The default value is `ReturnOverTrade`.
+    """
+
     def __init__(self, name: str = None):
         self.name = name if name is not None else 'ReturnOverTrade'
 
@@ -96,6 +168,15 @@ class ReturnOverTrade(Metric):
 
 
 class MaxDrawdown(Metric):
+    """
+    Maximum Drawdown
+
+    Parameters:
+        name: Name of this metric. The default value is `MaxDrawdown`.
+        book_size: If the book size, or capital allocation, is set, the metric is divided by the book size to express it
+                   as a percentage ratio of the book size; otherwise, the metric is in raw units.
+    """
+
     def __init__(self, name: str = None, book_size: float | None = None):
         self.name = name if name is not None else 'MaxDrawdown'
         self.book_size = book_size

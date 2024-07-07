@@ -208,11 +208,10 @@ class OrderDict:
         Since `numba` does not support ``__next__`` method in `njit`, you need to manually iterate using the
         ``next``, which returns the next order value if it exists; otherwise, it returns `None`.
 
-        **Usage:**
+        **Example**
 
         .. code-block:: python
 
-            order_dict = hbt.orders()
             values = order_dict.values()
             while True:
                 order = values.next()

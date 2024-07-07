@@ -46,18 +46,52 @@ def compute_metrics(
 
 
 class Stats:
-    DEFAULT_EXTENSION = ('bokeh')
+    """
+    **Example**
 
-    def __init__(self, entire: pl.DataFrame, splits: List[Mapping[str, Any]], kwargs):
+    .. code-block:: python
+
+        import numpy as np
+        from hftbacktest.stats import LinearAssetRecord
+
+        asset0_record = np.load('backtest_result.npz')['0']
+        stats = (
+            LinearAssetRecord(asset0_record)
+                .resample('10s')
+                .monthly()
+                .stats(book_size=100000)
+        )
+        stats.summary()
+        stats.plot()
+
+    """
+
+    DEFAULT_EXTENSION = ('bokeh',)
+
+    def __init__(self, entire: pl.DataFrame, splits: List[Mapping[str, Any]], kwargs: Mapping[str, Any]):
         self.entire = entire
         self.splits = splits
         self.kwargs = kwargs
 
     def summary(self, pretty: bool = False):
+        """
+        Displays the statistics summary.
+
+        Args:
+            pretty: Returns the statistics in a pretty-printed format.
+        """
         df = pl.DataFrame(self.splits)
         return df
 
     def plot(self, price_as_ret: bool = False, extension: List[str] | None = DEFAULT_EXTENSION):
+        """
+        Plots the equity curves and positions over time along with the price chart.
+
+        Args:
+            price_as_ret: Plots the price chart in cumulative returns if set to `True`; otherwise, it plots the price
+                          chart in raw price terms.
+            extension: Sets `Holoviews` extension.
+        """
         if extension is not None:
             hv.extension(extension)
 
@@ -168,23 +202,53 @@ class Record(ABC):
         else:
             raise ValueError
 
-    def contract_size(self, contract_size: str) -> 'Self':
+    def contract_size(self, contract_size: float) -> 'Self':
+        """
+        Sets the contract size. The default value is `1.0`.
+
+        Args:
+            contract_size: The asset's contract size.
+        """
         self._contract_size = contract_size
         return self
 
     def time_unit(self, time_unit: str) -> 'Self':
+        """
+        Sets the time unit for converting timestamps in the records to datetime. The default value is `ns`.
+
+        Args:
+            time_unit: The unit of time of the timesteps since epoch time. This internally uses `Polars`, please see
+                       `polars.from_epoch <https://docs.pola.rs/api/python/stable/reference/expressions/api/polars.from_epoch.html>`_
+                       for more details.
+        """
         self._time_unit = time_unit
         return self
 
     def resample(self, frequency: str) -> 'Self':
+        """
+        Sets the resampling frequency for downsampling the record. This could affect the calculation of the metrics
+        related to the sampling interval. Additionally, it reduces the time required for computing the metrics and
+        plotting the charts. The default value is `10s`.
+
+        Args:
+            frequency: Interval of the window. This internally uses `Polars`, please see
+                       `polars.DataFrame.group_by_dynamic <https://docs.pola.rs/api/python/stable/reference/dataframe/api/polars.DataFrame.group_by_dynamic.html>`_
+                       for more details.
+        """
         self._frequency = frequency
         return self
 
     def monthly(self) -> 'Self':
+        """
+        Generates monthly statistics.
+        """
         self._partition = 'monthly'
         return self
 
     def daily(self) -> 'Self':
+        """
+        Generates daily statistics.
+        """
         self._partition = 'daily'
         return self
 
@@ -194,9 +258,40 @@ class Record(ABC):
 
     def stats(
             self,
-            metrics: List[Metric | Type[Metric]] = DEFAULT_METRICS,
+            metrics: List[Metric | Type[Metric]] | None = None,
             **kwargs: Any
     ) -> Stats:
+        """
+        **Examples**
+
+        .. code-block:: python
+
+            stats = record.stats([SR('SR365', trading_days_per_year=365), AnnualRet(trading_days_per_year=365)]
+
+
+        Args:
+            metrics: The metrics specified in this list will be computed for the record. Each metric should be a class
+                     derived from the `Metric` class. If the class type, instead of an instance, is specified, an
+                     instance of the class will be constructed with the provided ``kwargs``.
+
+                     The default value is a list of
+                     :class:`SR <metrics.SR>`,
+                     :class:`Sortino <metrics.Sortino>`,
+                     :class:`Ret <metrics.Ret>`,
+                     :class:`MaxDrawdown <metrics.MaxDrawdown>`,
+                     :class:`DailyNumberOfTrades <metrics.DailyNumberOfTrades>`,
+                     :class:`DailyTradingValue <metrics.DailyTradingValue>`,
+                     :class:`ReturnOverMDD <metrics.ReturnOverMDD>`,
+                     :class:`ReturnOverTrade <metrics.rTrade>`, and
+                     :class:`MaxPositionValue <metrics.MaxPositionValue>`.
+            kwargs: Keyword arguments that will be used to construct the `Metric` instance.
+
+        Returns:
+            The statistics for the specified metrics of the record.
+        """
+        if metrics is None:
+            metrics = Record.DEFAULT_METRICS
+
         if not isinstance(self.df['timestamp'].dtype, pl.Datetime):
             self.df = self.df.with_columns(
                 pl.from_epoch('timestamp', time_unit=self._time_unit)

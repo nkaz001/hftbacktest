@@ -1,8 +1,3 @@
-.. hftbacktest documentation master file, created by
-   sphinx-quickstart on Fri Apr 14 20:09:35 2023.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 .. meta::
    :google-site-verification: IJcyhIoS28HF0lp6fGjBEOC65kVecelW6ZsFhbDaD-A
 
@@ -238,10 +233,7 @@ The following items are examples of contributions you can make to this project:
 
    Initialization <reference/initialization>
    Backtester <reference/backtester>
-   Asset Types <reference/asset_types>
-   Order Latency Models <reference/order_latency_models>
-   Queue Models <reference/queue_models>
-   Stat <reference/stat>
+   Statistics <reference/stats>
    Data Validation <reference/data_validation>
    Data Utilities <reference/data_utilities>
    Index <genindex>
