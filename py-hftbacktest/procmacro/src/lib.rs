@@ -32,7 +32,7 @@ impl Parse for EnumArgs {
     }
 }
 
-struct BuildBacktesterInput {
+struct BuildAssetInput {
     value: Ident,
     asset_type: Vec<EnumArgs>,
     latency_model: Vec<EnumArgs>,
@@ -40,9 +40,9 @@ struct BuildBacktesterInput {
     exchange_model: Vec<EnumArgs>,
 }
 
-impl Parse for BuildBacktesterInput {
+impl Parse for BuildAssetInput {
     fn parse(input: ParseStream) -> Result<Self, Error> {
-        let mut parsed_input = BuildBacktesterInput {
+        let mut parsed_input = BuildAssetInput {
             value: input.parse()?,
             asset_type: Default::default(),
             latency_model: Default::default(),
@@ -86,7 +86,7 @@ impl Parse for BuildBacktesterInput {
 
 #[proc_macro]
 pub fn build_asset(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as BuildBacktesterInput);
+    let input = parse_macro_input!(input as BuildAssetInput);
     let asset = input.value;
 
     // Generates match arms for all combinations.
