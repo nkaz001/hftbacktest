@@ -4,9 +4,10 @@ Currently, the Rust implementation is being more actively developed especially f
 
 ## Python
 * [X] Rust implementation as the backend. (WIP)
-* [ ] Improve performance reporting tools.
+* [X] Improve performance reporting tools.
   * https://github.com/ranaroussi/quantstats
   * https://www.prestolabs.io/research/optimizing-risk-adjusted-return-in-constructing-portfolios-of-alphas
+* [ ] Add more performance metrics and visualization features to the reporting tool.
 
 ## Rust
 
