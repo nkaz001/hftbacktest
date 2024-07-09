@@ -1,6 +1,8 @@
 Initialization
 ==============
 
-.. autoclass:: hftbacktest.AssetBuilder
+.. autoclass:: hftbacktest.BacktestAsset
    :members:
    :member-order: bysource
+
+.. autofunction:: hftbacktest.MultiAssetMultiExchangeBacktest

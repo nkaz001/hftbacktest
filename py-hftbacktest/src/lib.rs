@@ -118,7 +118,7 @@ impl BacktestAsset {
         slf
     }
 
-    /// Sets the asset as a [`LinearAsset`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/assettype/struct.LinearAsset.html).
+    /// Sets the asset as a `LinearAsset <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/assettype/struct.LinearAsset.html>`_.
     ///
     /// Args:
     ///     contract_size: contract size of the asset.
@@ -127,7 +127,7 @@ impl BacktestAsset {
         slf
     }
 
-    /// Sets the asset as a [`InverseAsset`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/assettype/struct.InverseAsset.html).
+    /// Sets the asset as a `InverseAsset <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/assettype/struct.InverseAsset.html>`_.
     ///
     /// Args:
     ///     contract_size: contract size of the asset.
@@ -136,7 +136,7 @@ impl BacktestAsset {
         slf
     }
 
-    /// Uses [`ConstantLatency`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ConstantLatency.html)
+    /// Uses `ConstantLatency <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ConstantLatency.html>`_
     /// for the order latency model.
     /// The units of the arguments should match the timestamp units of your data. Nanoseconds are
     /// typically used in HftBacktest.
@@ -156,7 +156,7 @@ impl BacktestAsset {
         slf
     }
 
-    /// Uses [`IntpOrderLatency`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.IntpOrderLatency.html)
+    /// Uses `IntpOrderLatency <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.IntpOrderLatency.html>`_
     /// for the order latency model.
     /// Please see the data format.
     /// The units of the historical latencies should match the timestamp units of your data.
@@ -174,7 +174,7 @@ impl BacktestAsset {
         slf
     }
 
-    /// Uses the [`RiskAdverseQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.RiskAdverseQueueModel.html)
+    /// Uses the `RiskAdverseQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.RiskAdverseQueueModel.html>`_
     /// for the queue position model.
     pub fn risk_adverse_queue_model(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::RiskAdverseQueueModel {};
@@ -184,8 +184,9 @@ impl BacktestAsset {
     /// Uses the `LogProbQueueModel` for the queue position model.
     ///
     /// Please find the details below.
-    /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
-    /// * [`LogProbQueueFunc`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc.html)
+    ///
+    /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
+    /// * `LogProbQueueFunc <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc.html>`_
     pub fn log_prob_queue_model(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::LogProbQueueModel {};
         slf
@@ -194,8 +195,9 @@ impl BacktestAsset {
     /// Uses the `LogProbQueueModel2` for the queue position model.
     ///
     /// Please find the details below.
-    /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
-    /// * [`LogProbQueueFunc2`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc2.html)
+    ///
+    /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
+    /// * `LogProbQueueFunc2 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc2.html>`_
     pub fn log_prob_queue_model2(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::LogProbQueueModel2 {};
         slf
@@ -204,8 +206,9 @@ impl BacktestAsset {
     /// Uses the `PowerProbQueueModel` for the queue position model.
     ///
     /// Please find the details below.
-    /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
-    /// * [`PowerProbQueueFunc`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc.html)
+    ///
+    /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
+    /// * `PowerProbQueueFunc <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc.html>`_
     pub fn power_prob_queue_model(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::PowerProbQueueModel { n };
         slf
@@ -214,8 +217,9 @@ impl BacktestAsset {
     /// Uses the `PowerProbQueueModel2` for the queue position model.
     ///
     /// Please find the details below.
-    /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
-    /// * [`PowerProbQueueFunc2`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc2.html)
+    ///
+    /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
+    /// * `PowerProbQueueFunc2 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc2.html>`_
     pub fn power_prob_queue_model2(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::PowerProbQueueModel2 { n };
         slf
@@ -224,8 +228,9 @@ impl BacktestAsset {
     /// Uses the `PowerProbQueueModel3` for the queue position model.
     ///
     /// Please find the details below.
-    /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
-    /// * [`PowerProbQueueFunc3`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc3.html)
+    ///
+    /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
+    /// * `PowerProbQueueFunc3 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc3.html>`_
     pub fn power_prob_queue_model3(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::PowerProbQueueModel3 { n };
         slf
@@ -243,14 +248,14 @@ impl BacktestAsset {
         slf
     }
 
-    /// Uses the [`NoPartiallFillExchange`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.NoPartialFillExchange.html)
+    /// Uses the `NoPartiallFillExchange <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.NoPartialFillExchange.html>`_
     /// for the exchange model.
     pub fn no_partial_fill_exchange(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
         slf.exch_kind = ExchangeKind::NoPartialFillExchange {};
         slf
     }
 
-    /// Uses the [`PartiallFillExchange`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.PartialFillExchange.html)
+    /// Uses the `PartiallFillExchange <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.PartialFillExchange.html>`_
     /// for the exchange model.
     pub fn partial_fill_exchange(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
         slf.exch_kind = ExchangeKind::PartialFillExchange {};
