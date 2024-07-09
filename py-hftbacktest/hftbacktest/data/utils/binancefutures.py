@@ -26,7 +26,7 @@ def convert(
     r"""
     Converts raw Binance Futures feed stream file into a format compatible with HftBacktest.
 
-    File Format:
+    **File Format:**
 
     .. code-block::
 
@@ -61,10 +61,14 @@ def convert(
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
         combined_stream: Raw stream type.
-                         combined stream:
-                         {"stream":"solusdt@bookTicker","data":{"e":"bookTicker","u":4456408609867,"s":"SOLUSDT","b":"142.4440","B":"50","a":"142.4450","A":"3","T":1713571200009,"E":1713571200010}}
-                         regular stream:
-                         {"e":"bookTicker","u":4456408609867,"s":"SOLUSDT","b":"142.4440","B":"50","a":"142.4450","A":"3","T":1713571200009,"E":1713571200010}
+                         **combined stream:**
+
+                         .. code-block::
+
+                             {"stream":"solusdt@bookTicker","data":{"e":"bookTicker","u":4456408609867,"s":"SOLUSDT","b":"142.4440","B":"50","a":"142.4450","A":"3","T":1713571200009,"E":1713571200010}}
+                             regular stream:
+                             {"e":"bookTicker","u":4456408609867,"s":"SOLUSDT","b":"142.4440","B":"50","a":"142.4450","A":"3","T":1713571200009,"E":1713571200010}
+
 
     Returns:
         Converted data compatible with HftBacktest.

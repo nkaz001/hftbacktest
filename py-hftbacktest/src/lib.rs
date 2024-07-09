@@ -15,17 +15,20 @@ use hftbacktest::{
             PowerProbQueueFunc2,
             PowerProbQueueFunc3,
             ProbQueueModel,
+            RiskAdverseQueueModel,
         },
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         reader::{Cache, Reader},
         state::State,
+        Asset,
         DataSource,
         MultiAssetMultiExchangeBacktest,
     },
     prelude::{Event, HashMapMarketDepth},
 };
 pub use order::*;
+use procmacro::build_asset;
 use pyo3::prelude::*;
 
 mod backtest;
@@ -34,8 +37,8 @@ mod order;
 
 #[derive(Clone)]
 pub enum AssetType {
-    LinearAsset(f64),
-    InverseAsset(f64),
+    LinearAsset { contract_size: f64 },
+    InverseAsset { contract_size: f64 },
 }
 
 #[derive(Clone)]
@@ -51,23 +54,23 @@ pub enum LatencyModel {
 
 #[derive(Clone)]
 pub enum QueueModel {
-    RiskAdverseQueueModel,
-    PowerProbQueueModel(f32),
-    LogProbQueueModel,
-    LogProbQueueModel2,
-    PowerProbQueueModel2(f32),
-    PowerProbQueueModel3(f32),
+    RiskAdverseQueueModel {},
+    PowerProbQueueModel { n: f32 },
+    LogProbQueueModel {},
+    LogProbQueueModel2 {},
+    PowerProbQueueModel2 { n: f32 },
+    PowerProbQueueModel3 { n: f32 },
 }
 
 #[derive(Clone)]
 pub enum ExchangeKind {
-    NoPartialFillExchange,
-    PartialFillExchange,
+    NoPartialFillExchange {},
+    PartialFillExchange {},
 }
 
 /// Builds a backtesting asset.
 #[pyclass]
-pub struct AssetBuilder {
+pub struct BacktestAsset {
     data: Vec<String>,
     asset_type: AssetType,
     latency_model: LatencyModel,
@@ -80,10 +83,10 @@ pub struct AssetBuilder {
     trade_len: usize,
 }
 
-unsafe impl Send for AssetBuilder {}
+unsafe impl Send for BacktestAsset {}
 
 #[pymethods]
-impl AssetBuilder {
+impl BacktestAsset {
     /// Constructs an instance of `AssetBuilder`.
     #[new]
     pub fn new() -> Self {
@@ -93,13 +96,13 @@ impl AssetBuilder {
                 entry_latency: 0,
                 resp_latency: 0,
             },
-            asset_type: AssetType::LinearAsset(1.0),
-            queue_model: QueueModel::LogProbQueueModel2,
+            asset_type: AssetType::LinearAsset { contract_size: 1.0 },
+            queue_model: QueueModel::LogProbQueueModel2 {},
             tick_size: 0.0,
             lot_size: 0.0,
             maker_fee: 0.0,
             taker_fee: 0.0,
-            exch_kind: ExchangeKind::NoPartialFillExchange,
+            exch_kind: ExchangeKind::NoPartialFillExchange {},
             trade_len: 0,
         }
     }
@@ -120,7 +123,7 @@ impl AssetBuilder {
     /// Args:
     ///     contract_size: contract size of the asset.
     pub fn linear_asset(mut slf: PyRefMut<Self>, contract_size: f64) -> PyRefMut<Self> {
-        slf.asset_type = AssetType::LinearAsset(contract_size);
+        slf.asset_type = AssetType::LinearAsset { contract_size };
         slf
     }
 
@@ -129,7 +132,7 @@ impl AssetBuilder {
     /// Args:
     ///     contract_size: contract size of the asset.
     pub fn inverse_asset(mut slf: PyRefMut<Self>, contract_size: f64) -> PyRefMut<Self> {
-        slf.asset_type = AssetType::InverseAsset(contract_size);
+        slf.asset_type = AssetType::InverseAsset { contract_size };
         slf
     }
 
@@ -174,7 +177,7 @@ impl AssetBuilder {
     /// Uses the [`RiskAdverseQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.RiskAdverseQueueModel.html)
     /// for the queue position model.
     pub fn risk_adverse_queue_model(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
-        slf.queue_model = QueueModel::RiskAdverseQueueModel;
+        slf.queue_model = QueueModel::RiskAdverseQueueModel {};
         slf
     }
 
@@ -184,7 +187,7 @@ impl AssetBuilder {
     /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
     /// * [`LogProbQueueFunc`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc.html)
     pub fn log_prob_queue_model(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
-        slf.queue_model = QueueModel::LogProbQueueModel;
+        slf.queue_model = QueueModel::LogProbQueueModel {};
         slf
     }
 
@@ -194,7 +197,7 @@ impl AssetBuilder {
     /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
     /// * [`LogProbQueueFunc2`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc2.html)
     pub fn log_prob_queue_model2(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
-        slf.queue_model = QueueModel::LogProbQueueModel2;
+        slf.queue_model = QueueModel::LogProbQueueModel2 {};
         slf
     }
 
@@ -204,7 +207,7 @@ impl AssetBuilder {
     /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
     /// * [`PowerProbQueueFunc`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc.html)
     pub fn power_prob_queue_model(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
-        slf.queue_model = QueueModel::PowerProbQueueModel(n);
+        slf.queue_model = QueueModel::PowerProbQueueModel { n };
         slf
     }
 
@@ -214,7 +217,7 @@ impl AssetBuilder {
     /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
     /// * [`PowerProbQueueFunc2`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc2.html)
     pub fn power_prob_queue_model2(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
-        slf.queue_model = QueueModel::PowerProbQueueModel2(n);
+        slf.queue_model = QueueModel::PowerProbQueueModel2 { n };
         slf
     }
 
@@ -224,7 +227,7 @@ impl AssetBuilder {
     /// * [`ProbQueueModel`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html)
     /// * [`PowerProbQueueFunc3`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc3.html)
     pub fn power_prob_queue_model3(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
-        slf.queue_model = QueueModel::PowerProbQueueModel3(n);
+        slf.queue_model = QueueModel::PowerProbQueueModel3 { n };
         slf
     }
 
@@ -243,14 +246,14 @@ impl AssetBuilder {
     /// Uses the [`NoPartiallFillExchange`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.NoPartialFillExchange.html)
     /// for the exchange model.
     pub fn no_partial_fill_exchange(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
-        slf.exch_kind = ExchangeKind::NoPartialFillExchange;
+        slf.exch_kind = ExchangeKind::NoPartialFillExchange {};
         slf
     }
 
     /// Uses the [`PartiallFillExchange`](https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.PartialFillExchange.html)
     /// for the exchange model.
     pub fn partial_fill_exchange(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
-        slf.exch_kind = ExchangeKind::PartialFillExchange;
+        slf.exch_kind = ExchangeKind::PartialFillExchange {};
         slf
     }
 
@@ -276,7 +279,7 @@ impl AssetBuilder {
 #[pymodule]
 fn _hftbacktest(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_backtester, m)?)?;
-    m.add_class::<AssetBuilder>()?;
+    m.add_class::<BacktestAsset>()?;
     m.add_class::<PyMultiAssetMultiExchangeBacktest>()?;
     Ok(())
 }
@@ -298,245 +301,49 @@ impl PyMultiAssetMultiExchangeBacktest {
     }
 }
 
-macro_rules! build_asset {
-    (
-        $data:expr ;
-        $maker_fee: expr ;
-        $taker_fee: expr ;
-        $trade_len: expr ;
-        $AT:ident: { $($AT_args:expr),* } ;
-        $LM:ident: { $($LM_args:expr),* } ;
-        $QM:ident: { $($QM_args:expr),* } ;
-        $MD:ident: { $($MD_args:expr),* } ;
-        $EM:ident
-    ) => {
-        {
-            let cache = Cache::new();
-            let mut reader = Reader::new(cache);
-
-            for file in $data.iter() {
-                reader.add_file(file.to_string());
-            }
-
-            let ob_local_to_exch = OrderBus::new();
-            let ob_exch_to_local = OrderBus::new();
-
-            let asset_type = $AT::new($($AT_args),*);
-            let latency_model = $LM::new($($LM_args),*);
-            let market_depth = $MD::new($($MD_args),*);
-
-            let local: Box<dyn LocalProcessor<$MD, Event>> = Box::new(Local::new(
-                reader.clone(),
-                market_depth,
-                State::new(asset_type.clone(), $maker_fee, $taker_fee),
-                latency_model.clone(),
-                $trade_len,
-                ob_local_to_exch.clone(),
-                ob_exch_to_local.clone(),
-            ));
-
-            let market_depth = $MD::new($($MD_args),*);
-            let queue_model = $QM::new($($QM_args),*);
-            let exch: Box<dyn Processor> = Box::new($EM::new(
-                reader,
-                market_depth,
-                State::new(asset_type, $maker_fee, $taker_fee),
-                latency_model,
-                queue_model,
-                ob_exch_to_local,
-                ob_local_to_exch,
-            ));
-
-            PyAsset {
-                local,
-                exch
-            }
-        }
-    }
-}
-
-pub struct PyAsset {
-    local: Box<dyn LocalProcessor<HashMapMarketDepth, Event>>,
-    exch: Box<dyn Processor>,
-}
-
 type LogProbQueueModel = ProbQueueModel<LogProbQueueFunc, HashMapMarketDepth>;
 type LogProbQueueModel2 = ProbQueueModel<LogProbQueueFunc2, HashMapMarketDepth>;
 type PowerProbQueueModel = ProbQueueModel<PowerProbQueueFunc, HashMapMarketDepth>;
 type PowerProbQueueModel2 = ProbQueueModel<PowerProbQueueFunc2, HashMapMarketDepth>;
+
 type PowerProbQueueModel3 = ProbQueueModel<PowerProbQueueFunc3, HashMapMarketDepth>;
+
+type LogProbQueueModelFunc = LogProbQueueFunc;
+type LogProbQueueModel2Func = LogProbQueueFunc2;
+type PowerProbQueueModelFunc = PowerProbQueueFunc;
+type PowerProbQueueModel2Func = PowerProbQueueFunc2;
+type PowerProbQueueModel3Func = PowerProbQueueFunc3;
 
 #[pyfunction]
 pub fn build_backtester(
-    assets: Vec<PyRefMut<AssetBuilder>>,
+    assets: Vec<PyRefMut<BacktestAsset>>,
 ) -> PyResult<PyMultiAssetMultiExchangeBacktest> {
     let mut local = Vec::new();
     let mut exch = Vec::new();
     for asset in assets {
-        let asst = match (
-            &asset.asset_type,
-            &asset.latency_model,
-            &asset.queue_model,
-            &asset.exch_kind,
-        ) {
-            (
-                AssetType::LinearAsset(contract_size),
-                LatencyModel::ConstantLatency {
+        let asst = build_asset!(
+            asset,
+            [
+                LinearAsset { contract_size },
+                InverseAsset { contract_size }
+            ],
+            [
+                ConstantLatency {
                     entry_latency,
-                    resp_latency,
+                    resp_latency
                 },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    LinearAsset: {*contract_size};
-                    ConstantLatency: {*entry_latency, *resp_latency};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    NoPartialFillExchange
-                }
-            }
-            (
-                AssetType::LinearAsset(contract_size),
-                LatencyModel::IntpOrderLatency { data: latency_data },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    LinearAsset: {*contract_size};
-                    IntpOrderLatency: {latency_data.clone()};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    NoPartialFillExchange
-                }
-            }
-            (
-                AssetType::InverseAsset(contract_size),
-                LatencyModel::ConstantLatency {
-                    entry_latency,
-                    resp_latency,
-                },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    InverseAsset: {*contract_size};
-                    ConstantLatency: {*entry_latency, *resp_latency};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    NoPartialFillExchange
-                }
-            }
-            (
-                AssetType::InverseAsset(contract_size),
-                LatencyModel::IntpOrderLatency { data: latency_data },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::NoPartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    InverseAsset: {*contract_size};
-                    IntpOrderLatency: {latency_data.clone()};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    NoPartialFillExchange
-                }
-            }
-            (
-                AssetType::LinearAsset(contract_size),
-                LatencyModel::ConstantLatency {
-                    entry_latency,
-                    resp_latency,
-                },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    LinearAsset: {*contract_size};
-                    ConstantLatency: {*entry_latency, *resp_latency};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    PartialFillExchange
-                }
-            }
-            (
-                AssetType::LinearAsset(contract_size),
-                LatencyModel::IntpOrderLatency { data: latency_data },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    LinearAsset: {*contract_size};
-                    IntpOrderLatency: {latency_data.clone()};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    PartialFillExchange
-                }
-            }
-            (
-                AssetType::InverseAsset(contract_size),
-                LatencyModel::ConstantLatency {
-                    entry_latency,
-                    resp_latency,
-                },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    InverseAsset: {*contract_size};
-                    ConstantLatency: {*entry_latency, *resp_latency};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    PartialFillExchange
-                }
-            }
-            (
-                AssetType::InverseAsset(contract_size),
-                LatencyModel::IntpOrderLatency { data: latency_data },
-                QueueModel::PowerProbQueueModel3(n),
-                ExchangeKind::PartialFillExchange,
-            ) => {
-                build_asset! {
-                    asset.data;
-                    asset.maker_fee;
-                    asset.taker_fee;
-                    asset.trade_len;
-                    InverseAsset: {*contract_size};
-                    IntpOrderLatency: {latency_data.clone()};
-                    PowerProbQueueModel3: {PowerProbQueueFunc3::new(*n)};
-                    HashMapMarketDepth: {asset.tick_size, asset.lot_size};
-                    PartialFillExchange
-                }
-            }
-            _ => todo!(),
-        };
+                IntpOrderLatency { data }
+            ],
+            [
+                RiskAdverseQueueModel {},
+                LogProbQueueModel {},
+                LogProbQueueModel2 {},
+                PowerProbQueueModel { n },
+                PowerProbQueueModel2 { n },
+                PowerProbQueueModel3 { n }
+            ],
+            [NoPartialFillExchange {}, PartialFillExchange {}]
+        );
         local.push(asst.local);
         exch.push(asst.exch);
     }

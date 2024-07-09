@@ -65,8 +65,8 @@ pub enum BacktestError {
 
 /// Backtesting Asset
 pub struct Asset<L: ?Sized, E: ?Sized> {
-    local: Box<L>,
-    exch: Box<E>,
+    pub local: Box<L>,
+    pub exch: Box<E>,
 }
 
 impl<L, E> Asset<L, E> {

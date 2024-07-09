@@ -1,19 +1,19 @@
-from typing import Optional
+from typing import List
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ... import HftBacktest
-from ...typing import DataCollection, Data
-from ...reader import UNTIL_END_OF_DATA, DEPTH_SNAPSHOT_EVENT, SELL, LOCAL_EVENT, EXCH_EVENT, BUY
+from ...binding import event_dtype
+from ...types import SELL_EVENT, BUY_EVENT
+from ...types import UNTIL_END_OF_DATA, DEPTH_SNAPSHOT_EVENT, LOCAL_EVENT, EXCH_EVENT
 
 
 def create_last_snapshot(
-        data: DataCollection,
+        data: List[str],
         tick_size: float,
         lot_size: float,
-        initial_snapshot: Optional[Data] = None,
-        output_snapshot_filename: Optional[str] = None,
+        initial_snapshot: str | None = None,
+        output_snapshot_filename: str | None = None,
         snapshot_size: int = 100_000_000
 ) -> NDArray:
     r"""
@@ -33,22 +33,22 @@ def create_last_snapshot(
     """
     # Just to reconstruct order book from the given snapshot to the end of the given data.
     # fixme: use hftbacktest-backend version.
-    hbt = HftBacktest(
-        data,
-        tick_size,
-        lot_size,
-        0,
-        0,
-        ConstantLatency(0, 0),
-        Linear,
-        snapshot=initial_snapshot
-    )
+    asset = AssetBuilder()
+    asset.linear_asset(1.0)
+    asset.data(data)
+    asset.no_partial_fill_exchange()
+    asset.constant_latency(0, 0)
+    asset.power_prob_queue_model3(0)
+    asset.tick_size(tick_size)
+    asset.lot_size(lot_size)
+    asset.trade_len(0)
+    raw_hbt = build_backtester([asset])
+    hbt = MultiAssetMultiExchangeBacktest(raw_hbt.as_ptr())
 
     # Go to the end of the data.
     hbt.goto(UNTIL_END_OF_DATA)
 
-    dtype = [('ev', 'i8'), ('exch_ts', 'i8'), ('local_ts', 'i8'), ('px', 'f4'), ('qty', 'f4')]
-    snapshot = np.empty(snapshot_size, dtype)
+    snapshot = np.empty(snapshot_size, event_dtype)
     out_rn = 0
     for bid, qty in sorted(hbt.bid_depth.items(), key=lambda v: -float(v[0])):
         snapshot[out_rn] = (

@@ -4,8 +4,10 @@ from typing import Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from .. import merge_on_local_timestamp, correct, validate_data
-from ... import DEPTH_EVENT, TRADE_EVENT, DEPTH_SNAPSHOT_EVENT
+from .. import correct_event_order, validate_event_order
+from ... import correct_local_timestamp
+from ...binding import event_dtype
+from ...types import DEPTH_EVENT, TRADE_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT, BUY_EVENT
 
 
 def convert_snapshot(
@@ -13,6 +15,7 @@ def convert_snapshot(
         output_filename: Optional[str] = None,
         feed_latency: float = 0,
         has_header: Optional[bool] = None,
+        ss_buffer_size: int = 1_000_000,
 ) -> NDArray:
     r"""
     Converts Binance Historical Market Data files into a format compatible with HftBacktest.
@@ -31,8 +34,10 @@ def convert_snapshot(
     Returns:
         Converted data compatible with HftBacktest.
     """
-    ss_bid = []
-    ss_ask = []
+    ss_bid = np.empty(ss_buffer_size, event_dtype)
+    ss_ask = np.empty(ss_buffer_size, event_dtype)
+    ss_bid_rn = 0
+    ss_ask_rn = 0
 
     timestamp_col = None
     side_col = None
@@ -76,36 +81,37 @@ def convert_snapshot(
                 if has_header:
                     continue
 
-            exch_timestamp = int(row[timestamp_col])
-            loc_timestamp = exch_timestamp + feed_latency
+            exch_ts = int(row[timestamp_col])
+            local_ts = exch_ts + feed_latency
             side = 1 if row[side_col] == 'b' else -1
             price = float(row[price_col])
             qty = float(row[qty_col])
 
             if side == 1:
-                ss_bid.append([
-                    DEPTH_SNAPSHOT_EVENT,
-                    exch_timestamp,
-                    loc_timestamp,
-                    side,
+                ss_bid[ss_bid_rn] = (
+                    DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
+                    exch_ts,
+                    local_ts,
                     price,
                     qty
-                ])
+                )
+                ss_bid_rn += 1
             else:
-                ss_ask.append([
-                    DEPTH_SNAPSHOT_EVENT,
-                    exch_timestamp,
-                    loc_timestamp,
-                    side,
+                ss_ask[ss_ask_rn] = (
+                    DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
+                    exch_ts,
+                    local_ts,
                     price,
                     qty
-                ])
+                )
+                ss_ask_rn += 1
 
-    snapshot = []
+    ss_bid = ss_bid[:ss_bid_rn]
+    ss_ask = ss_ask[:ss_ask_rn]
+    snapshot = np.empty(len(ss_bid) + len(ss_ask), event_dtype)
+
     snapshot += [cols for cols in sorted(ss_bid, key=lambda v: -float(v[4]))]
     snapshot += [cols for cols in sorted(ss_ask, key=lambda v: float(v[4]))]
-
-    snapshot = np.asarray(snapshot, np.float64)
 
     if output_filename is not None:
         np.savez(output_filename, data=snapshot)
@@ -120,7 +126,6 @@ def convert(
         buffer_size: int = 100_000_000,
         feed_latency: float = 0,
         base_latency: float = 0,
-        method: Literal['separate', 'adjust'] = 'separate',
         depth_has_header: Optional[bool] = None,
         trades_has_header: Optional[bool] = None
 ) -> NDArray:
@@ -147,7 +152,7 @@ def convert(
     Returns:
         Converted data compatible with HftBacktest.
     """
-    tmp_depth = np.empty((buffer_size, 6), np.float64)
+    tmp = np.empty(buffer_size, event_dtype)
     row_num = 0
 
     timestamp_col = None
@@ -191,26 +196,20 @@ def convert(
                 if depth_has_header:
                     continue
 
-            exch_timestamp = int(row[timestamp_col])
-            loc_timestamp = exch_timestamp + feed_latency
-            side = 1 if row[side_col] == 'b' else -1
-            price = float(row[price_col])
+            exch_ts = int(row[timestamp_col])
+            local_ts = exch_ts + feed_latency
+            px = float(row[price_col])
             qty = float(row[qty_col])
 
             # Insert DEPTH_EVENT
-            tmp_depth[row_num] = [
-                DEPTH_EVENT,
-                exch_timestamp,
-                loc_timestamp,
-                side,
-                price,
+            tmp[row_num] = (
+                DEPTH_EVENT | (BUY_EVENT if row[side_col] == 'b' else SELL_EVENT),
+                exch_ts,
+                local_ts,
+                px,
                 qty
-            ]
+            )
             row_num += 1
-    tmp_depth = tmp_depth[:row_num]
-
-    tmp_trades = np.empty((buffer_size, 6), np.float64)
-    row_num = 0
 
     timestamp_col = None
     side_col = None
@@ -250,39 +249,34 @@ def convert(
                 if trades_has_header:
                     continue
 
-            exch_timestamp = int(row[timestamp_col])
-            loc_timestamp = exch_timestamp + feed_latency
-            side = -1 if row[side_col] else 1  # trade initiator's side
-            price = float(row[price_col])
+            exch_ts = int(row[timestamp_col])
+            local_ts = exch_ts + feed_latency
+
+            px = float(row[price_col])
             qty = float(row[qty_col])
 
             # Insert TRADE_EVENT
-            tmp_trades[row_num] = [
-                TRADE_EVENT,
-                exch_timestamp,
-                loc_timestamp,
-                side,
-                price,
+            tmp[row_num] = [
+                TRADE_EVENT | (SELL_EVENT if row[side_col] else BUY_EVENT),  # trade initiator's side
+                exch_ts,
+                local_ts,
+                px,
                 qty
             ]
             row_num += 1
-    tmp_trades = tmp_trades[:row_num]
+    tmp = tmp[:row_num]
 
-    # A mingled exchange timestamp is frequently observed on Binance.
-    # But, because the data doesn't have a local timestamp, there's difficulty in preserving the received order while
-    # keeping the local timestamp in sequence.
-    # A simple solution is to sort by the derived local timestamp to resolve the issue.
-    tmp_depth = tmp_depth[tmp_depth[:, 2].argsort()]
-    tmp_trades = tmp_trades[tmp_trades[:, 2].argsort()]
+    print('Correcting the latency')
+    tmp = correct_local_timestamp(tmp, base_latency)
 
-    print('Merging')
-    data = merge_on_local_timestamp(tmp_depth, tmp_trades)
-    data = correct(data, base_latency=base_latency, method=method)
+    print('Correcting the event order')
+    data = correct_event_order(
+        tmp,
+        np.argsort(tmp['exch_ts'], kind='mergesort'),
+        np.argsort(tmp['local_ts'], kind='mergesort')
+    )
 
-    # Validate again.
-    num_corr = validate_data(data)
-    if num_corr < 0:
-        raise ValueError
+    validate_event_order(data)
 
     if output_filename is not None:
         print('Saving to %s' % output_filename)

@@ -3,7 +3,7 @@ import unittest
 from numba import njit
 
 from hftbacktest import (
-    AssetBuilder,
+    BacktestAsset,
     MultiAssetMultiExchangeBacktest,
     ALL_ASSETS
 )
@@ -56,7 +56,7 @@ class TestPyHftBacktest(unittest.TestCase):
 
     def test_run_backtest(self):
         asset = (
-            AssetBuilder()
+            BacktestAsset()
                 .linear_asset(1.0)
                 .data(['tmp_20240501.npz'])
                 .no_partial_fill_exchange()

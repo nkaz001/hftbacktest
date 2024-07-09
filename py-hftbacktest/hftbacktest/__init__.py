@@ -22,13 +22,12 @@ from .order import (
 from .binding import MultiAssetMultiExchangeBacktest_
 
 from ._hftbacktest import (
-    AssetBuilder,
+    BacktestAsset,
     build_backtester
 )
 
 __all__ = (
-    'AssetBuilder',
-    'build'
+    'BacktestAsset',
 
     'ALL_ASSETS',
 
@@ -53,7 +52,7 @@ __version__ = '2.0.0-alpha'
 __hftbacktests__ = []
 
 
-def MultiAssetMultiExchangeBacktest(assets: List[AssetBuilder]):
+def MultiAssetMultiExchangeBacktest(assets: List[BacktestAsset]):
     raw_hbt = build_backtester(assets)
     __hftbacktests__.append(raw_hbt)
     return MultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
