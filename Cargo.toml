@@ -3,5 +3,6 @@ resolver = "2"
 members = [
   "hftbacktest",
   "py-hftbacktest",
+  "py-hftbacktest/procmacro",
   "collector"
 ]
