@@ -1,7 +1,7 @@
 use std::{collections::HashMap, mem};
 
 use hftbacktest::{
-    backtest::MultiAssetMultiExchangeBacktest,
+    backtest::{BacktestError, MultiAssetMultiExchangeBacktest},
     depth::HashMapMarketDepth,
     prelude::{Bot, BotTypedDepth, BotTypedTrade, Event, Order, StateValues},
     types::{OrdType, TimeInForce},
@@ -50,7 +50,13 @@ pub extern "C" fn hbt_close(hbt_ptr: *mut Backtest) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.close() {
         Ok(()) => 0,
-        Err(_) => 1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
@@ -60,7 +66,13 @@ pub extern "C" fn hbt_elapse(hbt_ptr: *mut Backtest, duration: i64) -> i64 {
     match hbt.elapse(duration) {
         Ok(true) => 0,
         Ok(false) => 1,
-        Err(_) => -1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
@@ -70,7 +82,13 @@ pub extern "C" fn hbt_elapse_bt(hbt_ptr: *mut Backtest, duration: i64) -> i64 {
     match hbt.elapse_bt(duration) {
         Ok(true) => 0,
         Ok(false) => 1,
-        Err(_) => -1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
@@ -91,7 +109,13 @@ pub extern "C" fn hbt_wait_order_response(
     match hbt.wait_order_response(asset_no, order_id, timeout) {
         Ok(true) => 0,
         Ok(false) => 1,
-        Err(_) => -1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
@@ -105,7 +129,13 @@ pub extern "C" fn hbt_wait_next_feed(
     match hbt.wait_next_feed(include_resp, timeout) {
         Ok(true) => 0,
         Ok(false) => 1,
-        Err(_) => -1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
@@ -133,7 +163,13 @@ pub extern "C" fn hbt_submit_buy_order(
     ) {
         Ok(true) => 0,
         Ok(false) => 1,
-        Err(_) => -1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
@@ -160,7 +196,13 @@ pub extern "C" fn hbt_submit_sell_order(
     ) {
         Ok(true) => 0,
         Ok(false) => 1,
-        Err(_) => -1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
@@ -175,7 +217,13 @@ pub extern "C" fn hbt_cancel(
     match hbt.cancel(asset_no, order_id, wait) {
         Ok(true) => 0,
         Ok(false) => 1,
-        Err(_) => -1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }
 
