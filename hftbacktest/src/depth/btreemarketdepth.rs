@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     backtest::{reader::Data, BacktestError},
-    prelude::Side,
+    prelude::{Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
     types::{Event, BUY, SELL},
 };
 
@@ -202,6 +202,34 @@ impl ApplySnapshot<Event> for BTreeMarketDepth {
         }
         self.best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
         self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
+    }
+
+    fn snapshot(&self) -> Vec<Event> {
+        let mut events = Vec::new();
+
+        for (&px_tick, &qty) in self.bid_depth.iter().rev() {
+            events.push(Event {
+                ev: EXCH_EVENT | LOCAL_EVENT | BUY | DEPTH_SNAPSHOT_EVENT,
+                // todo: it's not a problem now, but it would be better to have valid timestamps.
+                exch_ts: 0,
+                local_ts: 0,
+                px: px_tick as f32 * self.tick_size,
+                qty,
+            });
+        }
+
+        for (&px_tick, &qty) in self.ask_depth.iter() {
+            events.push(Event {
+                ev: EXCH_EVENT | LOCAL_EVENT | SELL | DEPTH_SNAPSHOT_EVENT,
+                // todo: it's not a problem now, but it would be better to have valid timestamps.
+                exch_ts: 0,
+                local_ts: 0,
+                px: px_tick as f32 * self.tick_size,
+                qty,
+            });
+        }
+
+        events
     }
 }
 

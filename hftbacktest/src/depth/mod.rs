@@ -90,6 +90,9 @@ where
 {
     /// Applies the snapshot from the given data to this market depth.
     fn apply_snapshot(&mut self, data: &Data<EventT>);
+
+    /// Returns the current market depth as the depth snapshot events.
+    fn snapshot(&self) -> Vec<EventT>;
 }
 
 /// Level3 order from the market feed.
@@ -166,4 +169,11 @@ pub trait L1MarketDepth {
         qty: f32,
         timestamp: i64,
     ) -> (i32, i32, i32, f32, f32, i64);
+}
+
+#[cfg(feature = "unstable_marketdeptharrayview")]
+pub trait L2MarketDepthArrayView {
+    fn bid_depth(&self) -> &[f32];
+
+    fn ask_depth(&self) -> &[f32];
 }

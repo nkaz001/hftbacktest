@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{ApplySnapshot, L1MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::{reader::Data, BacktestError},
-    prelude::{L2MarketDepth, Side},
+    prelude::{L2MarketDepth, Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
     types::{Event, BUY, SELL},
 };
 
@@ -362,6 +362,46 @@ impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
                     .or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
             }
         }
+    }
+
+    fn snapshot(&self) -> Vec<Event> {
+        let mut events = Vec::new();
+
+        let mut bid_depth = self
+            .bid_depth
+            .iter()
+            .map(|(&px_tick, &qty)| (px_tick, qty))
+            .collect::<Vec<_>>();
+        bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
+        for (px_tick, qty) in bid_depth {
+            events.push(Event {
+                ev: EXCH_EVENT | LOCAL_EVENT | BUY | DEPTH_SNAPSHOT_EVENT,
+                exch_ts: qty.timestamp,
+                // todo: it's not a problem now, but it would be better to have valid timestamps.
+                local_ts: 0,
+                px: px_tick as f32 * self.tick_size,
+                qty: qty.qty,
+            });
+        }
+
+        let mut ask_depth = self
+            .ask_depth
+            .iter()
+            .map(|(&px_tick, &qty)| (px_tick, qty))
+            .collect::<Vec<_>>();
+        ask_depth.sort_by(|a, b| a.0.cmp(&b.0));
+        for (px_tick, qty) in ask_depth {
+            events.push(Event {
+                ev: EXCH_EVENT | LOCAL_EVENT | SELL | DEPTH_SNAPSHOT_EVENT,
+                exch_ts: qty.timestamp,
+                // todo: it's not a problem now, but it would be better to have valid timestamps.
+                local_ts: 0,
+                px: px_tick as f32 * self.tick_size,
+                qty: qty.qty,
+            });
+        }
+
+        events
     }
 }
 

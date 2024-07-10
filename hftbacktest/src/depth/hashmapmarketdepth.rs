@@ -4,7 +4,7 @@ use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INV
 use crate::{
     backtest::{reader::Data, BacktestError},
     prelude::{L2MarketDepth, Side},
-    types::{Event, BUY, SELL},
+    types::{Event, BUY, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT, SELL},
 };
 
 /// L2/L3 Market depth implementation based on a hash map.
@@ -295,6 +295,46 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 *self.ask_depth.entry(price_tick).or_insert(0f32) = qty;
             }
         }
+    }
+
+    fn snapshot(&self) -> Vec<Event> {
+        let mut events = Vec::new();
+
+        let mut bid_depth = self
+            .bid_depth
+            .iter()
+            .map(|(&px_tick, &qty)| (px_tick, qty))
+            .collect::<Vec<_>>();
+        bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
+        for (px_tick, qty) in bid_depth {
+            events.push(Event {
+                ev: EXCH_EVENT | LOCAL_EVENT | BUY | DEPTH_SNAPSHOT_EVENT,
+                // todo: it's not a problem now, but it would be better to have valid timestamps.
+                exch_ts: 0,
+                local_ts: 0,
+                px: px_tick as f32 * self.tick_size,
+                qty,
+            });
+        }
+
+        let mut ask_depth = self
+            .ask_depth
+            .iter()
+            .map(|(&px_tick, &qty)| (px_tick, qty))
+            .collect::<Vec<_>>();
+        ask_depth.sort_by(|a, b| a.0.cmp(&b.0));
+        for (px_tick, qty) in ask_depth {
+            events.push(Event {
+                ev: EXCH_EVENT | LOCAL_EVENT | SELL | DEPTH_SNAPSHOT_EVENT,
+                // todo: it's not a problem now, but it would be better to have valid timestamps.
+                exch_ts: 0,
+                local_ts: 0,
+                px: px_tick as f32 * self.tick_size,
+                qty,
+            });
+        }
+
+        events
     }
 }
 
