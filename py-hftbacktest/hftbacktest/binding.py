@@ -65,6 +65,24 @@ depth_ask_qty_at_tick = lib.depth_ask_qty_at_tick
 depth_ask_qty_at_tick.restype = c_float
 depth_ask_qty_at_tick.argtypes = [c_void_p, c_int32]
 
+depth_snapshot = lib.depth_snapshot
+depth_snapshot.restype = c_void_p
+depth_snapshot.argtypes = [c_void_p, POINTER(c_uint64)]
+
+depth_snapshot_free = lib.depth_snapshot_free
+depth_snapshot_free.restype = c_void_p
+depth_snapshot_free.argtypes = [c_void_p, c_uint64]
+
+event_dtype = np.dtype([
+    ('ev', 'i8'),
+    ('exch_ts', 'i8'),
+    ('local_ts', 'i8'),
+    ('px', 'f4'),
+    ('qty', 'f4')
+])
+
+EVENT_ARRAY = np.ndarray[Any, event_dtype]
+
 
 class MarketDepth:
     ptr: voidptr
@@ -137,6 +155,19 @@ class MarketDepth:
             The quantity at the specified price.
         """
         return depth_ask_qty_at_tick(self.ptr, price_tick)
+
+    def snapshot(self) -> EVENT_ARRAY:
+        length = uint64(0)
+        len_ptr = ptr_from_val(length)
+        ptr = depth_snapshot(self.ptr, len_ptr)
+        return numba.carray(
+            address_as_void_pointer(ptr),
+            val_from_ptr(len_ptr),
+            event_dtype
+        )
+
+    def snapshot_free(self, arr: EVENT_ARRAY):
+        depth_snapshot_free(arr.ctypes.data, len(arr))
 
 
 MarketDepth_ = jitclass(MarketDepth)
@@ -353,16 +384,6 @@ hbt_order_latency = lib.hbt_order_latency
 hbt_order_latency.restype = c_bool
 hbt_order_latency.argtypes = [c_void_p, c_uint64, POINTER(c_int64), POINTER(c_int64), POINTER(c_int64)]
 
-event_dtype = np.dtype([
-    ('ev', 'i8'),
-    ('exch_ts', 'i8'),
-    ('local_ts', 'i8'),
-    ('px', 'f4'),
-    ('qty', 'f4')
-])
-
-EVENT_ARRAY = np.ndarray[Any, event_dtype]
-
 state_values_dtype = np.dtype([
     ('position', 'f8'),
     ('balance', 'f8'),
@@ -428,7 +449,7 @@ class MultiAssetMultiExchangeBacktest:
             state_values_dtype
         )
 
-    def trade_typed(self, asset_no: uint64) -> np.ndarray[Any, event_dtype]:
+    def trade_typed(self, asset_no: uint64) -> EVENT_ARRAY:
         """
         Args:
             asset_no: Asset number from which the trades will be retrieved.

@@ -1,4 +1,9 @@
-use hftbacktest::{depth::HashMapMarketDepth, prelude::MarketDepth};
+use std::mem::forget;
+
+use hftbacktest::{
+    depth::HashMapMarketDepth,
+    prelude::{ApplySnapshot, Event, MarketDepth},
+};
 
 #[no_mangle]
 pub extern "C" fn depth_best_bid_tick(depth_ptr: *const HashMapMarketDepth) -> i32 {
@@ -52,4 +57,25 @@ pub extern "C" fn depth_ask_qty_at_tick(
 ) -> f32 {
     let depth = unsafe { &*depth_ptr };
     depth.ask_qty_at_tick(price_tick)
+}
+
+#[no_mangle]
+pub extern "C" fn depth_snapshot(
+    depth_ptr: *const HashMapMarketDepth,
+    len: *mut usize,
+) -> *const Event {
+    let depth = unsafe { &*depth_ptr };
+    let mut snapshot = depth.snapshot();
+    snapshot.shrink_to_fit();
+    let ptr = snapshot.as_ptr();
+    unsafe {
+        *len = snapshot.len();
+        forget(snapshot);
+    }
+    ptr
+}
+
+#[no_mangle]
+pub extern "C" fn depth_snapshot_free(event_ptr: *mut Event, len: usize) {
+    let _ = unsafe { Vec::from_raw_parts(event_ptr, len, len) };
 }
