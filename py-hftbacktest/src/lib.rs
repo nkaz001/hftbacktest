@@ -19,13 +19,13 @@ use hftbacktest::{
         },
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
-        reader::{Cache, Reader},
+        reader::{read_npz, Cache, Reader},
         state::State,
         Asset,
         DataSource,
         MultiAssetMultiExchangeBacktest,
     },
-    prelude::{Event, HashMapMarketDepth},
+    prelude::{ApplySnapshot, Event, HashMapMarketDepth},
 };
 pub use order::*;
 use procmacro::build_asset;
@@ -81,6 +81,7 @@ pub struct BacktestAsset {
     maker_fee: f64,
     taker_fee: f64,
     trade_len: usize,
+    initial_snapshot: Option<String>,
 }
 
 unsafe impl Send for BacktestAsset {}
@@ -104,6 +105,7 @@ impl BacktestAsset {
             taker_fee: 0.0,
             exch_kind: ExchangeKind::NoPartialFillExchange {},
             trade_len: 0,
+            initial_snapshot: None,
         }
     }
 
@@ -233,6 +235,12 @@ impl BacktestAsset {
     /// * `PowerProbQueueFunc3 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc3.html>`_
     pub fn power_prob_queue_model3(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::PowerProbQueueModel3 { n };
+        slf
+    }
+
+    /// Sets the initial snapshot.
+    pub fn initial_snapshot(mut slf: PyRefMut<Self>, snapshot_file: String) -> PyRefMut<Self> {
+        slf.initial_snapshot = Some(snapshot_file);
         slf
     }
 

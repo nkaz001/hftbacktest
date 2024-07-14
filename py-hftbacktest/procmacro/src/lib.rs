@@ -139,7 +139,11 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let asset_type = #at_ident::new(#(#at_args.clone()),*);
                             let latency_model = #lm_ident::new(#(#lm_args.clone()),*);
 
-                            let market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
+                            let mut market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
+                            if let Some(file) = #asset.initial_snapshot.as_ref() {
+                                let data = read_npz(&file).unwrap();
+                                market_depth.apply_snapshot(&data);
+                            }
 
                             let local: Box<dyn LocalProcessor<HashMapMarketDepth, Event>> = Box::new(Local::new(
                                 reader.clone(),
@@ -151,7 +155,12 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 ob_exch_to_local.clone(),
                             ));
 
-                            let market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
+                            let mut market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
+                            if let Some(file) = #asset.initial_snapshot.as_ref() {
+                                let data = read_npz(&file).unwrap();
+                                market_depth.apply_snapshot(&data);
+                            }
+
                             let queue_model = #qm_construct;
 
                             let exch: Box<dyn Processor> = Box::new(#em_ident::new(
