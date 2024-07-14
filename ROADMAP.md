@@ -15,6 +15,14 @@ Currently, the Rust implementation is being more actively developed especially f
 * [X] Level 3 Market-By-Order backtesting (unstable_l3).
 * [X] Data fusion to provide the most frequent and granular data using different streams with different update frequencies and market depth ranges (unstable_fuse)
 * [ ] Adjust feed and order latency for exchanges located in different regions if the original feed and order latency data was collected at a different site.
+* [ ] Additional queue position model or exchange model.
+* [ ] A vector-based implementation for fast L2 market depth within the specified ROI (range of interest).
+
+### Live
+* [ ] Support Level 3 Market-By-Order for Live Bot.
+* [ ] Support external connectors through IPC for multiple bots via a unified connection.  
+  [<img src="https://raw.githubusercontent.com/nkaz001/hftbacktest/master/docs/images/arch.png">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
+  * https://github.com/eclipse-iceoryx/iceoryx2
 
 ### Connector
 * [ ] Implement Binance Futures Websocket Order APIs; currently, REST APIs are used for submitting orders.
@@ -36,14 +44,8 @@ Currently, the Rust implementation is being more actively developed especially f
 * [ ] Trad-fi
 
 ### Others
-* [ ] Support Level 3 Market-By-Order for Live Bot.
-* [ ] Support external connectors through IPC for multiple bots via a unified connection.  
-[<img src="https://raw.githubusercontent.com/nkaz001/hftbacktest/master/docs/images/arch.png">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
-  * https://github.com/eclipse-iceoryx/iceoryx2
 * [ ] Increase documentation and test coverage.
-* [ ] Github workflow
-  * readthedocs, build, formatting, coverage, etc.
-* [ ] Additional queue position model or exchange model.
+* [ ] Github workflow: readthedocs, build, formatting, coverage, etc.
 
 ### Orchestration
 * [ ] Implement interface for live bot orchestration
@@ -55,3 +57,4 @@ Currently, the Rust implementation is being more actively developed especially f
 * [ ] Example using different skew profiles for inventory management.
 * [ ] Example demonstrating latency-aware actions.
 * [ ] Example demonstrating the volume clock/event clock using `wait_next_feed`.
+* [ ] Update the existing examples to align with version 2.0.0.
