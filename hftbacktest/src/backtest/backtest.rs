@@ -470,7 +470,7 @@ where
     MD: MarketDepth,
 {
     #[inline]
-    fn trade_typed(&self, asset_no: usize) -> &Vec<Event> {
+    fn trade_typed(&self, asset_no: usize) -> &[Event] {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }
@@ -947,7 +947,7 @@ where
     Exchange: Processor,
 {
     #[inline]
-    fn trade_typed(&self, asset_no: usize) -> &Vec<Event> {
+    fn trade_typed(&self, asset_no: usize) -> &[Event] {
         let local = self.local.get(asset_no).unwrap();
         local.trade()
     }

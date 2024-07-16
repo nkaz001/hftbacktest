@@ -206,8 +206,8 @@ where
         &self.orders
     }
 
-    fn trade(&self) -> &Vec<Event> {
-        &self.trades
+    fn trade(&self) -> &[Event] {
+        self.trades.as_slice()
     }
 
     fn clear_last_trades(&mut self) {

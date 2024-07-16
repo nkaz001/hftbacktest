@@ -817,7 +817,7 @@ pub trait BotTypedTrade<Event> {
     /// Returns the last market trades.
     ///
     /// * `asset_no` - Asset number from which the last market trades will be retrieved.
-    fn trade_typed(&self, asset_no: usize) -> &Vec<Event>;
+    fn trade_typed(&self, asset_no: usize) -> &[Event];
 }
 
 /// Provides bot statistics and [`StateValues`] recording features for backtesting result analysis

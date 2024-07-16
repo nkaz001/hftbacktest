@@ -718,7 +718,7 @@ impl<MD> BotTypedTrade<Event> for LiveBot<MD>
 where
     MD: MarketDepth,
 {
-    fn trade_typed(&self, asset_no: usize) -> &Vec<Event> {
+    fn trade_typed(&self, asset_no: usize) -> &[Event] {
         self.trade.get(asset_no).unwrap()
     }
 }

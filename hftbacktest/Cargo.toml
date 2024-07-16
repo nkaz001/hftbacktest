@@ -1,6 +1,6 @@
 [package]
 name = "hftbacktest"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["nkaz001 <nkaz001@protonmail.com>"]
 license = "MIT"
@@ -27,7 +27,6 @@ binancefutures = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2",
 bybit = ["serde", "serde_json", "tokio-tungstenite", "reqwest", "sha2", "hmac", "rand"]
 unstable_l3 = []
 unstable_fuse = []
-unstable_marketdeptharrayview = []
 
 [dependencies]
 tracing = "0.1.40"

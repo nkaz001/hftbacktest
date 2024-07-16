@@ -56,7 +56,7 @@ where
     fn orders(&self) -> &HashMap<i64, Order>;
 
     /// Returns the last market trades.
-    fn trade(&self) -> &Vec<EventT>;
+    fn trade(&self) -> &[EventT];
 
     /// Clears the last market trades from the buffer.
     fn clear_last_trades(&mut self);
