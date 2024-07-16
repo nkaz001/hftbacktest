@@ -3,7 +3,15 @@ use std::{collections::HashMap, mem};
 use hftbacktest::{
     backtest::{BacktestError, MultiAssetMultiExchangeBacktest},
     depth::HashMapMarketDepth,
-    prelude::{Bot, BotTypedDepth, BotTypedTrade, Event, Order, StateValues},
+    prelude::{
+        Bot,
+        BotTypedDepth,
+        BotTypedTrade,
+        Event,
+        Order,
+        StateValues,
+        WAIT_ORDER_RESPONSE_NONE,
+    },
     types::{OrdType, TimeInForce},
 };
 
@@ -304,5 +312,21 @@ pub extern "C" fn hbt_order_latency(
             }
             true
         }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hbt_goto(hbt_ptr: *mut Backtest, timestamp: i64) -> i64 {
+    let hbt = unsafe { &mut *hbt_ptr };
+    match hbt.goto::<false>(timestamp, (0, WAIT_ORDER_RESPONSE_NONE), false) {
+        Ok(true) => 0,
+        Ok(false) => 1,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
     }
 }

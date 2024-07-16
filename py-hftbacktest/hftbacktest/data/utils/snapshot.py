@@ -3,9 +3,8 @@ from typing import List
 import numpy as np
 from numpy.typing import NDArray
 
-from ...binding import event_dtype
-from ...types import SELL_EVENT, BUY_EVENT
-from ...types import UNTIL_END_OF_DATA, DEPTH_SNAPSHOT_EVENT, LOCAL_EVENT, EXCH_EVENT
+from ... import BacktestAsset, MultiAssetMultiExchangeBacktest
+from ...types import UNTIL_END_OF_DATA
 
 
 def create_last_snapshot(
@@ -13,8 +12,7 @@ def create_last_snapshot(
         tick_size: float,
         lot_size: float,
         initial_snapshot: str | None = None,
-        output_snapshot_filename: str | None = None,
-        snapshot_size: int = 100_000_000
+        output_snapshot_filename: str | None = None
 ) -> NDArray:
     r"""
     Creates a snapshot of the last market depth for the specified data, which can be used as the initial snapshot data
@@ -32,46 +30,31 @@ def create_last_snapshot(
         Snapshot of the last market depth compatible with HftBacktest.
     """
     # Just to reconstruct order book from the given snapshot to the end of the given data.
-    # fixme: use hftbacktest-backend version.
-    asset = AssetBuilder()
-    asset.linear_asset(1.0)
-    asset.data(data)
-    asset.no_partial_fill_exchange()
-    asset.constant_latency(0, 0)
-    asset.power_prob_queue_model3(0)
-    asset.tick_size(tick_size)
-    asset.lot_size(lot_size)
-    asset.trade_len(0)
-    raw_hbt = build_backtester([asset])
-    hbt = MultiAssetMultiExchangeBacktest(raw_hbt.as_ptr())
+    asset = (
+        BacktestAsset()
+            .linear_asset(1.0)
+            .data(data)
+            .no_partial_fill_exchange()
+            .constant_latency(0, 0)
+            .risk_adverse_queue_model()
+            .tick_size(tick_size)
+            .lot_size(lot_size)
+            .trade_len(0)
+    )
+    if initial_snapshot is not None:
+        asset.initial_snapshot(initial_snapshot)
+
+    hbt = MultiAssetMultiExchangeBacktest([asset])
 
     # Go to the end of the data.
-    hbt.goto(UNTIL_END_OF_DATA)
+    hbt._goto(UNTIL_END_OF_DATA)
 
-    snapshot = np.empty(snapshot_size, event_dtype)
-    out_rn = 0
-    for bid, qty in sorted(hbt.bid_depth.items(), key=lambda v: -float(v[0])):
-        snapshot[out_rn] = (
-            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | BUY_EVENT,
-            # fixme: timestamp
-            hbt.last_timestamp,
-            hbt.last_timestamp,
-            float(bid * tick_size),
-            float(qty)
-        )
-        out_rn += 1
-    for ask, qty in sorted(hbt.ask_depth.items(), key=lambda v: float(v[0])):
-        snapshot[out_rn] = (
-            DEPTH_SNAPSHOT_EVENT | EXCH_EVENT | LOCAL_EVENT | SELL_EVENT,
-            # fixme: timestamp
-            hbt.last_timestamp,
-            hbt.last_timestamp,
-            float(ask * tick_size),
-            float(qty)
-        )
-        out_rn += 1
+    depth = hbt.depth_typed(0)
+    snapshot = depth.snapshot()
+    snapshot_copied = snapshot.copy()
+    depth.snapshot_free(snapshot)
 
     if output_snapshot_filename is not None:
-        np.savez_compressed(output_snapshot_filename, data=snapshot)
+        np.savez_compressed(output_snapshot_filename, data=snapshot_copied)
 
-    return snapshot
+    return snapshot_copied
