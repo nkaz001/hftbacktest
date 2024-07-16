@@ -384,9 +384,9 @@ hbt_order_latency = lib.hbt_order_latency
 hbt_order_latency.restype = c_bool
 hbt_order_latency.argtypes = [c_void_p, c_uint64, POINTER(c_int64), POINTER(c_int64), POINTER(c_int64)]
 
-hbt_goto = lib.hbt_goto
-hbt_goto.restype = c_int64
-hbt_goto.argtypes = [c_void_p, c_int64]
+hbt_goto_end = lib.hbt_goto_end
+hbt_goto_end.restype = c_int64
+hbt_goto_end.argtypes = [c_void_p]
 
 state_values_dtype = np.dtype([
     ('position', 'f8'),
@@ -701,8 +701,8 @@ class MultiAssetMultiExchangeBacktest:
             return val_from_ptr(req_ts_ptr), val_from_ptr(exch_ts_ptr), val_from_ptr(resp_ts_ptr)
         return None
 
-    def _goto(self, timestamp: int64) -> int64:
-        return hbt_goto(self.ptr, timestamp)
+    def _goto_end(self) -> int64:
+        return hbt_goto_end(self.ptr)
 
 
 MultiAssetMultiExchangeBacktest_ = jitclass(MultiAssetMultiExchangeBacktest)

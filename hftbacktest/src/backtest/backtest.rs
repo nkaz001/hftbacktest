@@ -117,7 +117,22 @@ where
         Ok(())
     }
 
-    pub fn goto<const WAIT_NEXT_FEED: bool>(
+    pub fn goto_end(&mut self) -> Result<bool, BacktestError> {
+        if self.cur_ts == i64::MAX {
+            self.initialize_evs()?;
+            match self.evs.next() {
+                Some(ev) => {
+                    self.cur_ts = ev.timestamp;
+                }
+                None => {
+                    return Ok(false);
+                }
+            }
+        }
+        self.goto::<false>(UNTIL_END_OF_DATA, (0, WAIT_ORDER_RESPONSE_NONE), false)
+    }
+
+    fn goto<const WAIT_NEXT_FEED: bool>(
         &mut self,
         timestamp: i64,
         wait_order_response: (usize, i64),

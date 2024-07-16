@@ -47,7 +47,7 @@ def create_last_snapshot(
     hbt = MultiAssetMultiExchangeBacktest([asset])
 
     # Go to the end of the data.
-    hbt._goto(UNTIL_END_OF_DATA)
+    hbt._goto_end()
 
     depth = hbt.depth_typed(0)
     snapshot = depth.snapshot()

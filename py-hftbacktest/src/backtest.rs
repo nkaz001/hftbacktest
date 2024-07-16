@@ -316,9 +316,9 @@ pub extern "C" fn hbt_order_latency(
 }
 
 #[no_mangle]
-pub extern "C" fn hbt_goto(hbt_ptr: *mut Backtest, timestamp: i64) -> i64 {
+pub extern "C" fn hbt_goto_end(hbt_ptr: *mut Backtest) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.goto::<false>(timestamp, (0, WAIT_ORDER_RESPONSE_NONE), false) {
+    match hbt.goto_end() {
         Ok(true) => 0,
         Ok(false) => 1,
         Err(BacktestError::OrderIdExist) => 10,
