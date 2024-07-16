@@ -102,6 +102,14 @@ impl ROIVectorMarketDepth {
         }
         Ok(())
     }
+
+    pub fn bid_depth(&self) -> &[f32] {
+        self.bid_depth.as_slice()
+    }
+
+    pub fn ask_depth(&self) -> &[f32] {
+        self.ask_depth.as_slice()
+    }
 }
 
 impl L2MarketDepth for ROIVectorMarketDepth {

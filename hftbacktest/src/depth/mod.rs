@@ -173,10 +173,3 @@ pub trait L1MarketDepth {
         timestamp: i64,
     ) -> (i32, i32, i32, f32, f32, i64);
 }
-
-#[cfg(feature = "unstable_marketdeptharrayview")]
-pub trait L2MarketDepthArrayView {
-    fn bid_depth(&self) -> &[f32];
-
-    fn ask_depth(&self) -> &[f32];
-}
