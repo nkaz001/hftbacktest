@@ -1,0 +1,890 @@
+use std::collections::{hash_map::Entry, HashMap};
+
+use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
+use crate::{
+    backtest::{reader::Data, BacktestError},
+    prelude::{L2MarketDepth, Side},
+    types::{Event, BUY, SELL},
+};
+
+/// L2/L3 market depth implementation based on a vector within the range of interest.
+///
+/// This is a variant of the HashMap-based market depth implementation, which only handles the
+/// specific range of interest. By doing so, it improves performance, especially when the strategy
+/// requires computing values based on the order book around the mid-price.
+pub struct ROIVectorMarketDepth {
+    pub tick_size: f32,
+    pub lot_size: f32,
+    pub timestamp: i64,
+    pub ask_depth: Vec<f32>,
+    pub bid_depth: Vec<f32>,
+    pub best_bid_tick: i32,
+    pub best_ask_tick: i32,
+    pub low_bid_tick: i32,
+    pub high_ask_tick: i32,
+    pub roi_ub: i32,
+    pub roi_lb: i32,
+    pub orders: HashMap<i64, L3Order>,
+}
+
+#[inline(always)]
+fn depth_below(depth: &Vec<f32>, start: i32, end: i32, roi_lb: i32, roi_ub: i32) -> i32 {
+    let start = (start.min(roi_ub) - roi_lb) as usize;
+    let end = (end.max(roi_lb) - roi_lb) as usize;
+    for t in (end..start).rev() {
+        if unsafe { *depth.get_unchecked(t) } > 0f32 {
+            return t as i32 + roi_lb;
+        }
+    }
+    return INVALID_MIN;
+}
+
+#[inline(always)]
+fn depth_above(depth: &Vec<f32>, start: i32, end: i32, roi_lb: i32, roi_ub: i32) -> i32 {
+    let start = (start.max(roi_lb) - roi_lb) as usize;
+    let end = (end.min(roi_ub) - roi_lb) as usize;
+    for t in (start + 1)..(end + 1) {
+        if unsafe { *depth.get_unchecked(t) } > 0f32 {
+            return t as i32 + roi_lb;
+        }
+    }
+    return INVALID_MAX;
+}
+
+impl ROIVectorMarketDepth {
+    /// Constructs an instance of `ROIVectorMarketDepth`.
+    pub fn new(tick_size: f32, lot_size: f32, roi_lb: f32, roi_ub: f32) -> Self {
+        let roi_lb = (roi_lb / tick_size).round() as i32;
+        let roi_ub = (roi_ub / tick_size).round() as i32;
+        let roi_range = (roi_ub + 1 - roi_lb) as usize;
+        Self {
+            tick_size,
+            lot_size,
+            timestamp: 0,
+            ask_depth: {
+                let mut v = (0..roi_range).map(|_| 0.0).collect::<Vec<_>>();
+                v.shrink_to_fit();
+                v
+            },
+            bid_depth: {
+                let mut v = (0..roi_range).map(|_| 0.0).collect::<Vec<_>>();
+                v.shrink_to_fit();
+                v
+            },
+            best_bid_tick: INVALID_MIN,
+            best_ask_tick: INVALID_MAX,
+            low_bid_tick: INVALID_MAX,
+            high_ask_tick: INVALID_MIN,
+            roi_lb,
+            roi_ub,
+            orders: HashMap::new(),
+        }
+    }
+
+    fn add(&mut self, order: L3Order) -> Result<(), BacktestError> {
+        let order = match self.orders.entry(order.order_id) {
+            Entry::Occupied(_) => return Err(BacktestError::OrderIdExist),
+            Entry::Vacant(entry) => entry.insert(order),
+        };
+        if order.price_tick < self.roi_lb || order.price_tick > self.roi_ub {
+            // This is outside the range of interest.
+            return Ok(());
+        }
+        let t = (order.price_tick - self.roi_lb) as usize;
+        if order.side == Side::Buy {
+            unsafe {
+                *self.bid_depth.get_unchecked_mut(t) += order.qty;
+            }
+        } else {
+            unsafe {
+                *self.ask_depth.get_unchecked_mut(t) += order.qty;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl L2MarketDepth for ROIVectorMarketDepth {
+    fn update_bid_depth(
+        &mut self,
+        price: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64) {
+        let price_tick = (price / self.tick_size).round() as i32;
+        let qty_lot = (qty / self.lot_size).round() as i32;
+        let prev_best_bid_tick = self.best_bid_tick;
+        let prev_qty;
+
+        if price_tick < self.roi_lb || price_tick > self.roi_ub {
+            // This is outside the range of interest.
+            return (
+                price_tick,
+                prev_best_bid_tick,
+                self.best_bid_tick,
+                0.0,
+                qty,
+                timestamp,
+            );
+        }
+        let t = (price_tick - self.roi_lb) as usize;
+        unsafe {
+            let v = self.bid_depth.get_unchecked_mut(t);
+            prev_qty = *v;
+            *v = qty;
+        }
+
+        if qty_lot == 0 {
+            if price_tick == self.best_bid_tick {
+                self.best_bid_tick = depth_below(
+                    &self.bid_depth,
+                    self.best_bid_tick,
+                    self.low_bid_tick,
+                    self.roi_lb,
+                    self.roi_ub,
+                );
+                if self.best_bid_tick == INVALID_MIN {
+                    self.low_bid_tick = INVALID_MAX
+                }
+            }
+        } else {
+            if price_tick > self.best_bid_tick {
+                self.best_bid_tick = price_tick;
+                if self.best_bid_tick >= self.best_ask_tick {
+                    self.best_ask_tick = depth_above(
+                        &self.ask_depth,
+                        self.best_bid_tick,
+                        self.high_ask_tick,
+                        self.roi_lb,
+                        self.roi_ub,
+                    );
+                }
+            }
+            self.low_bid_tick = self.low_bid_tick.min(price_tick);
+        }
+        (
+            price_tick,
+            prev_best_bid_tick,
+            self.best_bid_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
+    }
+
+    fn update_ask_depth(
+        &mut self,
+        price: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> (i32, i32, i32, f32, f32, i64) {
+        let price_tick = (price / self.tick_size).round() as i32;
+        let qty_lot = (qty / self.lot_size).round() as i32;
+        let prev_best_ask_tick = self.best_ask_tick;
+        let prev_qty;
+
+        if price_tick < self.roi_lb || price_tick > self.roi_ub {
+            // This is outside the range of interest.
+            return (
+                price_tick,
+                prev_best_ask_tick,
+                self.best_ask_tick,
+                0.0,
+                qty,
+                timestamp,
+            );
+        }
+        let t = (price_tick - self.roi_lb) as usize;
+        unsafe {
+            let v = self.ask_depth.get_unchecked_mut(t);
+            prev_qty = *v;
+            *v = qty;
+        }
+
+        if qty_lot == 0 {
+            if price_tick == self.best_ask_tick {
+                self.best_ask_tick = depth_above(
+                    &self.ask_depth,
+                    self.best_ask_tick,
+                    self.high_ask_tick,
+                    self.roi_lb,
+                    self.roi_ub,
+                );
+                if self.best_ask_tick == INVALID_MAX {
+                    self.high_ask_tick = INVALID_MIN
+                }
+            }
+        } else {
+            if price_tick < self.best_ask_tick {
+                self.best_ask_tick = price_tick;
+                if self.best_bid_tick >= self.best_ask_tick {
+                    self.best_bid_tick = depth_below(
+                        &self.bid_depth,
+                        self.best_ask_tick,
+                        self.low_bid_tick,
+                        self.roi_lb,
+                        self.roi_ub,
+                    );
+                }
+            }
+            self.high_ask_tick = self.high_ask_tick.max(price_tick);
+        }
+        (
+            price_tick,
+            prev_best_ask_tick,
+            self.best_ask_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
+    }
+
+    fn clear_depth(&mut self, side: i64, clear_upto_price: f32) {
+        let clear_upto = (clear_upto_price / self.tick_size).round() as i32;
+        if side == BUY {
+            if self.best_bid_tick != INVALID_MIN {
+                for t in clear_upto.max(self.roi_lb)..(self.best_bid_tick + 1) {
+                    unsafe {
+                        *self.bid_depth.get_unchecked_mut(t as usize) = 0.0;
+                    }
+                }
+            }
+            self.best_bid_tick = depth_below(
+                &self.bid_depth,
+                clear_upto - 1,
+                self.low_bid_tick,
+                self.roi_lb,
+                self.roi_ub,
+            );
+            if self.best_bid_tick == INVALID_MIN {
+                self.low_bid_tick = INVALID_MAX;
+            }
+        } else if side == SELL {
+            if self.best_ask_tick != INVALID_MAX {
+                for t in self.best_ask_tick..(clear_upto.min(self.roi_ub) + 1) {
+                    unsafe {
+                        *self.ask_depth.get_unchecked_mut(t as usize) = 0.0;
+                    }
+                }
+            }
+            self.best_ask_tick = depth_above(
+                &self.ask_depth,
+                clear_upto + 1,
+                self.high_ask_tick,
+                self.roi_lb,
+                self.roi_ub,
+            );
+            if self.best_ask_tick == INVALID_MAX {
+                self.high_ask_tick = INVALID_MIN;
+            }
+        } else {
+            self.bid_depth.clear();
+            self.ask_depth.clear();
+            self.best_bid_tick = INVALID_MIN;
+            self.best_ask_tick = INVALID_MAX;
+            self.low_bid_tick = INVALID_MAX;
+            self.high_ask_tick = INVALID_MIN;
+        }
+    }
+}
+
+impl MarketDepth for ROIVectorMarketDepth {
+    #[inline(always)]
+    fn best_bid(&self) -> f32 {
+        self.best_bid_tick as f32 * self.tick_size
+    }
+
+    #[inline(always)]
+    fn best_ask(&self) -> f32 {
+        self.best_ask_tick as f32 * self.tick_size
+    }
+
+    #[inline(always)]
+    fn best_bid_tick(&self) -> i32 {
+        self.best_bid_tick
+    }
+
+    #[inline(always)]
+    fn best_ask_tick(&self) -> i32 {
+        self.best_ask_tick
+    }
+
+    #[inline(always)]
+    fn tick_size(&self) -> f32 {
+        self.tick_size
+    }
+
+    #[inline(always)]
+    fn lot_size(&self) -> f32 {
+        self.lot_size
+    }
+
+    #[inline(always)]
+    fn bid_qty_at_tick(&self, price_tick: i32) -> f32 {
+        if price_tick < self.roi_lb || price_tick > self.roi_ub {
+            // This is outside the range of interest.
+            0.0
+        } else {
+            unsafe {
+                *self
+                    .bid_depth
+                    .get_unchecked((price_tick - self.roi_lb) as usize)
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn ask_qty_at_tick(&self, price_tick: i32) -> f32 {
+        if price_tick < self.roi_lb || price_tick > self.roi_ub {
+            // This is outside the range of interest.
+            0.0
+        } else {
+            unsafe {
+                *self
+                    .ask_depth
+                    .get_unchecked((price_tick - self.roi_lb) as usize)
+            }
+        }
+    }
+}
+
+impl ApplySnapshot<Event> for ROIVectorMarketDepth {
+    fn apply_snapshot(&mut self, data: &Data<Event>) {
+        self.best_bid_tick = INVALID_MIN;
+        self.best_ask_tick = INVALID_MAX;
+        self.low_bid_tick = INVALID_MAX;
+        self.high_ask_tick = INVALID_MIN;
+        self.bid_depth.clear();
+        self.ask_depth.clear();
+        for row_num in 0..data.len() {
+            let price = data[row_num].px;
+            let qty = data[row_num].qty;
+
+            let price_tick = (price / self.tick_size).round() as i32;
+            if price_tick < self.roi_lb || price_tick > self.roi_ub {
+                continue;
+            }
+            if data[row_num].ev & BUY == BUY {
+                self.best_bid_tick = self.best_bid_tick.max(price_tick);
+                self.low_bid_tick = self.low_bid_tick.min(price_tick);
+                let t = (price_tick - self.roi_lb) as usize;
+                unsafe {
+                    *self.bid_depth.get_unchecked_mut(t) = qty;
+                }
+            } else if data[row_num].ev & SELL == SELL {
+                self.best_ask_tick = self.best_ask_tick.min(price_tick);
+                self.high_ask_tick = self.high_ask_tick.max(price_tick);
+                let t = (price_tick - self.roi_lb) as usize;
+                unsafe {
+                    *self.ask_depth.get_unchecked_mut(t) = qty;
+                }
+            }
+        }
+    }
+
+    fn snapshot(&self) -> Vec<Event> {
+        unimplemented!();
+    }
+}
+
+impl L3MarketDepth for ROIVectorMarketDepth {
+    type Error = BacktestError;
+
+    fn add_buy_order(
+        &mut self,
+        order_id: i64,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> Result<(i32, i32), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i32;
+        self.add(L3Order {
+            order_id,
+            side: Side::Buy,
+            price_tick,
+            qty,
+            timestamp,
+        })?;
+        let prev_best_tick = self.best_bid_tick;
+        if price_tick > self.best_bid_tick {
+            self.best_bid_tick = price_tick;
+            if self.best_bid_tick >= self.best_ask_tick {
+                self.best_ask_tick = depth_above(
+                    &self.ask_depth,
+                    self.best_bid_tick,
+                    self.high_ask_tick,
+                    self.roi_lb,
+                    self.roi_ub,
+                );
+            }
+        }
+        self.low_bid_tick = self.low_bid_tick.min(price_tick);
+        Ok((prev_best_tick, self.best_bid_tick))
+    }
+
+    fn add_sell_order(
+        &mut self,
+        order_id: i64,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> Result<(i32, i32), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i32;
+        self.add(L3Order {
+            order_id,
+            side: Side::Sell,
+            price_tick,
+            qty,
+            timestamp,
+        })?;
+        let prev_best_tick = self.best_ask_tick;
+        if price_tick < self.best_ask_tick {
+            self.best_ask_tick = price_tick;
+            if self.best_bid_tick >= self.best_ask_tick {
+                self.best_bid_tick = depth_below(
+                    &self.bid_depth,
+                    self.best_ask_tick,
+                    self.low_bid_tick,
+                    self.roi_lb,
+                    self.roi_ub,
+                );
+            }
+        }
+        self.high_ask_tick = self.high_ask_tick.max(price_tick);
+        Ok((prev_best_tick, self.best_ask_tick))
+    }
+
+    fn delete_order(
+        &mut self,
+        order_id: i64,
+        _timestamp: i64,
+    ) -> Result<(i64, i32, i32), Self::Error> {
+        let order = self
+            .orders
+            .remove(&order_id)
+            .ok_or(BacktestError::OrderNotFound)?;
+        if order.side == Side::Buy {
+            let prev_best_tick = self.best_bid_tick;
+
+            if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
+                let t = (order.price_tick - self.roi_lb) as usize;
+                let depth_qty = unsafe { self.bid_depth.get_unchecked_mut(t) };
+                *depth_qty -= order.qty;
+                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                    *depth_qty = 0.0;
+                    if order.price_tick == self.best_bid_tick {
+                        self.best_bid_tick = depth_below(
+                            &self.bid_depth,
+                            self.best_bid_tick,
+                            self.low_bid_tick,
+                            self.roi_lb,
+                            self.roi_ub,
+                        );
+                        if self.best_bid_tick == INVALID_MIN {
+                            self.low_bid_tick = INVALID_MAX
+                        }
+                    }
+                }
+            }
+            Ok((BUY, prev_best_tick, self.best_bid_tick))
+        } else {
+            let prev_best_tick = self.best_ask_tick;
+
+            if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
+                let t = (order.price_tick - self.roi_lb) as usize;
+                let depth_qty = unsafe { self.ask_depth.get_unchecked_mut(t) };
+                *depth_qty -= order.qty;
+                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                    *depth_qty = 0.0;
+                    if order.price_tick == self.best_ask_tick {
+                        self.best_ask_tick = depth_above(
+                            &self.ask_depth,
+                            self.best_ask_tick,
+                            self.high_ask_tick,
+                            self.roi_lb,
+                            self.roi_ub,
+                        );
+                        if self.best_ask_tick == INVALID_MAX {
+                            self.high_ask_tick = INVALID_MIN
+                        }
+                    }
+                }
+            }
+            Ok((SELL, prev_best_tick, self.best_ask_tick))
+        }
+    }
+
+    fn modify_order(
+        &mut self,
+        order_id: i64,
+        px: f32,
+        qty: f32,
+        timestamp: i64,
+    ) -> Result<(i64, i32, i32), Self::Error> {
+        let order = self
+            .orders
+            .get_mut(&order_id)
+            .ok_or(BacktestError::OrderNotFound)?;
+        if order.side == Side::Buy {
+            let prev_best_tick = self.best_bid_tick;
+            let price_tick = (px / self.tick_size).round() as i32;
+            if price_tick != order.price_tick {
+                if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
+                    let t = (order.price_tick - self.roi_lb) as usize;
+                    let depth_qty = unsafe { self.bid_depth.get_unchecked_mut(t) };
+                    *depth_qty -= order.qty;
+                    if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                        *depth_qty = 0.0;
+                        if order.price_tick == self.best_bid_tick {
+                            self.best_bid_tick = depth_below(
+                                &self.bid_depth,
+                                self.best_bid_tick,
+                                self.low_bid_tick,
+                                self.roi_lb,
+                                self.roi_ub,
+                            );
+                            if self.best_bid_tick == INVALID_MIN {
+                                self.low_bid_tick = INVALID_MAX
+                            }
+                        }
+                    }
+                }
+
+                order.price_tick = price_tick;
+                order.qty = qty;
+                order.timestamp = timestamp;
+
+                if !(price_tick < self.roi_lb || price_tick > self.roi_ub) {
+                    let t = (price_tick - self.roi_lb) as usize;
+                    let depth_qty = unsafe { self.bid_depth.get_unchecked_mut(t) };
+                    *depth_qty += order.qty;
+
+                    if price_tick > self.best_bid_tick {
+                        self.best_bid_tick = price_tick;
+                        if self.best_bid_tick >= self.best_ask_tick {
+                            self.best_ask_tick = depth_above(
+                                &self.ask_depth,
+                                self.best_bid_tick,
+                                self.high_ask_tick,
+                                self.roi_lb,
+                                self.roi_ub,
+                            );
+                        }
+                    }
+                    self.low_bid_tick = self.low_bid_tick.min(price_tick);
+                }
+                Ok((BUY, prev_best_tick, self.best_bid_tick))
+            } else {
+                if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
+                    let t = (order.price_tick - self.roi_lb) as usize;
+                    let depth_qty = unsafe { self.bid_depth.get_unchecked_mut(t) };
+                    *depth_qty += qty - order.qty;
+                }
+                order.qty = qty;
+                Ok((BUY, self.best_bid_tick, self.best_bid_tick))
+            }
+        } else {
+            let prev_best_tick = self.best_ask_tick;
+            let price_tick = (px / self.tick_size).round() as i32;
+            if price_tick != order.price_tick {
+                if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
+                    let t = (order.price_tick - self.roi_lb) as usize;
+                    let depth_qty = unsafe { self.ask_depth.get_unchecked_mut(t) };
+                    *depth_qty -= order.qty;
+                    if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                        *depth_qty = 0.0;
+                        if order.price_tick == self.best_ask_tick {
+                            self.best_ask_tick = depth_above(
+                                &self.ask_depth,
+                                self.best_ask_tick,
+                                self.high_ask_tick,
+                                self.roi_lb,
+                                self.roi_ub,
+                            );
+                            if self.best_ask_tick == INVALID_MAX {
+                                self.high_ask_tick = INVALID_MIN
+                            }
+                        }
+                    }
+                }
+
+                order.price_tick = price_tick;
+                order.qty = qty;
+                order.timestamp = timestamp;
+
+                if !(price_tick < self.roi_lb || price_tick > self.roi_ub) {
+                    let t = (price_tick - self.roi_lb) as usize;
+                    let depth_qty = unsafe { self.ask_depth.get_unchecked_mut(t) };
+                    *depth_qty += order.qty;
+
+                    if price_tick < self.best_ask_tick {
+                        self.best_ask_tick = price_tick;
+                        if self.best_bid_tick >= self.best_ask_tick {
+                            self.best_bid_tick = depth_below(
+                                &self.bid_depth,
+                                self.best_ask_tick,
+                                self.low_bid_tick,
+                                self.roi_lb,
+                                self.roi_ub,
+                            );
+                        }
+                    }
+                    self.high_ask_tick = self.high_ask_tick.max(price_tick);
+                }
+                Ok((SELL, prev_best_tick, self.best_ask_tick))
+            } else {
+                if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
+                    let t = (order.price_tick - self.roi_lb) as usize;
+                    let depth_qty = unsafe { self.ask_depth.get_unchecked_mut(t) };
+                    *depth_qty += qty - order.qty;
+                }
+                order.qty = qty;
+                Ok((SELL, self.best_ask_tick, self.best_ask_tick))
+            }
+        }
+    }
+
+    fn clear_depth(&mut self, side: i64) {
+        if side == BUY {
+            self.bid_depth.clear();
+        } else if side == SELL {
+            self.ask_depth.clear();
+        } else {
+            self.bid_depth.clear();
+            self.ask_depth.clear();
+        }
+    }
+
+    fn orders(&self) -> &HashMap<i64, L3Order> {
+        &self.orders
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        depth::{L3MarketDepth, MarketDepth, ROIVectorMarketDepth, INVALID_MAX, INVALID_MIN},
+        types::{BUY, SELL},
+    };
+
+    macro_rules! assert_eq_qty {
+        ( $a:expr, $b:expr, $lot_size:ident ) => {{
+            assert_eq!(
+                ($a / $lot_size).round() as i32,
+                ($b / $lot_size).round() as i32
+            );
+        }};
+    }
+
+    #[test]
+    fn test_l3_add_delete_buy_order() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 0.0, 2000.0);
+
+        let (prev_best, best) = depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
+        assert_eq!(prev_best, INVALID_MIN);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_bid_tick(), 5001);
+        assert_eq_qty!(depth.bid_qty_at_tick(5001), 0.001, lot_size);
+
+        assert!(depth.add_buy_order(1, 500.2, 0.001, 0).is_err());
+
+        let (prev_best, best) = depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
+        assert_eq!(prev_best, 5001);
+        assert_eq!(best, 5003);
+        assert_eq!(depth.best_bid_tick(), 5003);
+        assert_eq_qty!(depth.bid_qty_at_tick(5003), 0.005, lot_size);
+
+        let (prev_best, best) = depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
+        assert_eq!(prev_best, 5003);
+        assert_eq!(best, 5003);
+        assert_eq!(depth.best_bid_tick(), 5003);
+        assert_eq_qty!(depth.bid_qty_at_tick(5001), 0.006, lot_size);
+
+        let (prev_best, best) = depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
+        assert_eq!(prev_best, 5003);
+        assert_eq!(best, 5005);
+        assert_eq!(depth.best_bid_tick(), 5005);
+        assert_eq_qty!(depth.bid_qty_at_tick(5005), 0.005, lot_size);
+
+        assert!(depth.delete_order(10, 0).is_err());
+
+        let (side, prev_best, best) = depth.delete_order(2, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5005);
+        assert_eq!(best, 5005);
+        assert_eq!(depth.best_bid_tick(), 5005);
+        assert_eq_qty!(depth.bid_qty_at_tick(5003), 0.0, lot_size);
+
+        let (side, prev_best, best) = depth.delete_order(4, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5005);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_bid_tick(), 5001);
+        assert_eq_qty!(depth.bid_qty_at_tick(5005), 0.0, lot_size);
+
+        let (side, prev_best, best) = depth.delete_order(3, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5001);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_bid_tick(), 5001);
+        assert_eq_qty!(depth.bid_qty_at_tick(5001), 0.001, lot_size);
+
+        let (side, prev_best, best) = depth.delete_order(1, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5001);
+        assert_eq!(best, INVALID_MIN);
+        assert_eq!(depth.best_bid_tick(), INVALID_MIN);
+        assert_eq_qty!(depth.bid_qty_at_tick(5001), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l3_add_delete_sell_order() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 0.0, 2000.0);
+
+        let (prev_best, best) = depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
+        assert_eq!(prev_best, INVALID_MAX);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_ask_tick(), 5001);
+        assert_eq_qty!(depth.ask_qty_at_tick(5001), 0.001, lot_size);
+
+        assert!(depth.add_sell_order(1, 500.2, 0.001, 0).is_err());
+
+        let (prev_best, best) = depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
+        assert_eq!(prev_best, 5001);
+        assert_eq!(best, 4993);
+        assert_eq!(depth.best_ask_tick(), 4993);
+        assert_eq_qty!(depth.ask_qty_at_tick(4993), 0.005, lot_size);
+
+        let (prev_best, best) = depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
+        assert_eq!(prev_best, 4993);
+        assert_eq!(best, 4993);
+        assert_eq!(depth.best_ask_tick(), 4993);
+        assert_eq_qty!(depth.ask_qty_at_tick(5001), 0.006, lot_size);
+
+        let (prev_best, best) = depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
+        assert_eq!(prev_best, 4993);
+        assert_eq!(best, 4985);
+        assert_eq!(depth.best_ask_tick(), 4985);
+        assert_eq_qty!(depth.ask_qty_at_tick(4985), 0.005, lot_size);
+
+        assert!(depth.delete_order(10, 0).is_err());
+
+        let (side, prev_best, best) = depth.delete_order(2, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 4985);
+        assert_eq!(best, 4985);
+        assert_eq!(depth.best_ask_tick(), 4985);
+        assert_eq_qty!(depth.ask_qty_at_tick(4993), 0.0, lot_size);
+
+        let (side, prev_best, best) = depth.delete_order(4, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 4985);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_ask_tick(), 5001);
+        assert_eq_qty!(depth.ask_qty_at_tick(4985), 0.0, lot_size);
+
+        let (side, prev_best, best) = depth.delete_order(3, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 5001);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_ask_tick(), 5001);
+        assert_eq_qty!(depth.ask_qty_at_tick(5001), 0.001, lot_size);
+
+        let (side, prev_best, best) = depth.delete_order(1, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 5001);
+        assert_eq!(best, INVALID_MAX);
+        assert_eq!(depth.best_ask_tick(), INVALID_MAX);
+        assert_eq_qty!(depth.ask_qty_at_tick(5001), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l3_modify_buy_order() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 0.0, 2000.0);
+
+        let (prev_best, best) = depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
+        let (prev_best, best) = depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
+        let (prev_best, best) = depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
+        let (prev_best, best) = depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
+
+        assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
+
+        let (side, prev_best, best) = depth.modify_order(2, 500.5, 0.001, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5005);
+        assert_eq!(best, 5005);
+        assert_eq!(depth.best_bid_tick(), 5005);
+        assert_eq_qty!(depth.bid_qty_at_tick(5005), 0.006, lot_size);
+
+        let (side, prev_best, best) = depth.modify_order(2, 500.7, 0.002, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5005);
+        assert_eq!(best, 5007);
+        assert_eq!(depth.best_bid_tick(), 5007);
+        assert_eq_qty!(depth.bid_qty_at_tick(5005), 0.005, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(5007), 0.002, lot_size);
+
+        let (side, prev_best, best) = depth.modify_order(2, 500.6, 0.002, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5007);
+        assert_eq!(best, 5006);
+        assert_eq!(depth.best_bid_tick(), 5006);
+        assert_eq_qty!(depth.bid_qty_at_tick(5007), 0.0, lot_size);
+
+        let _ = depth.delete_order(4, 0).unwrap();
+        let (side, prev_best, best) = depth.modify_order(2, 500.0, 0.002, 0).unwrap();
+        assert_eq!(side, BUY);
+        assert_eq!(prev_best, 5006);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_bid_tick(), 5001);
+        assert_eq_qty!(depth.bid_qty_at_tick(5006), 0.0, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(5000), 0.002, lot_size);
+    }
+
+    #[test]
+    fn test_l3_modify_sell_order() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 0.0, 2000.0);
+
+        let (prev_best, best) = depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
+        let (prev_best, best) = depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
+        let (prev_best, best) = depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
+        let (prev_best, best) = depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
+
+        assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
+
+        let (side, prev_best, best) = depth.modify_order(2, 498.5, 0.001, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 4985);
+        assert_eq!(best, 4985);
+        assert_eq!(depth.best_ask_tick(), 4985);
+        assert_eq_qty!(depth.ask_qty_at_tick(4985), 0.006, lot_size);
+
+        let (side, prev_best, best) = depth.modify_order(2, 497.7, 0.002, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 4985);
+        assert_eq!(best, 4977);
+        assert_eq!(depth.best_ask_tick(), 4977);
+        assert_eq_qty!(depth.ask_qty_at_tick(4985), 0.005, lot_size);
+        assert_eq_qty!(depth.ask_qty_at_tick(4977), 0.002, lot_size);
+
+        let (side, prev_best, best) = depth.modify_order(2, 498.1, 0.002, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 4977);
+        assert_eq!(best, 4981);
+        assert_eq!(depth.best_ask_tick(), 4981);
+        assert_eq_qty!(depth.ask_qty_at_tick(4977), 0.0, lot_size);
+
+        let _ = depth.delete_order(4, 0).unwrap();
+        let (side, prev_best, best) = depth.modify_order(2, 500.2, 0.002, 0).unwrap();
+        assert_eq!(side, SELL);
+        assert_eq!(prev_best, 4981);
+        assert_eq!(best, 5001);
+        assert_eq!(depth.best_ask_tick(), 5001);
+        assert_eq_qty!(depth.ask_qty_at_tick(4981), 0.0, lot_size);
+        assert_eq_qty!(depth.ask_qty_at_tick(5002), 0.002, lot_size);
+    }
+}
