@@ -3,15 +3,7 @@ use std::{collections::HashMap, mem};
 use hftbacktest::{
     backtest::{BacktestError, MultiAssetMultiExchangeBacktest},
     depth::HashMapMarketDepth,
-    prelude::{
-        Bot,
-        BotTypedDepth,
-        BotTypedTrade,
-        Event,
-        Order,
-        StateValues,
-        WAIT_ORDER_RESPONSE_NONE,
-    },
+    prelude::{Bot, BotTypedDepth, BotTypedTrade, Event, Order, StateValues},
     types::{OrdType, TimeInForce},
 };
 

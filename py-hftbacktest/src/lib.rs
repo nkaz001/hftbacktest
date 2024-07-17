@@ -1,4 +1,4 @@
-use std::ffi::c_void;
+use std::{ffi::c_void, mem::size_of, ptr::slice_from_raw_parts_mut};
 
 pub use backtest::*;
 pub use depth::*;
@@ -19,7 +19,7 @@ use hftbacktest::{
         },
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
-        reader::{read_npz, Cache, Reader},
+        reader::{read_npz, Cache, Data, Reader},
         state::State,
         Asset,
         DataSource,
@@ -69,9 +69,9 @@ pub enum ExchangeKind {
 }
 
 /// Builds a backtesting asset.
-#[pyclass]
+#[pyclass(subclass)]
 pub struct BacktestAsset {
-    data: Vec<String>,
+    data: Vec<DataSource<Event>>,
     asset_type: AssetType,
     latency_model: LatencyModel,
     queue_model: QueueModel,
@@ -81,7 +81,7 @@ pub struct BacktestAsset {
     maker_fee: f64,
     taker_fee: f64,
     trade_len: usize,
-    initial_snapshot: Option<String>,
+    initial_snapshot: Option<DataSource<Event>>,
 }
 
 unsafe impl Send for BacktestAsset {}
@@ -115,8 +115,20 @@ impl BacktestAsset {
     ///     data: a list of file paths for the normalized market feed data in `npz`.
     pub fn data(mut slf: PyRefMut<Self>, data: Vec<String>) -> PyRefMut<Self> {
         for item in data {
-            slf.data.push(item);
+            slf.data.push(DataSource::File(item));
         }
+        slf
+    }
+
+    pub fn add_file(mut slf: PyRefMut<Self>, data: String) -> PyRefMut<Self> {
+        slf.data.push(DataSource::File(data));
+        slf
+    }
+
+    pub fn _add_data_ndarray(mut slf: PyRefMut<Self>, data: usize, len: usize) -> PyRefMut<Self> {
+        let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<Event>());
+        let data = unsafe { Data::<Event>::from_ptr(arr, 0) };
+        slf.data.push(DataSource::Data(data));
         slf
     }
 
@@ -172,6 +184,19 @@ impl BacktestAsset {
                 .iter()
                 .map(|file| DataSource::File(file.to_string()))
                 .collect(),
+        };
+        slf
+    }
+
+    pub fn _intp_order_latency_ndarray(
+        mut slf: PyRefMut<Self>,
+        data: usize,
+        len: usize,
+    ) -> PyRefMut<Self> {
+        let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<OrderLatencyRow>());
+        let data = unsafe { Data::<OrderLatencyRow>::from_ptr(arr, 0) };
+        slf.latency_model = LatencyModel::IntpOrderLatency {
+            data: vec![DataSource::Data(data)],
         };
         slf
     }
@@ -239,8 +264,19 @@ impl BacktestAsset {
     }
 
     /// Sets the initial snapshot.
-    pub fn initial_snapshot(mut slf: PyRefMut<Self>, snapshot_file: String) -> PyRefMut<Self> {
-        slf.initial_snapshot = Some(snapshot_file);
+    pub fn initial_snapshot(mut slf: PyRefMut<Self>, file: String) -> PyRefMut<Self> {
+        slf.initial_snapshot = Some(DataSource::File(file));
+        slf
+    }
+
+    pub fn _initial_snapshot_ndarray(
+        mut slf: PyRefMut<Self>,
+        data: usize,
+        len: usize,
+    ) -> PyRefMut<Self> {
+        let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<Event>());
+        let data = unsafe { Data::<Event>::from_ptr(arr, 0) };
+        slf.initial_snapshot = Some(DataSource::Data(data));
         slf
     }
 

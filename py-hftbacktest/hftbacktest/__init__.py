@@ -1,12 +1,20 @@
-from typing import List
+from typing import List, Any
 
+import numpy as np
+from numpy.typing import NDArray
+
+from ._hftbacktest import (
+    BacktestAsset as BacktestAsset_,
+    build_backtester
+)
+from .binding import (
+    MultiAssetMultiExchangeBacktest_,
+    MultiAssetMultiExchangeBacktest as MultiAssetMultiExchangeBacktest_TypeHint,
+    event_dtype
+)
 from .data import (
     correct_local_timestamp,
 )
-from .types import (
-    ALL_ASSETS
-)
-
 from .order import (
     BUY,
     SELL,
@@ -19,14 +27,8 @@ from .order import (
     GTX,
     order_dtype,
 )
-from .binding import (
-    MultiAssetMultiExchangeBacktest_,
-    MultiAssetMultiExchangeBacktest as MultiAssetMultiExchangeBacktest_TypeHint
-)
-
-from ._hftbacktest import (
-    BacktestAsset,
-    build_backtester
+from .types import (
+    ALL_ASSETS
 )
 
 __all__ = (
@@ -54,6 +56,35 @@ __all__ = (
 __version__ = '2.0.0-alpha'
 
 __hftbacktests__ = []
+
+
+class BacktestAsset(BacktestAsset_):
+    def add_data(self, data: str | np.ndarray[Any, event_dtype]):
+        if isinstance(data, str):
+            super().add_file(data)
+        elif isinstance(data, np.ndarray):
+            self._add_data_ndarray(data.ctypes.data, len(data))
+        else:
+            raise ValueError
+        return self
+
+    def intp_order_latency(self, data: str | NDArray):
+        if isinstance(data, str):
+            super().intp_order_latency_ndarray(data)
+        elif isinstance(data, np.ndarray):
+            self._intp_order_latency_ndarray(data.ctypes.data, len(data))
+        else:
+            raise ValueError
+        return self
+
+    def initial_snapshot(self, data: str | np.ndarray[Any, event_dtype]):
+        if isinstance(data, str):
+            super().initial_snapshot(data)
+        elif isinstance(data, np.ndarray):
+            self._initial_snapshot_ndarray(data.ctypes.data, len(data))
+        else:
+            raise ValueError
+        return self
 
 
 def MultiAssetMultiExchangeBacktest(assets: List[BacktestAsset]) -> MultiAssetMultiExchangeBacktest_TypeHint:

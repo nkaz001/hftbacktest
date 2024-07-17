@@ -129,8 +129,11 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let cache = Cache::new();
                             let mut reader = Reader::new(cache);
 
-                            for file in #asset.data.iter() {
-                                reader.add_file(file.to_string());
+                            for data in #asset.data.iter() {
+                                match data {
+                                    DataSource::File(file) => reader.add_file(file.to_string()),
+                                    DataSource::Data(data) => reader.add_data(data.clone()),
+                                }
                             }
 
                             let ob_local_to_exch = OrderBus::new();
@@ -140,9 +143,15 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let latency_model = #lm_ident::new(#(#lm_args.clone()),*);
 
                             let mut market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
-                            if let Some(file) = #asset.initial_snapshot.as_ref() {
-                                let data = read_npz(&file).unwrap();
-                                market_depth.apply_snapshot(&data);
+                            match #asset.initial_snapshot.as_ref() {
+                                Some(DataSource::File(file)) => {
+                                    let data = read_npz(&file).unwrap();
+                                    market_depth.apply_snapshot(&data);
+                                }
+                                Some(DataSource::Data(data)) => {
+                                    market_depth.apply_snapshot(data);
+                                }
+                                None => {}
                             }
 
                             let local: Box<dyn LocalProcessor<HashMapMarketDepth, Event>> = Box::new(Local::new(
@@ -156,9 +165,15 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             ));
 
                             let mut market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
-                            if let Some(file) = #asset.initial_snapshot.as_ref() {
-                                let data = read_npz(&file).unwrap();
-                                market_depth.apply_snapshot(&data);
+                            match #asset.initial_snapshot.as_ref() {
+                                Some(DataSource::File(file)) => {
+                                    let data = read_npz(&file).unwrap();
+                                    market_depth.apply_snapshot(&data);
+                                }
+                                Some(DataSource::Data(data)) => {
+                                    market_depth.apply_snapshot(data);
+                                }
+                                None => {}
                             }
 
                             let queue_model = #qm_construct;

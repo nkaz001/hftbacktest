@@ -1,4 +1,3 @@
-use core::slice;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -6,13 +5,15 @@ use std::{
     io::{Error as IoError, ErrorKind, Read},
     marker::PhantomData,
     mem::{forget, size_of},
-    ops::Index,
+    ops::{Index, IndexMut},
+    ptr::{null_mut, slice_from_raw_parts_mut},
     rc::Rc,
+    slice::SliceIndex,
 };
 
 use uuid::Uuid;
 
-use crate::backtest::{reader, BacktestError};
+use crate::backtest::BacktestError;
 
 /// Data source for the [`reader`].
 #[derive(Clone, Debug)]
@@ -39,9 +40,84 @@ pub struct Data<D>
 where
     D: POD + Clone,
 {
-    buf: Rc<Box<[u8]>>,
+    ptr: Rc<DataPtr>,
     offset: usize,
     _d_marker: PhantomData<D>,
+}
+
+#[derive(Debug)]
+pub struct DataPtr {
+    ptr: *mut [u8],
+    managed: bool,
+}
+
+impl DataPtr {
+    pub fn new(size: usize) -> Self {
+        let x = aligned_vec(size);
+        Self {
+            ptr: Box::into_raw(x),
+            managed: true,
+        }
+    }
+
+    pub fn from_ptr(ptr: *mut [u8]) -> Self {
+        Self {
+            ptr,
+            managed: false,
+        }
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.ptr.len()
+    }
+
+    #[inline]
+    pub fn at(&self, index: usize) -> *const u8 {
+        let x = self.ptr as *const u8;
+        unsafe { x.add(index) }
+    }
+}
+
+impl Default for DataPtr {
+    fn default() -> Self {
+        Self {
+            ptr: null_mut::<[u8; 0]>() as *mut [u8],
+            managed: false,
+        }
+    }
+}
+
+impl<Idx> Index<Idx> for DataPtr
+where
+    Idx: SliceIndex<[u8]>,
+{
+    type Output = Idx::Output;
+
+    #[inline]
+    fn index(&self, index: Idx) -> &Self::Output {
+        let arr = unsafe { &*self.ptr };
+        &arr[index]
+    }
+}
+
+impl<Idx> IndexMut<Idx> for DataPtr
+where
+    Idx: SliceIndex<[u8]>,
+{
+    #[inline]
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
+        let arr = unsafe { &mut *self.ptr };
+        &mut arr[index]
+    }
+}
+
+impl Drop for DataPtr {
+    fn drop(&mut self) {
+        if self.managed {
+            let _ = unsafe { Box::from_raw(self.ptr) };
+        }
+    }
 }
 
 impl<D> Data<D>
@@ -52,14 +128,22 @@ where
     #[inline(always)]
     pub fn len(&self) -> usize {
         let size = size_of::<D>();
-        (self.buf.len() - self.offset) / size
+        (self.ptr.len() - self.offset) / size
     }
 
     /// Constructs an empty `Data`.
     pub fn empty() -> Self {
         Self {
-            buf: Default::default(),
+            ptr: Default::default(),
             offset: 0,
+            _d_marker: Default::default(),
+        }
+    }
+
+    pub unsafe fn from_ptr(ptr: *mut [u8], offset: usize) -> Self {
+        Self {
+            ptr: Rc::new(DataPtr::from_ptr(ptr)),
+            offset,
             _d_marker: Default::default(),
         }
     }
@@ -69,7 +153,7 @@ where
     pub unsafe fn get_unchecked(&self, index: usize) -> &D {
         let size = size_of::<D>();
         let i = self.offset + index * size;
-        unsafe { &*(self.buf[i..(i + size)].as_ptr() as *const D) }
+        unsafe { &*(self.ptr.at(i) as *const D) }
     }
 }
 
@@ -83,10 +167,10 @@ where
     fn index(&self, index: usize) -> &Self::Output {
         let size = size_of::<D>();
         let i = self.offset + index * size;
-        if i + size > self.buf.len() {
+        if i + size > self.ptr.len() {
             panic!("Out of the size.");
         }
-        unsafe { &*(self.buf[i..(i + size)].as_ptr() as *const D) }
+        unsafe { &*(self.ptr.at(i) as *const D) }
     }
 }
 
@@ -115,7 +199,7 @@ where
     pub fn remove(&mut self, data: Data<D>) {
         let mut remove = None;
         for (key, (ref_count, cached_data)) in self.0.borrow_mut().iter_mut() {
-            if Rc::ptr_eq(&data.buf, &cached_data.buf) {
+            if Rc::ptr_eq(&data.ptr, &cached_data.ptr) {
                 *ref_count.get_mut() -= 1;
                 if ref_count.get() == 0 {
                     remove = Some(key.clone());
@@ -237,7 +321,7 @@ pub fn read_npy<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
 
     file.sync_all()?;
     let size = file.metadata()?.len() as usize;
-    let mut buf = aligned_vec(size);
+    let mut buf = DataPtr::new(size);
 
     let mut read_size = 0;
     while read_size < size {
@@ -248,7 +332,7 @@ pub fn read_npy<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
     // let header = String::from_utf8(buf[10..(10 + header_len)].to_vec()).unwrap().to_string().trim().to_string();
 
     Ok(Data {
-        buf: Rc::new(buf),
+        ptr: Rc::new(buf),
         offset: 10 + header_len,
         _d_marker: Default::default(),
     })
@@ -262,7 +346,7 @@ pub fn read_npz<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
     let mut file = archive.by_index(0)?;
 
     let size = file.size() as usize;
-    let mut buf = aligned_vec(size);
+    let mut buf = DataPtr::new(size);
 
     let mut read_size = 0;
     while read_size < size {
@@ -273,7 +357,7 @@ pub fn read_npz<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
     // let header = String::from_utf8(buf[10..(10 + header_len)].to_vec()).unwrap().to_string().trim().to_string();
 
     Ok(Data {
-        buf: Rc::new(buf),
+        ptr: Rc::new(buf),
         offset: 10 + header_len,
         _d_marker: Default::default(),
     })
