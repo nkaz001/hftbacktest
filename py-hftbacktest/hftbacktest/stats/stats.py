@@ -297,33 +297,28 @@ class Record(ABC):
                 pl.from_epoch('timestamp', time_unit=self._time_unit)
             )
 
-        if 'price' not in self.df and 'mid_price' in self.df:
-            self.df = self.df.with_columns(
-                pl.col('mid_price').alias('price')
-            )
-
-        if 'num_trades' not in self.df:
-            if 'trade_num' not in self.df:
+        if 'num_trades_' not in self.df:
+            if 'num_trades' not in self.df:
                 # This may not reflect the exact value since information could be lost between recording intervals.
                 num_trades = self.df['position'].diff().fill_null(0).abs()
                 num_trades = num_trades.set(num_trades > 0, 1)
                 self.df = self.df.with_columns(
-                    num_trades.alias('num_trades')
+                    num_trades.alias('num_trades_')
                 )
             else:
                 self.df = self.df.with_columns(
-                    pl.col('trade_num').diff().fill_null(0).alias('num_trades')
+                    pl.col('num_trades').diff().fill_null(0).alias('num_trades_')
                 )
 
-        if 'trading_volume' not in self.df:
-            if 'trade_qty' not in self.df:
+        if 'trading_volume_' not in self.df:
+            if 'trading_volume' not in self.df:
                 # This may not reflect the exact value since information could be lost between recording intervals.
                 self.df = self.df.with_columns(
-                    pl.col('position').diff().fill_null(0).abs().alias('trading_volume')
+                    pl.col('position').diff().fill_null(0).abs().alias('trading_volume_')
                 )
             else:
                 self.df = self.df.with_columns(
-                    pl.col('trade_qty').diff().fill_null(0).alias('trading_volume')
+                    pl.col('trading_volume').diff().fill_null(0).alias('trading_volume_')
                 )
 
         # Prepares the asset type-specific data by computing it from the state records.
@@ -359,17 +354,17 @@ class LinearAssetRecord(Record):
                 ).alias('equity_wo_fee')
             )
 
-        if 'trading_value' not in self.df:
-            if 'trade_amount' not in self.df:
+        if 'trading_value_' not in self.df:
+            if 'trading_value' not in self.df:
                 # This may not reflect the exact value since information could be lost between recording intervals.
                 self.df = self.df.with_columns(
                     (
                         pl.col('position').diff().fill_null(0) * pl.col('price') * self._contract_size
-                    ).alias('trading_value')
+                    ).alias('trading_value_')
                 )
             else:
                 self.df = self.df.with_columns(
-                    pl.col('trade_amount').diff().fill_null(0).alias('trading_value')
+                    pl.col('trading_value').diff().fill_null(0).alias('trading_value_')
                 )
 
 
@@ -382,15 +377,15 @@ class InverseAssetRecord(Record):
                 ).alias('equity_wo_fee')
             )
 
-        if 'trade_amount_for' not in self.df:
-            if 'trade_amount' not in self.df:
+        if 'trading_value_' not in self.df:
+            if 'trading_value' not in self.df:
                 # This may not reflect the exact value since information could be lost between recording intervals.
                 self.df = self.df.with_columns(
                     (
                         (pl.col('position').diff().fill_null(0) / pl.col('price')) * self._contract_size
-                    ).alias('trading_value')
+                    ).alias('trading_value_')
                 )
             else:
                 self.df = self.df.with_columns(
-                    pl.col('trade_amount').diff().fill_null(0).alias('trading_value')
+                    pl.col('trading_value').diff().fill_null(0).alias('trading_value_')
                 )

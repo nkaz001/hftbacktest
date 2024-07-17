@@ -608,12 +608,14 @@ pub struct StateValues {
     pub balance: f64,
     /// Backtest only
     pub fee: f64,
+    // todo: currently, they are cumulative values, but they need to be values within the record
+    //       interval.
     /// Backtest only
-    pub trade_qty: f64,
+    pub trading_volume: f64,
     /// Backtest only
-    pub trade_amount: f64,
+    pub trading_value: f64,
     /// Backtest only
-    pub trade_num: i32,
+    pub num_trades: i32,
 }
 
 /// Provides errors that can occur in builders.

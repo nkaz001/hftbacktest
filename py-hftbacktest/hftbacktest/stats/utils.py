@@ -41,11 +41,11 @@ def resample(df: pl.DataFrame, frequency: str) -> pl.DataFrame:
     for col in df.columns:
         if col == 'timestamp':
             continue
-        elif col == 'trading_value':
+        elif col == 'trading_value_':
             agg_cols.append(pl.col(col).sum())
-        elif col == 'trading_volume':
+        elif col == 'trading_volume_':
             agg_cols.append(pl.col(col).sum())
-        elif col == 'num_trades':
+        elif col == 'num_trades_':
             agg_cols.append(pl.col(col).sum())
         else:
             agg_cols.append(pl.col(col).last())

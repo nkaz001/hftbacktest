@@ -16,13 +16,13 @@ use crate::{
 #[derive(AutoSerialize, npyz::Serialize)]
 struct Record {
     timestamp: i64,
-    mid_price: f32,
     balance: f64,
     position: f64,
     fee: f64,
-    trade_num: i32,
-    trade_amount: f64,
-    trade_qty: f64,
+    trading_volume: f64,
+    trading_value: f64,
+    num_trades: i32,
+    price: f32,
 }
 
 /// Provides recording of the backtesting strategy's state values, which are needed to compute
@@ -48,13 +48,13 @@ impl Recorder for BacktestRecorder {
             values.push(
                 (Record {
                     timestamp,
-                    mid_price,
                     balance: state_values.balance,
                     position: state_values.position,
                     fee: state_values.fee,
-                    trade_num: state_values.trade_num,
-                    trade_amount: state_values.trade_amount,
-                    trade_qty: state_values.trade_qty,
+                    trading_volume: state_values.trading_volume,
+                    trading_value: state_values.trading_value,
+                    num_trades: state_values.num_trades,
+                    price: mid_price,
                 }),
             );
         }
@@ -94,30 +94,30 @@ impl BacktestRecorder {
             let mut file = File::create(file_path)?;
             write!(
                 file,
-                "timestamp,mid_price,balance,position,fee,trade_num,trade_amount,trade_qty\n",
+                "timestamp,balance,position,fee,trading_volume,trading_value,num_trades,price\n",
             )?;
             for Record {
                 timestamp,
-                mid_price,
                 balance,
                 position,
                 fee,
-                trade_num,
-                trade_amount,
-                trade_qty,
+                trading_volume,
+                trading_value,
+                num_trades,
+                price: mid_price,
             } in values
             {
                 write!(
                     file,
                     "{},{},{},{},{},{},{},{}\n",
                     timestamp,
-                    mid_price,
                     balance,
                     position,
                     fee,
-                    trade_num,
-                    trade_amount,
-                    trade_qty
+                    trading_volume,
+                    trading_value,
+                    num_trades,
+                    mid_price,
                 )?;
             }
         }

@@ -24,9 +24,9 @@ where
                 position: 0.0,
                 balance: 0.0,
                 fee: 0.0,
-                trade_num: 0,
-                trade_qty: 0.0,
-                trade_amount: 0.0,
+                num_trades: 0,
+                trading_volume: 0.0,
+                trading_value: 0.0,
             },
             maker_fee,
             taker_fee,
@@ -45,9 +45,9 @@ where
         self.state_values.position += order.exec_qty as f64 * AsRef::<f64>::as_ref(&order.side);
         self.state_values.balance -= amount * AsRef::<f64>::as_ref(&order.side);
         self.state_values.fee += amount * fee;
-        self.state_values.trade_num += 1;
-        self.state_values.trade_qty += order.exec_qty as f64;
-        self.state_values.trade_amount += amount;
+        self.state_values.num_trades += 1;
+        self.state_values.trading_volume += order.exec_qty as f64;
+        self.state_values.trading_value += amount;
     }
 
     #[inline]

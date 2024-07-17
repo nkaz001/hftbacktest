@@ -198,7 +198,7 @@ class NumberOfTrades(Metric):
         self.name = name if name is not None else 'NumberOfTrades'
 
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
-        num_trades = df['num_trades'].sum()
+        num_trades = df['num_trades_'].sum()
         return {self.name: num_trades}
 
 
@@ -217,7 +217,7 @@ class TradingVolume(Metric):
         self.name = name if name is not None else 'TradingVolume'
 
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
-        trading_volume = df['trading_volume'].sum()
+        trading_volume = df['trading_volume_'].sum()
         return {self.name: trading_volume}
 
 
@@ -239,7 +239,7 @@ class TradingValue(Metric):
         self.book_size = book_size
 
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
-        trading_value = df['trading_value'].sum()
+        trading_value = df['trading_value_'].sum()
         if self.book_size is not None:
             trading_value /= self.book_size
         return {self.name: trading_value}

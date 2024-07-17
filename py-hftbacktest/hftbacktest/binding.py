@@ -35,9 +35,9 @@ state_values_dtype = np.dtype([
     ('position', 'f8'),
     ('balance', 'f8'),
     ('fee', 'f8'),
-    ('trade_qty', 'f8'),
-    ('trade_amount', 'f8'),
-    ('trade_num', 'i4'),
+    ('trading_volume', 'f8'),
+    ('trading_value', 'f8'),
+    ('num_trades', 'i4'),
 ])
 
 event_dtype = np.dtype([
