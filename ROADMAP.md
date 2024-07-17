@@ -16,7 +16,7 @@ Currently, the Rust implementation is being more actively developed especially f
 * [X] Data fusion to provide the most frequent and granular data using different streams with different update frequencies and market depth ranges (unstable_fuse)
 * [ ] Adjust feed and order latency for exchanges located in different regions if the original feed and order latency data was collected at a different site.
 * [ ] Additional queue position model or exchange model.
-* [ ] A vector-based implementation for fast L2 market depth within the specified ROI (range of interest).
+* [X] A vector-based implementation for fast L2 market depth within the specified ROI (range of interest).
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
@@ -57,4 +57,5 @@ Currently, the Rust implementation is being more actively developed especially f
 * [ ] Example using different skew profiles for inventory management.
 * [ ] Example demonstrating latency-aware actions.
 * [ ] Example demonstrating the volume clock/event clock using `wait_next_feed`.
+* [ ] Example demonstrating the cross-market market-making.
 * [ ] Update the existing examples to align with version 2.0.0.
