@@ -5,11 +5,14 @@ from numpy.typing import NDArray
 
 from ._hftbacktest import (
     BacktestAsset as BacktestAsset_,
-    build_backtester
+    build_hashmap_backtest,
+    build_roivec_backtest
 )
 from .binding import (
-    MultiAssetMultiExchangeBacktest_,
-    MultiAssetMultiExchangeBacktest as MultiAssetMultiExchangeBacktest_TypeHint,
+    HashMapMarketDepthMultiAssetMultiExchangeBacktest_,
+    HashMapMarketDepthMultiAssetMultiExchangeBacktest as HashMapMarketDepthMultiAssetMultiExchangeBacktest_TypeHint,
+    ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_,
+    ROIVectorMarketDepthMultiAssetMultiExchangeBacktest as ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_TypeHint,
     event_dtype
 )
 from .data import (
@@ -33,7 +36,8 @@ from .types import (
 
 __all__ = (
     'BacktestAsset',
-    'MultiAssetMultiExchangeBacktest',
+    'HashMapMarketDepthMultiAssetMultiExchangeBacktest',
+    'ROIVectorMarketDepthMultiAssetMultiExchangeBacktest',
 
     'ALL_ASSETS',
 
@@ -87,19 +91,41 @@ class BacktestAsset(BacktestAsset_):
         return self
 
 
-def MultiAssetMultiExchangeBacktest(assets: List[BacktestAsset]) -> MultiAssetMultiExchangeBacktest_TypeHint:
+def HashMapMarketDepthMultiAssetMultiExchangeBacktest(
+        assets: List[BacktestAsset]
+) -> HashMapMarketDepthMultiAssetMultiExchangeBacktest_TypeHint:
     """
-    Constructs an instance of `MultiAssetMultiExchangeBacktest`.
+    Constructs an instance of `HashMapMarketDepthMultiAssetMultiExchangeBacktest`.
 
     Args:
         assets: A list of backtesting assets constructed using :class:`BacktestAsset`.
 
     Returns:
-        A jit`ed `MultiAssetMultiExchangeBacktest` that can be used in an ``njit`` function.
+        A jit`ed `HashMapMarketDepthMultiAssetMultiExchangeBacktest` that can be used in an ``njit`` function.
     """
-    raw_hbt = build_backtester(assets)
+    raw_hbt = build_hashmap_backtest(assets)
 
     # Prevents the object from being gc`ed to avoid dangling references.
     __hftbacktests__.append(raw_hbt)
 
-    return MultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
+    return HashMapMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
+
+
+def ROIVectorMarketDepthMultiAssetMultiExchangeBacktest(
+        assets: List[BacktestAsset]
+) -> ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_TypeHint:
+    """
+    Constructs an instance of `HashMapMarketDepthMultiAssetMultiExchangeBacktest`.
+
+    Args:
+        assets: A list of backtesting assets constructed using :class:`BacktestAsset`.
+
+    Returns:
+        A jit`ed `HashMapMarketDepthMultiAssetMultiExchangeBacktest` that can be used in an ``njit`` function.
+    """
+    raw_hbt = build_roivec_backtest(assets)
+
+    # Prevents the object from being gc`ed to avoid dangling references.
+    __hftbacktests__.append(raw_hbt)
+
+    return ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())

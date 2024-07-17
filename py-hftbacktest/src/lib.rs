@@ -25,7 +25,7 @@ use hftbacktest::{
         DataSource,
         MultiAssetMultiExchangeBacktest,
     },
-    prelude::{ApplySnapshot, Event, HashMapMarketDepth},
+    prelude::{ApplySnapshot, Event, HashMapMarketDepth, ROIVectorMarketDepth},
 };
 pub use order::*;
 use procmacro::build_asset;
@@ -81,6 +81,8 @@ pub struct BacktestAsset {
     maker_fee: f64,
     taker_fee: f64,
     trade_len: usize,
+    roi_lb: f32,
+    roi_ub: f32,
     initial_snapshot: Option<DataSource<Event>>,
 }
 
@@ -105,8 +107,30 @@ impl BacktestAsset {
             taker_fee: 0.0,
             exch_kind: ExchangeKind::NoPartialFillExchange {},
             trade_len: 0,
+            roi_lb: 0.0,
+            roi_ub: 0.0,
             initial_snapshot: None,
         }
+    }
+
+    /// Sets the lower bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
+    /// Only valid if `ROIVectorMultiAssetMultiExchangeBacktest` is built.
+    ///
+    /// Args:
+    ///     roi_lb: the lower bound price of the range of interest.
+    pub fn roi_lb(mut slf: PyRefMut<Self>, roi_lb: f32) -> PyRefMut<Self> {
+        slf.roi_lb = roi_lb;
+        slf
+    }
+
+    /// Sets the lower bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
+    /// Only valid if `ROIVectorMultiAssetMultiExchangeBacktest` is built.
+    ///
+    /// Args:
+    ///     roi_lb: the lower bound price of the range of interest.
+    pub fn roi_ub(mut slf: PyRefMut<Self>, roi_ub: f32) -> PyRefMut<Self> {
+        slf.roi_ub = roi_ub;
+        slf
     }
 
     /// Sets the feed data.
@@ -327,21 +351,23 @@ impl BacktestAsset {
 
 #[pymodule]
 fn _hftbacktest(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(build_backtester, m)?)?;
+    m.add_function(wrap_pyfunction!(build_hashmap_backtest, m)?)?;
+    m.add_function(wrap_pyfunction!(build_roivec_backtest, m)?)?;
     m.add_class::<BacktestAsset>()?;
-    m.add_class::<PyMultiAssetMultiExchangeBacktest>()?;
+    m.add_class::<HashMapMarketDepthMultiAssetMultiExchangeBacktest>()?;
+    m.add_class::<ROIVectorMarketDepthMultiAssetMultiExchangeBacktest>()?;
     Ok(())
 }
 
 #[pyclass]
-pub struct PyMultiAssetMultiExchangeBacktest {
+pub struct HashMapMarketDepthMultiAssetMultiExchangeBacktest {
     ptr: Box<MultiAssetMultiExchangeBacktest<HashMapMarketDepth>>,
 }
 
-unsafe impl Send for PyMultiAssetMultiExchangeBacktest {}
+unsafe impl Send for HashMapMarketDepthMultiAssetMultiExchangeBacktest {}
 
 #[pymethods]
-impl PyMultiAssetMultiExchangeBacktest {
+impl HashMapMarketDepthMultiAssetMultiExchangeBacktest {
     pub fn as_ptr(&mut self) -> PyResult<usize> {
         Ok(
             &mut *self.ptr as *mut MultiAssetMultiExchangeBacktest<HashMapMarketDepth>
@@ -354,7 +380,6 @@ type LogProbQueueModel = ProbQueueModel<LogProbQueueFunc, HashMapMarketDepth>;
 type LogProbQueueModel2 = ProbQueueModel<LogProbQueueFunc2, HashMapMarketDepth>;
 type PowerProbQueueModel = ProbQueueModel<PowerProbQueueFunc, HashMapMarketDepth>;
 type PowerProbQueueModel2 = ProbQueueModel<PowerProbQueueFunc2, HashMapMarketDepth>;
-
 type PowerProbQueueModel3 = ProbQueueModel<PowerProbQueueFunc3, HashMapMarketDepth>;
 
 type LogProbQueueModelFunc = LogProbQueueFunc;
@@ -364,14 +389,15 @@ type PowerProbQueueModel2Func = PowerProbQueueFunc2;
 type PowerProbQueueModel3Func = PowerProbQueueFunc3;
 
 #[pyfunction]
-pub fn build_backtester(
+pub fn build_hashmap_backtest(
     assets: Vec<PyRefMut<BacktestAsset>>,
-) -> PyResult<PyMultiAssetMultiExchangeBacktest> {
+) -> PyResult<HashMapMarketDepthMultiAssetMultiExchangeBacktest> {
     let mut local = Vec::new();
     let mut exch = Vec::new();
     for asset in assets {
         let asst = build_asset!(
             asset,
+            HashMapMarketDepth,
             [
                 LinearAsset { contract_size },
                 InverseAsset { contract_size }
@@ -398,5 +424,63 @@ pub fn build_backtester(
     }
 
     let hbt = MultiAssetMultiExchangeBacktest::new(local, exch);
-    Ok(PyMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
+    Ok(HashMapMarketDepthMultiAssetMultiExchangeBacktest {
+        ptr: unsafe { Box::new(hbt) },
+    })
+}
+
+#[pyclass]
+pub struct ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {
+    ptr: Box<MultiAssetMultiExchangeBacktest<ROIVectorMarketDepth>>,
+}
+
+unsafe impl Send for ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {}
+
+#[pymethods]
+impl ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {
+    pub fn as_ptr(&mut self) -> PyResult<usize> {
+        Ok(
+            &mut *self.ptr as *mut MultiAssetMultiExchangeBacktest<ROIVectorMarketDepth>
+                as *mut c_void as usize,
+        )
+    }
+}
+
+#[pyfunction]
+pub fn build_roivec_backtest(
+    assets: Vec<PyRefMut<BacktestAsset>>,
+) -> PyResult<ROIVectorMarketDepthMultiAssetMultiExchangeBacktest> {
+    let mut local = Vec::new();
+    let mut exch = Vec::new();
+    for asset in assets {
+        let asst = build_asset!(
+            asset,
+            ROIVectorMarketDepth,
+            [
+                LinearAsset { contract_size },
+                InverseAsset { contract_size }
+            ],
+            [
+                ConstantLatency {
+                    entry_latency,
+                    resp_latency
+                },
+                IntpOrderLatency { data }
+            ],
+            [
+                RiskAdverseQueueModel {},
+                LogProbQueueModel {},
+                LogProbQueueModel2 {},
+                PowerProbQueueModel { n },
+                PowerProbQueueModel2 { n },
+                PowerProbQueueModel3 { n }
+            ],
+            [NoPartialFillExchange {}, PartialFillExchange {}]
+        );
+        local.push(asst.local);
+        exch.push(asst.exch);
+    }
+
+    let hbt = MultiAssetMultiExchangeBacktest::new(local, exch);
+    Ok(ROIVectorMarketDepthMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
 }

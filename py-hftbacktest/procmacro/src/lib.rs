@@ -34,6 +34,7 @@ impl Parse for EnumArgs {
 
 struct BuildAssetInput {
     value: Ident,
+    marketdepth: Ident,
     asset_type: Vec<EnumArgs>,
     latency_model: Vec<EnumArgs>,
     queue_model: Vec<EnumArgs>,
@@ -42,8 +43,13 @@ struct BuildAssetInput {
 
 impl Parse for BuildAssetInput {
     fn parse(input: ParseStream) -> Result<Self, Error> {
+        let value = input.parse()?;
+        input.parse::<syn::token::Comma>()?;
+        let marketdepth = input.parse()?;
+
         let mut parsed_input = BuildAssetInput {
-            value: input.parse()?,
+            value,
+            marketdepth,
             asset_type: Default::default(),
             latency_model: Default::default(),
             queue_model: Default::default(),
@@ -88,6 +94,7 @@ impl Parse for BuildAssetInput {
 pub fn build_asset(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as BuildAssetInput);
     let asset = input.value;
+    let marketdepth = input.marketdepth;
 
     // Generates match arms for all combinations.
     let mut arms = Vec::new();
@@ -111,12 +118,31 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
 
                     let qm_construct = if qm_ident.to_string().contains("ProbQueueModel") {
                         quote! {
-                            #qm_ident::new(#prob_func_ident::new(#(#qm_args.clone()),*));
+                            ProbQueueModel::<#prob_func_ident, #marketdepth>::new(#prob_func_ident::new(#(#qm_args.clone()),*));
                         }
                     } else {
                         quote! {
                             #qm_ident::new();
                         }
+                    };
+
+                    let depth_construct = match marketdepth.to_string().as_str() {
+                        "HashMapMarketDepth" => {
+                            quote! {
+                                #marketdepth::new(#asset.tick_size, #asset.lot_size);
+                            }
+                        }
+                        "ROIVectorMarketDepth" => {
+                            quote! {
+                                #marketdepth::new(
+                                    #asset.tick_size,
+                                    #asset.lot_size,
+                                    #asset.roi_lb,
+                                    #asset.roi_ub
+                                );
+                            }
+                        }
+                        _ => panic!(),
                     };
 
                     arms.push(quote! {
@@ -131,8 +157,12 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
 
                             for data in #asset.data.iter() {
                                 match data {
-                                    DataSource::File(file) => reader.add_file(file.to_string()),
-                                    DataSource::Data(data) => reader.add_data(data.clone()),
+                                    DataSource::File(file) => {
+                                        reader.add_file(file.to_string());
+                                    }
+                                    DataSource::Data(data) => {
+                                        reader.add_data(data.clone());
+                                    }
                                 }
                             }
 
@@ -142,7 +172,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let asset_type = #at_ident::new(#(#at_args.clone()),*);
                             let latency_model = #lm_ident::new(#(#lm_args.clone()),*);
 
-                            let mut market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
+                            let mut market_depth = #depth_construct;
                             match #asset.initial_snapshot.as_ref() {
                                 Some(DataSource::File(file)) => {
                                     let data = read_npz(&file).unwrap();
@@ -154,7 +184,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 None => {}
                             }
 
-                            let local: Box<dyn LocalProcessor<HashMapMarketDepth, Event>> = Box::new(Local::new(
+                            let local: Box<dyn LocalProcessor<#marketdepth, Event>> = Box::new(Local::new(
                                 reader.clone(),
                                 market_depth,
                                 State::new(asset_type.clone(), #asset.maker_fee, #asset.taker_fee),
@@ -164,7 +194,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 ob_exch_to_local.clone(),
                             ));
 
-                            let mut market_depth = HashMapMarketDepth::new(#asset.tick_size, #asset.lot_size);
+                            let mut market_depth = #depth_construct;
                             match #asset.initial_snapshot.as_ref() {
                                 Some(DataSource::File(file)) => {
                                     let data = read_npz(&file).unwrap();
