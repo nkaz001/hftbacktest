@@ -322,9 +322,13 @@ orders_get = lib.orders_get
 orders_get.restype = c_void_p
 orders_get.argtypes = [c_void_p, c_int64]
 
-orders_contains = lib.orders_get
-orders_contains.restype = bool
+orders_contains = lib.orders_contains
+orders_contains.restype = c_bool
 orders_contains.argtypes = [c_void_p, c_int64]
+
+orders_len = lib.orders_len
+orders_len.restype = c_uint64
+orders_len.argtypes = [c_void_p]
 
 orders_values = lib.orders_values
 orders_values.restype = c_void_p
@@ -424,6 +428,9 @@ class OrderDict:
             )
             return Order_(arr)
 
+    def __len__(self) -> uint64:
+        return orders_len(self.ptr)
+
     def __contains__(self, order_id: int64) -> bool:
         """
         Args:
@@ -446,7 +453,7 @@ hashmapbt_elapse_bt.argtypes = [c_void_p, c_uint64]
 
 hashmapbt_hashmapbt_wait_order_response = lib.hashmapbt_wait_order_response
 hashmapbt_hashmapbt_wait_order_response.restype = c_int64
-hashmapbt_hashmapbt_wait_order_response.argtypes = [c_void_p, c_int64, c_int64]
+hashmapbt_hashmapbt_wait_order_response.argtypes = [c_void_p, c_uint64, c_int64, c_int64]
 
 hashmapbt_wait_next_feed = lib.hashmapbt_wait_next_feed
 hashmapbt_wait_next_feed.restype = c_int64
@@ -855,7 +862,7 @@ roivecbt_elapse_bt.argtypes = [c_void_p, c_uint64]
 
 roivecbt_roivecbt_wait_order_response = lib.roivecbt_wait_order_response
 roivecbt_roivecbt_wait_order_response.restype = c_int64
-roivecbt_roivecbt_wait_order_response.argtypes = [c_void_p, c_int64, c_int64]
+roivecbt_roivecbt_wait_order_response.argtypes = [c_void_p, c_uint64, c_int64, c_int64]
 
 roivecbt_wait_next_feed = lib.roivecbt_wait_next_feed
 roivecbt_wait_next_feed.restype = c_int64

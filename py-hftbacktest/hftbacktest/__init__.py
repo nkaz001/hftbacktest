@@ -28,11 +28,14 @@ from .order import (
     CANCELED,
     GTC,
     GTX,
+    LIMIT,
+    MARKET,
     order_dtype,
 )
 from .types import (
     ALL_ASSETS
 )
+from .recorder import Recorder
 
 __all__ = (
     'BacktestAsset',
@@ -55,6 +58,11 @@ __all__ = (
     # Time-In-Force
     'GTC',
     'GTX',
+
+    'LIMIT',
+    'MARKET',
+    
+    'Recorder'
 )
 
 __version__ = '2.0.0-alpha'

@@ -22,6 +22,12 @@ pub extern "C" fn orders_contains(orders: *const HashMap<i64, Order>, order_id: 
 }
 
 #[no_mangle]
+pub extern "C" fn orders_len(orders: *const HashMap<i64, Order>) -> usize {
+    let orders = unsafe { &*orders };
+    orders.len()
+}
+
+#[no_mangle]
 pub extern "C" fn orders_values(orders: *const HashMap<i64, Order>) -> *mut c_void {
     let orders = unsafe { &*orders };
     let it = orders.values();
