@@ -1,5 +1,7 @@
+from typing import Any
+
 import numpy as np
-from numba import uint64, objmode, from_dtype, typeof
+from numba import uint64, from_dtype
 from numba.experimental import jitclass
 
 record_dtype = np.dtype([
@@ -55,3 +57,6 @@ class Recorder:
         data = self._recorder.records[:self._recorder.i]
         kwargs = {str(asset_no): data[:, asset_no] for asset_no in range(data.shape[1])}
         np.savez_compressed(file, **kwargs)
+
+    def get(self, asset_no: int) -> np.ndarray[Any, record_dtype]:
+        return self._recorder.records[:self._recorder.i, asset_no]
