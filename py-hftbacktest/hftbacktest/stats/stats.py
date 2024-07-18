@@ -66,8 +66,6 @@ class Stats:
 
     """
 
-    DEFAULT_EXTENSION = ('bokeh',)
-
     def __init__(self, entire: pl.DataFrame, splits: List[Mapping[str, Any]], kwargs: Mapping[str, Any]):
         self.entire = entire
         self.splits = splits
@@ -83,7 +81,7 @@ class Stats:
         df = pl.DataFrame(self.splits)
         return df
 
-    def plot(self, price_as_ret: bool = False, extension: List[str] | None = DEFAULT_EXTENSION):
+    def plot(self, price_as_ret: bool = False, extension: str = 'bokeh'):
         """
         Plots the equity curves and positions over time along with the price chart.
 
@@ -137,7 +135,7 @@ class Stats:
                     (entire_df['timestamp'], entire_df['price']),
                     label='Price',
                     vdims=['Price']
-                ).opts(alpha=0.2, color='black')
+                ).opts(xlabel='timestamp', alpha=0.2, color='black')
         else:
             equity_plt = hv.Overlay([
                 hv.Curve(
@@ -154,13 +152,13 @@ class Stats:
                 (entire_df['timestamp'], entire_df['price']),
                 label='Price',
                 vdims=['Price']
-            ).opts(alpha=0.2, color='black')
+            ).opts(xlabel='timestamp', alpha=0.2, color='black')
 
         px_plt = hv.Curve(
             (entire_df['timestamp'], entire_df['price']),
             label='Price',
             vdims=['Price']
-        ).opts(alpha=0.2, color='black')
+        ).opts(xlabel='timestamp', alpha=0.2, color='black')
         pos_plt = hv.Curve(
             (entire_df['timestamp'], entire_df['position']),
             label='Position',
