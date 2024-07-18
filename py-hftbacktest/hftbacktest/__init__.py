@@ -67,7 +67,7 @@ __all__ = (
 
 __version__ = '2.0.0-alpha'
 
-__hftbacktests__ = []
+__hftbacktests__ = {}
 
 
 class BacktestAsset(BacktestAsset_):
@@ -99,6 +99,14 @@ class BacktestAsset(BacktestAsset_):
         return self
 
 
+def close(hbt):
+    """
+    Args:
+        hbt: HftBacktest to be allowed for garbage collection.
+    """
+    del __hftbacktests__[hbt]
+
+
 def HashMapMarketDepthMultiAssetMultiExchangeBacktest(
         assets: List[BacktestAsset]
 ) -> HashMapMarketDepthMultiAssetMultiExchangeBacktest_TypeHint:
@@ -114,9 +122,10 @@ def HashMapMarketDepthMultiAssetMultiExchangeBacktest(
     raw_hbt = build_hashmap_backtest(assets)
 
     # Prevents the object from being gc`ed to avoid dangling references.
-    __hftbacktests__.append(raw_hbt)
+    bt = HashMapMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
+    __hftbacktests__[bt] = raw_hbt
 
-    return HashMapMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
+    return bt
 
 
 def ROIVectorMarketDepthMultiAssetMultiExchangeBacktest(
@@ -134,6 +143,7 @@ def ROIVectorMarketDepthMultiAssetMultiExchangeBacktest(
     raw_hbt = build_roivec_backtest(assets)
 
     # Prevents the object from being gc`ed to avoid dangling references.
-    __hftbacktests__.append(raw_hbt)
+    bt = ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
+    __hftbacktests__[bt] = raw_hbt
 
-    return ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
+    return bt
