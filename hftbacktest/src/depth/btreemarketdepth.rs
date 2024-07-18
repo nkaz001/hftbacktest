@@ -22,19 +22,19 @@ use crate::{
 /// Ensuring data integrity is imperative.
 #[derive(Debug)]
 pub struct BTreeMarketDepth {
-    pub tick_size: f32,
-    pub lot_size: f32,
+    pub tick_size: f64,
+    pub lot_size: f64,
     pub timestamp: i64,
-    pub bid_depth: BTreeMap<i32, f32>,
-    pub ask_depth: BTreeMap<i32, f32>,
-    pub best_bid_tick: i32,
-    pub best_ask_tick: i32,
+    pub bid_depth: BTreeMap<i64, f64>,
+    pub ask_depth: BTreeMap<i64, f64>,
+    pub best_bid_tick: i64,
+    pub best_ask_tick: i64,
     pub orders: HashMap<i64, L3Order>,
 }
 
 impl BTreeMarketDepth {
     /// Constructs an instance of `BTreeMarketDepth`.
-    pub fn new(tick_size: f32, lot_size: f32) -> Self {
+    pub fn new(tick_size: f64, lot_size: f64) -> Self {
         Self {
             tick_size,
             lot_size,
@@ -64,15 +64,15 @@ impl BTreeMarketDepth {
 impl L2MarketDepth for BTreeMarketDepth {
     fn update_bid_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        let price_tick = (price / self.tick_size).round() as i32;
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (price / self.tick_size).round() as i64;
         let prev_best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
         let prev_qty = *self.bid_depth.get(&prev_best_bid_tick).unwrap_or(&0.0);
 
-        if (qty / self.lot_size).round() as i32 == 0 {
+        if (qty / self.lot_size).round() as i64 == 0 {
             self.bid_depth.remove(&price_tick);
         } else {
             *self.bid_depth.entry(price_tick).or_insert(qty) = qty;
@@ -90,15 +90,15 @@ impl L2MarketDepth for BTreeMarketDepth {
 
     fn update_ask_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        let price_tick = (price / self.tick_size).round() as i32;
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (price / self.tick_size).round() as i64;
         let prev_best_ask_tick = *self.bid_depth.keys().next().unwrap_or(&INVALID_MAX);
         let prev_qty = *self.ask_depth.get(&prev_best_ask_tick).unwrap_or(&0.0);
 
-        if (qty / self.lot_size).round() as i32 == 0 {
+        if (qty / self.lot_size).round() as i64 == 0 {
             self.ask_depth.remove(&price_tick);
         } else {
             *self.ask_depth.entry(price_tick).or_insert(qty) = qty;
@@ -114,8 +114,8 @@ impl L2MarketDepth for BTreeMarketDepth {
         )
     }
 
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f32) {
-        let clear_upto = (clear_upto_price / self.tick_size).round() as i32;
+    fn clear_depth(&mut self, side: i64, clear_upto_price: f64) {
+        let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
         if side == BUY {
             let best_bid_tick = self.best_bid_tick();
             if best_bid_tick != INVALID_MIN {
@@ -145,42 +145,42 @@ impl L2MarketDepth for BTreeMarketDepth {
 
 impl MarketDepth for BTreeMarketDepth {
     #[inline(always)]
-    fn best_bid(&self) -> f32 {
-        self.best_bid_tick() as f32 * self.tick_size
+    fn best_bid(&self) -> f64 {
+        self.best_bid_tick() as f64 * self.tick_size
     }
 
     #[inline(always)]
-    fn best_ask(&self) -> f32 {
-        self.best_ask_tick() as f32 * self.tick_size
+    fn best_ask(&self) -> f64 {
+        self.best_ask_tick() as f64 * self.tick_size
     }
 
     #[inline(always)]
-    fn best_bid_tick(&self) -> i32 {
+    fn best_bid_tick(&self) -> i64 {
         self.best_bid_tick
     }
 
     #[inline(always)]
-    fn best_ask_tick(&self) -> i32 {
+    fn best_ask_tick(&self) -> i64 {
         self.best_ask_tick
     }
 
     #[inline(always)]
-    fn tick_size(&self) -> f32 {
+    fn tick_size(&self) -> f64 {
         self.tick_size
     }
 
     #[inline(always)]
-    fn lot_size(&self) -> f32 {
+    fn lot_size(&self) -> f64 {
         self.lot_size
     }
 
     #[inline(always)]
-    fn bid_qty_at_tick(&self, price_tick: i32) -> f32 {
+    fn bid_qty_at_tick(&self, price_tick: i64) -> f64 {
         *self.bid_depth.get(&price_tick).unwrap_or(&0.0)
     }
 
     #[inline(always)]
-    fn ask_qty_at_tick(&self, price_tick: i32) -> f32 {
+    fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
         *self.ask_depth.get(&price_tick).unwrap_or(&0.0)
     }
 }
@@ -193,11 +193,11 @@ impl ApplySnapshot<Event> for BTreeMarketDepth {
             let price = data[row_num].px;
             let qty = data[row_num].qty;
 
-            let price_tick = (price / self.tick_size).round() as i32;
+            let price_tick = (price / self.tick_size).round() as i64;
             if data[row_num].ev & BUY == BUY {
-                *self.bid_depth.entry(price_tick).or_insert(0f32) = qty;
+                *self.bid_depth.entry(price_tick).or_insert(0f64) = qty;
             } else if data[row_num].ev & SELL == SELL {
-                *self.ask_depth.entry(price_tick).or_insert(0f32) = qty;
+                *self.ask_depth.entry(price_tick).or_insert(0f64) = qty;
             }
         }
         self.best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
@@ -207,27 +207,27 @@ impl ApplySnapshot<Event> for BTreeMarketDepth {
     fn snapshot(&self) -> Vec<Event> {
         let mut events = Vec::new();
 
-        for (&px_tick, &qty) in self.bid_depth.iter().rev() {
-            events.push(Event {
-                ev: EXCH_EVENT | LOCAL_EVENT | BUY | DEPTH_SNAPSHOT_EVENT,
-                // todo: it's not a problem now, but it would be better to have valid timestamps.
-                exch_ts: 0,
-                local_ts: 0,
-                px: px_tick as f32 * self.tick_size,
-                qty,
-            });
-        }
-
-        for (&px_tick, &qty) in self.ask_depth.iter() {
-            events.push(Event {
-                ev: EXCH_EVENT | LOCAL_EVENT | SELL | DEPTH_SNAPSHOT_EVENT,
-                // todo: it's not a problem now, but it would be better to have valid timestamps.
-                exch_ts: 0,
-                local_ts: 0,
-                px: px_tick as f32 * self.tick_size,
-                qty,
-            });
-        }
+        // for (&px_tick, &qty) in self.bid_depth.iter().rev() {
+        //     events.push(Event {
+        //         ev: EXCH_EVENT | LOCAL_EVENT | BUY | DEPTH_SNAPSHOT_EVENT,
+        //         // todo: it's not a problem now, but it would be better to have valid timestamps.
+        //         exch_ts: 0,
+        //         local_ts: 0,
+        //         px: px_tick as f64 * self.tick_size,
+        //         qty,
+        //     });
+        // }
+        //
+        // for (&px_tick, &qty) in self.ask_depth.iter() {
+        //     events.push(Event {
+        //         ev: EXCH_EVENT | LOCAL_EVENT | SELL | DEPTH_SNAPSHOT_EVENT,
+        //         // todo: it's not a problem now, but it would be better to have valid timestamps.
+        //         exch_ts: 0,
+        //         local_ts: 0,
+        //         px: px_tick as f64 * self.tick_size,
+        //         qty,
+        //     });
+        // }
 
         events
     }
@@ -239,11 +239,11 @@ impl L3MarketDepth for BTreeMarketDepth {
     fn add_buy_order(
         &mut self,
         order_id: i64,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error> {
-        let price_tick = (px / self.tick_size).round() as i32;
+    ) -> Result<(i64, i64), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i64;
         self.add(L3Order {
             order_id,
             side: Side::Buy,
@@ -261,11 +261,11 @@ impl L3MarketDepth for BTreeMarketDepth {
     fn add_sell_order(
         &mut self,
         order_id: i64,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error> {
-        let price_tick = (px / self.tick_size).round() as i32;
+    ) -> Result<(i64, i64), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i64;
         self.add(L3Order {
             order_id,
             side: Side::Sell,
@@ -284,7 +284,7 @@ impl L3MarketDepth for BTreeMarketDepth {
         &mut self,
         order_id: i64,
         _timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error> {
+    ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
             .orders
             .remove(&order_id)
@@ -294,7 +294,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 
             let depth_qty = self.bid_depth.get_mut(&order.price_tick).unwrap();
             *depth_qty -= order.qty;
-            if (*depth_qty / self.lot_size).round() as i32 == 0 {
+            if (*depth_qty / self.lot_size).round() as i64 == 0 {
                 self.bid_depth.remove(&order.price_tick).unwrap();
                 if order.price_tick == self.best_bid_tick {
                     self.best_bid_tick = *self.bid_depth.keys().next().unwrap_or(&INVALID_MIN);
@@ -306,7 +306,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 
             let depth_qty = self.ask_depth.get_mut(&order.price_tick).unwrap();
             *depth_qty -= order.qty;
-            if (*depth_qty / self.lot_size).round() as i32 == 0 {
+            if (*depth_qty / self.lot_size).round() as i64 == 0 {
                 self.ask_depth.remove(&order.price_tick).unwrap();
                 if order.price_tick == self.best_ask_tick {
                     self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
@@ -319,21 +319,21 @@ impl L3MarketDepth for BTreeMarketDepth {
     fn modify_order(
         &mut self,
         order_id: i64,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error> {
+    ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
             .orders
             .get_mut(&order_id)
             .ok_or(BacktestError::OrderNotFound)?;
         if order.side == Side::Buy {
             let prev_best_tick = self.best_bid_tick;
-            let price_tick = (px / self.tick_size).round() as i32;
+            let price_tick = (px / self.tick_size).round() as i64;
             if price_tick != order.price_tick {
                 let depth_qty = self.bid_depth.get_mut(&order.price_tick).unwrap();
                 *depth_qty -= order.qty;
-                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                if (*depth_qty / self.lot_size).round() as i64 == 0 {
                     self.bid_depth.remove(&order.price_tick).unwrap();
                     if order.price_tick == self.best_bid_tick {
                         self.best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
@@ -358,11 +358,11 @@ impl L3MarketDepth for BTreeMarketDepth {
             }
         } else {
             let prev_best_tick = self.best_ask_tick;
-            let price_tick = (px / self.tick_size).round() as i32;
+            let price_tick = (px / self.tick_size).round() as i64;
             if price_tick != order.price_tick {
                 let depth_qty = self.ask_depth.get_mut(&order.price_tick).unwrap();
                 *depth_qty -= order.qty;
-                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                if (*depth_qty / self.lot_size).round() as i64 == 0 {
                     self.ask_depth.remove(&order.price_tick).unwrap();
                     if order.price_tick == self.best_ask_tick {
                         self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
@@ -414,8 +414,8 @@ mod tests {
     macro_rules! assert_eq_qty {
         ( $a:expr, $b:expr, $lot_size:ident ) => {{
             assert_eq!(
-                ($a / $lot_size).round() as i32,
-                ($b / $lot_size).round() as i32
+                ($a / $lot_size).round() as i64,
+                ($b / $lot_size).round() as i64
             );
         }};
     }

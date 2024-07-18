@@ -176,9 +176,9 @@ impl BinanceFuturesClient {
         client_order_id: &str,
         symbol: &str,
         side: Side,
-        price: f32,
+        price: f64,
         price_prec: usize,
-        qty: f32,
+        qty: f64,
         order_type: OrdType,
         time_in_force: TimeInForce,
     ) -> Result<OrderResponse, BinanceFuturesError> {
@@ -211,7 +211,7 @@ impl BinanceFuturesClient {
 
     pub async fn submit_orders(
         &self,
-        orders: Vec<(String, String, Side, f32, usize, f32, OrdType, TimeInForce)>,
+        orders: Vec<(String, String, Side, f64, usize, f64, OrdType, TimeInForce)>,
     ) -> Result<Vec<Result<OrderResponse, BinanceFuturesError>>, BinanceFuturesError> {
         if orders.len() > 5 {
             return Err(BinanceFuturesError::InvalidRequest);
@@ -259,9 +259,9 @@ impl BinanceFuturesClient {
         client_order_id: &str,
         symbol: &str,
         side: Side,
-        price: f32,
+        price: f64,
         price_prec: usize,
-        qty: f32,
+        qty: f64,
     ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
@@ -390,7 +390,7 @@ impl BinanceFuturesClient {
                         |order_id| Order {
                             qty: data.orig_qty,
                             leaves_qty: data.orig_qty - data.cum_qty,
-                            price_tick: (data.price / asset_info.tick_size).round() as i32,
+                            price_tick: (data.price / asset_info.tick_size).round() as i64,
                             tick_size: asset_info.tick_size,
                             side: data.side,
                             time_in_force: data.time_in_force,

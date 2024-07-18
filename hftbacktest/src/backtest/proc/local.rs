@@ -116,8 +116,8 @@ where
         &mut self,
         order_id: i64,
         side: Side,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         order_type: OrdType,
         time_in_force: TimeInForce,
         current_timestamp: i64,
@@ -126,7 +126,7 @@ where
             return Err(BacktestError::OrderIdExist);
         }
 
-        let price_tick = (price / self.depth.tick_size()).round() as i32;
+        let price_tick = (price / self.depth.tick_size()).round() as i64;
         let mut order = Order::new(
             order_id,
             price_tick,

@@ -87,7 +87,7 @@ impl OrderManager {
             .orders
             .get_mut(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.exec_price_tick = (data.exec_price / order.price_tick as f32).round() as i32;
+        order.exec_price_tick = (data.exec_price / order.price_tick as f64).round() as i64;
         order.exec_qty = data.exec_qty;
         order.exch_timestamp = data.exec_time * 1_000_000;
         Ok((*asset_no, order.clone()))
@@ -103,7 +103,7 @@ impl OrderManager {
             .orders
             .get_mut(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.exec_price_tick = (data.exec_price / order.price_tick as f32).round() as i32;
+        order.exec_price_tick = (data.exec_price / order.price_tick as f64).round() as i64;
         order.exec_qty = data.exec_qty;
         order.exch_timestamp = data.exec_time * 1_000_000;
         Ok((*asset_no, order.clone()))
@@ -137,7 +137,7 @@ impl OrderManager {
             qty: Some(format!("{:.5}", order.qty)),
             price: Some(format!(
                 "{:.prec$}",
-                order.price_tick as f32 * order.tick_size,
+                order.price_tick as f64 * order.tick_size,
                 prec = price_prec
             )),
             category: category.to_string(),

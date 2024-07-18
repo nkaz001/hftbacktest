@@ -20,36 +20,36 @@ mod fuse;
 pub use fuse::FusedHashMapMarketDepth;
 
 /// Represents no best bid.
-pub const INVALID_MIN: i32 = i32::MIN;
+pub const INVALID_MIN: i64 = i64::MIN;
 
 /// Represents no best ask.
-pub const INVALID_MAX: i32 = i32::MAX;
+pub const INVALID_MAX: i64 = i64::MAX;
 
 /// Provides MarketDepth interface.
 pub trait MarketDepth {
     /// Returns the best bid price.
-    fn best_bid(&self) -> f32;
+    fn best_bid(&self) -> f64;
 
     /// Returns the best ask price.
-    fn best_ask(&self) -> f32;
+    fn best_ask(&self) -> f64;
 
     /// Returns the best bid price in ticks.
-    fn best_bid_tick(&self) -> i32;
+    fn best_bid_tick(&self) -> i64;
 
     /// Returns the best ask price in ticks.
-    fn best_ask_tick(&self) -> i32;
+    fn best_ask_tick(&self) -> i64;
 
     /// Returns the tick size.
-    fn tick_size(&self) -> f32;
+    fn tick_size(&self) -> f64;
 
     /// Returns the lot size.
-    fn lot_size(&self) -> f32;
+    fn lot_size(&self) -> f64;
 
     /// Returns the quantity at the bid market depth for a given price in ticks.
-    fn bid_qty_at_tick(&self, price_tick: i32) -> f32;
+    fn bid_qty_at_tick(&self, price_tick: i64) -> f64;
 
     /// Returns the quantity at the ask market depth for a given price in ticks.
-    fn ask_qty_at_tick(&self, price_tick: i32) -> f32;
+    fn ask_qty_at_tick(&self, price_tick: i64) -> f64;
 }
 
 /// Provides Level2-specific market depth functions.
@@ -62,10 +62,10 @@ pub trait L2MarketDepth {
     /// in ticks of the tuple returned.
     fn update_bid_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64);
+    ) -> (i64, i64, i64, f64, f64, i64);
 
     /// Updates the ask-side market depth and returns a tuple containing (the price in ticks,
     /// the previous best bid price in ticks, the current best bid price in ticks, the previous
@@ -75,14 +75,14 @@ pub trait L2MarketDepth {
     /// in ticks of the tuple returned.
     fn update_ask_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64);
+    ) -> (i64, i64, i64, f64, f64, i64);
 
     /// Clears the market depth. If the `side` is neither [crate::types::BUY] nor [crate::types::SELL],
     /// both sides are cleared. In this case, `clear_upto_price` is ignored.
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f32);
+    fn clear_depth(&mut self, side: i64, clear_upto_price: f64);
 }
 
 /// Provides a method to initialize the `MarketDepth` from the given snapshot data, such as
@@ -103,8 +103,8 @@ where
 pub struct L3Order {
     pub order_id: i64,
     pub side: Side,
-    pub price_tick: i32,
-    pub qty: f32,
+    pub price_tick: i64,
+    pub qty: f64,
     pub timestamp: i64,
 }
 
@@ -117,37 +117,37 @@ pub trait L3MarketDepth: MarketDepth {
     fn add_buy_order(
         &mut self,
         order_id: i64,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error>;
+    ) -> Result<(i64, i64), Self::Error>;
 
     /// Adds a sell order to the order book and returns a tuple containing (the previous best ask
     ///  in ticks, the current best ask in ticks).
     fn add_sell_order(
         &mut self,
         order_id: i64,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error>;
+    ) -> Result<(i64, i64), Self::Error>;
 
     /// Deletes the order in the order book.
     fn delete_order(
         &mut self,
         order_id: i64,
         timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error>;
+    ) -> Result<(i64, i64, i64), Self::Error>;
 
     /// Modifies the order in the order book and returns a tuple containing (side, the previous best
     /// in ticks, the current best in ticks).
     fn modify_order(
         &mut self,
         order_id: i64,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error>;
+    ) -> Result<(i64, i64, i64), Self::Error>;
 
     /// Clears the market depth. If the `side` is neither [crate::types::BUY] nor
     /// [crate::types::SELL], both sides are cleared.
@@ -161,15 +161,15 @@ pub trait L3MarketDepth: MarketDepth {
 pub trait L1MarketDepth {
     fn update_best_bid(
         &mut self,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64);
+    ) -> (i64, i64, i64, f64, f64, i64);
 
     fn update_best_ask(
         &mut self,
-        px: f32,
-        qty: f32,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64);
+    ) -> (i64, i64, i64, f64, f64, i64);
 }

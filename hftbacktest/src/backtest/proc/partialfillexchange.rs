@@ -89,8 +89,8 @@ where
     // key: order_id, value: Order
     orders: Rc<RefCell<HashMap<i64, Order>>>,
     // key: order's price tick, value: order_ids
-    buy_orders: HashMap<i32, HashSet<i64>>,
-    sell_orders: HashMap<i32, HashSet<i64>>,
+    buy_orders: HashMap<i64, HashSet<i64>>,
+    sell_orders: HashMap<i64, HashSet<i64>>,
 
     orders_to: OrderBus,
     orders_from: OrderBus,
@@ -160,8 +160,8 @@ where
     fn check_if_sell_filled(
         &mut self,
         order: &mut Order,
-        price_tick: i32,
-        qty: f32,
+        price_tick: i64,
+        qty: f64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
         if order.price_tick < price_tick {
@@ -188,8 +188,8 @@ where
     fn check_if_buy_filled(
         &mut self,
         order: &mut Order,
-        price_tick: i32,
-        qty: f32,
+        price_tick: i64,
+        qty: f64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
         if order.price_tick > price_tick {
@@ -218,8 +218,8 @@ where
         order: &mut Order,
         timestamp: i64,
         maker: bool,
-        exec_price_tick: i32,
-        exec_qty: f32,
+        exec_price_tick: i64,
+        exec_qty: f64,
     ) -> Result<(), BacktestError> {
         if order.status == Status::Expired
             || order.status == Status::Canceled
@@ -237,7 +237,7 @@ where
 
         order.exec_qty = exec_qty;
         order.leaves_qty -= exec_qty;
-        if (order.leaves_qty / self.depth.lot_size()).round() > 0f32 {
+        if (order.leaves_qty / self.depth.lot_size()).round() > 0f64 {
             order.status = Status::PartiallyFilled;
         } else {
             order.status = Status::Filled;
@@ -271,7 +271,7 @@ where
         }
     }
 
-    fn on_bid_qty_chg(&mut self, price_tick: i32, prev_qty: f32, new_qty: f32) {
+    fn on_bid_qty_chg(&mut self, price_tick: i64, prev_qty: f64, new_qty: f64) {
         let orders = self.orders.clone();
         if let Some(order_ids) = self.buy_orders.get(&price_tick) {
             for order_id in order_ids.iter() {
@@ -283,7 +283,7 @@ where
         }
     }
 
-    fn on_ask_qty_chg(&mut self, price_tick: i32, prev_qty: f32, new_qty: f32) {
+    fn on_ask_qty_chg(&mut self, price_tick: i64, prev_qty: f64, new_qty: f64) {
         let orders = self.orders.clone();
         if let Some(order_ids) = self.sell_orders.get(&price_tick) {
             for order_id in order_ids.iter() {
@@ -297,8 +297,8 @@ where
 
     fn on_best_bid_update(
         &mut self,
-        prev_best_tick: i32,
-        new_best_tick: i32,
+        prev_best_tick: i64,
+        new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
         // If the best has been significantly updated compared to the previous best, it would be
@@ -307,7 +307,7 @@ where
             let orders = self.orders.clone();
             let mut orders_borrowed = orders.borrow_mut();
             if prev_best_tick == INVALID_MIN
-                || (orders_borrowed.len() as i32) < new_best_tick - prev_best_tick
+                || (orders_borrowed.len() as i64) < new_best_tick - prev_best_tick
             {
                 for (_, order) in orders_borrowed.iter_mut() {
                     if order.side == Side::Sell && order.price_tick <= new_best_tick {
@@ -333,8 +333,8 @@ where
 
     fn on_best_ask_update(
         &mut self,
-        prev_best_tick: i32,
-        new_best_tick: i32,
+        prev_best_tick: i64,
+        new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
         // If the best has been significantly updated compared to the previous best, it would be
@@ -343,7 +343,7 @@ where
             let orders = self.orders.clone();
             let mut orders_borrowed = orders.borrow_mut();
             if prev_best_tick == INVALID_MAX
-                || (orders_borrowed.len() as i32) < prev_best_tick - new_best_tick
+                || (orders_borrowed.len() as i64) < prev_best_tick - new_best_tick
             {
                 for (_, order) in orders_borrowed.iter_mut() {
                     if order.side == Side::Buy && order.price_tick >= new_best_tick {
@@ -389,7 +389,7 @@ where
                         // The order must be executed immediately in its entirety; otherwise, the
                         // entire order will be cancelled.
                         let mut execute = false;
-                        let mut cum_qty = 0f32;
+                        let mut cum_qty = 0f64;
                         for t in self.depth.best_ask_tick()..=order.price_tick {
                             cum_qty += self.depth.ask_qty_at_tick(t);
                             if (cum_qty / self.depth.lot_size()).round()
@@ -501,7 +501,7 @@ where
                         // The order must be executed immediately in its entirety; otherwise, the
                         // entire order will be cancelled.
                         let mut execute = false;
-                        let mut cum_qty = 0f32;
+                        let mut cum_qty = 0f64;
                         for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
                             cum_qty += self.depth.bid_qty_at_tick(t);
                             if (cum_qty / self.depth.lot_size()).round()
@@ -823,13 +823,13 @@ where
                 self.on_best_ask_update(prev_best_ask_tick, best_ask_tick, timestamp)?;
             }
         } else if self.data[row_num].is(EXCH_BUY_TRADE_EVENT) {
-            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i32;
+            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i64;
             let qty = self.data[row_num].qty;
             {
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
                 if self.depth.best_bid_tick() == INVALID_MIN
-                    || (orders_borrowed.len() as i32) < price_tick - self.depth.best_bid_tick()
+                    || (orders_borrowed.len() as i64) < price_tick - self.depth.best_bid_tick()
                 {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Sell {
@@ -859,13 +859,13 @@ where
             }
             self.remove_filled_orders();
         } else if self.data[row_num].is(EXCH_SELL_TRADE_EVENT) {
-            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i32;
+            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i64;
             let qty = self.data[row_num].qty;
             {
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
                 if self.depth.best_ask_tick() == INVALID_MAX
-                    || (orders_borrowed.len() as i32) < self.depth.best_ask_tick() - price_tick
+                    || (orders_borrowed.len() as i64) < self.depth.best_ask_tick() - price_tick
                 {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Buy {

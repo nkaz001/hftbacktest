@@ -10,7 +10,7 @@ use crate::{
 
 /// Provides logging of the live strategy's state values.
 pub struct LoggingRecorder {
-    state: HashMap<usize, (f32, StateValues)>,
+    state: HashMap<usize, (f64, StateValues)>,
 }
 
 impl Recorder for LoggingRecorder {

@@ -109,7 +109,7 @@ impl OrderManager {
         let order = Order {
             qty: resp.orig_qty,
             leaves_qty: resp.orig_qty - resp.cum_qty,
-            price_tick: (resp.price / order.tick_size).round() as i32,
+            price_tick: (resp.price / order.tick_size).round() as i64,
             tick_size: order.tick_size,
             side: order.side,
             time_in_force: resp.time_in_force,
@@ -170,7 +170,7 @@ impl OrderManager {
         let order = Order {
             qty: resp.orig_qty,
             leaves_qty: resp.orig_qty - resp.cum_qty,
-            price_tick: (resp.price / order.tick_size).round() as i32,
+            price_tick: (resp.price / order.tick_size).round() as i64,
             tick_size: order.tick_size,
             side: resp.side,
             time_in_force: resp.time_in_force,

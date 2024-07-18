@@ -51,7 +51,7 @@ where
     }
 
     #[inline]
-    pub fn equity(&self, mid: f32) -> f64 {
+    pub fn equity(&self, mid: f64) -> f64 {
         self.asset_type.equity(
             mid,
             self.state_values.balance,

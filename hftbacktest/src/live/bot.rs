@@ -151,7 +151,7 @@ impl<MD> LiveBotBuilder<MD> {
     ///              is used.
     /// * `tick_size` - The minimum price fluctuation.
     /// * `lot_size` -  The minimum trade size.
-    pub fn add(self, name: &str, symbol: &str, tick_size: f32, lot_size: f32) -> Self {
+    pub fn add(self, name: &str, symbol: &str, tick_size: f64, lot_size: f64) -> Self {
         Self {
             assets: {
                 let asset_no = self.assets.len();
@@ -450,8 +450,8 @@ where
         &mut self,
         asset_no: usize,
         order_id: i64,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -467,7 +467,7 @@ where
         let tick_size = self.assets.get(asset_no).unwrap().1.tick_size;
         let order = Order {
             order_id,
-            price_tick: (price / tick_size).round() as i32,
+            price_tick: (price / tick_size).round() as i64,
             qty,
             leaves_qty: qty,
             tick_size,
@@ -563,8 +563,8 @@ where
         &mut self,
         asset_no: usize,
         order_id: i64,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -586,8 +586,8 @@ where
         &mut self,
         asset_no: usize,
         order_id: i64,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,

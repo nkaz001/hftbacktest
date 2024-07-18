@@ -16,13 +16,13 @@ use crate::{
 #[derive(AutoSerialize, npyz::Serialize)]
 struct Record {
     timestamp: i64,
+    price: f64,
     balance: f64,
     position: f64,
     fee: f64,
     trading_volume: f64,
     trading_value: f64,
-    num_trades: i32,
-    price: f32,
+    num_trades: i64,
 }
 
 /// Provides recording of the backtesting strategy's state values, which are needed to compute
@@ -48,13 +48,13 @@ impl Recorder for BacktestRecorder {
             values.push(
                 (Record {
                     timestamp,
+                    price: mid_price,
                     balance: state_values.balance,
                     position: state_values.position,
                     fee: state_values.fee,
                     trading_volume: state_values.trading_volume,
                     trading_value: state_values.trading_value,
                     num_trades: state_values.num_trades,
-                    price: mid_price,
                 }),
             );
         }

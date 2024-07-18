@@ -26,30 +26,13 @@ impl<'de> Visitor<'de> for I64Visitor {
     }
 }
 
-struct F32Visitor;
+struct OptionF64Visitor;
 
-impl<'de> Visitor<'de> for F32Visitor {
-    type Value = f32;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string containing an f32 number")
-    }
-
-    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        s.parse::<f32>().map_err(Error::custom)
-    }
-}
-
-struct OptionF32Visitor;
-
-impl<'de> Visitor<'de> for OptionF32Visitor {
-    type Value = Option<f32>;
+impl<'de> Visitor<'de> for OptionF64Visitor {
+    type Value = Option<f64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string containing an f32 number")
+        formatter.write_str("a string containing an f64 number")
     }
 
     fn visit_none<E>(self) -> Result<Self::Value, E>
@@ -63,7 +46,7 @@ impl<'de> Visitor<'de> for OptionF32Visitor {
     where
         D: Deserializer<'de>,
     {
-        match deserializer.deserialize_str(F32Visitor) {
+        match deserializer.deserialize_str(F64Visitor) {
             Ok(num) => Ok(Some(num)),
             Err(e) => {
                 // fixme: dirty
@@ -101,13 +84,6 @@ where
     deserializer.deserialize_str(I64Visitor)
 }
 
-pub fn from_str_to_f32<'de, D>(deserializer: D) -> Result<f32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    deserializer.deserialize_str(F32Visitor)
-}
-
 pub fn from_str_to_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
     D: Deserializer<'de>,
@@ -115,11 +91,11 @@ where
     deserializer.deserialize_str(F64Visitor)
 }
 
-pub fn from_str_to_f32_opt<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
+pub fn from_str_to_f64_opt<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    deserializer.deserialize_option(OptionF32Visitor)
+    deserializer.deserialize_option(OptionF64Visitor)
 }
 
 pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {

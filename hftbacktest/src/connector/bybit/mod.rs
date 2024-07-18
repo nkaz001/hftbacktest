@@ -278,8 +278,8 @@ impl Connector for Bybit {
         &mut self,
         asset_no: usize,
         symbol: String,
-        tick_size: f32,
-        lot_size: f32,
+        tick_size: f64,
+        lot_size: f64,
     ) -> Result<(), anyhow::Error> {
         let asset_info = Asset {
             asset_no,

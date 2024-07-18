@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type};
 use crate::{
-    connector::util::{from_str_to_f32, from_str_to_f64},
+    connector::util::{from_str_to_f64},
     types::{OrdType, Side, Status, TimeInForce},
 };
 
@@ -113,11 +113,11 @@ pub struct Position {
     #[serde(deserialize_with = "from_str_to_f64")]
     pub position_amount: f64,
     #[serde(rename = "ep")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub entry_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub entry_price: f64,
     #[serde(rename = "bep")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub breakeven_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub breakeven_price: f64,
     #[serde(rename = "cr")]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub prefee_accumulated_realized: f64,
@@ -157,17 +157,17 @@ pub struct Order {
     #[serde(deserialize_with = "from_str_to_tif")]
     pub time_in_force: TimeInForce,
     #[serde(rename = "q")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub original_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub original_qty: f64,
     #[serde(rename = "p")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub original_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub original_price: f64,
     #[serde(rename = "ap")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub average_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub average_price: f64,
     #[serde(rename = "sp")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub stop_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub stop_price: f64,
     #[serde(rename = "x")]
     pub execution_type: String,
     #[serde(rename = "X")]
@@ -176,14 +176,14 @@ pub struct Order {
     #[serde(rename = "i")]
     pub order_id: i64,
     #[serde(rename = "l")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub order_last_filled_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub order_last_filled_qty: f64,
     #[serde(rename = "z")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub order_filled_accumulated_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub order_filled_accumulated_qty: f64,
     #[serde(rename = "L")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub last_filled_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub last_filled_price: f64,
     // #[serde(rename = "N")]
     // pub commission_asset: Option<String>,
     // #[serde(rename = "n")]

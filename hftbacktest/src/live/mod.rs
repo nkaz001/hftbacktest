@@ -9,6 +9,6 @@ pub use recorder::LoggingRecorder;
 pub struct Asset {
     pub asset_no: usize,
     pub symbol: String,
-    pub tick_size: f32,
-    pub lot_size: f32,
+    pub tick_size: f64,
+    pub lot_size: f64,
 }

@@ -63,7 +63,7 @@ pub enum ErrorKind {
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
     L2Feed { asset_no: usize, events: Vec<Event> },
-    L3Feed { asset_no: usize, event: L3Event },
+    L3Feed { asset_no: usize, event: Event },
     Order { asset_no: usize, order: Order },
     Position { asset_no: usize, qty: f64 },
     Error(LiveError),
@@ -224,47 +224,10 @@ pub const WAIT_ORDER_RESPONSE_ANY: i64 = -2;
 /// Indicates that one should continue until the end of the data.
 pub const UNTIL_END_OF_DATA: i64 = i64::MAX;
 
-/// Exchange event data.
-#[derive(Clone, PartialEq, Debug)]
-#[repr(C, align(32))]
-pub struct Event {
-    /// Event flag
-    pub ev: i64,
-    /// Exchange timestamp, which is the time at which the event occurs on the exchange.
-    pub exch_ts: i64,
-    /// Exchange timestamp, which is the time at which the event occurs on the local.
-    pub local_ts: i64,
-    /// Price
-    pub px: f32,
-    /// Quantity
-    pub qty: f32,
-}
-
-impl Event {
-    /// Checks if this `Event` corresponds to the given event.
-    #[inline(always)]
-    pub fn is(&self, event: i64) -> bool {
-        if (self.ev & event) != event {
-            false
-        } else {
-            let event_kind = event & 0xff;
-            if event_kind == 0 {
-                true
-            } else {
-                self.ev & 0xff == event_kind
-            }
-        }
-    }
-}
-
-unsafe impl POD for Event {}
-
-unsafe impl NpyFile for Event {}
-
 /// Exchange Level3 Market-By-Order event data.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(64))]
-pub struct L3Event {
+pub struct Event {
     /// Event flag
     pub ev: i64,
     /// Exchange timestamp, which is the time at which the event occurs on the exchange.
@@ -274,19 +237,19 @@ pub struct L3Event {
     /// Order Id
     pub order_id: i64,
     /// Price
-    pub px: f32,
+    pub px: f64,
     /// Quantity
-    pub qty: f32,
+    pub qty: f64,
     /// Priority, which is required when the order book needs to be recovered from the snapshot.
     pub priority: u64,
-    pub _reserved: [i64; 2],
+    pub _reserved: i64,
 }
 
-unsafe impl POD for L3Event {}
+unsafe impl POD for Event {}
 
-unsafe impl NpyFile for L3Event {}
+unsafe impl NpyFile for Event {}
 
-impl L3Event {
+impl Event {
     /// Checks if this `L3Event` corresponds to the given event.
     #[inline(always)]
     pub fn is(&self, event: i64) -> bool {
@@ -317,16 +280,6 @@ pub enum Side {
     /// This occurs when the [`Connector`](`crate::connector::Connector`) receives a side value that
     /// does not have a corresponding enum value.
     Unsupported = 127,
-}
-
-impl AsRef<f32> for Side {
-    fn as_ref(&self) -> &f32 {
-        match self {
-            Side::Buy => &1.0f32,
-            Side::Sell => &-1.0f32,
-            Side::Unsupported => panic!("Side::Unsupported"),
-        }
-    }
 }
 
 impl AsRef<f64> for Side {
@@ -448,14 +401,14 @@ impl AnyClone for () {
 #[repr(C)]
 pub struct Order {
     /// Order quantity
-    pub qty: f32,
+    pub qty: f64,
     /// The quantity of this order that has not yet been executed. It represents the remaining
     /// quantity that is still open or active in the market after any partial fills.
-    pub leaves_qty: f32,
+    pub leaves_qty: f64,
     /// Order price in ticks (`price / tick_size`).
-    pub price_tick: i32,
+    pub price_tick: i64,
     /// The tick size of the asset associated with this order.
-    pub tick_size: f32,
+    pub tick_size: f64,
     /// The time at which the exchange processes this order, ideally when the matching engine
     /// processes the order, will be set if the value is available.
     pub exch_timestamp: i64,
@@ -463,9 +416,9 @@ pub struct Order {
     pub local_timestamp: i64,
     /// Executed price in ticks (`executed_price / tick_size`), only available when this order is
     /// executed.
-    pub exec_price_tick: i32,
+    pub exec_price_tick: i64,
     /// Executed quantity, only available when this order is executed.
-    pub exec_qty: f32,
+    pub exec_qty: f64,
     pub order_id: i64,
     /// Additional data used for [`QueueModel`](`crate::backtest::models::QueueModel`).
     /// This is only available in backtesting, and the type `Q` is set to `()` in a live bot.
@@ -486,9 +439,9 @@ impl Order {
     /// Constructs an instance of `Order`.
     pub fn new(
         order_id: i64,
-        price_tick: i32,
-        tick_size: f32,
-        qty: f32,
+        price_tick: i64,
+        tick_size: f64,
+        qty: f64,
         side: Side,
         order_type: OrdType,
         time_in_force: TimeInForce,
@@ -514,13 +467,13 @@ impl Order {
     }
 
     /// Returns the order price.
-    pub fn price(&self) -> f32 {
-        self.price_tick as f32 * self.tick_size
+    pub fn price(&self) -> f64 {
+        self.price_tick as f64 * self.tick_size
     }
 
     /// Returns the executed price, only available when this order is executed.
-    pub fn exec_price(&self) -> f32 {
-        self.exec_price_tick as f32 * self.tick_size
+    pub fn exec_price(&self) -> f64 {
+        self.exec_price_tick as f64 * self.tick_size
     }
 
     /// Returns whether this order is cancelable.
@@ -615,7 +568,7 @@ pub struct StateValues {
     /// Backtest only
     pub trading_value: f64,
     /// Backtest only
-    pub num_trades: i32,
+    pub num_trades: i64,
 }
 
 /// Provides errors that can occur in builders.
@@ -636,8 +589,8 @@ pub enum BuildError {
 /// Used to submit an order in a live bot.
 pub struct OrderRequest {
     pub order_id: i64,
-    pub price: f32,
-    pub qty: f32,
+    pub price: f64,
+    pub qty: f64,
     pub side: Side,
     pub time_in_force: TimeInForce,
     pub order_type: OrdType,
@@ -701,8 +654,8 @@ pub trait Bot {
         &mut self,
         asset_no: usize,
         order_id: i64,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -726,8 +679,8 @@ pub trait Bot {
         &mut self,
         asset_no: usize,
         order_id: i64,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -854,8 +807,11 @@ mod tests {
             ev: LOCAL_BID_DEPTH_CLEAR_EVENT | (1 << 20),
             exch_ts: 0,
             local_ts: 0,
+            order_id: 0,
             px: 0.0,
             qty: 0.0,
+            priority: 0,
+            _reserved: 0
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));
@@ -866,8 +822,11 @@ mod tests {
             ev: LOCAL_EVENT | BUY | 0xff,
             exch_ts: 0,
             local_ts: 0,
+            order_id: 0,
             px: 0.0,
             qty: 0.0,
+            priority: 0,
+            _reserved: 0
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));

@@ -20,19 +20,19 @@ where
     fn new_order(&self, order: &mut Order, depth: &MD);
 
     /// Adjusts the estimation values when market trades occur at the same price.
-    fn trade(&self, order: &mut Order, qty: f32, depth: &MD);
+    fn trade(&self, order: &mut Order, qty: f64, depth: &MD);
 
     /// Adjusts the estimation values when market depth changes at the same price.
-    fn depth(&self, order: &mut Order, prev_qty: f32, new_qty: f32, depth: &MD);
+    fn depth(&self, order: &mut Order, prev_qty: f64, new_qty: f64, depth: &MD);
 
-    fn is_filled(&self, order: &Order, depth: &MD) -> f32;
+    fn is_filled(&self, order: &Order, depth: &MD) -> f64;
 }
 
 /// Provides a conservative queue position model, where your order's queue position advances only
 /// when trades occur at the same price level.
 pub struct RiskAdverseQueueModel<MD>(PhantomData<MD>);
 
-impl AnyClone for f32 {
+impl AnyClone for f64 {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -53,7 +53,7 @@ where
     MD: MarketDepth,
 {
     fn new_order(&self, order: &mut Order, depth: &MD) {
-        let front_q_qty: f32;
+        let front_q_qty: f64;
         if order.side == Side::Buy {
             front_q_qty = depth.bid_qty_at_tick(order.price_tick);
         } else {
@@ -62,18 +62,18 @@ where
         order.q = Box::new(front_q_qty);
     }
 
-    fn trade(&self, order: &mut Order, qty: f32, _depth: &MD) {
-        let front_q_qty = order.q.as_any_mut().downcast_mut::<f32>().unwrap();
+    fn trade(&self, order: &mut Order, qty: f64, _depth: &MD) {
+        let front_q_qty = order.q.as_any_mut().downcast_mut::<f64>().unwrap();
         *front_q_qty -= qty;
     }
 
-    fn depth(&self, order: &mut Order, _prev_qty: f32, new_qty: f32, _depth: &MD) {
-        let front_q_qty = order.q.as_any_mut().downcast_mut::<f32>().unwrap();
+    fn depth(&self, order: &mut Order, _prev_qty: f64, new_qty: f64, _depth: &MD) {
+        let front_q_qty = order.q.as_any_mut().downcast_mut::<f64>().unwrap();
         *front_q_qty = front_q_qty.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order, depth: &MD) -> f32 {
-        let front_q_qty = order.q.as_any().downcast_ref::<f32>().unwrap();
+    fn is_filled(&self, order: &Order, depth: &MD) -> f64 {
+        let front_q_qty = order.q.as_any().downcast_ref::<f64>().unwrap();
         if (front_q_qty / depth.lot_size()).round() < 0.0 {
             let q_qty = (-front_q_qty / depth.lot_size()).floor() * depth.lot_size();
             q_qty
@@ -86,8 +86,8 @@ where
 /// Stores the values needed for queue position estimation and adjustment for [`ProbQueueModel`].
 #[derive(Clone)]
 pub struct QueuePos {
-    front_q_qty: f32,
-    cum_trade_qty: f32,
+    front_q_qty: f64,
+    cum_trade_qty: f64,
 }
 
 impl AnyClone for QueuePos {
@@ -112,7 +112,7 @@ impl Default for QueuePos {
 /// Provides the probability of a decrease behind the order's queue position.
 pub trait Probability {
     /// Returns the probability based on the quantity ahead and behind the order.
-    fn prob(&self, front: f32, back: f32) -> f32;
+    fn prob(&self, front: f64, back: f64) -> f64;
 }
 
 /// Provides a probability-based queue position model as described in
@@ -160,13 +160,13 @@ where
         order.q = Box::new(q);
     }
 
-    fn trade(&self, order: &mut Order, qty: f32, _depth: &MD) {
+    fn trade(&self, order: &mut Order, qty: f64, _depth: &MD) {
         let q = order.q.as_any_mut().downcast_mut::<QueuePos>().unwrap();
         q.front_q_qty -= qty;
         q.cum_trade_qty += qty;
     }
 
-    fn depth(&self, order: &mut Order, prev_qty: f32, new_qty: f32, _depth: &MD) {
+    fn depth(&self, order: &mut Order, prev_qty: f64, new_qty: f64, _depth: &MD) {
         let mut chg = prev_qty - new_qty;
         // In order to avoid duplicate order queue position adjustment, subtract queue position
         // change by trades.
@@ -192,7 +192,7 @@ where
         q.front_q_qty = est_front.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order, depth: &MD) -> f32 {
+    fn is_filled(&self, order: &Order, depth: &MD) -> f64 {
         let q = order.q.as_any().downcast_ref::<QueuePos>().unwrap();
         if (q.front_q_qty / depth.lot_size()).round() < 0.0 {
             let q_qty = (-q.front_q_qty / depth.lot_size()).floor() * depth.lot_size();
@@ -206,22 +206,22 @@ where
 /// This probability model uses a power function `f(x) = x ** n` to adjust the probability which is
 /// calculated as `f(back) / (f(back) + f(front))`.
 pub struct PowerProbQueueFunc {
-    n: f32,
+    n: f64,
 }
 
 impl PowerProbQueueFunc {
     /// Constructs an instance of `PowerProbQueueFunc`.
-    pub fn new(n: f32) -> Self {
+    pub fn new(n: f64) -> Self {
         Self { n }
     }
 
-    fn f(&self, x: f32) -> f32 {
+    fn f(&self, x: f64) -> f64 {
         x.powf(self.n)
     }
 }
 
 impl Probability for PowerProbQueueFunc {
-    fn prob(&self, front: f32, back: f32) -> f32 {
+    fn prob(&self, front: f64, back: f64) -> f64 {
         self.f(back) / (self.f(back) + self.f(front))
     }
 }
@@ -236,13 +236,13 @@ impl LogProbQueueFunc {
         Self(())
     }
 
-    fn f(&self, x: f32) -> f32 {
+    fn f(&self, x: f64) -> f64 {
         (1.0 + x).ln()
     }
 }
 
 impl Probability for LogProbQueueFunc {
-    fn prob(&self, front: f32, back: f32) -> f32 {
+    fn prob(&self, front: f64, back: f64) -> f64 {
         self.f(back) / (self.f(back) + self.f(front))
     }
 }
@@ -257,13 +257,13 @@ impl LogProbQueueFunc2 {
         Self(())
     }
 
-    fn f(&self, x: f32) -> f32 {
+    fn f(&self, x: f64) -> f64 {
         (1.0 + x).ln()
     }
 }
 
 impl Probability for LogProbQueueFunc2 {
-    fn prob(&self, front: f32, back: f32) -> f32 {
+    fn prob(&self, front: f64, back: f64) -> f64 {
         self.f(back) / self.f(back + front)
     }
 }
@@ -271,22 +271,22 @@ impl Probability for LogProbQueueFunc2 {
 /// This probability model uses a power function `f(x) = x ** n` to adjust the probability which is
 /// calculated as `f(back) / f(back + front)`.
 pub struct PowerProbQueueFunc2 {
-    n: f32,
+    n: f64,
 }
 
 impl PowerProbQueueFunc2 {
     /// Constructs an instance of `PowerProbQueueFunc2`.
-    pub fn new(n: f32) -> Self {
+    pub fn new(n: f64) -> Self {
         Self { n }
     }
 
-    fn f(&self, x: f32) -> f32 {
+    fn f(&self, x: f64) -> f64 {
         x.powf(self.n)
     }
 }
 
 impl Probability for PowerProbQueueFunc2 {
-    fn prob(&self, front: f32, back: f32) -> f32 {
+    fn prob(&self, front: f64, back: f64) -> f64 {
         self.f(back) / self.f(back + front)
     }
 }
@@ -294,22 +294,22 @@ impl Probability for PowerProbQueueFunc2 {
 /// This probability model uses a power function `f(x) = x ** n` to adjust the probability which is
 /// calculated as `1 - f(front / (front + back))`.
 pub struct PowerProbQueueFunc3 {
-    n: f32,
+    n: f64,
 }
 
 impl PowerProbQueueFunc3 {
     /// Constructs an instance of `PowerProbQueueFunc3`.
-    pub fn new(n: f32) -> Self {
+    pub fn new(n: f64) -> Self {
         Self { n }
     }
 
-    fn f(&self, x: f32) -> f32 {
+    fn f(&self, x: f64) -> f64 {
         x.powf(self.n)
     }
 }
 
 impl Probability for PowerProbQueueFunc3 {
-    fn prob(&self, front: f32, back: f32) -> f32 {
+    fn prob(&self, front: f64, back: f64) -> f64 {
         1.0 - self.f(front / (front + back))
     }
 }
