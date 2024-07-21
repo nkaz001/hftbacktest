@@ -1,16 +1,15 @@
 import csv
 import gzip
 import json
-from typing import Literal, Optional
+from typing import Optional
 from zipfile import ZipFile, is_zipfile
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ... import correct_local_timestamp
-from ...binding import event_dtype
-from ...types import BUY_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT, TRADE_EVENT
+from ...types import BUY_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT, TRADE_EVENT, event_dtype
 from .. import correct_event_order, validate_event_order
+from ..validation import correct_local_timestamp
 
 
 def convert(
@@ -81,6 +80,9 @@ def convert(
                                 timestamp_us + feed_latency,
                                 px,
                                 qty,
+                                0,
+                                0,
+                                0,
                             )
                             row_num += 1
 
@@ -139,6 +141,9 @@ def convert(
                 local_ts,
                 px,
                 qty,
+                0,
+                0,
+                0,
             )
             row_num += 1
     tmp = tmp[:row_num]
