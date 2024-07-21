@@ -1,6 +1,11 @@
-use std::{any::Any, marker::PhantomData};
+use std::{
+    any::Any,
+    collections::{hash_map::Entry, HashMap},
+    marker::PhantomData,
+};
 
 use crate::{
+    backtest::BacktestError,
     depth::MarketDepth,
     types::{AnyClone, Order, Side},
 };
@@ -111,8 +116,8 @@ pub trait Probability {
 }
 
 /// Provides a probability-based queue position model as described in
-/// * https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
-/// * https://rigtorp.se/2013/06/08/estimating-order-queue-position.html
+/// * `<https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book>`
+/// * `<https://rigtorp.se/2013/06/08/estimating-order-queue-position.html>`
 ///
 /// Your order's queue position advances when a trade occurs at the same price level or the quantity
 /// at the level decreases. The advancement in queue position depends on the probability based on
@@ -383,17 +388,15 @@ pub trait L3QueueModel {
 /// Exchanges may have different matching algorithms, such as Pro-Rata, and may have exotic order
 /// types that aren't executed in a FIFO manner. Therefore, you should carefully choose the queue
 /// model, even when dealing with a Level 3 Market-By-Order feed.
-#[cfg(any(feature = "unstable_l3", doc))]
 pub struct L3FIFOQueueModel {
     // Stores the location of the queue that holds the order by (side, price in ticks).
-    pub orders: HashMap<L3OrderId, (Side, i32)>,
+    pub orders: HashMap<L3OrderId, (Side, i64)>,
     // Since LinkedList's cursor is still unstable, there is no efficient way to delete an item in a
     // linked list, so it is better to use a vector.
-    pub bid_queue: HashMap<i32, Vec<Order>>,
-    pub ask_queue: HashMap<i32, Vec<Order>>,
+    pub bid_queue: HashMap<i64, Vec<Order>>,
+    pub ask_queue: HashMap<i64, Vec<Order>>,
 }
 
-#[cfg(any(feature = "unstable_l3", doc))]
 impl L3FIFOQueueModel {
     /// Constructs an instance of `L3FIFOQueueModel`.
     pub fn new() -> Self {
@@ -405,7 +408,6 @@ impl L3FIFOQueueModel {
     }
 }
 
-#[cfg(any(feature = "unstable_l3", doc))]
 impl L3QueueModel for L3FIFOQueueModel {
     type Error = BacktestError;
 

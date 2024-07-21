@@ -621,7 +621,7 @@ where
     /// Returns the state's values such as balance, fee, and so on.
     fn state_values(&self, asset_no: usize) -> &StateValues;
 
-    /// Returns the [MarketDepth](crate::depth::MarketDepth).
+    /// Returns the [`MarketDepth`].
     ///
     /// * `asset_no` - Asset number from which the market depth will be retrieved.
     fn depth(&self, asset_no: usize) -> &MD;

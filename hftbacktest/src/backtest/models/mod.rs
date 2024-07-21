@@ -16,6 +16,7 @@ pub use queue::{
     PowerProbQueueFunc2,
     PowerProbQueueFunc3,
     ProbQueueModel,
+    Probability,
     QueueModel,
     QueuePos,
     RiskAdverseQueueModel,

@@ -121,8 +121,8 @@ pub struct LiveBotBuilder<MD> {
 
 impl<MD> LiveBotBuilder<MD> {
     /// Registers a [`Connector`] with a specified name.
-    /// The specified name for this connector is used when using [`add()`](`BotBuilder::add()`) to
-    /// add an asset for trading through this connector.
+    /// The specified name for this connector is used when using [`add()`](`LiveBotBuilder::add()`)
+    /// to add an asset for trading through this connector.
     pub fn register<C>(self, name: &str, conn: C) -> Self
     where
         C: Connector + Send + 'static,
@@ -140,7 +140,7 @@ impl<MD> LiveBotBuilder<MD> {
     /// Adds an asset.
     ///
     /// * `name` - Name of the [`Connector`], which is registered by
-    ///            [`register()`](`BotBuilder::register()`), through which this asset will be
+    ///            [`register()`](`LiveBotBuilder::register()`), through which this asset will be
     ///            traded.
     /// * `symbol` - Symbol of the asset. You need to check with the [`Connector`] which symbology
     ///              is used.

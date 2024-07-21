@@ -14,6 +14,7 @@ use crate::{
     types::{
         Event,
         Order,
+        OrderId,
         Side,
         Status,
         TimeInForce,
@@ -461,7 +462,7 @@ where
     fn process_recv_order(
         &mut self,
         timestamp: i64,
-        _wait_resp_order_id: i64,
+        _wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
         while self.orders_from.len() > 0 {

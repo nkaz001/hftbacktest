@@ -41,7 +41,8 @@ where
     fn cancel(&mut self, order_id: OrderId, current_timestamp: i64) -> Result<(), BacktestError>;
 
     /// Clears inactive orders from the local orders whose status is neither
-    /// [`Status::New`] nor [`Status::PartiallyFilled`].
+    /// [`Status::New`](crate::types::Status::New) nor
+    /// [`Status::PartiallyFilled`](crate::types::Status::PartiallyFilled).
     fn clear_inactive_orders(&mut self);
 
     /// Returns the position you currently hold.

@@ -23,6 +23,7 @@ use crate::{
         StateValues,
         Status,
         TimeInForce,
+        WaitOrderResponse,
         BUY,
         LOCAL_ASK_ADD_ORDER_EVENT,
         LOCAL_ASK_DEPTH_CLEAR_EVENT,
@@ -302,7 +303,7 @@ where
     fn process_recv_order(
         &mut self,
         timestamp: i64,
-        wait_resp_order_id: i64,
+        wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
         let mut wait_resp_order_received = false;

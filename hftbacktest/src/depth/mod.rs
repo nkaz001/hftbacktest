@@ -159,7 +159,6 @@ pub trait L3MarketDepth: MarketDepth {
     fn orders(&self) -> &HashMap<OrderId, L3Order>;
 }
 
-#[cfg(feature = "unstable_fuse")]
 pub trait L1MarketDepth {
     fn update_best_bid(
         &mut self,

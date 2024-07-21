@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::backtest::BacktestError;
 
-/// Data source for the [`reader`].
+/// Data source for the [`Reader`].
 #[derive(Clone, Debug)]
 pub enum DataSource<D>
 where

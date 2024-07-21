@@ -188,7 +188,7 @@ impl BybitBuilder {
     /// Subscribes to the orderbook.1 and orderbook.500 topics to obtain a wider range of depth and
     /// the most frequent updates. `MarketDepth` that can handle data fusion should be used, such as
     /// [FusedHashMapMarketDepth](crate::depth::FusedHashMapMarketDepth).
-    /// Please see: https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook
+    /// Please see: `<https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook>`
     pub fn subscribe_multiple_depth(mut self) -> Self {
         self.topics.insert("orderbook.1".to_string());
         self.topics.insert("orderbook.500".to_string());
