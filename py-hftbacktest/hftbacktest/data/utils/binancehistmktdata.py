@@ -1,13 +1,19 @@
 import csv
-from typing import Optional, Literal
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .. import correct_event_order, validate_event_order
-from ... import correct_local_timestamp
-from ...binding import event_dtype
-from ...types import DEPTH_EVENT, TRADE_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT, BUY_EVENT
+from ..validation import correct_local_timestamp
+from ...types import (
+    DEPTH_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    TRADE_EVENT,
+    BUY_EVENT,
+    SELL_EVENT,
+    event_dtype
+)
 
 
 def convert_snapshot(
@@ -93,7 +99,10 @@ def convert_snapshot(
                     exch_ts,
                     local_ts,
                     price,
-                    qty
+                    qty,
+                    0,
+                    0,
+                    0
                 )
                 ss_bid_rn += 1
             else:
@@ -102,13 +111,16 @@ def convert_snapshot(
                     exch_ts,
                     local_ts,
                     price,
-                    qty
+                    qty,
+                    0,
+                    0,
+                    0
                 )
                 ss_ask_rn += 1
 
     ss_bid = ss_bid[:ss_bid_rn]
     ss_ask = ss_ask[:ss_ask_rn]
-    snapshot = np.empty(len(ss_bid) + len(ss_ask), event_dtype)
+    snapshot = np.zeros(len(ss_bid) + len(ss_ask), event_dtype)
 
     snapshot += [cols for cols in sorted(ss_bid, key=lambda v: -float(v[4]))]
     snapshot += [cols for cols in sorted(ss_ask, key=lambda v: float(v[4]))]
@@ -207,7 +219,10 @@ def convert(
                 exch_ts,
                 local_ts,
                 px,
-                qty
+                qty,
+                0,
+                0,
+                0
             )
             row_num += 1
 
@@ -261,7 +276,10 @@ def convert(
                 exch_ts,
                 local_ts,
                 px,
-                qty
+                qty,
+                0,
+                0,
+                0
             ]
             row_num += 1
     tmp = tmp[:row_num]
