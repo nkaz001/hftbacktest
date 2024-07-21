@@ -68,50 +68,62 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
 .. code-block:: python
 
     @njit
-    def simple_two_sided_quote(hbt, stat):
+    def simple_two_sided_quote(hbt):
         max_position = 5
         half_spread = hbt.tick_size * 20
         skew = 1
         order_qty = 0.1
         last_order_id = -1
         order_id = 0
+        asset_no = 0
 
         # Checks every 0.1s
-        while hbt.elapse(100_000):
+        while hbt.elapse(100_000_000) == 0:
             # Clears cancelled, filled or expired orders.
-            hbt.clear_inactive_orders()
+            hbt.clear_inactive_orders(asset_no)
+
+            # Gets the market depth.
+            depth = hbt.depth(asset_no)
 
             # Obtains the current mid-price and computes the reservation price.
-            mid_price = (hbt.best_bid + hbt.best_ask) / 2.0
-            reservation_price = mid_price - skew * hbt.position * hbt.tick_size
+            mid_price = (depth.best_bid + depth.best_ask) / 2.0
+            reservation_price = mid_price - skew * hbt.position(asset_no) * depth.tick_size
 
             buy_order_price = reservation_price - half_spread
             sell_order_price = reservation_price + half_spread
 
             last_order_id = -1
             # Cancel all outstanding orders
-            for order in hbt.orders.values():
+            orders = hbt.orders(asset_no)
+            values = orders.values()
+            while True:
+                order = values.next()
+                if order is None:
+                    break
                 if order.cancellable:
-                    hbt.cancel(order.order_id)
+                    hbt.cancel(asset_no, order.order_id)
                     last_order_id = order.order_id
 
             # All order requests are considered to be requested at the same time.
             # Waits until one of the order cancellation responses is received.
             if last_order_id >= 0:
-                hbt.wait_order_response(last_order_id)
+                hbt.wait_order_response(asset_no, last_order_id)
 
             # Clears cancelled, filled or expired orders.
-            hbt.clear_inactive_orders()
+            hbt.clear_inactive_orders(asset_no)
 
 	        last_order_id = -1
             if hbt.position < max_position:
                 # Submits a new post-only limit bid order.
                 order_id += 1
                 hbt.submit_buy_order(
+                    asset_no,
                     order_id,
                     buy_order_price,
                     order_qty,
-                    GTX
+                    GTX,
+                    LIMIT,
+                    False
                 )
                 last_order_id = order_id
 
@@ -119,20 +131,21 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
                 # Submits a new post-only limit ask order.
                 order_id += 1
                 hbt.submit_sell_order(
+                    asset_no,
                     order_id,
                     sell_order_price,
                     order_qty,
-                    GTX
+                    GTX,
+                    LIMIT,
+                    False
                 )
                 last_order_id = order_id
 
             # All order requests are considered to be requested at the same time.
             # Waits until one of the order responses is received.
             if last_order_id >= 0:
-                hbt.wait_order_response(last_order_id)
+                hbt.wait_order_response(asset_no, last_order_id)
 
-            # Records the current state for stat calculation.
-            stat.record(hbt)
 
 Tutorials
 =========
