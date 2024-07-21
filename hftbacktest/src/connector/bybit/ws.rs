@@ -2,7 +2,6 @@ use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
 
 use chrono::Utc;
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use rand::{distributions::Alphanumeric, Rng};
 use tokio::{net::TcpStream, select, sync::mpsc::UnboundedReceiver, time};
 use tokio_tungstenite::{
     connect_async,
@@ -98,7 +97,7 @@ async fn handle_public_stream(
                         px,
                         qty,
                         priority: 0,
-                        _reserved: 0
+                        _reserved: 0,
                     })
                     .collect();
                 assert_eq!(asks.len(), 1);
@@ -112,7 +111,7 @@ async fn handle_public_stream(
                         px,
                         qty,
                         priority: 0,
-                        _reserved: 0
+                        _reserved: 0,
                     })
                     .collect();
                 let mut events = Vec::new();
@@ -138,7 +137,7 @@ async fn handle_public_stream(
                         px,
                         qty,
                         priority: 0,
-                        _reserved: 0
+                        _reserved: 0,
                     })
                     .collect();
                 let mut ask_events: Vec<_> = asks
@@ -151,7 +150,7 @@ async fn handle_public_stream(
                         px,
                         qty,
                         priority: 0,
-                        _reserved: 0
+                        _reserved: 0,
                     })
                     .collect();
                 let mut events = Vec::new();
@@ -184,7 +183,7 @@ async fn handle_public_stream(
                                 px: item.trade_price,
                                 qty: item.trade_size,
                                 priority: 0,
-                                _reserved: 0
+                                _reserved: 0,
                             }],
                         })
                         .unwrap();

@@ -233,12 +233,20 @@ impl L2MarketDepth for HashMapMarketDepth {
 impl MarketDepth for HashMapMarketDepth {
     #[inline(always)]
     fn best_bid(&self) -> f64 {
-        self.best_bid_tick as f64 * self.tick_size
+        if self.best_bid_tick == INVALID_MIN {
+            f64::NAN
+        } else {
+            self.best_bid_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
     fn best_ask(&self) -> f64 {
-        self.best_ask_tick as f64 * self.tick_size
+        if self.best_ask_tick == INVALID_MAX {
+            f64::NAN
+        } else {
+            self.best_ask_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
@@ -316,7 +324,7 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 px: px_tick as f64 * self.tick_size,
                 qty,
                 priority: 0,
-                _reserved: 0
+                _reserved: 0,
             });
         }
 
@@ -336,7 +344,7 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 px: px_tick as f64 * self.tick_size,
                 qty,
                 priority: 0,
-                _reserved: 0
+                _reserved: 0,
             });
         }
 

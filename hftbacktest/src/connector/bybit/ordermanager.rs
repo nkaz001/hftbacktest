@@ -11,7 +11,7 @@ use crate::{
         bybit::msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
         util::gen_random_string,
     },
-    prelude::{get_precision, OrdType, Side, TimeInForce},
+    prelude::{get_precision, OrdType, OrderId, Side, TimeInForce},
     types::{Order, Status},
 };
 
@@ -43,7 +43,7 @@ pub(super) enum HandleError {
 
 pub struct OrderManager {
     prefix: String,
-    orders: HashMap<i64, (usize, String, Order)>,
+    orders: HashMap<OrderId, (usize, String, Order)>,
 }
 
 impl OrderManager {
@@ -54,7 +54,7 @@ impl OrderManager {
         }
     }
 
-    fn parse_order_id(&self, order_link_id: &str) -> Result<i64, HandleError> {
+    fn parse_order_id(&self, order_link_id: &str) -> Result<OrderId, HandleError> {
         if !order_link_id.starts_with(&self.prefix) {
             return Err(HandleError::PrefixUnmatched);
         }
@@ -169,7 +169,7 @@ impl OrderManager {
         &mut self,
         symbol: &str,
         category: &str,
-        order_id: i64,
+        order_id: OrderId,
     ) -> Result<BybitOrder, HandleError> {
         let (_, order_link_id, order) = self
             .orders

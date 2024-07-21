@@ -19,9 +19,11 @@ use crate::{
     types::{
         Event,
         Order,
+        OrderId,
         Side,
         Status,
         TimeInForce,
+        WaitOrderResponse,
         BUY,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
         EXCH_ASK_DEPTH_EVENT,
@@ -87,10 +89,10 @@ where
     row_num: usize,
 
     // key: order_id, value: Order
-    orders: Rc<RefCell<HashMap<i64, Order>>>,
+    orders: Rc<RefCell<HashMap<OrderId, Order>>>,
     // key: order's price tick, value: order_ids
-    buy_orders: HashMap<i64, HashSet<i64>>,
-    sell_orders: HashMap<i64, HashSet<i64>>,
+    buy_orders: HashMap<i64, HashSet<OrderId>>,
+    sell_orders: HashMap<i64, HashSet<OrderId>>,
 
     orders_to: OrderBus,
     orders_from: OrderBus,
@@ -100,7 +102,7 @@ where
     order_latency: LM,
     queue_model: QM,
 
-    filled_orders: Vec<i64>,
+    filled_orders: Vec<OrderId>,
 }
 
 impl<AT, LM, QM, MD> PartialFillExchange<AT, LM, QM, MD>
@@ -920,7 +922,7 @@ where
     fn process_recv_order(
         &mut self,
         timestamp: i64,
-        _wait_resp_order_id: i64,
+        _wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
         while self.orders_from.len() > 0 {

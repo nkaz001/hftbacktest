@@ -1,11 +1,6 @@
-use std::{
-    any::Any,
-    collections::{hash_map::Entry, HashMap},
-    marker::PhantomData,
-};
+use std::{any::Any, marker::PhantomData};
 
 use crate::{
-    backtest::BacktestError,
     depth::MarketDepth,
     types::{AnyClone, Order, Side},
 };
@@ -338,9 +333,9 @@ impl AnyClone for L3OrderSource {
 #[derive(Hash, Eq, PartialEq)]
 pub enum L3OrderId {
     /// Represents an order ID originating from the market feed.
-    Market(i64),
+    Market(u64),
     /// Represents an order ID originating from the backtest.
-    Backtest(i64),
+    Backtest(u64),
 }
 
 impl L3OrderId {

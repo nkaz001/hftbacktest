@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type};
 use crate::{
-    connector::util::{from_str_to_f64},
+    connector::util::from_str_to_f64,
     types::{OrdType, Side, Status, TimeInForce},
 };
 

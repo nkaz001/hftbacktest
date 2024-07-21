@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     collections::{hash_map::Entry, HashMap, HashSet},
     sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender},
     thread,
@@ -18,11 +17,9 @@ use crate::{
     connector::Connector,
     depth::{L2MarketDepth, MarketDepth},
     live::Asset,
-    prelude::OrderRequest,
+    prelude::{OrderId, OrderRequest, WaitOrderResponse},
     types::{
         Bot,
-        BotTypedDepth,
-        BotTypedTrade,
         BuildError,
         Event,
         LiveError as ErrorEvent,
@@ -39,8 +36,6 @@ use crate::{
         LOCAL_BID_DEPTH_EVENT,
         LOCAL_BUY_TRADE_EVENT,
         LOCAL_SELL_TRADE_EVENT,
-        WAIT_ORDER_RESPONSE_ANY,
-        WAIT_ORDER_RESPONSE_NONE,
     },
 };
 
@@ -294,7 +289,7 @@ pub struct LiveBot<MD> {
     ev_tx: Option<Sender<LiveEvent>>,
     ev_rx: Receiver<LiveEvent>,
     depth: Vec<MD>,
-    orders: Vec<HashMap<i64, Order>>,
+    orders: Vec<HashMap<OrderId, Order>>,
     trade: Vec<Vec<Event>>,
     trade_len: usize,
     conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
@@ -338,8 +333,7 @@ where
     fn elapse_<const WAIT_NEXT_FEED: bool>(
         &mut self,
         duration: i64,
-        wait_order_response: (usize, i64),
-        include_order_recv: bool,
+        wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BotError> {
         let now = Instant::now();
         let mut remaining_duration = duration;
@@ -374,13 +368,15 @@ where
                 }
                 Ok(LiveEvent::Order { asset_no, order }) => {
                     debug!(%asset_no, ?order, "Event::Order");
-                    let received_order_resp = if wait_order_response.0 == asset_no
-                        && (wait_order_response.1 == order.order_id
-                            || wait_order_response.1 == WAIT_ORDER_RESPONSE_ANY)
-                    {
-                        true
-                    } else {
-                        false
+                    let received_order_resp = match wait_order_response {
+                        WaitOrderResponse::Any => true,
+                        WaitOrderResponse::Specified(wait_order_asset_no, wait_order_id)
+                            if wait_order_id == order.order_id
+                                && wait_order_asset_no == asset_no =>
+                        {
+                            true
+                        }
+                        _ => false,
                     };
                     *unsafe { self.last_order_latency.get_unchecked_mut(asset_no) } = Some((
                         order.local_timestamp,
@@ -419,7 +415,7 @@ where
                             entry.insert(order);
                         }
                     }
-                    if received_order_resp || (WAIT_NEXT_FEED && include_order_recv) {
+                    if received_order_resp {
                         return Ok(true);
                     }
                 }
@@ -449,7 +445,7 @@ where
     fn submit_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
+        order_id: u64,
         price: f64,
         qty: f64,
         time_in_force: TimeInForce,
@@ -497,7 +493,7 @@ where
     }
 }
 
-impl<MD> Bot for LiveBot<MD>
+impl<MD> Bot<MD> for LiveBot<MD>
 where
     MD: MarketDepth + L2MarketDepth,
 {
@@ -526,18 +522,13 @@ where
     }
 
     #[inline]
-    fn depth(&self, asset_no: usize) -> &dyn MarketDepth {
+    fn depth(&self, asset_no: usize) -> &MD {
         self.depth.get(asset_no).unwrap()
     }
 
     #[inline]
-    fn trade(&self, asset_no: usize) -> Vec<&dyn Any> {
-        self.trade
-            .get(asset_no)
-            .unwrap()
-            .iter()
-            .map(|ev| ev as &dyn Any)
-            .collect()
+    fn trade(&self, asset_no: usize) -> &[Event] {
+        self.trade.get(asset_no).unwrap().as_slice()
     }
 
     fn clear_last_trades(&mut self, asset_no: Option<usize>) {
@@ -554,7 +545,7 @@ where
     }
 
     #[inline]
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order> {
+    fn orders(&self, asset_no: usize) -> &HashMap<OrderId, Order> {
         self.orders.get(asset_no).unwrap()
     }
 
@@ -562,7 +553,7 @@ where
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
+        order_id: OrderId,
         price: f64,
         qty: f64,
         time_in_force: TimeInForce,
@@ -585,7 +576,7 @@ where
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
+        order_id: OrderId,
         price: f64,
         qty: f64,
         time_in_force: TimeInForce,
@@ -623,7 +614,12 @@ where
     }
 
     #[inline]
-    fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
+    fn cancel(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
         let orders = self
             .orders
             .get_mut(asset_no)
@@ -667,10 +663,10 @@ where
     fn wait_order_response(
         &mut self,
         asset_no: usize,
-        order_id: i64,
+        order_id: OrderId,
         timeout: i64,
     ) -> Result<bool, Self::Error> {
-        self.elapse_::<false>(timeout, (asset_no, order_id), false)
+        self.elapse_::<false>(timeout, WaitOrderResponse::Specified(asset_no, order_id))
     }
 
     #[inline]
@@ -679,12 +675,16 @@ where
         include_order_resp: bool,
         timeout: i64,
     ) -> Result<bool, Self::Error> {
-        self.elapse_::<true>(timeout, (0, WAIT_ORDER_RESPONSE_NONE), include_order_resp)
+        if include_order_resp {
+            self.elapse_::<true>(timeout, WaitOrderResponse::Any)
+        } else {
+            self.elapse_::<true>(timeout, WaitOrderResponse::None)
+        }
     }
 
     #[inline]
     fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
-        self.elapse_::<false>(duration, (0, WAIT_ORDER_RESPONSE_NONE), false)
+        self.elapse_::<false>(duration, WaitOrderResponse::None)
     }
 
     #[inline]
@@ -702,23 +702,5 @@ where
 
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
         *self.last_order_latency.get(asset_no).unwrap()
-    }
-}
-
-impl<MD> BotTypedDepth<MD> for LiveBot<MD>
-where
-    MD: MarketDepth,
-{
-    fn depth_typed(&self, asset_no: usize) -> &MD {
-        self.depth.get(asset_no).unwrap()
-    }
-}
-
-impl<MD> BotTypedTrade<Event> for LiveBot<MD>
-where
-    MD: MarketDepth,
-{
-    fn trade_typed(&self, asset_no: usize) -> &[Event] {
-        self.trade.get(asset_no).unwrap()
     }
 }

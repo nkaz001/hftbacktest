@@ -299,12 +299,20 @@ impl L2MarketDepth for ROIVectorMarketDepth {
 impl MarketDepth for ROIVectorMarketDepth {
     #[inline(always)]
     fn best_bid(&self) -> f64 {
-        self.best_bid_tick as f64 * self.tick_size
+        if self.best_bid_tick == INVALID_MIN {
+            f64::NAN
+        } else {
+            self.best_bid_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
     fn best_ask(&self) -> f64 {
-        self.best_ask_tick as f64 * self.tick_size
+        if self.best_ask_tick == INVALID_MAX {
+            f64::NAN
+        } else {
+            self.best_ask_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]

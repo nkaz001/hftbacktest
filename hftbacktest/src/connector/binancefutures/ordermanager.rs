@@ -11,6 +11,7 @@ use crate::{
         binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
         util::gen_random_string,
     },
+    prelude::OrderId,
     types::{Order, Status},
 };
 
@@ -32,7 +33,7 @@ pub type OrderManagerWrapper = Arc<Mutex<OrderManager>>;
 pub struct OrderManager {
     prefix: String,
     orders: HashMap<String, OrderWrapper>,
-    order_id_map: HashMap<i64, String>,
+    order_id_map: HashMap<OrderId, String>,
 }
 
 impl OrderManager {
@@ -294,7 +295,7 @@ impl OrderManager {
         Some(client_order_id)
     }
 
-    pub fn get_client_order_id(&self, order_id: i64) -> Option<String> {
+    pub fn get_client_order_id(&self, order_id: OrderId) -> Option<String> {
         self.order_id_map.get(&order_id).cloned()
     }
 
@@ -320,7 +321,7 @@ impl OrderManager {
         }
     }
 
-    pub fn parse_client_order_id(client_order_id: &str, prefix: &str) -> Option<i64> {
+    pub fn parse_client_order_id(client_order_id: &str, prefix: &str) -> Option<u64> {
         if !client_order_id.starts_with(prefix) {
             None
         } else {

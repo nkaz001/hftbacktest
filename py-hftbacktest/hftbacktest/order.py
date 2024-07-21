@@ -28,14 +28,14 @@ LIMIT = 0
 MARKET = 1
 
 order_dtype = np.dtype([
-    ('qty', 'f4'),
-    ('leaves_qty', 'f4'),
-    ('price_tick', 'i4'),
-    ('tick_size', 'f4'),
+    ('qty', 'f8'),
+    ('leaves_qty', 'f8'),
+    ('exec_qty', 'f8'),
+    ('exec_price_tick', 'i8'),
+    ('price_tick', 'i8'),
+    ('tick_size', 'f8'),
     ('exch_timestamp', 'i8'),
     ('local_timestamp', 'i8'),
-    ('exec_price_tick', 'i4'),
-    ('exec_qty', 'f4'),
     ('order_id', 'i8'),
     ('_q1', 'u8'),
     ('_q2', 'u8'),

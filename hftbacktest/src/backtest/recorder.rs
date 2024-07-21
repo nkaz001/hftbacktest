@@ -5,12 +5,11 @@ use std::{
 };
 
 use npyz::{npz::NpzWriter, AutoSerialize, WriterBuilder};
-use tokio::io::AsyncWriteExt;
 use zip_old::{write::FileOptions, CompressionMethod};
 
 use crate::{
     depth::MarketDepth,
-    types::{Bot, BotTypedDepth, Recorder},
+    types::{Bot, Recorder},
 };
 
 #[derive(AutoSerialize, npyz::Serialize)]
@@ -36,27 +35,25 @@ impl Recorder for BacktestRecorder {
 
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Bot + BotTypedDepth<MD>,
         MD: MarketDepth,
+        I: Bot<MD>,
     {
         let timestamp = hbt.current_timestamp();
         for asset_no in 0..hbt.num_assets() {
-            let depth = hbt.depth_typed(asset_no);
+            let depth = hbt.depth(asset_no);
             let mid_price = (depth.best_bid() + depth.best_ask()) / 2.0;
             let state_values = hbt.state_values(asset_no);
             let values = unsafe { self.values.get_unchecked_mut(asset_no) };
-            values.push(
-                (Record {
-                    timestamp,
-                    price: mid_price,
-                    balance: state_values.balance,
-                    position: state_values.position,
-                    fee: state_values.fee,
-                    trading_volume: state_values.trading_volume,
-                    trading_value: state_values.trading_value,
-                    num_trades: state_values.num_trades,
-                }),
-            );
+            values.push(Record {
+                timestamp,
+                price: mid_price,
+                balance: state_values.balance,
+                position: state_values.position,
+                fee: state_values.fee,
+                trading_volume: state_values.trading_volume,
+                trading_value: state_values.trading_value,
+                num_trades: state_values.num_trades,
+            });
         }
         Ok(())
     }
@@ -64,9 +61,10 @@ impl Recorder for BacktestRecorder {
 
 impl BacktestRecorder {
     /// Constructs an instance of `BacktestRecorder`.
-    pub fn new<I>(hbt: &I) -> Self
+    pub fn new<I, MD>(hbt: &I) -> Self
     where
-        I: Bot,
+        MD: MarketDepth,
+        I: Bot<MD>,
     {
         Self {
             values: {

@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     backtest::{reader::Data, BacktestError},
-    prelude::{Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
+    prelude::Side,
     types::{Event, BUY, SELL},
 };
 
@@ -146,12 +146,20 @@ impl L2MarketDepth for BTreeMarketDepth {
 impl MarketDepth for BTreeMarketDepth {
     #[inline(always)]
     fn best_bid(&self) -> f64 {
-        self.best_bid_tick() as f64 * self.tick_size
+        if self.best_bid_tick == INVALID_MIN {
+            f64::NAN
+        } else {
+            self.best_bid_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
     fn best_ask(&self) -> f64 {
-        self.best_ask_tick() as f64 * self.tick_size
+        if self.best_ask_tick == INVALID_MAX {
+            f64::NAN
+        } else {
+            self.best_ask_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]

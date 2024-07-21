@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     mem::{forget, size_of},
     ops::{Index, IndexMut},
-    ptr::{null_mut, slice_from_raw_parts_mut},
+    ptr::null_mut,
     rc::Rc,
     slice::SliceIndex,
 };

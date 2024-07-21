@@ -44,8 +44,11 @@ event_dtype = np.dtype([
     ('ev', 'i8'),
     ('exch_ts', 'i8'),
     ('local_ts', 'i8'),
-    ('px', 'f4'),
-    ('qty', 'f4')
+    ('px', 'f8'),
+    ('qty', 'f8'),
+    ('order_id', 'u8'),
+    ('priority', 'i8'),
+    ('_reserved', 'i8'),
 ])
 
 EVENT_ARRAY = np.ndarray[Any, event_dtype]
