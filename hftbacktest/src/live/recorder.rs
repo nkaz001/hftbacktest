@@ -10,7 +10,7 @@ use crate::{
 
 /// Provides logging of the live strategy's state values.
 pub struct LoggingRecorder {
-    state: HashMap<usize, (f32, StateValues)>,
+    state: HashMap<usize, (f64, StateValues)>,
 }
 
 impl Recorder for LoggingRecorder {
@@ -18,8 +18,8 @@ impl Recorder for LoggingRecorder {
 
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Bot,
         MD: MarketDepth,
+        I: Bot<MD>,
     {
         for asset_no in 0..hbt.num_assets() {
             let depth = hbt.depth(asset_no);

@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, marker::PhantomData};
+use std::{collections::HashMap, marker::PhantomData};
 
 use crate::{
     backtest::{
@@ -8,10 +8,9 @@ use crate::{
         BacktestError,
     },
     depth::{HashMapMarketDepth, MarketDepth},
-    prelude::{BotTypedDepth, OrderRequest},
+    prelude::{OrderId, OrderRequest},
     types::{
         Bot,
-        BotTypedTrade,
         BuildError,
         Event,
         OrdType,
@@ -19,8 +18,8 @@ use crate::{
         Side,
         StateValues,
         TimeInForce,
+        WaitOrderResponse,
         UNTIL_END_OF_DATA,
-        WAIT_ORDER_RESPONSE_NONE,
     },
 };
 
@@ -129,15 +128,13 @@ where
                 }
             }
         }
-        self.goto::<false>(UNTIL_END_OF_DATA, (0, WAIT_ORDER_RESPONSE_NONE), false)
+        self.goto::<false>(UNTIL_END_OF_DATA, WaitOrderResponse::None)
     }
 
     fn goto<const WAIT_NEXT_FEED: bool>(
         &mut self,
         timestamp: i64,
-        wait_order_response: (usize, i64),
-        // include_order_resp is valid only if WaitNextFeed is true.
-        include_order_resp: bool,
+        wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BacktestError> {
         let mut timestamp = timestamp;
         for (asset_no, local) in self.local.iter().enumerate() {
@@ -173,27 +170,22 @@ where
                         }
                         EventIntentKind::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let wait_order_resp_id = {
-                                if WAIT_NEXT_FEED {
-                                    WAIT_ORDER_RESPONSE_NONE
-                                } else {
-                                    if ev.asset_no == wait_order_response.0 {
-                                        wait_order_response.1
-                                    } else {
-                                        WAIT_ORDER_RESPONSE_NONE
-                                    }
-                                }
+                            let wait_order_resp_id = match wait_order_response {
+                                WaitOrderResponse::Specified(
+                                    wait_order_asset_no,
+                                    wait_order_id,
+                                ) if ev.asset_no == wait_order_asset_no => Some(wait_order_id),
+                                _ => None,
                             };
-                            if local.process_recv_order(ev.timestamp, wait_order_resp_id)? {
+                            if local.process_recv_order(ev.timestamp, wait_order_resp_id)?
+                                || wait_order_response == WaitOrderResponse::Any
+                            {
                                 timestamp = ev.timestamp;
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
                                 local.earliest_recv_order_timestamp(),
                             );
-                            if WAIT_NEXT_FEED && include_order_resp {
-                                timestamp = ev.timestamp;
-                            }
                         }
                         EventIntentKind::ExchData => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
@@ -215,8 +207,7 @@ where
                         }
                         EventIntentKind::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let _ =
-                                exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ = exch.process_recv_order(ev.timestamp, None)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.earliest_recv_order_timestamp(),
@@ -232,7 +223,7 @@ where
     }
 }
 
-impl<MD> Bot for MultiAssetMultiExchangeBacktest<MD>
+impl<MD> Bot<MD> for MultiAssetMultiExchangeBacktest<MD>
 where
     MD: MarketDepth,
 {
@@ -258,18 +249,12 @@ where
         self.local.get(asset_no).unwrap().state_values()
     }
 
-    fn depth(&self, asset_no: usize) -> &dyn MarketDepth {
+    fn depth(&self, asset_no: usize) -> &MD {
         self.local.get(asset_no).unwrap().depth()
     }
 
-    fn trade(&self, asset_no: usize) -> Vec<&dyn Any> {
-        self.local
-            .get(asset_no)
-            .unwrap()
-            .trade()
-            .iter()
-            .map(|ev| ev as &dyn Any)
-            .collect()
+    fn trade(&self, asset_no: usize) -> &[Event] {
+        self.local.get(asset_no).unwrap().trade()
     }
 
     #[inline]
@@ -288,7 +273,7 @@ where
     }
 
     #[inline]
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order> {
+    fn orders(&self, asset_no: usize) -> &HashMap<u64, Order> {
         &self.local.get(asset_no).unwrap().orders()
     }
 
@@ -296,9 +281,9 @@ where
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
-        price: f32,
-        qty: f32,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -315,7 +300,10 @@ where
         )?;
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order_id),
+            );
         }
         Ok(true)
     }
@@ -324,9 +312,9 @@ where
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
-        price: f32,
-        qty: f32,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -343,7 +331,10 @@ where
         )?;
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order_id),
+            );
         }
         Ok(true)
     }
@@ -366,18 +357,29 @@ where
         )?;
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order.order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order.order_id),
+            );
         }
         Ok(true)
     }
 
     #[inline]
-    fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
+    fn cancel(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order_id),
+            );
         }
         Ok(true)
     }
@@ -403,10 +405,13 @@ where
     fn wait_order_response(
         &mut self,
         asset_no: usize,
-        order_id: i64,
+        order_id: OrderId,
         timeout: i64,
     ) -> Result<bool, BacktestError> {
-        self.goto::<false>(self.cur_ts + timeout, (asset_no, order_id), false)
+        self.goto::<false>(
+            self.cur_ts + timeout,
+            WaitOrderResponse::Specified(asset_no, order_id),
+        )
     }
 
     #[inline]
@@ -426,11 +431,11 @@ where
                 }
             }
         }
-        self.goto::<true>(
-            self.cur_ts + timeout,
-            (0, WAIT_ORDER_RESPONSE_NONE),
-            include_order_resp,
-        )
+        if include_order_resp {
+            self.goto::<true>(self.cur_ts + timeout, WaitOrderResponse::Any)
+        } else {
+            self.goto::<true>(self.cur_ts + timeout, WaitOrderResponse::None)
+        }
     }
 
     #[inline]
@@ -446,7 +451,7 @@ where
                 }
             }
         }
-        self.goto::<false>(self.cur_ts + duration, (0, WAIT_ORDER_RESPONSE_NONE), false)
+        self.goto::<false>(self.cur_ts + duration, WaitOrderResponse::None)
     }
 
     #[inline]
@@ -467,27 +472,6 @@ where
     #[inline]
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
         self.local.get(asset_no).unwrap().order_latency()
-    }
-}
-
-impl<MD> BotTypedDepth<MD> for MultiAssetMultiExchangeBacktest<MD>
-where
-    MD: MarketDepth,
-{
-    #[inline]
-    fn depth_typed(&self, asset_no: usize) -> &MD {
-        &self.local.get(asset_no).unwrap().depth()
-    }
-}
-
-impl<MD> BotTypedTrade<Event> for MultiAssetMultiExchangeBacktest<MD>
-where
-    MD: MarketDepth,
-{
-    #[inline]
-    fn trade_typed(&self, asset_no: usize) -> &[Event] {
-        let local = self.local.get(asset_no).unwrap();
-        local.trade()
     }
 }
 
@@ -597,9 +581,7 @@ where
     pub fn goto<const WAIT_NEXT_FEED: bool>(
         &mut self,
         timestamp: i64,
-        wait_order_response: (usize, i64),
-        // include_order_resp is valid only if WaitNextFeed is true.
-        include_order_resp: bool,
+        wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BacktestError> {
         let mut timestamp = timestamp;
         for (asset_no, local) in self.local.iter().enumerate() {
@@ -635,27 +617,22 @@ where
                         }
                         EventIntentKind::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let wait_order_resp_id = {
-                                if WAIT_NEXT_FEED {
-                                    WAIT_ORDER_RESPONSE_NONE
-                                } else {
-                                    if ev.asset_no == wait_order_response.0 {
-                                        wait_order_response.1
-                                    } else {
-                                        WAIT_ORDER_RESPONSE_NONE
-                                    }
-                                }
+                            let wait_order_resp_id = match wait_order_response {
+                                WaitOrderResponse::Specified(
+                                    wait_order_asset_no,
+                                    wait_order_id,
+                                ) if ev.asset_no == wait_order_asset_no => Some(wait_order_id),
+                                _ => None,
                             };
-                            if local.process_recv_order(ev.timestamp, wait_order_resp_id)? {
+                            if local.process_recv_order(ev.timestamp, wait_order_resp_id)?
+                                || wait_order_response == WaitOrderResponse::Any
+                            {
                                 timestamp = ev.timestamp;
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
                                 local.earliest_recv_order_timestamp(),
                             );
-                            if WAIT_NEXT_FEED && include_order_resp {
-                                timestamp = ev.timestamp;
-                            }
                         }
                         EventIntentKind::ExchData => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
@@ -677,8 +654,7 @@ where
                         }
                         EventIntentKind::ExchOrder => {
                             let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let _ =
-                                exch.process_recv_order(ev.timestamp, WAIT_ORDER_RESPONSE_NONE)?;
+                            let _ = exch.process_recv_order(ev.timestamp, None)?;
                             self.evs.update_exch_order(
                                 ev.asset_no,
                                 exch.earliest_recv_order_timestamp(),
@@ -694,7 +670,7 @@ where
     }
 }
 
-impl<MD, Local, Exchange> Bot for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+impl<MD, Local, Exchange> Bot<MD> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
     Local: LocalProcessor<MD, Event>,
@@ -722,18 +698,12 @@ where
         self.local.get(asset_no).unwrap().state_values()
     }
 
-    fn depth(&self, asset_no: usize) -> &dyn MarketDepth {
+    fn depth(&self, asset_no: usize) -> &MD {
         self.local.get(asset_no).unwrap().depth()
     }
 
-    fn trade(&self, asset_no: usize) -> Vec<&dyn Any> {
-        self.local
-            .get(asset_no)
-            .unwrap()
-            .trade()
-            .iter()
-            .map(|ev| ev as &dyn Any)
-            .collect()
+    fn trade(&self, asset_no: usize) -> &[Event] {
+        self.local.get(asset_no).unwrap().trade()
     }
 
     #[inline]
@@ -752,7 +722,7 @@ where
     }
 
     #[inline]
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order> {
+    fn orders(&self, asset_no: usize) -> &HashMap<OrderId, Order> {
         &self.local.get(asset_no).unwrap().orders()
     }
 
@@ -760,9 +730,9 @@ where
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
-        price: f32,
-        qty: f32,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -781,7 +751,10 @@ where
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order_id),
+            );
         }
         Ok(true)
     }
@@ -790,9 +763,9 @@ where
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
-        price: f32,
-        qty: f32,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -811,7 +784,10 @@ where
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order_id),
+            );
         }
         Ok(true)
     }
@@ -836,20 +812,31 @@ where
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order.order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order.order_id),
+            );
         }
         Ok(true)
     }
 
     #[inline]
-    fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error> {
+    fn cancel(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
         self.evs
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
 
         if wait {
-            return self.goto::<false>(UNTIL_END_OF_DATA, (asset_no, order_id), false);
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified(asset_no, order_id),
+            );
         }
         Ok(true)
     }
@@ -875,10 +862,13 @@ where
     fn wait_order_response(
         &mut self,
         asset_no: usize,
-        order_id: i64,
+        order_id: OrderId,
         timeout: i64,
     ) -> Result<bool, BacktestError> {
-        self.goto::<false>(self.cur_ts + timeout, (asset_no, order_id), false)
+        self.goto::<false>(
+            self.cur_ts + timeout,
+            WaitOrderResponse::Specified(asset_no, order_id),
+        )
     }
 
     fn wait_next_feed(
@@ -897,11 +887,11 @@ where
                 }
             }
         }
-        self.goto::<true>(
-            self.cur_ts + timeout,
-            (0, WAIT_ORDER_RESPONSE_NONE),
-            include_order_resp,
-        )
+        if include_order_resp {
+            self.goto::<true>(self.cur_ts + timeout, WaitOrderResponse::Any)
+        } else {
+            self.goto::<true>(self.cur_ts + timeout, WaitOrderResponse::None)
+        }
     }
 
     #[inline]
@@ -917,7 +907,7 @@ where
                 }
             }
         }
-        self.goto::<false>(self.cur_ts + duration, (0, WAIT_ORDER_RESPONSE_NONE), false)
+        self.goto::<false>(self.cur_ts + duration, WaitOrderResponse::None)
     }
 
     #[inline]
@@ -938,32 +928,5 @@ where
     #[inline]
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
         self.local.get(asset_no).unwrap().order_latency()
-    }
-}
-
-impl<MD, Local, Exchange> BotTypedDepth<MD>
-    for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
-where
-    MD: MarketDepth,
-    Local: LocalProcessor<MD, Event>,
-    Exchange: Processor,
-{
-    #[inline]
-    fn depth_typed(&self, asset_no: usize) -> &MD {
-        &self.local.get(asset_no).unwrap().depth()
-    }
-}
-
-impl<MD, Local, Exchange> BotTypedTrade<Event>
-    for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
-where
-    MD: MarketDepth,
-    Local: LocalProcessor<MD, Event>,
-    Exchange: Processor,
-{
-    #[inline]
-    fn trade_typed(&self, asset_no: usize) -> &[Event] {
-        let local = self.local.get(asset_no).unwrap();
-        local.trade()
     }
 }

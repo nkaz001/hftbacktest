@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     mem::{forget, size_of},
     ops::{Index, IndexMut},
-    ptr::{null_mut, slice_from_raw_parts_mut},
+    ptr::null_mut,
     rc::Rc,
     slice::SliceIndex,
 };
@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::backtest::BacktestError;
 
-/// Data source for the [`reader`].
+/// Data source for the [`Reader`].
 #[derive(Clone, Debug)]
 pub enum DataSource<D>
 where
@@ -329,6 +329,8 @@ pub fn read_npy<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
     }
 
     let header_len = u16::from_le_bytes(buf[8..10].try_into().unwrap()) as usize;
+    // todo: add a check to ensure the structure matches the structured array described in the
+    //       header.
     // let header = String::from_utf8(buf[10..(10 + header_len)].to_vec()).unwrap().to_string().trim().to_string();
 
     Ok(Data {
@@ -354,6 +356,8 @@ pub fn read_npz<D: NpyFile + Clone>(filepath: &str) -> Result<Data<D>, IoError> 
     }
 
     let header_len = u16::from_le_bytes(buf[8..10].try_into().unwrap()) as usize;
+    // todo: add a check to ensure the structure matches the structured array described in the
+    //       header.
     // let header = String::from_utf8(buf[10..(10 + header_len)].to_vec()).unwrap().to_string().trim().to_string();
 
     Ok(Data {

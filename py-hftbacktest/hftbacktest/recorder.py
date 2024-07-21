@@ -4,16 +4,7 @@ import numpy as np
 from numba import uint64, from_dtype
 from numba.experimental import jitclass
 
-record_dtype = np.dtype([
-    ('timestamp', 'i8'),
-    ('balance', 'f8'),
-    ('position', 'f8'),
-    ('fee', 'f8'),
-    ('trading_volume', 'f8'),
-    ('trading_value', 'f8'),
-    ('num_trades', 'i4'),
-    ('price', 'f4')
-])
+from .types import record_dtype
 
 
 @jitclass
@@ -28,17 +19,17 @@ class Recorder_:
     def record(self, hbt):
         timestamp = hbt.current_timestamp
         for asset_no in range(hbt.num_assets):
-            depth = hbt.depth_typed(asset_no)
+            depth = hbt.depth(asset_no)
             mid_price = (depth.best_bid + depth.best_ask) / 2.0
             state_values = hbt.state_values(asset_no)
             self.records[self.i, asset_no].timestamp = timestamp
-            self.records[self.i, asset_no].balance = state_values.balance
+            self.records[self.i, asset_no].price = mid_price
             self.records[self.i, asset_no].position = state_values.position
+            self.records[self.i, asset_no].balance = state_values.balance
             self.records[self.i, asset_no].fee = state_values.fee
+            self.records[self.i, asset_no].num_trades = state_values.num_trades
             self.records[self.i, asset_no].trading_volume = state_values.trading_volume
             self.records[self.i, asset_no].trading_value = state_values.trading_value
-            self.records[self.i, asset_no].num_trades = state_values.num_trades
-            self.records[self.i, asset_no].price = mid_price
 
         self.i += 1
         if self.i == len(self.records):

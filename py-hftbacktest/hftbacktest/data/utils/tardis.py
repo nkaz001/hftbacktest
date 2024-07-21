@@ -5,12 +5,14 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..validation import correct_event_order, validate_event_order, correct_local_timestamp
-from ...binding import event_dtype
 from ...types import (
+    DEPTH_EVENT,
     DEPTH_CLEAR_EVENT,
     DEPTH_SNAPSHOT_EVENT,
     TRADE_EVENT,
-    DEPTH_EVENT, SELL_EVENT, BUY_EVENT,
+    BUY_EVENT,
+    SELL_EVENT,
+    event_dtype
 )
 
 
@@ -103,7 +105,10 @@ def convert(
                         int(cols[2]) * timestamp_mul,
                         int(cols[3]) * timestamp_mul,
                         float(cols[6]),
-                        float(cols[7])
+                        float(cols[7]),
+                        0,
+                        0,
+                        0
                     )
                     row_num += 1
                 elif file_type == DEPTH:
@@ -123,7 +128,10 @@ def convert(
                                 int(cols[2]) * timestamp_mul,
                                 int(cols[3]) * timestamp_mul,
                                 float(cols[6]),
-                                float(cols[7])
+                                float(cols[7]),
+                                0,
+                                0,
+                                0
                             )
                             ss_bid_rn += 1
                         else:
@@ -132,7 +140,10 @@ def convert(
                                 int(cols[2]) * timestamp_mul,
                                 int(cols[3]) * timestamp_mul,
                                 float(cols[6]),
-                                float(cols[7])
+                                float(cols[7]),
+                                0,
+                                0,
+                                0
                             )
                             ss_ask_rn += 1
                     else:
@@ -150,6 +161,9 @@ def convert(
                                     ss_bid[0]['exch_ts'],
                                     ss_bid[0]['local_ts'],
                                     ss_bid[-1]['px'],
+                                    0,
+                                    0,
+                                    0,
                                     0
                                 )
                                 row_num += 1
@@ -166,6 +180,9 @@ def convert(
                                     ss_ask[0]['exch_ts'],
                                     ss_ask[0]['local_ts'],
                                     ss_ask[-1]['px'],
+                                    0,
+                                    0,
+                                    0,
                                     0
                                 )
                                 row_num += 1
@@ -179,7 +196,10 @@ def convert(
                             int(cols[2]) * timestamp_mul,
                             int(cols[3]) * timestamp_mul,
                             float(cols[6]),
-                            float(cols[7])
+                            float(cols[7]),
+                            0,
+                            0,
+                            0
                         )
                         row_num += 1
     tmp = tmp[:row_num]

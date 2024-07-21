@@ -4,10 +4,11 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 
-from ..binding import event_dtype, EVENT_ARRAY
 from ..types import (
     EXCH_EVENT,
-    LOCAL_EVENT
+    LOCAL_EVENT,
+    event_dtype,
+    EVENT_ARRAY
 )
 
 

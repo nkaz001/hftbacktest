@@ -231,8 +231,8 @@ impl Connector for BinanceFutures {
         &mut self,
         asset_no: usize,
         symbol: String,
-        tick_size: f32,
-        lot_size: f32,
+        tick_size: f64,
+        lot_size: f64,
     ) -> Result<(), anyhow::Error> {
         let asset_info = Asset {
             asset_no,
@@ -396,7 +396,7 @@ impl Connector for BinanceFutures {
                             &client_order_id,
                             &symbol,
                             order.side,
-                            order.price_tick as f32 * order.tick_size,
+                            order.price_tick as f64 * order.tick_size,
                             get_precision(order.tick_size),
                             order.qty,
                             order.order_type,

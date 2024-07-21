@@ -63,7 +63,7 @@ pub enum ErrorKind {
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
     L2Feed { asset_no: usize, events: Vec<Event> },
-    L3Feed { asset_no: usize, event: L3Event },
+    L3Feed { asset_no: usize, event: Event },
     Order { asset_no: usize, order: Order },
     Position { asset_no: usize, qty: f64 },
     Error(LiveError),
@@ -215,18 +215,21 @@ pub const EXCH_MODIFY_ORDER_EVENT: i64 = EXCH_EVENT | MODIFY_ORDER_EVENT;
 /// Represents a combination of [`EXCH_EVENT`] and [`FILL_EVENT`].
 pub const EXCH_FILL_EVENT: i64 = EXCH_EVENT | FILL_EVENT;
 
-/// Indicates that one should not wait for an order response.
-pub const WAIT_ORDER_RESPONSE_NONE: i64 = -1;
-
-/// Indicates that one should wait for any order response.
-pub const WAIT_ORDER_RESPONSE_ANY: i64 = -2;
-
 /// Indicates that one should continue until the end of the data.
 pub const UNTIL_END_OF_DATA: i64 = i64::MAX;
 
-/// Exchange event data.
+pub type OrderId = u64;
+
+#[derive(PartialEq, Debug)]
+pub enum WaitOrderResponse {
+    None,
+    Any,
+    Specified(usize, OrderId),
+}
+
+/// Exchange Level3 Market-By-Order event data.
 #[derive(Clone, PartialEq, Debug)]
-#[repr(C, align(32))]
+#[repr(C, align(64))]
 pub struct Event {
     /// Event flag
     pub ev: i64,
@@ -235,58 +238,21 @@ pub struct Event {
     /// Exchange timestamp, which is the time at which the event occurs on the local.
     pub local_ts: i64,
     /// Price
-    pub px: f32,
+    pub px: f64,
     /// Quantity
-    pub qty: f32,
-}
-
-impl Event {
-    /// Checks if this `Event` corresponds to the given event.
-    #[inline(always)]
-    pub fn is(&self, event: i64) -> bool {
-        if (self.ev & event) != event {
-            false
-        } else {
-            let event_kind = event & 0xff;
-            if event_kind == 0 {
-                true
-            } else {
-                self.ev & 0xff == event_kind
-            }
-        }
-    }
+    pub qty: f64,
+    /// Order Id
+    pub order_id: u64,
+    /// Priority, which is required when the order book needs to be recovered from the snapshot.
+    pub priority: i64,
+    pub _reserved: i64,
 }
 
 unsafe impl POD for Event {}
 
 unsafe impl NpyFile for Event {}
 
-/// Exchange Level3 Market-By-Order event data.
-#[derive(Clone, PartialEq, Debug)]
-#[repr(C, align(64))]
-pub struct L3Event {
-    /// Event flag
-    pub ev: i64,
-    /// Exchange timestamp, which is the time at which the event occurs on the exchange.
-    pub exch_ts: i64,
-    /// Exchange timestamp, which is the time at which the event occurs on the local.
-    pub local_ts: i64,
-    /// Order Id
-    pub order_id: i64,
-    /// Price
-    pub px: f32,
-    /// Quantity
-    pub qty: f32,
-    /// Priority, which is required when the order book needs to be recovered from the snapshot.
-    pub priority: u64,
-    pub _reserved: [i64; 2],
-}
-
-unsafe impl POD for L3Event {}
-
-unsafe impl NpyFile for L3Event {}
-
-impl L3Event {
+impl Event {
     /// Checks if this `L3Event` corresponds to the given event.
     #[inline(always)]
     pub fn is(&self, event: i64) -> bool {
@@ -317,16 +283,6 @@ pub enum Side {
     /// This occurs when the [`Connector`](`crate::connector::Connector`) receives a side value that
     /// does not have a corresponding enum value.
     Unsupported = 127,
-}
-
-impl AsRef<f32> for Side {
-    fn as_ref(&self) -> &f32 {
-        match self {
-            Side::Buy => &1.0f32,
-            Side::Sell => &-1.0f32,
-            Side::Unsupported => panic!("Side::Unsupported"),
-        }
-    }
 }
 
 impl AsRef<f64> for Side {
@@ -448,25 +404,25 @@ impl AnyClone for () {
 #[repr(C)]
 pub struct Order {
     /// Order quantity
-    pub qty: f32,
+    pub qty: f64,
     /// The quantity of this order that has not yet been executed. It represents the remaining
     /// quantity that is still open or active in the market after any partial fills.
-    pub leaves_qty: f32,
+    pub leaves_qty: f64,
+    /// Executed quantity, only available when this order is executed.
+    pub exec_qty: f64,
+    /// Executed price in ticks (`executed_price / tick_size`), only available when this order is
+    /// executed.
+    pub exec_price_tick: i64,
     /// Order price in ticks (`price / tick_size`).
-    pub price_tick: i32,
+    pub price_tick: i64,
     /// The tick size of the asset associated with this order.
-    pub tick_size: f32,
+    pub tick_size: f64,
     /// The time at which the exchange processes this order, ideally when the matching engine
     /// processes the order, will be set if the value is available.
     pub exch_timestamp: i64,
     /// The time at which the local receives this order or sent this order to the exchange.
     pub local_timestamp: i64,
-    /// Executed price in ticks (`executed_price / tick_size`), only available when this order is
-    /// executed.
-    pub exec_price_tick: i32,
-    /// Executed quantity, only available when this order is executed.
-    pub exec_qty: f32,
-    pub order_id: i64,
+    pub order_id: u64,
     /// Additional data used for [`QueueModel`](`crate::backtest::models::QueueModel`).
     /// This is only available in backtesting, and the type `Q` is set to `()` in a live bot.
     pub q: Box<dyn AnyClone + Send>,
@@ -485,10 +441,10 @@ pub struct Order {
 impl Order {
     /// Constructs an instance of `Order`.
     pub fn new(
-        order_id: i64,
-        price_tick: i32,
-        tick_size: f32,
-        qty: f32,
+        order_id: u64,
+        price_tick: i64,
+        tick_size: f64,
+        qty: f64,
         side: Side,
         order_type: OrdType,
         time_in_force: TimeInForce,
@@ -514,13 +470,13 @@ impl Order {
     }
 
     /// Returns the order price.
-    pub fn price(&self) -> f32 {
-        self.price_tick as f32 * self.tick_size
+    pub fn price(&self) -> f64 {
+        self.price_tick as f64 * self.tick_size
     }
 
     /// Returns the executed price, only available when this order is executed.
-    pub fn exec_price(&self) -> f32 {
-        self.exec_price_tick as f32 * self.tick_size
+    pub fn exec_price(&self) -> f64 {
+        self.exec_price_tick as f64 * self.tick_size
     }
 
     /// Returns whether this order is cancelable.
@@ -611,11 +567,11 @@ pub struct StateValues {
     // todo: currently, they are cumulative values, but they need to be values within the record
     //       interval.
     /// Backtest only
+    pub num_trades: i64,
+    /// Backtest only
     pub trading_volume: f64,
     /// Backtest only
     pub trading_value: f64,
-    /// Backtest only
-    pub num_trades: i32,
 }
 
 /// Provides errors that can occur in builders.
@@ -635,16 +591,19 @@ pub enum BuildError {
 
 /// Used to submit an order in a live bot.
 pub struct OrderRequest {
-    pub order_id: i64,
-    pub price: f32,
-    pub qty: f32,
+    pub order_id: u64,
+    pub price: f64,
+    pub qty: f64,
     pub side: Side,
     pub time_in_force: TimeInForce,
     pub order_type: OrdType,
 }
 
 /// Provides a bot interface for backtesting and live trading.
-pub trait Bot {
+pub trait Bot<MD>
+where
+    MD: MarketDepth,
+{
     type Error;
 
     /// In backtesting, this timestamp reflects the time at which the backtesting is conducted
@@ -662,15 +621,15 @@ pub trait Bot {
     /// Returns the state's values such as balance, fee, and so on.
     fn state_values(&self, asset_no: usize) -> &StateValues;
 
-    /// Returns the [MarketDepth](crate::depth::MarketDepth).
+    /// Returns the [`MarketDepth`].
     ///
     /// * `asset_no` - Asset number from which the market depth will be retrieved.
-    fn depth(&self, asset_no: usize) -> &dyn MarketDepth;
+    fn depth(&self, asset_no: usize) -> &MD;
 
     /// Returns the last market trades.
     ///
     /// * `asset_no` - Asset number from which the last market trades will be retrieved.
-    fn trade(&self, asset_no: usize) -> Vec<&dyn Any>;
+    fn trade(&self, asset_no: usize) -> &[Event];
 
     /// Clears the last market trades from the buffer.
     ///
@@ -681,7 +640,7 @@ pub trait Bot {
     /// Returns a hash map of order IDs and their corresponding [`Order`]s.
     ///
     /// * `asset_no` - Asset number from which orders will be retrieved.
-    fn orders(&self, asset_no: usize) -> &HashMap<i64, Order>;
+    fn orders(&self, asset_no: usize) -> &HashMap<OrderId, Order>;
 
     /// Places a buy order.
     ///
@@ -700,9 +659,9 @@ pub trait Bot {
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
-        price: f32,
-        qty: f32,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -725,9 +684,9 @@ pub trait Bot {
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
-        order_id: i64,
-        price: f32,
-        qty: f32,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
@@ -746,7 +705,12 @@ pub trait Bot {
     /// * `asset_no` - Asset number at which this command will be executed.
     /// * `order_id` - Order ID to cancel.
     /// * `wait` - If true, wait until the order placement response is received.
-    fn cancel(&mut self, asset_no: usize, order_id: i64, wait: bool) -> Result<bool, Self::Error>;
+    fn cancel(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        wait: bool,
+    ) -> Result<bool, Self::Error>;
 
     /// Clears inactive orders from the local orders whose status is neither [`Status::New`] nor
     /// [`Status::PartiallyFilled`].
@@ -756,7 +720,7 @@ pub trait Bot {
     fn wait_order_response(
         &mut self,
         asset_no: usize,
-        order_id: i64,
+        order_id: OrderId,
         timeout: i64,
     ) -> Result<bool, Self::Error>;
 
@@ -804,24 +768,6 @@ pub trait Bot {
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)>;
 }
 
-/// Provides a method that returns a typed `MarketDepth` instead of `dyn Any`. This is faster than
-/// casting from `dyn Any`, especially during backtesting.
-pub trait BotTypedDepth<MD> {
-    /// Returns the [MarketDepth](crate::depth::MarketDepth).
-    ///
-    /// * `asset_no` - Asset number from which the market depth will be retrieved.
-    fn depth_typed(&self, asset_no: usize) -> &MD;
-}
-
-/// Provides a method that returns a typed trade `Event` instead of `dyn Any`. This is faster than
-/// casting from `dyn Any`, especially during backtesting.
-pub trait BotTypedTrade<Event> {
-    /// Returns the last market trades.
-    ///
-    /// * `asset_no` - Asset number from which the last market trades will be retrieved.
-    fn trade_typed(&self, asset_no: usize) -> &[Event];
-}
-
 /// Provides bot statistics and [`StateValues`] recording features for backtesting result analysis
 /// or live bot logging.
 pub trait Recorder {
@@ -830,7 +776,7 @@ pub trait Recorder {
     /// Records the current [`StateValues`].
     fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
     where
-        I: Bot + BotTypedDepth<MD>,
+        I: Bot<MD>,
         MD: MarketDepth;
 }
 
@@ -854,8 +800,11 @@ mod tests {
             ev: LOCAL_BID_DEPTH_CLEAR_EVENT | (1 << 20),
             exch_ts: 0,
             local_ts: 0,
+            order_id: 0,
             px: 0.0,
             qty: 0.0,
+            priority: 0,
+            _reserved: 0,
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));
@@ -866,8 +815,11 @@ mod tests {
             ev: LOCAL_EVENT | BUY | 0xff,
             exch_ts: 0,
             local_ts: 0,
+            order_id: 0,
             px: 0.0,
             qty: 0.0,
+            priority: 0,
+            _reserved: 0,
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));

@@ -2,7 +2,6 @@ use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
 
 use chrono::Utc;
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use rand::{distributions::Alphanumeric, Rng};
 use tokio::{net::TcpStream, select, sync::mpsc::UnboundedReceiver, time};
 use tokio_tungstenite::{
     connect_async,
@@ -56,7 +55,7 @@ pub struct OrderOp {
 fn parse_depth(
     bids: Vec<(String, String)>,
     asks: Vec<(String, String)>,
-) -> Result<(Vec<(f32, f32)>, Vec<(f32, f32)>), HandleError> {
+) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>), HandleError> {
     let mut bids_ = Vec::with_capacity(bids.len());
     for (px, qty) in bids {
         bids_.push(parse_px_qty_tup(px, qty)?);
@@ -68,7 +67,7 @@ fn parse_depth(
     Ok((bids_, asks_))
 }
 
-fn parse_px_qty_tup(px: String, qty: String) -> Result<(f32, f32), HandleError> {
+fn parse_px_qty_tup(px: String, qty: String) -> Result<(f64, f64), HandleError> {
     Ok((px.parse()?, qty.parse()?))
 }
 
@@ -94,8 +93,11 @@ async fn handle_public_stream(
                         ev: LOCAL_BID_DEPTH_BBO_EVENT,
                         exch_ts: stream.cts.unwrap() * 1_000_000,
                         local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                        order_id: 0,
                         px,
                         qty,
+                        priority: 0,
+                        _reserved: 0,
                     })
                     .collect();
                 assert_eq!(asks.len(), 1);
@@ -105,8 +107,11 @@ async fn handle_public_stream(
                         ev: LOCAL_ASK_DEPTH_BBO_EVENT,
                         exch_ts: stream.cts.unwrap() * 1_000_000,
                         local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                        order_id: 0,
                         px,
                         qty,
+                        priority: 0,
+                        _reserved: 0,
                     })
                     .collect();
                 let mut events = Vec::new();
@@ -128,8 +133,11 @@ async fn handle_public_stream(
                         ev: LOCAL_BID_DEPTH_EVENT,
                         exch_ts: stream.cts.unwrap() * 1_000_000,
                         local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                        order_id: 0,
                         px,
                         qty,
+                        priority: 0,
+                        _reserved: 0,
                     })
                     .collect();
                 let mut ask_events: Vec<_> = asks
@@ -138,8 +146,11 @@ async fn handle_public_stream(
                         ev: LOCAL_ASK_DEPTH_EVENT,
                         exch_ts: stream.cts.unwrap() * 1_000_000,
                         local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                        order_id: 0,
                         px,
                         qty,
+                        priority: 0,
+                        _reserved: 0,
                     })
                     .collect();
                 let mut events = Vec::new();
@@ -168,8 +179,11 @@ async fn handle_public_stream(
                                 },
                                 exch_ts: item.ts * 1_000_000,
                                 local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                order_id: 0,
                                 px: item.trade_price,
                                 qty: item.trade_size,
+                                priority: 0,
+                                _reserved: 0,
                             }],
                         })
                         .unwrap();

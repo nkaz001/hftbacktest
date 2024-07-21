@@ -42,16 +42,16 @@ where
             self.taker_fee
         };
         let amount = self.asset_type.amount(order.exec_price(), order.exec_qty);
-        self.state_values.position += order.exec_qty as f64 * AsRef::<f64>::as_ref(&order.side);
+        self.state_values.position += order.exec_qty * AsRef::<f64>::as_ref(&order.side);
         self.state_values.balance -= amount * AsRef::<f64>::as_ref(&order.side);
         self.state_values.fee += amount * fee;
         self.state_values.num_trades += 1;
-        self.state_values.trading_volume += order.exec_qty as f64;
+        self.state_values.trading_volume += order.exec_qty;
         self.state_values.trading_value += amount;
     }
 
     #[inline]
-    pub fn equity(&self, mid: f32) -> f64 {
+    pub fn equity(&self, mid: f64) -> f64 {
         self.asset_type.equity(
             mid,
             self.state_values.balance,

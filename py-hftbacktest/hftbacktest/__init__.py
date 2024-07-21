@@ -15,9 +15,6 @@ from .binding import (
     ROIVectorMarketDepthMultiAssetMultiExchangeBacktest as ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_TypeHint,
     event_dtype
 )
-from .data import (
-    correct_local_timestamp,
-)
 from .order import (
     BUY,
     SELL,
@@ -30,12 +27,11 @@ from .order import (
     GTX,
     LIMIT,
     MARKET,
-    order_dtype,
-)
-from .types import (
-    ALL_ASSETS
 )
 from .recorder import Recorder
+from .types import (
+    ALL_ASSETS, EVENT_ARRAY
+)
 
 __all__ = (
     'BacktestAsset',
@@ -71,11 +67,23 @@ __hftbacktests__ = {}
 
 
 class BacktestAsset(BacktestAsset_):
-    def add_data(self, data: str | np.ndarray[Any, event_dtype]):
+    def add_data(self, data: EVENT_ARRAY):
+        self._add_data_ndarray(data.ctypes.data, len(data))
+        return self
+
+    def data(self, data: str | List[str] | EVENT_ARRAY | List[EVENT_ARRAY]):
         if isinstance(data, str):
-            super().add_file(data)
+            self.add_file(data)
         elif isinstance(data, np.ndarray):
-            self._add_data_ndarray(data.ctypes.data, len(data))
+            self.add_data(data)
+        elif isinstance(data, list):
+            for item in data:
+                if isinstance(item, str):
+                    self.add_file(item)
+                elif isinstance(item, np.ndarray):
+                    self.add_data(item)
+                else:
+                    raise ValueError
         else:
             raise ValueError
         return self

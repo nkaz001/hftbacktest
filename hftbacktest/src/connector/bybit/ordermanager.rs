@@ -11,7 +11,7 @@ use crate::{
         bybit::msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
         util::gen_random_string,
     },
-    prelude::{get_precision, OrdType, Side, TimeInForce},
+    prelude::{get_precision, OrdType, OrderId, Side, TimeInForce},
     types::{Order, Status},
 };
 
@@ -43,7 +43,7 @@ pub(super) enum HandleError {
 
 pub struct OrderManager {
     prefix: String,
-    orders: HashMap<i64, (usize, String, Order)>,
+    orders: HashMap<OrderId, (usize, String, Order)>,
 }
 
 impl OrderManager {
@@ -54,7 +54,7 @@ impl OrderManager {
         }
     }
 
-    fn parse_order_id(&self, order_link_id: &str) -> Result<i64, HandleError> {
+    fn parse_order_id(&self, order_link_id: &str) -> Result<OrderId, HandleError> {
         if !order_link_id.starts_with(&self.prefix) {
             return Err(HandleError::PrefixUnmatched);
         }
@@ -87,7 +87,7 @@ impl OrderManager {
             .orders
             .get_mut(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.exec_price_tick = (data.exec_price / order.price_tick as f32).round() as i32;
+        order.exec_price_tick = (data.exec_price / order.price_tick as f64).round() as i64;
         order.exec_qty = data.exec_qty;
         order.exch_timestamp = data.exec_time * 1_000_000;
         Ok((*asset_no, order.clone()))
@@ -103,7 +103,7 @@ impl OrderManager {
             .orders
             .get_mut(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.exec_price_tick = (data.exec_price / order.price_tick as f32).round() as i32;
+        order.exec_price_tick = (data.exec_price / order.price_tick as f64).round() as i64;
         order.exec_qty = data.exec_qty;
         order.exch_timestamp = data.exec_time * 1_000_000;
         Ok((*asset_no, order.clone()))
@@ -137,7 +137,7 @@ impl OrderManager {
             qty: Some(format!("{:.5}", order.qty)),
             price: Some(format!(
                 "{:.prec$}",
-                order.price_tick as f32 * order.tick_size,
+                order.price_tick as f64 * order.tick_size,
                 prec = price_prec
             )),
             category: category.to_string(),
@@ -169,7 +169,7 @@ impl OrderManager {
         &mut self,
         symbol: &str,
         category: &str,
-        order_id: i64,
+        order_id: OrderId,
     ) -> Result<BybitOrder, HandleError> {
         let (_, order_link_id, order) = self
             .orders

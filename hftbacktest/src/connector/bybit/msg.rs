@@ -9,7 +9,7 @@ use serde::{
 };
 
 use crate::{
-    connector::util::{from_str_to_f32, from_str_to_f32_opt, from_str_to_f64, from_str_to_i64},
+    connector::util::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64},
     types::{OrdType, Side, Status, TimeInForce},
 };
 
@@ -200,11 +200,11 @@ pub struct Trade {
     #[serde(deserialize_with = "from_str_to_side")]
     pub side: Side,
     #[serde(rename = "v")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub trade_size: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub trade_size: f64,
     #[serde(rename = "p")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub trade_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub trade_price: f64,
     #[serde(rename = "L")]
     pub direction: String,
     #[serde(rename = "i")]
@@ -213,19 +213,19 @@ pub struct Trade {
     pub block_trade: bool,
     #[serde(rename = "mP")]
     #[serde(default)]
-    #[serde(deserialize_with = "from_str_to_f32_opt")]
-    pub mark_price: Option<f32>,
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub mark_price: Option<f64>,
     #[serde(rename = "iP")]
     #[serde(default)]
-    #[serde(deserialize_with = "from_str_to_f32_opt")]
-    pub index_price: Option<f32>,
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub index_price: Option<f64>,
     #[serde(rename = "mIv")]
     #[serde(default)]
-    #[serde(deserialize_with = "from_str_to_f32_opt")]
-    pub mark_iv: Option<f32>,
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub mark_iv: Option<f64>,
     #[serde(default)]
-    #[serde(deserialize_with = "from_str_to_f32_opt")]
-    pub iv: Option<f32>,
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub iv: Option<f64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -276,8 +276,8 @@ pub struct Position {
     #[serde(deserialize_with = "from_str_to_f64")]
     pub size: f64,
     #[serde(rename = "entryPrice", default)]
-    #[serde(deserialize_with = "from_str_to_f32_opt")]
-    pub entry_price: Option<f32>,
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub entry_price: Option<f64>,
     pub leverage: String,
     #[serde(rename = "positionValue")]
     #[serde(deserialize_with = "from_str_to_f64")]
@@ -286,14 +286,14 @@ pub struct Position {
     #[serde(deserialize_with = "from_str_to_f64")]
     pub position_balance: f64,
     #[serde(rename = "markPrice")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub mark_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub mark_price: f64,
     #[serde(rename = "positionIM")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub position_im: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub position_im: f64,
     #[serde(rename = "positionMM")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub position_mm: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub position_mm: f64,
     #[serde(rename = "takeProfit")]
     pub take_profit: String,
     #[serde(rename = "stopLoss")]
@@ -315,11 +315,11 @@ pub struct Position {
     #[serde(rename = "tpslMode")]
     pub tpsl_mode: String,
     #[serde(rename = "liqPrice", default)]
-    #[serde(deserialize_with = "from_str_to_f32_opt")]
-    pub liq_price: Option<f32>,
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub liq_price: Option<f64>,
     #[serde(rename = "bustPrice", default)]
-    #[serde(deserialize_with = "from_str_to_f32_opt")]
-    pub bust_price: Option<f32>,
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub bust_price: Option<f64>,
     #[serde(default)]
     pub category: Option<String>,
     #[serde(rename = "positionStatus")]
@@ -346,11 +346,11 @@ pub struct Execution {
     #[serde(rename = "execId")]
     pub exec_id: String,
     #[serde(rename = "execPrice")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub exec_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub exec_price: f64,
     #[serde(rename = "execQty")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub exec_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub exec_qty: f64,
     #[serde(rename = "execType")]
     pub exec_type: String,
     #[serde(rename = "execValue")]
@@ -372,18 +372,18 @@ pub struct Execution {
     #[serde(rename = "underlyingPrice")]
     pub underlying_price: String,
     #[serde(rename = "leavesQty")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub leaves_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub leaves_qty: f64,
     #[serde(rename = "orderId")]
     pub order_id: String,
     #[serde(rename = "orderLinkId")]
     pub order_link_id: String,
     #[serde(rename = "orderPrice")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub order_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub order_price: f64,
     #[serde(rename = "orderQty")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub order_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub order_qty: f64,
     #[serde(rename = "orderType")]
     pub order_type: String,
     #[serde(rename = "stopOrderType")]
@@ -406,11 +406,11 @@ pub struct FastExecution {
     #[serde(rename = "execId")]
     pub exec_id: String,
     #[serde(rename = "execPrice")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub exec_price: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub exec_price: f64,
     #[serde(rename = "execQty")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub exec_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub exec_qty: f64,
     #[serde(rename = "orderId")]
     pub order_id: String,
     #[serde(rename = "orderLinkId")]
@@ -435,10 +435,10 @@ pub struct PrivateOrder {
     pub order_type: OrdType,
     #[serde(rename = "cancelType")]
     pub cancel_type: String,
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub price: f32,
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub price: f64,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub qty: f64,
     #[serde(rename = "orderIv")]
     pub order_iv: String,
     #[serde(rename = "timeInForce")]
@@ -454,13 +454,13 @@ pub struct PrivateOrder {
     #[serde(rename = "reduceOnly")]
     pub reduce_only: bool,
     #[serde(rename = "leavesQty")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub leaves_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub leaves_qty: f64,
     #[serde(rename = "leavesValue")]
     pub leaves_value: String,
     #[serde(rename = "cumExecQty")]
-    #[serde(deserialize_with = "from_str_to_f32")]
-    pub cum_exec_qty: f32,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub cum_exec_qty: f64,
     #[serde(rename = "cumExecValue")]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub cum_exec_value: f64,

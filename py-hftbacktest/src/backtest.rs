@@ -3,7 +3,7 @@ use std::{collections::HashMap, mem};
 use hftbacktest::{
     backtest::{BacktestError, MultiAssetMultiExchangeBacktest},
     depth::{HashMapMarketDepth, ROIVectorMarketDepth},
-    prelude::{Bot, BotTypedDepth, BotTypedTrade, Event, Order, StateValues},
+    prelude::{Bot, Event, Order, StateValues},
     types::{OrdType, TimeInForce},
 };
 
@@ -17,23 +17,23 @@ pub extern "C" fn hashmapbt_current_timestamp(hbt_ptr: *const HashMapMarketDepth
 }
 
 #[no_mangle]
-pub extern "C" fn hashmapbt_depth_typed(
+pub extern "C" fn hashmapbt_depth(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
 ) -> *const HashMapMarketDepth {
     let hbt = unsafe { &*hbt_ptr };
-    let depth = hbt.depth_typed(asset_no);
+    let depth = hbt.depth(asset_no);
     depth as *const _
 }
 
 #[no_mangle]
-pub extern "C" fn hashmapbt_trade_typed(
+pub extern "C" fn hashmapbt_trade(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
     len_ptr: *mut usize,
 ) -> *const Event {
     let hbt = unsafe { &*hbt_ptr };
-    let trade = hbt.trade_typed(asset_no);
+    let trade = hbt.trade(asset_no);
     unsafe {
         *len_ptr = trade.len();
     }
@@ -109,7 +109,7 @@ pub extern "C" fn hashmapbt_num_assets(hbt_ptr: *const HashMapMarketDepthBacktes
 pub extern "C" fn hashmapbt_wait_order_response(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
+    order_id: u64,
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
@@ -150,9 +150,9 @@ pub extern "C" fn hashmapbt_wait_next_feed(
 pub extern "C" fn hashmapbt_submit_buy_order(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
-    price: f32,
-    qty: f32,
+    order_id: u64,
+    price: f64,
+    qty: f64,
     time_in_force: u8,
     order_type: u8,
     wait: bool,
@@ -184,9 +184,9 @@ pub extern "C" fn hashmapbt_submit_buy_order(
 pub extern "C" fn hashmapbt_submit_sell_order(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
-    price: f32,
-    qty: f32,
+    order_id: u64,
+    price: f64,
+    qty: f64,
     time_in_force: u8,
     order_type: u8,
     wait: bool,
@@ -217,7 +217,7 @@ pub extern "C" fn hashmapbt_submit_sell_order(
 pub extern "C" fn hashmapbt_cancel(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
+    order_id: u64,
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
@@ -264,7 +264,7 @@ pub extern "C" fn hashmapbt_clear_inactive_orders(
 pub extern "C" fn hashmapbt_orders(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
-) -> *const HashMap<i64, Order> {
+) -> *const HashMap<u64, Order> {
     let hbt = unsafe { &*hbt_ptr };
     hbt.orders(asset_no) as *const _
 }
@@ -343,23 +343,23 @@ pub extern "C" fn roivecbt_current_timestamp(hbt_ptr: *const ROIVectorMarketDept
 }
 
 #[no_mangle]
-pub extern "C" fn roivecbt_depth_typed(
+pub extern "C" fn roivecbt_depth(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
 ) -> *const ROIVectorMarketDepth {
     let hbt = unsafe { &*hbt_ptr };
-    let depth = hbt.depth_typed(asset_no);
+    let depth = hbt.depth(asset_no);
     depth as *const _
 }
 
 #[no_mangle]
-pub extern "C" fn roivecbt_trade_typed(
+pub extern "C" fn roivecbt_trade(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
     len_ptr: *mut usize,
 ) -> *const Event {
     let hbt = unsafe { &*hbt_ptr };
-    let trade = hbt.trade_typed(asset_no);
+    let trade = hbt.trade(asset_no);
     unsafe {
         *len_ptr = trade.len();
     }
@@ -438,7 +438,7 @@ pub extern "C" fn roivecbt_num_assets(hbt_ptr: *const ROIVectorMarketDepthBackte
 pub extern "C" fn roivecbt_wait_order_response(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
+    order_id: u64,
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
@@ -479,9 +479,9 @@ pub extern "C" fn roivecbt_wait_next_feed(
 pub extern "C" fn roivecbt_submit_buy_order(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
-    price: f32,
-    qty: f32,
+    order_id: u64,
+    price: f64,
+    qty: f64,
     time_in_force: u8,
     order_type: u8,
     wait: bool,
@@ -513,9 +513,9 @@ pub extern "C" fn roivecbt_submit_buy_order(
 pub extern "C" fn roivecbt_submit_sell_order(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
-    price: f32,
-    qty: f32,
+    order_id: u64,
+    price: f64,
+    qty: f64,
     time_in_force: u8,
     order_type: u8,
     wait: bool,
@@ -546,7 +546,7 @@ pub extern "C" fn roivecbt_submit_sell_order(
 pub extern "C" fn roivecbt_cancel(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
-    order_id: i64,
+    order_id: u64,
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
@@ -593,7 +593,7 @@ pub extern "C" fn roivecbt_clear_inactive_orders(
 pub extern "C" fn roivecbt_orders(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
-) -> *const HashMap<i64, Order> {
+) -> *const HashMap<u64, Order> {
     let hbt = unsafe { &*hbt_ptr };
     hbt.orders(asset_no) as *const _
 }

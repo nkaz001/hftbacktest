@@ -39,7 +39,7 @@ use crate::{
 fn parse_depth(
     bids: Vec<(String, String)>,
     asks: Vec<(String, String)>,
-) -> Result<(Vec<(f32, f32)>, Vec<(f32, f32)>), anyhow::Error> {
+) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>), anyhow::Error> {
     let mut bids_ = Vec::with_capacity(bids.len());
     for (px, qty) in bids {
         bids_.push(parse_px_qty_tup(px, qty)?);
@@ -51,7 +51,7 @@ fn parse_depth(
     Ok((bids_, asks_))
 }
 
-fn parse_px_qty_tup(px: String, qty: String) -> Result<(f32, f32), anyhow::Error> {
+fn parse_px_qty_tup(px: String, qty: String) -> Result<(f64, f64), anyhow::Error> {
     Ok((px.parse()?, qty.parse()?))
 }
 
@@ -103,8 +103,11 @@ pub async fn connect(
                                     ev: LOCAL_BID_DEPTH_EVENT,
                                     exch_ts: data.transaction_time * 1_000_000,
                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
                                     px,
                                     qty,
+                                    priority: 0,
+                                    _reserved: 0,
                                 })
                             .collect();
                         let mut ask_events: Vec<_> = asks
@@ -113,8 +116,11 @@ pub async fn connect(
                                     ev: LOCAL_ASK_DEPTH_EVENT,
                                     exch_ts: data.transaction_time * 1_000_000,
                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
                                     px,
                                     qty,
+                                    priority: 0,
+                                    _reserved: 0,
                                 })
                             .collect();
                         let mut events = Vec::new();
@@ -221,8 +227,11 @@ pub async fn connect(
                                                     ev: LOCAL_BID_DEPTH_EVENT,
                                                     exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                                    order_id: 0,
                                                     px,
                                                     qty,
+                                                    priority: 0,
+                                                    _reserved: 0,
                                                 })
                                             .collect();
                                         let mut ask_events: Vec<_> = asks
@@ -231,8 +240,11 @@ pub async fn connect(
                                                     ev: LOCAL_ASK_DEPTH_EVENT,
                                                     exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                                    order_id: 0,
                                                     px,
                                                     qty,
+                                                    priority: 0,
+                                                    _reserved: 0,
                                                 })
                                             .collect();
                                         let mut events = Vec::new();
@@ -269,8 +281,11 @@ pub async fn connect(
                                                     },
                                                     exch_ts: data.transaction_time * 1_000_000,
                                                     local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                                    order_id: 0,
                                                     px,
                                                     qty,
+                                                    priority: 0,
+                                                    _reserved: 0
                                                 }]
                                             }
                                         ).unwrap();
@@ -303,7 +318,7 @@ pub async fn connect(
                                         let order = Order {
                                             qty: data.order.original_qty,
                                             leaves_qty: data.order.original_qty - data.order.order_filled_accumulated_qty,
-                                            price_tick: (data.order.original_price / asset_info.tick_size).round() as i32,
+                                            price_tick: (data.order.original_price / asset_info.tick_size).round() as i64,
                                             tick_size: asset_info.tick_size,
                                             side: data.order.side,
                                             time_in_force: data.order.time_in_force,
@@ -311,7 +326,7 @@ pub async fn connect(
                                             status: data.order.order_status,
                                             local_timestamp: 0,
                                             req: Status::None,
-                                            exec_price_tick: (data.order.last_filled_price / asset_info.tick_size).round() as i32,
+                                            exec_price_tick: (data.order.last_filled_price / asset_info.tick_size).round() as i64,
                                             exec_qty: data.order.order_last_filled_qty,
                                             order_id,
                                             order_type: data.order.order_type,

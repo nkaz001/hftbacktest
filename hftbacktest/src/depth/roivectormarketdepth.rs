@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::{reader::Data, BacktestError},
-    prelude::{L2MarketDepth, Side},
+    prelude::{L2MarketDepth, OrderId, Side},
     types::{Event, BUY, SELL},
 };
 
@@ -13,39 +13,39 @@ use crate::{
 /// specific range of interest. By doing so, it improves performance, especially when the strategy
 /// requires computing values based on the order book around the mid-price.
 pub struct ROIVectorMarketDepth {
-    pub tick_size: f32,
-    pub lot_size: f32,
+    pub tick_size: f64,
+    pub lot_size: f64,
     pub timestamp: i64,
-    pub ask_depth: Vec<f32>,
-    pub bid_depth: Vec<f32>,
-    pub best_bid_tick: i32,
-    pub best_ask_tick: i32,
-    pub low_bid_tick: i32,
-    pub high_ask_tick: i32,
-    pub roi_ub: i32,
-    pub roi_lb: i32,
-    pub orders: HashMap<i64, L3Order>,
+    pub ask_depth: Vec<f64>,
+    pub bid_depth: Vec<f64>,
+    pub best_bid_tick: i64,
+    pub best_ask_tick: i64,
+    pub low_bid_tick: i64,
+    pub high_ask_tick: i64,
+    pub roi_ub: i64,
+    pub roi_lb: i64,
+    pub orders: HashMap<OrderId, L3Order>,
 }
 
 #[inline(always)]
-fn depth_below(depth: &Vec<f32>, start: i32, end: i32, roi_lb: i32, roi_ub: i32) -> i32 {
+fn depth_below(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
     let start = (start.min(roi_ub) - roi_lb) as usize;
     let end = (end.max(roi_lb) - roi_lb) as usize;
     for t in (end..start).rev() {
-        if unsafe { *depth.get_unchecked(t) } > 0f32 {
-            return t as i32 + roi_lb;
+        if unsafe { *depth.get_unchecked(t) } > 0f64 {
+            return t as i64 + roi_lb;
         }
     }
     return INVALID_MIN;
 }
 
 #[inline(always)]
-fn depth_above(depth: &Vec<f32>, start: i32, end: i32, roi_lb: i32, roi_ub: i32) -> i32 {
+fn depth_above(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
     let start = (start.max(roi_lb) - roi_lb) as usize;
     let end = (end.min(roi_ub) - roi_lb) as usize;
     for t in (start + 1)..(end + 1) {
-        if unsafe { *depth.get_unchecked(t) } > 0f32 {
-            return t as i32 + roi_lb;
+        if unsafe { *depth.get_unchecked(t) } > 0f64 {
+            return t as i64 + roi_lb;
         }
     }
     return INVALID_MAX;
@@ -53,9 +53,9 @@ fn depth_above(depth: &Vec<f32>, start: i32, end: i32, roi_lb: i32, roi_ub: i32)
 
 impl ROIVectorMarketDepth {
     /// Constructs an instance of `ROIVectorMarketDepth`.
-    pub fn new(tick_size: f32, lot_size: f32, roi_lb: f32, roi_ub: f32) -> Self {
-        let roi_lb = (roi_lb / tick_size).round() as i32;
-        let roi_ub = (roi_ub / tick_size).round() as i32;
+    pub fn new(tick_size: f64, lot_size: f64, roi_lb: f64, roi_ub: f64) -> Self {
+        let roi_lb = (roi_lb / tick_size).round() as i64;
+        let roi_ub = (roi_ub / tick_size).round() as i64;
         let roi_range = (roi_ub + 1 - roi_lb) as usize;
         Self {
             tick_size,
@@ -103,11 +103,11 @@ impl ROIVectorMarketDepth {
         Ok(())
     }
 
-    pub fn bid_depth(&self) -> &[f32] {
+    pub fn bid_depth(&self) -> &[f64] {
         self.bid_depth.as_slice()
     }
 
-    pub fn ask_depth(&self) -> &[f32] {
+    pub fn ask_depth(&self) -> &[f64] {
         self.ask_depth.as_slice()
     }
 }
@@ -115,12 +115,12 @@ impl ROIVectorMarketDepth {
 impl L2MarketDepth for ROIVectorMarketDepth {
     fn update_bid_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        let price_tick = (price / self.tick_size).round() as i32;
-        let qty_lot = (qty / self.lot_size).round() as i32;
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (price / self.tick_size).round() as i64;
+        let qty_lot = (qty / self.lot_size).round() as i64;
         let prev_best_bid_tick = self.best_bid_tick;
         let prev_qty;
 
@@ -182,12 +182,12 @@ impl L2MarketDepth for ROIVectorMarketDepth {
 
     fn update_ask_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        let price_tick = (price / self.tick_size).round() as i32;
-        let qty_lot = (qty / self.lot_size).round() as i32;
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (price / self.tick_size).round() as i64;
+        let qty_lot = (qty / self.lot_size).round() as i64;
         let prev_best_ask_tick = self.best_ask_tick;
         let prev_qty;
 
@@ -247,8 +247,8 @@ impl L2MarketDepth for ROIVectorMarketDepth {
         )
     }
 
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f32) {
-        let clear_upto = (clear_upto_price / self.tick_size).round() as i32;
+    fn clear_depth(&mut self, side: i64, clear_upto_price: f64) {
+        let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
         if side == BUY {
             if self.best_bid_tick != INVALID_MIN {
                 for t in clear_upto.max(self.roi_lb)..(self.best_bid_tick + 1) {
@@ -298,37 +298,45 @@ impl L2MarketDepth for ROIVectorMarketDepth {
 
 impl MarketDepth for ROIVectorMarketDepth {
     #[inline(always)]
-    fn best_bid(&self) -> f32 {
-        self.best_bid_tick as f32 * self.tick_size
+    fn best_bid(&self) -> f64 {
+        if self.best_bid_tick == INVALID_MIN {
+            f64::NAN
+        } else {
+            self.best_bid_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
-    fn best_ask(&self) -> f32 {
-        self.best_ask_tick as f32 * self.tick_size
+    fn best_ask(&self) -> f64 {
+        if self.best_ask_tick == INVALID_MAX {
+            f64::NAN
+        } else {
+            self.best_ask_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
-    fn best_bid_tick(&self) -> i32 {
+    fn best_bid_tick(&self) -> i64 {
         self.best_bid_tick
     }
 
     #[inline(always)]
-    fn best_ask_tick(&self) -> i32 {
+    fn best_ask_tick(&self) -> i64 {
         self.best_ask_tick
     }
 
     #[inline(always)]
-    fn tick_size(&self) -> f32 {
+    fn tick_size(&self) -> f64 {
         self.tick_size
     }
 
     #[inline(always)]
-    fn lot_size(&self) -> f32 {
+    fn lot_size(&self) -> f64 {
         self.lot_size
     }
 
     #[inline(always)]
-    fn bid_qty_at_tick(&self, price_tick: i32) -> f32 {
+    fn bid_qty_at_tick(&self, price_tick: i64) -> f64 {
         if price_tick < self.roi_lb || price_tick > self.roi_ub {
             // This is outside the range of interest.
             0.0
@@ -342,7 +350,7 @@ impl MarketDepth for ROIVectorMarketDepth {
     }
 
     #[inline(always)]
-    fn ask_qty_at_tick(&self, price_tick: i32) -> f32 {
+    fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
         if price_tick < self.roi_lb || price_tick > self.roi_ub {
             // This is outside the range of interest.
             0.0
@@ -368,7 +376,7 @@ impl ApplySnapshot<Event> for ROIVectorMarketDepth {
             let price = data[row_num].px;
             let qty = data[row_num].qty;
 
-            let price_tick = (price / self.tick_size).round() as i32;
+            let price_tick = (price / self.tick_size).round() as i64;
             if price_tick < self.roi_lb || price_tick > self.roi_ub {
                 continue;
             }
@@ -400,12 +408,12 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 
     fn add_buy_order(
         &mut self,
-        order_id: i64,
-        px: f32,
-        qty: f32,
+        order_id: OrderId,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error> {
-        let price_tick = (px / self.tick_size).round() as i32;
+    ) -> Result<(i64, i64), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i64;
         self.add(L3Order {
             order_id,
             side: Side::Buy,
@@ -432,12 +440,12 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 
     fn add_sell_order(
         &mut self,
-        order_id: i64,
-        px: f32,
-        qty: f32,
+        order_id: OrderId,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error> {
-        let price_tick = (px / self.tick_size).round() as i32;
+    ) -> Result<(i64, i64), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i64;
         self.add(L3Order {
             order_id,
             side: Side::Sell,
@@ -464,9 +472,9 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 
     fn delete_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         _timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error> {
+    ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
             .orders
             .remove(&order_id)
@@ -478,7 +486,7 @@ impl L3MarketDepth for ROIVectorMarketDepth {
                 let t = (order.price_tick - self.roi_lb) as usize;
                 let depth_qty = unsafe { self.bid_depth.get_unchecked_mut(t) };
                 *depth_qty -= order.qty;
-                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                if (*depth_qty / self.lot_size).round() as i64 == 0 {
                     *depth_qty = 0.0;
                     if order.price_tick == self.best_bid_tick {
                         self.best_bid_tick = depth_below(
@@ -502,7 +510,7 @@ impl L3MarketDepth for ROIVectorMarketDepth {
                 let t = (order.price_tick - self.roi_lb) as usize;
                 let depth_qty = unsafe { self.ask_depth.get_unchecked_mut(t) };
                 *depth_qty -= order.qty;
-                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                if (*depth_qty / self.lot_size).round() as i64 == 0 {
                     *depth_qty = 0.0;
                     if order.price_tick == self.best_ask_tick {
                         self.best_ask_tick = depth_above(
@@ -524,24 +532,24 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 
     fn modify_order(
         &mut self,
-        order_id: i64,
-        px: f32,
-        qty: f32,
+        order_id: OrderId,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error> {
+    ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
             .orders
             .get_mut(&order_id)
             .ok_or(BacktestError::OrderNotFound)?;
         if order.side == Side::Buy {
             let prev_best_tick = self.best_bid_tick;
-            let price_tick = (px / self.tick_size).round() as i32;
+            let price_tick = (px / self.tick_size).round() as i64;
             if price_tick != order.price_tick {
                 if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
                     let t = (order.price_tick - self.roi_lb) as usize;
                     let depth_qty = unsafe { self.bid_depth.get_unchecked_mut(t) };
                     *depth_qty -= order.qty;
-                    if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                    if (*depth_qty / self.lot_size).round() as i64 == 0 {
                         *depth_qty = 0.0;
                         if order.price_tick == self.best_bid_tick {
                             self.best_bid_tick = depth_below(
@@ -593,13 +601,13 @@ impl L3MarketDepth for ROIVectorMarketDepth {
             }
         } else {
             let prev_best_tick = self.best_ask_tick;
-            let price_tick = (px / self.tick_size).round() as i32;
+            let price_tick = (px / self.tick_size).round() as i64;
             if price_tick != order.price_tick {
                 if !(order.price_tick < self.roi_lb || order.price_tick > self.roi_ub) {
                     let t = (order.price_tick - self.roi_lb) as usize;
                     let depth_qty = unsafe { self.ask_depth.get_unchecked_mut(t) };
                     *depth_qty -= order.qty;
-                    if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                    if (*depth_qty / self.lot_size).round() as i64 == 0 {
                         *depth_qty = 0.0;
                         if order.price_tick == self.best_ask_tick {
                             self.best_ask_tick = depth_above(
@@ -663,7 +671,7 @@ impl L3MarketDepth for ROIVectorMarketDepth {
         }
     }
 
-    fn orders(&self) -> &HashMap<i64, L3Order> {
+    fn orders(&self) -> &HashMap<OrderId, L3Order> {
         &self.orders
     }
 }
@@ -678,8 +686,8 @@ mod tests {
     macro_rules! assert_eq_qty {
         ( $a:expr, $b:expr, $lot_size:ident ) => {{
             assert_eq!(
-                ($a / $lot_size).round() as i32,
-                ($b / $lot_size).round() as i32
+                ($a / $lot_size).round() as i64,
+                ($b / $lot_size).round() as i64
             );
         }};
     }

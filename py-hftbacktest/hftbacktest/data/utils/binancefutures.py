@@ -6,12 +6,14 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..validation import correct_event_order, correct_local_timestamp, validate_event_order
-from ...binding import event_dtype
 from ...types import (
     DEPTH_EVENT,
     DEPTH_CLEAR_EVENT,
     DEPTH_SNAPSHOT_EVENT,
-    TRADE_EVENT, BUY_EVENT, SELL_EVENT
+    TRADE_EVENT,
+    BUY_EVENT,
+    SELL_EVENT,
+    event_dtype
 )
 
 
@@ -104,7 +106,10 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         float(price),
-                        float(qty)
+                        float(qty),
+                        0,
+                        0,
+                        0
                     )
                     row_num += 1
                 elif evt == 'depthUpdate':
@@ -117,7 +122,10 @@ def convert(
                             exch_timestamp,
                             local_timestamp,
                             float(px),
-                            float(qty)
+                            float(qty),
+                            0,
+                            0,
+                            0
                         )
                         row_num += 1
                     for px, qty in data['a']:
@@ -126,7 +134,10 @@ def convert(
                             exch_timestamp,
                             local_timestamp,
                             float(px),
-                            float(qty)
+                            float(qty),
+                            0,
+                            0,
+                            0
                         )
                         row_num += 1
                 elif evt == 'markPriceUpdate' and 'm' in opt:
@@ -142,7 +153,10 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         float(index),
-                        float(0)
+                        float(0),
+                        0,
+                        0,
+                        0
                     )
                     row_num += 1
                     tmp[row_num] = (
@@ -150,7 +164,10 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         float(mark_price),
-                        float(0)
+                        float(0),
+                        0,
+                        0,
+                        0
                     )
                     row_num += 1
                     tmp[row_num] = (
@@ -158,7 +175,10 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         float(funding_rate),
-                        float(0)
+                        float(0),
+                        0,
+                        0,
+                        0
                     )
                     row_num += 1
                 elif evt == 'bookTicker' and 't' in opt:
@@ -174,7 +194,10 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         float(bid_price),
-                        float(bid_qty)
+                        float(bid_qty),
+                        0,
+                        0,
+                        0
                     )
                     row_num += 1
                     tmp[row_num] = (
@@ -182,7 +205,10 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         float(ask_price),
-                        float(ask_qty)
+                        float(ask_qty),
+                        0,
+                        0,
+                        0
                     )
                     row_num += 1
             else:
@@ -200,6 +226,9 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         bid_clear_upto,
+                        0,
+                        0,
+                        0,
                         0
                     )
                     row_num += 1
@@ -210,7 +239,10 @@ def convert(
                             exch_timestamp,
                             local_timestamp,
                             float(px),
-                            float(qty)
+                            float(qty),
+                            0,
+                            0,
+                            0
                         )
                         row_num += 1
                 if len(asks) > 0:
@@ -221,6 +253,9 @@ def convert(
                         exch_timestamp,
                         local_timestamp,
                         ask_clear_upto,
+                        0,
+                        0,
+                        0,
                         0
                     )
                     row_num += 1
@@ -231,7 +266,10 @@ def convert(
                             exch_timestamp,
                             local_timestamp,
                             float(px),
-                            float(qty)
+                            float(qty),
+                            0,
+                            0,
+                            0
                         )
                         row_num += 1
     tmp = tmp[:row_num]

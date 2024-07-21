@@ -1,11 +1,10 @@
 use algo::gridtrading;
-use chrono::Utc;
 use hftbacktest::{
     connector::binancefutures::{BinanceFutures, BinanceFuturesError, Endpoint},
     live::{BotError, LiveBot, LoggingRecorder},
     prelude::{Bot, ErrorKind, HashMapMarketDepth},
 };
-use tracing::{error, info};
+use tracing::error;
 
 mod algo;
 

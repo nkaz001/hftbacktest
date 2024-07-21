@@ -18,6 +18,7 @@ use crate::{
         Event,
         OrdType,
         Order,
+        OrderId,
         Side,
         StateValues,
         Status,
@@ -32,7 +33,6 @@ use crate::{
         LOCAL_EVENT,
         LOCAL_TRADE_EVENT,
         SELL,
-        WAIT_ORDER_RESPONSE_ANY,
     },
 };
 
@@ -46,7 +46,7 @@ where
     reader: Reader<Event>,
     data: Data<Event>,
     row_num: usize,
-    orders: HashMap<i64, Order>,
+    orders: HashMap<OrderId, Order>,
     orders_to: OrderBus,
     orders_from: OrderBus,
     depth: MD,
@@ -114,10 +114,10 @@ where
 {
     fn submit_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         side: Side,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         order_type: OrdType,
         time_in_force: TimeInForce,
         current_timestamp: i64,
@@ -126,7 +126,7 @@ where
             return Err(BacktestError::OrderIdExist);
         }
 
-        let price_tick = (price / self.depth.tick_size()).round() as i32;
+        let price_tick = (price / self.depth.tick_size()).round() as i64;
         let mut order = Order::new(
             order_id,
             price_tick,
@@ -155,7 +155,7 @@ where
         Ok(())
     }
 
-    fn cancel(&mut self, order_id: i64, current_timestamp: i64) -> Result<(), BacktestError> {
+    fn cancel(&mut self, order_id: OrderId, current_timestamp: i64) -> Result<(), BacktestError> {
         let order = self
             .orders
             .get_mut(&order_id)
@@ -202,7 +202,7 @@ where
         &self.depth
     }
 
-    fn orders(&self) -> &HashMap<i64, Order> {
+    fn orders(&self) -> &HashMap<u64, Order> {
         &self.orders
     }
 
@@ -288,7 +288,7 @@ where
     fn process_recv_order(
         &mut self,
         timestamp: i64,
-        wait_resp_order_id: i64,
+        wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
         let mut wait_resp_order_received = false;
@@ -296,13 +296,16 @@ where
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();
+
                 self.last_order_latency =
                     Some((order.local_timestamp, order.exch_timestamp, recv_timestamp));
-                if order.order_id == wait_resp_order_id
-                    || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY
-                {
-                    wait_resp_order_received = true;
+
+                if let Some(wait_resp_order_id) = wait_resp_order_id {
+                    if order.order_id == wait_resp_order_id {
+                        wait_resp_order_received = true;
+                    }
                 }
+
                 self.process_recv_order_(order)?;
             } else {
                 assert!(recv_timestamp > timestamp);

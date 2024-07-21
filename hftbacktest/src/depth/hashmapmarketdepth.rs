@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::{reader::Data, BacktestError},
-    prelude::{L2MarketDepth, Side},
+    prelude::{L2MarketDepth, OrderId, Side},
     types::{Event, BUY, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT, SELL},
 };
 
@@ -19,22 +19,22 @@ use crate::{
 /// them accordingly. This allows for natural refresh of market depth, even in cases where there are
 /// missing feeds.
 pub struct HashMapMarketDepth {
-    pub tick_size: f32,
-    pub lot_size: f32,
+    pub tick_size: f64,
+    pub lot_size: f64,
     pub timestamp: i64,
-    pub ask_depth: HashMap<i32, f32>,
-    pub bid_depth: HashMap<i32, f32>,
-    pub best_bid_tick: i32,
-    pub best_ask_tick: i32,
-    pub low_bid_tick: i32,
-    pub high_ask_tick: i32,
-    pub orders: HashMap<i64, L3Order>,
+    pub ask_depth: HashMap<i64, f64>,
+    pub bid_depth: HashMap<i64, f64>,
+    pub best_bid_tick: i64,
+    pub best_ask_tick: i64,
+    pub low_bid_tick: i64,
+    pub high_ask_tick: i64,
+    pub orders: HashMap<OrderId, L3Order>,
 }
 
 #[inline(always)]
-fn depth_below(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
+fn depth_below(depth: &HashMap<i64, f64>, start: i64, end: i64) -> i64 {
     for t in (end..start).rev() {
-        if *depth.get(&t).unwrap_or(&0f32) > 0f32 {
+        if *depth.get(&t).unwrap_or(&0f64) > 0f64 {
             return t;
         }
     }
@@ -42,9 +42,9 @@ fn depth_below(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
 }
 
 #[inline(always)]
-fn depth_above(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
+fn depth_above(depth: &HashMap<i64, f64>, start: i64, end: i64) -> i64 {
     for t in (start + 1)..(end + 1) {
-        if *depth.get(&t).unwrap_or(&0f32) > 0f32 {
+        if *depth.get(&t).unwrap_or(&0f64) > 0f64 {
             return t;
         }
     }
@@ -53,7 +53,7 @@ fn depth_above(depth: &HashMap<i32, f32>, start: i32, end: i32) -> i32 {
 
 impl HashMapMarketDepth {
     /// Constructs an instance of `HashMapMarketDepth`.
-    pub fn new(tick_size: f32, lot_size: f32) -> Self {
+    pub fn new(tick_size: f64, lot_size: f64) -> Self {
         Self {
             tick_size,
             lot_size,
@@ -85,12 +85,12 @@ impl HashMapMarketDepth {
 impl L2MarketDepth for HashMapMarketDepth {
     fn update_bid_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        let price_tick = (price / self.tick_size).round() as i32;
-        let qty_lot = (qty / self.lot_size).round() as i32;
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (price / self.tick_size).round() as i64;
+        let qty_lot = (qty / self.lot_size).round() as i64;
         let prev_best_bid_tick = self.best_bid_tick;
         let prev_qty;
         match self.bid_depth.entry(price_tick) {
@@ -103,7 +103,7 @@ impl L2MarketDepth for HashMapMarketDepth {
                 }
             }
             Entry::Vacant(entry) => {
-                prev_qty = 0f32;
+                prev_qty = 0f64;
                 if qty_lot > 0 {
                     entry.insert(qty);
                 }
@@ -140,12 +140,12 @@ impl L2MarketDepth for HashMapMarketDepth {
 
     fn update_ask_depth(
         &mut self,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> (i32, i32, i32, f32, f32, i64) {
-        let price_tick = (price / self.tick_size).round() as i32;
-        let qty_lot = (qty / self.lot_size).round() as i32;
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (price / self.tick_size).round() as i64;
+        let qty_lot = (qty / self.lot_size).round() as i64;
         let prev_best_ask_tick = self.best_ask_tick;
         let prev_qty;
         match self.ask_depth.entry(price_tick) {
@@ -158,7 +158,7 @@ impl L2MarketDepth for HashMapMarketDepth {
                 }
             }
             Entry::Vacant(entry) => {
-                prev_qty = 0f32;
+                prev_qty = 0f64;
                 if qty_lot > 0 {
                     entry.insert(qty);
                 }
@@ -193,8 +193,8 @@ impl L2MarketDepth for HashMapMarketDepth {
         )
     }
 
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f32) {
-        let clear_upto = (clear_upto_price / self.tick_size).round() as i32;
+    fn clear_depth(&mut self, side: i64, clear_upto_price: f64) {
+        let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
         if side == BUY {
             if self.best_bid_tick != INVALID_MIN {
                 for t in clear_upto..(self.best_bid_tick + 1) {
@@ -232,42 +232,50 @@ impl L2MarketDepth for HashMapMarketDepth {
 
 impl MarketDepth for HashMapMarketDepth {
     #[inline(always)]
-    fn best_bid(&self) -> f32 {
-        self.best_bid_tick as f32 * self.tick_size
+    fn best_bid(&self) -> f64 {
+        if self.best_bid_tick == INVALID_MIN {
+            f64::NAN
+        } else {
+            self.best_bid_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
-    fn best_ask(&self) -> f32 {
-        self.best_ask_tick as f32 * self.tick_size
+    fn best_ask(&self) -> f64 {
+        if self.best_ask_tick == INVALID_MAX {
+            f64::NAN
+        } else {
+            self.best_ask_tick as f64 * self.tick_size
+        }
     }
 
     #[inline(always)]
-    fn best_bid_tick(&self) -> i32 {
+    fn best_bid_tick(&self) -> i64 {
         self.best_bid_tick
     }
 
     #[inline(always)]
-    fn best_ask_tick(&self) -> i32 {
+    fn best_ask_tick(&self) -> i64 {
         self.best_ask_tick
     }
 
     #[inline(always)]
-    fn tick_size(&self) -> f32 {
+    fn tick_size(&self) -> f64 {
         self.tick_size
     }
 
     #[inline(always)]
-    fn lot_size(&self) -> f32 {
+    fn lot_size(&self) -> f64 {
         self.lot_size
     }
 
     #[inline(always)]
-    fn bid_qty_at_tick(&self, price_tick: i32) -> f32 {
+    fn bid_qty_at_tick(&self, price_tick: i64) -> f64 {
         *self.bid_depth.get(&price_tick).unwrap_or(&0.0)
     }
 
     #[inline(always)]
-    fn ask_qty_at_tick(&self, price_tick: i32) -> f32 {
+    fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
         *self.ask_depth.get(&price_tick).unwrap_or(&0.0)
     }
 }
@@ -284,15 +292,15 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
             let price = data[row_num].px;
             let qty = data[row_num].qty;
 
-            let price_tick = (price / self.tick_size).round() as i32;
+            let price_tick = (price / self.tick_size).round() as i64;
             if data[row_num].ev & BUY == BUY {
                 self.best_bid_tick = self.best_bid_tick.max(price_tick);
                 self.low_bid_tick = self.low_bid_tick.min(price_tick);
-                *self.bid_depth.entry(price_tick).or_insert(0f32) = qty;
+                *self.bid_depth.entry(price_tick).or_insert(0f64) = qty;
             } else if data[row_num].ev & SELL == SELL {
                 self.best_ask_tick = self.best_ask_tick.min(price_tick);
                 self.high_ask_tick = self.high_ask_tick.max(price_tick);
-                *self.ask_depth.entry(price_tick).or_insert(0f32) = qty;
+                *self.ask_depth.entry(price_tick).or_insert(0f64) = qty;
             }
         }
     }
@@ -312,8 +320,11 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 exch_ts: 0,
                 local_ts: 0,
-                px: px_tick as f32 * self.tick_size,
+                px: px_tick as f64 * self.tick_size,
                 qty,
+                order_id: 0,
+                priority: 0,
+                _reserved: 0,
             });
         }
 
@@ -329,8 +340,11 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 exch_ts: 0,
                 local_ts: 0,
-                px: px_tick as f32 * self.tick_size,
+                px: px_tick as f64 * self.tick_size,
                 qty,
+                order_id: 0,
+                priority: 0,
+                _reserved: 0,
             });
         }
 
@@ -343,12 +357,12 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn add_buy_order(
         &mut self,
-        order_id: i64,
-        px: f32,
-        qty: f32,
+        order_id: OrderId,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error> {
-        let price_tick = (px / self.tick_size).round() as i32;
+    ) -> Result<(i64, i64), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i64;
         self.add(L3Order {
             order_id,
             side: Side::Buy,
@@ -370,12 +384,12 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn add_sell_order(
         &mut self,
-        order_id: i64,
-        px: f32,
-        qty: f32,
+        order_id: OrderId,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i32, i32), Self::Error> {
-        let price_tick = (px / self.tick_size).round() as i32;
+    ) -> Result<(i64, i64), Self::Error> {
+        let price_tick = (px / self.tick_size).round() as i64;
         self.add(L3Order {
             order_id,
             side: Side::Sell,
@@ -397,9 +411,9 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn delete_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         _timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error> {
+    ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
             .orders
             .remove(&order_id)
@@ -409,7 +423,7 @@ impl L3MarketDepth for HashMapMarketDepth {
 
             let depth_qty = self.bid_depth.get_mut(&order.price_tick).unwrap();
             *depth_qty -= order.qty;
-            if (*depth_qty / self.lot_size).round() as i32 == 0 {
+            if (*depth_qty / self.lot_size).round() as i64 == 0 {
                 self.bid_depth.remove(&order.price_tick).unwrap();
                 if order.price_tick == self.best_bid_tick {
                     self.best_bid_tick =
@@ -425,7 +439,7 @@ impl L3MarketDepth for HashMapMarketDepth {
 
             let depth_qty = self.ask_depth.get_mut(&order.price_tick).unwrap();
             *depth_qty -= order.qty;
-            if (*depth_qty / self.lot_size).round() as i32 == 0 {
+            if (*depth_qty / self.lot_size).round() as i64 == 0 {
                 self.ask_depth.remove(&order.price_tick).unwrap();
                 if order.price_tick == self.best_ask_tick {
                     self.best_ask_tick =
@@ -441,22 +455,22 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn modify_order(
         &mut self,
-        order_id: i64,
-        px: f32,
-        qty: f32,
+        order_id: OrderId,
+        px: f64,
+        qty: f64,
         timestamp: i64,
-    ) -> Result<(i64, i32, i32), Self::Error> {
+    ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
             .orders
             .get_mut(&order_id)
             .ok_or(BacktestError::OrderNotFound)?;
         if order.side == Side::Buy {
             let prev_best_tick = self.best_bid_tick;
-            let price_tick = (px / self.tick_size).round() as i32;
+            let price_tick = (px / self.tick_size).round() as i64;
             if price_tick != order.price_tick {
                 let depth_qty = self.bid_depth.get_mut(&order.price_tick).unwrap();
                 *depth_qty -= order.qty;
-                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                if (*depth_qty / self.lot_size).round() as i64 == 0 {
                     self.bid_depth.remove(&order.price_tick).unwrap();
                     if order.price_tick == self.best_bid_tick {
                         self.best_bid_tick =
@@ -490,11 +504,11 @@ impl L3MarketDepth for HashMapMarketDepth {
             }
         } else {
             let prev_best_tick = self.best_ask_tick;
-            let price_tick = (px / self.tick_size).round() as i32;
+            let price_tick = (px / self.tick_size).round() as i64;
             if price_tick != order.price_tick {
                 let depth_qty = self.ask_depth.get_mut(&order.price_tick).unwrap();
                 *depth_qty -= order.qty;
-                if (*depth_qty / self.lot_size).round() as i32 == 0 {
+                if (*depth_qty / self.lot_size).round() as i64 == 0 {
                     self.ask_depth.remove(&order.price_tick).unwrap();
                     if order.price_tick == self.best_ask_tick {
                         self.best_ask_tick =
@@ -540,7 +554,7 @@ impl L3MarketDepth for HashMapMarketDepth {
         }
     }
 
-    fn orders(&self) -> &HashMap<i64, L3Order> {
+    fn orders(&self) -> &HashMap<OrderId, L3Order> {
         &self.orders
     }
 }
@@ -555,8 +569,8 @@ mod tests {
     macro_rules! assert_eq_qty {
         ( $a:expr, $b:expr, $lot_size:ident ) => {{
             assert_eq!(
-                ($a / $lot_size).round() as i32,
-                ($b / $lot_size).round() as i32
+                ($a / $lot_size).round() as i64,
+                ($b / $lot_size).round() as i64
             );
         }};
     }
