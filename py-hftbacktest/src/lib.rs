@@ -55,11 +55,11 @@ pub enum LatencyModel {
 #[derive(Clone)]
 pub enum QueueModel {
     RiskAdverseQueueModel {},
-    PowerProbQueueModel { n: f32 },
+    PowerProbQueueModel { n: f64 },
     LogProbQueueModel {},
     LogProbQueueModel2 {},
-    PowerProbQueueModel2 { n: f32 },
-    PowerProbQueueModel3 { n: f32 },
+    PowerProbQueueModel2 { n: f64 },
+    PowerProbQueueModel3 { n: f64 },
 }
 
 #[derive(Clone)]
@@ -76,13 +76,13 @@ pub struct BacktestAsset {
     latency_model: LatencyModel,
     queue_model: QueueModel,
     exch_kind: ExchangeKind,
-    tick_size: f32,
-    lot_size: f32,
+    tick_size: f64,
+    lot_size: f64,
     maker_fee: f64,
     taker_fee: f64,
     trade_len: usize,
-    roi_lb: f32,
-    roi_ub: f32,
+    roi_lb: f64,
+    roi_ub: f64,
     initial_snapshot: Option<DataSource<Event>>,
 }
 
@@ -118,7 +118,7 @@ impl BacktestAsset {
     ///
     /// Args:
     ///     roi_lb: the lower bound price of the range of interest.
-    pub fn roi_lb(mut slf: PyRefMut<Self>, roi_lb: f32) -> PyRefMut<Self> {
+    pub fn roi_lb(mut slf: PyRefMut<Self>, roi_lb: f64) -> PyRefMut<Self> {
         slf.roi_lb = roi_lb;
         slf
     }
@@ -128,7 +128,7 @@ impl BacktestAsset {
     ///
     /// Args:
     ///     roi_lb: the lower bound price of the range of interest.
-    pub fn roi_ub(mut slf: PyRefMut<Self>, roi_ub: f32) -> PyRefMut<Self> {
+    pub fn roi_ub(mut slf: PyRefMut<Self>, roi_ub: f64) -> PyRefMut<Self> {
         slf.roi_ub = roi_ub;
         slf
     }
@@ -260,7 +260,7 @@ impl BacktestAsset {
     ///
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `PowerProbQueueFunc <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc.html>`_
-    pub fn power_prob_queue_model(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
+    pub fn power_prob_queue_model(mut slf: PyRefMut<Self>, n: f64) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::PowerProbQueueModel { n };
         slf
     }
@@ -271,7 +271,7 @@ impl BacktestAsset {
     ///
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `PowerProbQueueFunc2 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc2.html>`_
-    pub fn power_prob_queue_model2(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
+    pub fn power_prob_queue_model2(mut slf: PyRefMut<Self>, n: f64) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::PowerProbQueueModel2 { n };
         slf
     }
@@ -282,7 +282,7 @@ impl BacktestAsset {
     ///
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `PowerProbQueueFunc3 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc3.html>`_
-    pub fn power_prob_queue_model3(mut slf: PyRefMut<Self>, n: f32) -> PyRefMut<Self> {
+    pub fn power_prob_queue_model3(mut slf: PyRefMut<Self>, n: f64) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::PowerProbQueueModel3 { n };
         slf
     }
@@ -305,13 +305,13 @@ impl BacktestAsset {
     }
 
     /// Sets the tick size of the asset.
-    pub fn tick_size(mut slf: PyRefMut<Self>, tick_size: f32) -> PyRefMut<Self> {
+    pub fn tick_size(mut slf: PyRefMut<Self>, tick_size: f64) -> PyRefMut<Self> {
         slf.tick_size = tick_size;
         slf
     }
 
     /// Sets the lot size of the asset.
-    pub fn lot_size(mut slf: PyRefMut<Self>, lot_size: f32) -> PyRefMut<Self> {
+    pub fn lot_size(mut slf: PyRefMut<Self>, lot_size: f64) -> PyRefMut<Self> {
         slf.lot_size = lot_size;
         slf
     }
@@ -376,12 +376,6 @@ impl HashMapMarketDepthMultiAssetMultiExchangeBacktest {
     }
 }
 
-type LogProbQueueModel = ProbQueueModel<LogProbQueueFunc, HashMapMarketDepth>;
-type LogProbQueueModel2 = ProbQueueModel<LogProbQueueFunc2, HashMapMarketDepth>;
-type PowerProbQueueModel = ProbQueueModel<PowerProbQueueFunc, HashMapMarketDepth>;
-type PowerProbQueueModel2 = ProbQueueModel<PowerProbQueueFunc2, HashMapMarketDepth>;
-type PowerProbQueueModel3 = ProbQueueModel<PowerProbQueueFunc3, HashMapMarketDepth>;
-
 type LogProbQueueModelFunc = LogProbQueueFunc;
 type LogProbQueueModel2Func = LogProbQueueFunc2;
 type PowerProbQueueModelFunc = PowerProbQueueFunc;
@@ -425,7 +419,7 @@ pub fn build_hashmap_backtest(
 
     let hbt = MultiAssetMultiExchangeBacktest::new(local, exch);
     Ok(HashMapMarketDepthMultiAssetMultiExchangeBacktest {
-        ptr: unsafe { Box::new(hbt) },
+        ptr: Box::new(hbt)
     })
 }
 

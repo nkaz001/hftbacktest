@@ -1,11 +1,9 @@
 from ctypes import (
     c_void_p,
     c_bool,
-    c_float,
     c_double,
     c_uint8,
     c_uint64,
-    c_int32,
     c_int64,
     POINTER,
     CDLL
@@ -19,8 +17,6 @@ from numba import (
     uint64,
     int64,
     float64,
-    int32,
-    float32,
     uint8,
 )
 from numba.core.types import voidptr
@@ -29,63 +25,42 @@ from numba.experimental import jitclass
 from . import _hftbacktest
 from .intrinsic import ptr_from_val, address_as_void_pointer, val_from_ptr, is_null_ptr
 from .order import order_dtype, Order, Order_
-
-
-state_values_dtype = np.dtype([
-    ('position', 'f8'),
-    ('balance', 'f8'),
-    ('fee', 'f8'),
-    ('trading_volume', 'f8'),
-    ('trading_value', 'f8'),
-    ('num_trades', 'i4'),
-])
-
-event_dtype = np.dtype([
-    ('ev', 'i8'),
-    ('exch_ts', 'i8'),
-    ('local_ts', 'i8'),
-    ('px', 'f8'),
-    ('qty', 'f8'),
-    ('order_id', 'u8'),
-    ('priority', 'i8'),
-    ('_reserved', 'i8'),
-])
-
-EVENT_ARRAY = np.ndarray[Any, event_dtype]
+from .state import StateValues, StateValues_
+from .types import event_dtype, state_values_dtype, EVENT_ARRAY
 
 lib = CDLL(_hftbacktest.__file__)
 
 hashmapdepth_best_bid_tick = lib.hashmapdepth_best_bid_tick
-hashmapdepth_best_bid_tick.restype = c_int32
+hashmapdepth_best_bid_tick.restype = c_int64
 hashmapdepth_best_bid_tick.argtypes = [c_void_p]
 
 hashmapdepth_best_ask_tick = lib.hashmapdepth_best_ask_tick
-hashmapdepth_best_ask_tick.restype = c_int32
+hashmapdepth_best_ask_tick.restype = c_int64
 hashmapdepth_best_ask_tick.argtypes = [c_void_p]
 
 hashmapdepth_best_bid = lib.hashmapdepth_best_bid
-hashmapdepth_best_bid.restype = c_float
+hashmapdepth_best_bid.restype = c_double
 hashmapdepth_best_bid.argtypes = [c_void_p]
 
 hashmapdepth_best_ask = lib.hashmapdepth_best_ask
-hashmapdepth_best_ask.restype = c_float
+hashmapdepth_best_ask.restype = c_double
 hashmapdepth_best_ask.argtypes = [c_void_p]
 
 hashmapdepth_tick_size = lib.hashmapdepth_tick_size
-hashmapdepth_tick_size.restype = c_float
+hashmapdepth_tick_size.restype = c_double
 hashmapdepth_tick_size.argtypes = [c_void_p]
 
 hashmapdepth_lot_size = lib.hashmapdepth_lot_size
-hashmapdepth_lot_size.restype = c_float
+hashmapdepth_lot_size.restype = c_double
 hashmapdepth_lot_size.argtypes = [c_void_p]
 
 hashmapdepth_bid_qty_at_tick = lib.hashmapdepth_bid_qty_at_tick
-hashmapdepth_bid_qty_at_tick.restype = c_float
-hashmapdepth_bid_qty_at_tick.argtypes = [c_void_p, c_int32]
+hashmapdepth_bid_qty_at_tick.restype = c_double
+hashmapdepth_bid_qty_at_tick.argtypes = [c_void_p, c_int64]
 
 hashmapdepth_ask_qty_at_tick = lib.hashmapdepth_ask_qty_at_tick
-hashmapdepth_ask_qty_at_tick.restype = c_float
-hashmapdepth_ask_qty_at_tick.argtypes = [c_void_p, c_int32]
+hashmapdepth_ask_qty_at_tick.restype = c_double
+hashmapdepth_ask_qty_at_tick.argtypes = [c_void_p, c_int64]
 
 hashmapdepth_snapshot = lib.hashmapdepth_snapshot
 hashmapdepth_snapshot.restype = c_void_p
@@ -103,48 +78,48 @@ class HashMapMarketDepth:
         self.ptr = ptr
 
     @property
-    def best_bid_tick(self) -> int32:
+    def best_bid_tick(self) -> int64:
         """
         Returns the best bid price in ticks.
         """
         return hashmapdepth_best_bid_tick(self.ptr)
 
     @property
-    def best_ask_tick(self) -> int32:
+    def best_ask_tick(self) -> int64:
         """
         Returns the best ask price in ticks.
         """
         return hashmapdepth_best_ask_tick(self.ptr)
 
     @property
-    def best_bid(self) -> float32:
+    def best_bid(self) -> float64:
         """
         Returns the best bid price.
         """
         return hashmapdepth_best_bid(self.ptr)
 
     @property
-    def best_ask(self) -> float32:
+    def best_ask(self) -> float64:
         """
         Returns the best ask price.
         """
         return hashmapdepth_best_ask(self.ptr)
 
     @property
-    def tick_size(self) -> float32:
+    def tick_size(self) -> float64:
         """
         Returns the tick size.
         """
         return hashmapdepth_tick_size(self.ptr)
 
     @property
-    def lot_size(self) -> float32:
+    def lot_size(self) -> float64:
         """
         Returns the lot size.
         """
         return hashmapdepth_lot_size(self.ptr)
 
-    def bid_qty_at_tick(self, price_tick: int32) -> float32:
+    def bid_qty_at_tick(self, price_tick: int64) -> float64:
         """
         Returns the quantity at the bid market depth for a given price in ticks.
 
@@ -156,7 +131,7 @@ class HashMapMarketDepth:
         """
         return hashmapdepth_bid_qty_at_tick(self.ptr, price_tick)
 
-    def ask_qty_at_tick(self, price_tick: int32) -> float32:
+    def ask_qty_at_tick(self, price_tick: int64) -> float64:
         """
         Returns the quantity at the ask market depth for a given price in ticks.
 
@@ -186,36 +161,36 @@ HashMapMarketDepth_ = jitclass(HashMapMarketDepth)
 
 
 roivecdepth_best_bid_tick = lib.roivecdepth_best_bid_tick
-roivecdepth_best_bid_tick.restype = c_int32
+roivecdepth_best_bid_tick.restype = c_int64
 roivecdepth_best_bid_tick.argtypes = [c_void_p]
 
 roivecdepth_best_ask_tick = lib.roivecdepth_best_ask_tick
-roivecdepth_best_ask_tick.restype = c_int32
+roivecdepth_best_ask_tick.restype = c_int64
 roivecdepth_best_ask_tick.argtypes = [c_void_p]
 
 roivecdepth_best_bid = lib.roivecdepth_best_bid
-roivecdepth_best_bid.restype = c_float
+roivecdepth_best_bid.restype = c_double
 roivecdepth_best_bid.argtypes = [c_void_p]
 
 roivecdepth_best_ask = lib.roivecdepth_best_ask
-roivecdepth_best_ask.restype = c_float
+roivecdepth_best_ask.restype = c_double
 roivecdepth_best_ask.argtypes = [c_void_p]
 
 roivecdepth_tick_size = lib.roivecdepth_tick_size
-roivecdepth_tick_size.restype = c_float
+roivecdepth_tick_size.restype = c_double
 roivecdepth_tick_size.argtypes = [c_void_p]
 
 roivecdepth_lot_size = lib.roivecdepth_lot_size
-roivecdepth_lot_size.restype = c_float
+roivecdepth_lot_size.restype = c_double
 roivecdepth_lot_size.argtypes = [c_void_p]
 
 roivecdepth_bid_qty_at_tick = lib.roivecdepth_bid_qty_at_tick
-roivecdepth_bid_qty_at_tick.restype = c_float
-roivecdepth_bid_qty_at_tick.argtypes = [c_void_p, c_int32]
+roivecdepth_bid_qty_at_tick.restype = c_double
+roivecdepth_bid_qty_at_tick.argtypes = [c_void_p, c_int64]
 
 roivecdepth_ask_qty_at_tick = lib.roivecdepth_ask_qty_at_tick
-roivecdepth_ask_qty_at_tick.restype = c_float
-roivecdepth_ask_qty_at_tick.argtypes = [c_void_p, c_int32]
+roivecdepth_ask_qty_at_tick.restype = c_double
+roivecdepth_ask_qty_at_tick.argtypes = [c_void_p, c_int64]
 
 roivecdepth_bid_depth = lib.roivecdepth_bid_depth
 roivecdepth_bid_depth.restype = c_void_p
@@ -233,48 +208,48 @@ class ROIVectorMarketDepth:
         self.ptr = ptr
 
     @property
-    def best_bid_tick(self) -> int32:
+    def best_bid_tick(self) -> int64:
         """
         Returns the best bid price in ticks.
         """
         return roivecdepth_best_bid_tick(self.ptr)
 
     @property
-    def best_ask_tick(self) -> int32:
+    def best_ask_tick(self) -> int64:
         """
         Returns the best ask price in ticks.
         """
         return roivecdepth_best_ask_tick(self.ptr)
 
     @property
-    def best_bid(self) -> float32:
+    def best_bid(self) -> float64:
         """
         Returns the best bid price.
         """
         return roivecdepth_best_bid(self.ptr)
 
     @property
-    def best_ask(self) -> float32:
+    def best_ask(self) -> float64:
         """
         Returns the best ask price.
         """
         return roivecdepth_best_ask(self.ptr)
 
     @property
-    def tick_size(self) -> float32:
+    def tick_size(self) -> float64:
         """
         Returns the tick size.
         """
         return roivecdepth_tick_size(self.ptr)
 
     @property
-    def lot_size(self) -> float32:
+    def lot_size(self) -> float64:
         """
         Returns the lot size.
         """
         return roivecdepth_lot_size(self.ptr)
 
-    def bid_qty_at_tick(self, price_tick: int32) -> float32:
+    def bid_qty_at_tick(self, price_tick: int64) -> float64:
         """
         Returns the quantity at the bid market depth for a given price in ticks.
 
@@ -286,7 +261,7 @@ class ROIVectorMarketDepth:
         """
         return roivecdepth_bid_qty_at_tick(self.ptr, price_tick)
 
-    def ask_qty_at_tick(self, price_tick: int32) -> float32:
+    def ask_qty_at_tick(self, price_tick: int64) -> float64:
         """
         Returns the quantity at the ask market depth for a given price in ticks.
 
@@ -298,24 +273,24 @@ class ROIVectorMarketDepth:
         """
         return roivecdepth_ask_qty_at_tick(self.ptr, price_tick)
 
-    def bid_depth(self) -> np.ndarray[Any, float32]:
+    def bid_depth(self) -> np.ndarray[Any, float64]:
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = roivecdepth_bid_depth(self.ptr, len_ptr)
         return numba.carray(
             address_as_void_pointer(ptr),
             val_from_ptr(len_ptr),
-            float32
+            float64
         )
 
-    def ask_depth(self) -> np.ndarray[Any, float32]:
+    def ask_depth(self) -> np.ndarray[Any, float64]:
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = roivecdepth_ask_depth(self.ptr, len_ptr)
         return numba.carray(
             address_as_void_pointer(ptr),
             val_from_ptr(len_ptr),
-            float32
+            float64
         )
 
 
@@ -323,11 +298,11 @@ ROIVectorMarketDepth_ = jitclass(ROIVectorMarketDepth)
 
 orders_get = lib.orders_get
 orders_get.restype = c_void_p
-orders_get.argtypes = [c_void_p, c_int64]
+orders_get.argtypes = [c_void_p, c_uint64]
 
 orders_contains = lib.orders_contains
 orders_contains.restype = c_bool
-orders_contains.argtypes = [c_void_p, c_int64]
+orders_contains.argtypes = [c_void_p, c_uint64]
 
 orders_len = lib.orders_len
 orders_len.restype = c_uint64
@@ -412,7 +387,7 @@ class OrderDict:
         """
         return Values_(orders_values(self.ptr))
 
-    def get(self, order_id: int64) -> Order | None:
+    def get(self, order_id: uint64) -> Order | None:
         """
         Args:
             order_id: Order ID
@@ -434,7 +409,7 @@ class OrderDict:
     def __len__(self) -> uint64:
         return orders_len(self.ptr)
 
-    def __contains__(self, order_id: int64) -> bool:
+    def __contains__(self, order_id: uint64) -> bool:
         """
         Args:
             order_id: Order ID
@@ -456,7 +431,7 @@ hashmapbt_elapse_bt.argtypes = [c_void_p, c_uint64]
 
 hashmapbt_hashmapbt_wait_order_response = lib.hashmapbt_wait_order_response
 hashmapbt_hashmapbt_wait_order_response.restype = c_int64
-hashmapbt_hashmapbt_wait_order_response.argtypes = [c_void_p, c_uint64, c_int64, c_int64]
+hashmapbt_hashmapbt_wait_order_response.argtypes = [c_void_p, c_uint64, c_uint64, c_int64]
 
 hashmapbt_wait_next_feed = lib.hashmapbt_wait_next_feed
 hashmapbt_wait_next_feed.restype = c_int64
@@ -474,13 +449,13 @@ hashmapbt_current_timestamp = lib.hashmapbt_current_timestamp
 hashmapbt_current_timestamp.restype = c_int64
 hashmapbt_current_timestamp.argtypes = [c_void_p]
 
-hashmapbt_depth_typed = lib.hashmapbt_depth_typed
-hashmapbt_depth_typed.restype = c_void_p
-hashmapbt_depth_typed.argtypes = [c_void_p, c_uint64]
+hashmapbt_depth = lib.hashmapbt_depth
+hashmapbt_depth.restype = c_void_p
+hashmapbt_depth.argtypes = [c_void_p, c_uint64]
 
-hashmapbt_trade_typed = lib.hashmapbt_trade_typed
-hashmapbt_trade_typed.restype = c_void_p
-hashmapbt_trade_typed.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
+hashmapbt_trade = lib.hashmapbt_trade
+hashmapbt_trade.restype = c_void_p
+hashmapbt_trade.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
 
 hashmapbt_num_assets = lib.hashmapbt_num_assets
 hashmapbt_num_assets.restype = c_uint64
@@ -491,9 +466,9 @@ hashmapbt_submit_buy_order.restype = c_int64
 hashmapbt_submit_buy_order.argtypes = [
     c_void_p,
     c_uint64,
-    c_int64,
-    c_float,
-    c_float,
+    c_uint64,
+    c_double,
+    c_double,
     c_uint8,
     c_uint8,
     c_bool
@@ -504,9 +479,9 @@ hashmapbt_submit_sell_order.restype = c_int64
 hashmapbt_submit_sell_order.argtypes = [
     c_void_p,
     c_uint64,
-    c_int64,
-    c_float,
-    c_float,
+    c_uint64,
+    c_double,
+    c_double,
     c_uint8,
     c_uint8,
     c_bool
@@ -514,7 +489,7 @@ hashmapbt_submit_sell_order.argtypes = [
 
 hashmapbt_cancel = lib.hashmapbt_cancel
 hashmapbt_cancel.restype = c_int64
-hashmapbt_cancel.argtypes = [c_void_p, c_uint64, c_int64, c_bool]
+hashmapbt_cancel.argtypes = [c_void_p, c_uint64, c_uint64, c_bool]
 
 hashmapbt_clear_last_trades = lib.hashmapbt_clear_last_trades
 hashmapbt_clear_last_trades.restype = c_void_p
@@ -558,7 +533,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         """
         return hashmapbt_current_timestamp(self.ptr)
 
-    def depth_typed(self, asset_no: uint64) -> HashMapMarketDepth:
+    def depth(self, asset_no: uint64) -> HashMapMarketDepth:
         """
         Args:
             asset_no: Asset number from which the market depth will be retrieved.
@@ -566,7 +541,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         Returns:
             The depth of market of the specific asset.
         """
-        return HashMapMarketDepth_(hashmapbt_depth_typed(self.ptr, asset_no))
+        return HashMapMarketDepth_(hashmapbt_depth(self.ptr, asset_no))
 
     @property
     def num_assets(self) -> uint64:
@@ -585,7 +560,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         """
         return hashmapbt_position(self.ptr, asset_no)
 
-    def state_values(self, asset_no: uint64) -> state_values_dtype:
+    def state_values(self, asset_no: uint64) -> StateValues:
         """
         Args:
             asset_no: Asset number from which the state values will be retrieved.
@@ -594,13 +569,14 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
             The state’s values.
         """
         ptr = hashmapbt_state_values(self.ptr, asset_no)
-        return numba.carray(
+        arr = numba.carray(
             address_as_void_pointer(ptr),
             1,
             state_values_dtype
         )
+        return StateValues_(arr)
 
-    def trade_typed(self, asset_no: uint64) -> EVENT_ARRAY:
+    def trade(self, asset_no: uint64) -> EVENT_ARRAY:
         """
         Args:
             asset_no: Asset number from which the trades will be retrieved.
@@ -610,7 +586,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
-        ptr = hashmapbt_trade_typed(self.ptr, asset_no, len_ptr)
+        ptr = hashmapbt_trade(self.ptr, asset_no, len_ptr)
         return numba.carray(
             address_as_void_pointer(ptr),
             val_from_ptr(len_ptr),
@@ -619,7 +595,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
 
     def clear_last_trades(self, asset_no: uint64) -> None:
         """
-        Clears the last trades occurring in the market from the buffer for :func:`trade_typed`.
+        Clears the last trades occurring in the market from the buffer for :func:`trade`.
 
         Args:
             asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all last trades in
@@ -640,9 +616,9 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
     def submit_buy_order(
             self,
             asset_no: uint64,
-            order_id: int64,
-            price: float32,
-            qty: float32,
+            order_id: uint64,
+            price: float64,
+            qty: float64,
             time_in_force: uint8,
             order_type: uint8,
             wait: bool
@@ -677,9 +653,9 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
     def submit_sell_order(
             self,
             asset_no: uint64,
-            order_id: int64,
-            price: float32,
-            qty: float32,
+            order_id: uint64,
+            price: float64,
+            qty: float64,
             time_in_force: uint8,
             order_type: uint8,
             wait: bool
@@ -711,7 +687,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         """
         return hashmapbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
-    def cancel(self, asset_no: uint64, order_id: int64, wait: bool) -> int64:
+    def cancel(self, asset_no: uint64, order_id: uint64, wait: bool) -> int64:
         """
         Cancels the specified order.
 
@@ -736,7 +712,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         """
         hashmapbt_clear_inactive_orders(self.ptr, asset_no)
 
-    def wait_order_response(self, asset_no: uint64, order_id: int64, timeout: int64) -> int64:
+    def wait_order_response(self, asset_no: uint64, order_id: uint64, timeout: int64) -> int64:
         """
         Waits for the response of the order with the given order ID until timeout.
 
@@ -865,7 +841,7 @@ roivecbt_elapse_bt.argtypes = [c_void_p, c_uint64]
 
 roivecbt_roivecbt_wait_order_response = lib.roivecbt_wait_order_response
 roivecbt_roivecbt_wait_order_response.restype = c_int64
-roivecbt_roivecbt_wait_order_response.argtypes = [c_void_p, c_uint64, c_int64, c_int64]
+roivecbt_roivecbt_wait_order_response.argtypes = [c_void_p, c_uint64, c_uint64, c_int64]
 
 roivecbt_wait_next_feed = lib.roivecbt_wait_next_feed
 roivecbt_wait_next_feed.restype = c_int64
@@ -883,13 +859,13 @@ roivecbt_current_timestamp = lib.roivecbt_current_timestamp
 roivecbt_current_timestamp.restype = c_int64
 roivecbt_current_timestamp.argtypes = [c_void_p]
 
-roivecbt_depth_typed = lib.roivecbt_depth_typed
-roivecbt_depth_typed.restype = c_void_p
-roivecbt_depth_typed.argtypes = [c_void_p, c_uint64]
+roivecbt_depth = lib.roivecbt_depth
+roivecbt_depth.restype = c_void_p
+roivecbt_depth.argtypes = [c_void_p, c_uint64]
 
-roivecbt_trade_typed = lib.roivecbt_trade_typed
-roivecbt_trade_typed.restype = c_void_p
-roivecbt_trade_typed.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
+roivecbt_trade = lib.roivecbt_trade
+roivecbt_trade.restype = c_void_p
+roivecbt_trade.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
 
 roivecbt_num_assets = lib.roivecbt_num_assets
 roivecbt_num_assets.restype = c_uint64
@@ -900,9 +876,9 @@ roivecbt_submit_buy_order.restype = c_int64
 roivecbt_submit_buy_order.argtypes = [
     c_void_p,
     c_uint64,
-    c_int64,
-    c_float,
-    c_float,
+    c_uint64,
+    c_double,
+    c_double,
     c_uint8,
     c_uint8,
     c_bool
@@ -913,9 +889,9 @@ roivecbt_submit_sell_order.restype = c_int64
 roivecbt_submit_sell_order.argtypes = [
     c_void_p,
     c_uint64,
-    c_int64,
-    c_float,
-    c_float,
+    c_uint64,
+    c_double,
+    c_double,
     c_uint8,
     c_uint8,
     c_bool
@@ -923,7 +899,7 @@ roivecbt_submit_sell_order.argtypes = [
 
 roivecbt_cancel = lib.roivecbt_cancel
 roivecbt_cancel.restype = c_int64
-roivecbt_cancel.argtypes = [c_void_p, c_uint64, c_int64, c_bool]
+roivecbt_cancel.argtypes = [c_void_p, c_uint64, c_uint64, c_bool]
 
 roivecbt_clear_last_trades = lib.roivecbt_clear_last_trades
 roivecbt_clear_last_trades.restype = c_void_p
@@ -963,7 +939,7 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         """
         return roivecbt_current_timestamp(self.ptr)
 
-    def depth_typed(self, asset_no: uint64) -> ROIVectorMarketDepth:
+    def depth(self, asset_no: uint64) -> ROIVectorMarketDepth:
         """
         Args:
             asset_no: Asset number from which the market depth will be retrieved.
@@ -971,7 +947,7 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         Returns:
             The depth of market of the specific asset.
         """
-        return ROIVectorMarketDepth_(roivecbt_depth_typed(self.ptr, asset_no))
+        return ROIVectorMarketDepth_(roivecbt_depth(self.ptr, asset_no))
 
     @property
     def num_assets(self) -> uint64:
@@ -990,7 +966,7 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         """
         return roivecbt_position(self.ptr, asset_no)
 
-    def state_values(self, asset_no: uint64) -> state_values_dtype:
+    def state_values(self, asset_no: uint64) -> StateValues:
         """
         Args:
             asset_no: Asset number from which the state values will be retrieved.
@@ -999,13 +975,14 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
             The state’s values.
         """
         ptr = roivecbt_state_values(self.ptr, asset_no)
-        return numba.carray(
+        arr = numba.carray(
             address_as_void_pointer(ptr),
             1,
             state_values_dtype
         )
+        return StateValues_(arr)
 
-    def trade_typed(self, asset_no: uint64) -> EVENT_ARRAY:
+    def trade(self, asset_no: uint64) -> EVENT_ARRAY:
         """
         Args:
             asset_no: Asset number from which the trades will be retrieved.
@@ -1015,7 +992,7 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
-        ptr = roivecbt_trade_typed(self.ptr, asset_no, len_ptr)
+        ptr = roivecbt_trade(self.ptr, asset_no, len_ptr)
         return numba.carray(
             address_as_void_pointer(ptr),
             val_from_ptr(len_ptr),
@@ -1024,7 +1001,7 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
 
     def clear_last_trades(self, asset_no: uint64) -> None:
         """
-        Clears the last trades occurring in the market from the buffer for :func:`trade_typed`.
+        Clears the last trades occurring in the market from the buffer for :func:`trade`.
 
         Args:
             asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all last trades in
@@ -1045,9 +1022,9 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
     def submit_buy_order(
             self,
             asset_no: uint64,
-            order_id: int64,
-            price: float32,
-            qty: float32,
+            order_id: uint64,
+            price: float64,
+            qty: float64,
             time_in_force: uint8,
             order_type: uint8,
             wait: bool
@@ -1082,9 +1059,9 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
     def submit_sell_order(
             self,
             asset_no: uint64,
-            order_id: int64,
-            price: float32,
-            qty: float32,
+            order_id: uint64,
+            price: float64,
+            qty: float64,
             time_in_force: uint8,
             order_type: uint8,
             wait: bool
@@ -1116,7 +1093,7 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         """
         return roivecbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
-    def cancel(self, asset_no: uint64, order_id: int64, wait: bool) -> int64:
+    def cancel(self, asset_no: uint64, order_id: uint64, wait: bool) -> int64:
         """
         Cancels the specified order.
 
@@ -1141,7 +1118,7 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         """
         roivecbt_clear_inactive_orders(self.ptr, asset_no)
 
-    def wait_order_response(self, asset_no: uint64, order_id: int64, timeout: int64) -> int64:
+    def wait_order_response(self, asset_no: uint64, order_id: uint64, timeout: int64) -> int64:
         """
         Waits for the response of the order with the given order ID until timeout.
 

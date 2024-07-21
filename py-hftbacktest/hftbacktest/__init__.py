@@ -15,9 +15,6 @@ from .binding import (
     ROIVectorMarketDepthMultiAssetMultiExchangeBacktest as ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_TypeHint,
     event_dtype
 )
-from .data import (
-    correct_local_timestamp,
-)
 from .order import (
     BUY,
     SELL,
@@ -30,12 +27,11 @@ from .order import (
     GTX,
     LIMIT,
     MARKET,
-    order_dtype,
 )
+from .recorder import Recorder
 from .types import (
     ALL_ASSETS
 )
-from .recorder import Recorder
 
 __all__ = (
     'BacktestAsset',

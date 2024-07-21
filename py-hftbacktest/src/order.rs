@@ -7,7 +7,7 @@ use std::{
 use hftbacktest::prelude::Order;
 
 #[no_mangle]
-pub extern "C" fn orders_get(orders: *const HashMap<i64, Order>, order_id: i64) -> *const Order {
+pub extern "C" fn orders_get(orders: *const HashMap<u64, Order>, order_id: u64) -> *const Order {
     let orders = unsafe { &*orders };
     match orders.get(&order_id) {
         None => null(),
@@ -16,19 +16,19 @@ pub extern "C" fn orders_get(orders: *const HashMap<i64, Order>, order_id: i64) 
 }
 
 #[no_mangle]
-pub extern "C" fn orders_contains(orders: *const HashMap<i64, Order>, order_id: i64) -> bool {
+pub extern "C" fn orders_contains(orders: *const HashMap<u64, Order>, order_id: u64) -> bool {
     let orders = unsafe { &*orders };
     orders.contains_key(&order_id)
 }
 
 #[no_mangle]
-pub extern "C" fn orders_len(orders: *const HashMap<i64, Order>) -> usize {
+pub extern "C" fn orders_len(orders: *const HashMap<u64, Order>) -> usize {
     let orders = unsafe { &*orders };
     orders.len()
 }
 
 #[no_mangle]
-pub extern "C" fn orders_values(orders: *const HashMap<i64, Order>) -> *mut c_void {
+pub extern "C" fn orders_values(orders: *const HashMap<u64, Order>) -> *mut c_void {
     let orders = unsafe { &*orders };
     let it = orders.values();
     let vit = Box::new(it);
@@ -36,7 +36,7 @@ pub extern "C" fn orders_values(orders: *const HashMap<i64, Order>) -> *mut c_vo
 }
 
 #[no_mangle]
-pub extern "C" fn orders_values_next(it: *mut Values<i64, Order>) -> *const Order {
+pub extern "C" fn orders_values_next(it: *mut Values<u64, Order>) -> *const Order {
     let vit = unsafe { &mut *it };
     match vit.next() {
         None => {

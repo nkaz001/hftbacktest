@@ -31,7 +31,6 @@ def address_as_void_pointer(typingctx, src):
 
 @intrinsic
 def is_null_ptr(typingctx, src):
-    # if isinstance(src, types.CPointer):
     def codegen(context, builder, signature, args):
         return cgutils.is_null(builder, args[0])
     sig = types.boolean(src)
