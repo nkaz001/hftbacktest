@@ -14,7 +14,6 @@ use crate::{
         BacktestError,
     },
     depth::{L2MarketDepth, MarketDepth},
-    prelude::WaitOrderResponse,
     types::{
         Event,
         OrdType,
@@ -115,7 +114,7 @@ where
 {
     fn submit_order(
         &mut self,
-        order_id: u64,
+        order_id: OrderId,
         side: Side,
         price: f64,
         qty: f64,
@@ -156,7 +155,7 @@ where
         Ok(())
     }
 
-    fn cancel(&mut self, order_id: u64, current_timestamp: i64) -> Result<(), BacktestError> {
+    fn cancel(&mut self, order_id: OrderId, current_timestamp: i64) -> Result<(), BacktestError> {
         let order = self
             .orders
             .get_mut(&order_id)

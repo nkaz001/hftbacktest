@@ -15,9 +15,10 @@ use crate::{
     },
     depth::L3MarketDepth,
     types::{
-        L3Event,
+        Event,
         OrdType,
         Order,
+        OrderId,
         Side,
         StateValues,
         Status,
@@ -32,7 +33,6 @@ use crate::{
         LOCAL_FILL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
         SELL,
-        WAIT_ORDER_RESPONSE_ANY,
     },
 };
 
@@ -43,16 +43,16 @@ where
     LM: LatencyModel,
     MD: L3MarketDepth,
 {
-    reader: Reader<L3Event>,
-    data: Data<L3Event>,
+    reader: Reader<Event>,
+    data: Data<Event>,
     row_num: usize,
-    orders: HashMap<i64, Order>,
+    orders: HashMap<OrderId, Order>,
     orders_to: OrderBus,
     orders_from: OrderBus,
     depth: MD,
     state: State<AT>,
     order_latency: LM,
-    trades: Vec<L3Event>,
+    trades: Vec<Event>,
     last_feed_latency: Option<(i64, i64)>,
     last_order_latency: Option<(i64, i64, i64)>,
 }
@@ -65,7 +65,7 @@ where
 {
     /// Constructs an instance of `L3Local`.
     pub fn new(
-        reader: Reader<L3Event>,
+        reader: Reader<Event>,
         depth: MD,
         state: State<AT>,
         order_latency: LM,
@@ -106,7 +106,7 @@ where
     }
 }
 
-impl<AT, LM, MD> LocalProcessor<MD, L3Event> for L3Local<AT, LM, MD>
+impl<AT, LM, MD> LocalProcessor<MD, Event> for L3Local<AT, LM, MD>
 where
     AT: AssetType,
     LM: LatencyModel,
@@ -115,10 +115,10 @@ where
 {
     fn submit_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         side: Side,
-        price: f32,
-        qty: f32,
+        price: f64,
+        qty: f64,
         order_type: OrdType,
         time_in_force: TimeInForce,
         current_timestamp: i64,
@@ -127,11 +127,11 @@ where
             return Err(BacktestError::OrderIdExist);
         }
 
-        let price_tick = (price / self.depth.tick_size() as f32).round() as i32;
+        let price_tick = (price / self.depth.tick_size()).round() as i64;
         let mut order = Order::new(
             order_id,
             price_tick,
-            self.depth.tick_size() as f32,
+            self.depth.tick_size(),
             qty,
             side,
             order_type,
@@ -156,7 +156,7 @@ where
         Ok(())
     }
 
-    fn cancel(&mut self, order_id: i64, current_timestamp: i64) -> Result<(), BacktestError> {
+    fn cancel(&mut self, order_id: OrderId, current_timestamp: i64) -> Result<(), BacktestError> {
         let order = self
             .orders
             .get_mut(&order_id)
@@ -203,12 +203,12 @@ where
         &self.depth
     }
 
-    fn orders(&self) -> &HashMap<i64, Order> {
+    fn orders(&self) -> &HashMap<OrderId, Order> {
         &self.orders
     }
 
-    fn trade(&self) -> &Vec<L3Event> {
-        &self.trades
+    fn trade(&self) -> &[Event] {
+        self.trades.as_slice()
     }
 
     fn clear_last_trades(&mut self) {
@@ -310,13 +310,16 @@ where
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();
+
                 self.last_order_latency =
                     Some((order.local_timestamp, order.exch_timestamp, recv_timestamp));
-                if order.order_id == wait_resp_order_id
-                    || wait_resp_order_id == WAIT_ORDER_RESPONSE_ANY
-                {
-                    wait_resp_order_received = true;
+
+                if let Some(wait_resp_order_id) = wait_resp_order_id {
+                    if order.order_id == wait_resp_order_id {
+                        wait_resp_order_received = true;
+                    }
                 }
+
                 self.process_recv_order_(order)?;
             } else {
                 assert!(recv_timestamp > timestamp);

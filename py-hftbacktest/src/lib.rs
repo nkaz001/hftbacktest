@@ -418,9 +418,7 @@ pub fn build_hashmap_backtest(
     }
 
     let hbt = MultiAssetMultiExchangeBacktest::new(local, exch);
-    Ok(HashMapMarketDepthMultiAssetMultiExchangeBacktest {
-        ptr: Box::new(hbt)
-    })
+    Ok(HashMapMarketDepthMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
 }
 
 #[pyclass]

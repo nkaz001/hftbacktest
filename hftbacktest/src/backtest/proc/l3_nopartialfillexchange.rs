@@ -12,7 +12,7 @@ use crate::{
     },
     depth::{L3MarketDepth, INVALID_MAX, INVALID_MIN},
     types::{
-        L3Event,
+        Event,
         Order,
         Side,
         Status,
@@ -61,8 +61,8 @@ where
     LM: LatencyModel,
     MD: L3MarketDepth,
 {
-    reader: Reader<L3Event>,
-    data: Data<L3Event>,
+    reader: Reader<Event>,
+    data: Data<Event>,
     row_num: usize,
     orders_to: OrderBus,
     orders_from: OrderBus,
@@ -82,7 +82,7 @@ where
 {
     /// Constructs an instance of `NoPartialFillExchange`.
     pub fn new(
-        reader: Reader<L3Event>,
+        reader: Reader<Event>,
         depth: MD,
         state: State<AT>,
         order_latency: LM,
@@ -127,7 +127,7 @@ where
         order: &mut Order,
         timestamp: i64,
         maker: bool,
-        exec_price_tick: i32,
+        exec_price_tick: i64,
     ) -> Result<(), BacktestError> {
         if order.status == Status::Expired
             || order.status == Status::Canceled
@@ -157,15 +157,15 @@ where
 
     fn on_best_bid_update(
         &mut self,
-        prev_best_tick: i32,
-        new_best_tick: i32,
+        prev_best_tick: i64,
+        new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
         // If the best has been significantly updated compared to the previous best, it would be
         // better to iterate orders dict instead of order price ladder.
         let mut filled_orders = Vec::new();
         if prev_best_tick == INVALID_MIN
-            || (self.queue_model.orders.len() as i32) < new_best_tick - prev_best_tick
+            || (self.queue_model.orders.len() as i64) < new_best_tick - prev_best_tick
         {
             let mut filled_orders = Vec::new();
             for (order_id, &mut (side, price_tick)) in self.queue_model.orders.iter_mut() {
@@ -205,15 +205,15 @@ where
 
     fn on_best_ask_update(
         &mut self,
-        prev_best_tick: i32,
-        new_best_tick: i32,
+        prev_best_tick: i64,
+        new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
         // If the best has been significantly updated compared to the previous best, it would be
         // better to iterate orders dict instead of order price ladder.
         let mut filled_orders = Vec::new();
         if prev_best_tick == INVALID_MAX
-            || (self.queue_model.orders.len() as i32) < prev_best_tick - new_best_tick
+            || (self.queue_model.orders.len() as i64) < prev_best_tick - new_best_tick
         {
             for (order_id, &mut (side, price_tick)) in self.queue_model.orders.iter_mut() {
                 if side == Side::Buy && price_tick >= new_best_tick {

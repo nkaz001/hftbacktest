@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     backtest::{reader::Data, BacktestError},
-    prelude::Side,
+    prelude::{OrderId, Side},
     types::{Event, BUY, SELL},
 };
 
@@ -29,7 +29,7 @@ pub struct BTreeMarketDepth {
     pub ask_depth: BTreeMap<i64, f64>,
     pub best_bid_tick: i64,
     pub best_ask_tick: i64,
-    pub orders: HashMap<i64, L3Order>,
+    pub orders: HashMap<OrderId, L3Order>,
 }
 
 impl BTreeMarketDepth {
@@ -246,7 +246,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 
     fn add_buy_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -268,7 +268,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 
     fn add_sell_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -290,7 +290,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 
     fn delete_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         _timestamp: i64,
     ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
@@ -326,7 +326,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 
     fn modify_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -407,7 +407,7 @@ impl L3MarketDepth for BTreeMarketDepth {
         }
     }
 
-    fn orders(&self) -> &HashMap<i64, L3Order> {
+    fn orders(&self) -> &HashMap<OrderId, L3Order> {
         &self.orders
     }
 }

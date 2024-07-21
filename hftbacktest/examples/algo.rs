@@ -74,14 +74,14 @@ where
             if position < max_position && bid_price.is_finite() {
                 for i in 0..grid_num {
                     bid_price -= i as f64 * grid_interval;
-                    let bid_price_tick = (bid_price / tick_size).round() as i64;
+                    let bid_price_tick = (bid_price / tick_size).round() as u64;
 
                     // order price in tick is used as order id.
                     new_bid_orders.insert(bid_price_tick, bid_price);
                 }
             }
             // Cancels if an order is not in the new grid.
-            let cancel_order_ids: Vec<i64> = orders
+            let cancel_order_ids: Vec<u64> = orders
                 .values()
                 .filter(|order| {
                     order.side == Side::Buy
@@ -91,7 +91,7 @@ where
                 .map(|order| order.order_id)
                 .collect();
             // Posts an order if it doesn't exist.
-            let new_orders: Vec<(i64, f64)> = new_bid_orders
+            let new_orders: Vec<(u64, f64)> = new_bid_orders
                 .into_iter()
                 .filter(|(order_id, _)| !orders.contains_key(&order_id))
                 .map(|v| v)
@@ -119,14 +119,14 @@ where
             if position > -max_position && ask_price.is_finite() {
                 for i in 0..grid_num {
                     ask_price += i as f64 * grid_interval;
-                    let ask_price_tick = (ask_price / tick_size).round() as i64;
+                    let ask_price_tick = (ask_price / tick_size).round() as u64;
 
                     // order price in tick is used as order id.
                     new_ask_orders.insert(ask_price_tick, ask_price);
                 }
             }
             // Cancels if an order is not in the new grid.
-            let cancel_order_ids: Vec<i64> = orders
+            let cancel_order_ids: Vec<u64> = orders
                 .values()
                 .filter(|order| {
                     order.side == Side::Sell
@@ -136,7 +136,7 @@ where
                 .map(|order| order.order_id)
                 .collect();
             // Posts an order if it doesn't exist.
-            let new_orders: Vec<(i64, f64)> = new_ask_orders
+            let new_orders: Vec<(u64, f64)> = new_ask_orders
                 .into_iter()
                 .filter(|(order_id, _)| !orders.contains_key(&order_id))
                 .map(|v| v)

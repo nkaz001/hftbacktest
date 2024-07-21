@@ -41,9 +41,6 @@ pub mod recorder;
 
 mod evs;
 
-#[cfg(any(feature = "unstable_l3", doc))]
-mod l3backtest;
-
 /// Errors that can occur during backtesting.
 #[derive(Error, Debug)]
 pub enum BacktestError {

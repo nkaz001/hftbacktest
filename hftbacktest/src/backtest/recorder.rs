@@ -16,12 +16,12 @@ use crate::{
 struct Record {
     timestamp: i64,
     price: f64,
-    balance: f64,
     position: f64,
+    balance: f64,
     fee: f64,
+    num_trades: i64,
     trading_volume: f64,
     trading_value: f64,
-    num_trades: i64,
 }
 
 /// Provides recording of the backtesting strategy's state values, which are needed to compute

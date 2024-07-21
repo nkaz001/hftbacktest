@@ -19,6 +19,8 @@ mod fuse;
 #[cfg(any(feature = "unstable_fuse", doc))]
 pub use fuse::FusedHashMapMarketDepth;
 
+use crate::types::OrderId;
+
 /// Represents no best bid.
 pub const INVALID_MIN: i64 = i64::MIN;
 
@@ -101,7 +103,7 @@ where
 /// Level3 order from the market feed.
 #[derive(Debug)]
 pub struct L3Order {
-    pub order_id: i64,
+    pub order_id: OrderId,
     pub side: Side,
     pub price_tick: i64,
     pub qty: f64,
@@ -116,7 +118,7 @@ pub trait L3MarketDepth: MarketDepth {
     /// in ticks, the current best bid in ticks).
     fn add_buy_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -126,7 +128,7 @@ pub trait L3MarketDepth: MarketDepth {
     ///  in ticks, the current best ask in ticks).
     fn add_sell_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -135,7 +137,7 @@ pub trait L3MarketDepth: MarketDepth {
     /// Deletes the order in the order book.
     fn delete_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         timestamp: i64,
     ) -> Result<(i64, i64, i64), Self::Error>;
 
@@ -143,7 +145,7 @@ pub trait L3MarketDepth: MarketDepth {
     /// in ticks, the current best in ticks).
     fn modify_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -154,7 +156,7 @@ pub trait L3MarketDepth: MarketDepth {
     fn clear_depth(&mut self, side: i64);
 
     /// Returns the orders held in the order book.
-    fn orders(&self) -> &HashMap<i64, L3Order>;
+    fn orders(&self) -> &HashMap<OrderId, L3Order>;
 }
 
 #[cfg(feature = "unstable_fuse")]

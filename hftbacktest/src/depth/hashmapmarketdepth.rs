@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
     backtest::{reader::Data, BacktestError},
-    prelude::{L2MarketDepth, Side},
+    prelude::{L2MarketDepth, OrderId, Side},
     types::{Event, BUY, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT, SELL},
 };
 
@@ -28,7 +28,7 @@ pub struct HashMapMarketDepth {
     pub best_ask_tick: i64,
     pub low_bid_tick: i64,
     pub high_ask_tick: i64,
-    pub orders: HashMap<i64, L3Order>,
+    pub orders: HashMap<OrderId, L3Order>,
 }
 
 #[inline(always)]
@@ -357,7 +357,7 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn add_buy_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -384,7 +384,7 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn add_sell_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -411,7 +411,7 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn delete_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         _timestamp: i64,
     ) -> Result<(i64, i64, i64), Self::Error> {
         let order = self
@@ -455,7 +455,7 @@ impl L3MarketDepth for HashMapMarketDepth {
 
     fn modify_order(
         &mut self,
-        order_id: i64,
+        order_id: OrderId,
         px: f64,
         qty: f64,
         timestamp: i64,
@@ -554,7 +554,7 @@ impl L3MarketDepth for HashMapMarketDepth {
         }
     }
 
-    fn orders(&self) -> &HashMap<i64, L3Order> {
+    fn orders(&self) -> &HashMap<OrderId, L3Order> {
         &self.orders
     }
 }

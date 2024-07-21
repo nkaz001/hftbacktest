@@ -23,7 +23,6 @@ use crate::{
         Side,
         Status,
         TimeInForce,
-        WaitOrderResponse,
         BUY,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
         EXCH_ASK_DEPTH_EVENT,

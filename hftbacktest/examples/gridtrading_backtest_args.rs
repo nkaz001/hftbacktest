@@ -30,9 +30,9 @@ struct Args {
     #[arg(long, num_args = 1..)]
     latency_files: Vec<String>,
     #[arg(long)]
-    tick_size: f32,
+    tick_size: f64,
     #[arg(long)]
-    lot_size: f32,
+    lot_size: f64,
     #[arg(long)]
     relative_half_spread: f64,
     #[arg(long)]
@@ -57,8 +57,8 @@ fn prepare_backtest(
     latency_files: Vec<String>,
     data_files: Vec<String>,
     initial_snapshot: Option<String>,
-    tick_size: f32,
-    lot_size: f32,
+    tick_size: f64,
+    lot_size: f64,
     maker_fee: f64,
     taker_fee: f64,
 ) -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {

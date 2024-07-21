@@ -567,11 +567,11 @@ pub struct StateValues {
     // todo: currently, they are cumulative values, but they need to be values within the record
     //       interval.
     /// Backtest only
+    pub num_trades: i64,
+    /// Backtest only
     pub trading_volume: f64,
     /// Backtest only
     pub trading_value: f64,
-    /// Backtest only
-    pub num_trades: i64,
 }
 
 /// Provides errors that can occur in builders.
