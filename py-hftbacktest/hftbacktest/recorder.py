@@ -19,13 +19,13 @@ class Recorder_:
     def record(self, hbt):
         timestamp = hbt.current_timestamp
         for asset_no in range(hbt.num_assets):
-            depth = hbt.depth_typed(asset_no)
+            depth = hbt.depth(asset_no)
             mid_price = (depth.best_bid + depth.best_ask) / 2.0
             state_values = hbt.state_values(asset_no)
             self.records[self.i, asset_no].timestamp = timestamp
             self.records[self.i, asset_no].price = mid_price
-            self.records[self.i, asset_no].balance = state_values.balance
             self.records[self.i, asset_no].position = state_values.position
+            self.records[self.i, asset_no].balance = state_values.balance
             self.records[self.i, asset_no].fee = state_values.fee
             self.records[self.i, asset_no].num_trades = state_values.num_trades
             self.records[self.i, asset_no].trading_volume = state_values.trading_volume

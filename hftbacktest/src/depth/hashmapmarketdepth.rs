@@ -320,9 +320,9 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 exch_ts: 0,
                 local_ts: 0,
-                order_id: 0,
                 px: px_tick as f64 * self.tick_size,
                 qty,
+                order_id: 0,
                 priority: 0,
                 _reserved: 0,
             });
@@ -340,9 +340,9 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 exch_ts: 0,
                 local_ts: 0,
-                order_id: 0,
                 px: px_tick as f64 * self.tick_size,
                 qty,
+                order_id: 0,
                 priority: 0,
                 _reserved: 0,
             });

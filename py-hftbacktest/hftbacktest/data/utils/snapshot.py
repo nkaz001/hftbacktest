@@ -46,7 +46,8 @@ def create_last_snapshot(
     hbt = HashMapMarketDepthMultiAssetMultiExchangeBacktest([asset])
 
     # Go to the end of the data.
-    hbt._goto_end()
+    if hbt._goto_end() not in [0, 1]:
+        raise RuntimeError
 
     depth = hbt.depth(0)
     snapshot = depth.snapshot()

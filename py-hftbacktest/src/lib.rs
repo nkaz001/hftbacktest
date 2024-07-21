@@ -133,17 +133,6 @@ impl BacktestAsset {
         slf
     }
 
-    /// Sets the feed data.
-    ///
-    /// Args:
-    ///     data: a list of file paths for the normalized market feed data in `npz`.
-    pub fn data(mut slf: PyRefMut<Self>, data: Vec<String>) -> PyRefMut<Self> {
-        for item in data {
-            slf.data.push(DataSource::File(item));
-        }
-        slf
-    }
-
     pub fn add_file(mut slf: PyRefMut<Self>, data: String) -> PyRefMut<Self> {
         slf.data.push(DataSource::File(data));
         slf
