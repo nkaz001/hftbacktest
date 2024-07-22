@@ -63,8 +63,6 @@ __all__ = (
 
 __version__ = '2.0.0-alpha'
 
-__hftbacktests__ = {}
-
 
 class BacktestAsset(BacktestAsset_):
     def add_data(self, data: EVENT_ARRAY):
@@ -107,14 +105,6 @@ class BacktestAsset(BacktestAsset_):
         return self
 
 
-def close(hbt):
-    """
-    Args:
-        hbt: HftBacktest to be allowed for garbage collection.
-    """
-    del __hftbacktests__[hbt]
-
-
 def HashMapMarketDepthBacktest(
         assets: List[BacktestAsset]
 ) -> HashMapMarketDepthBacktest_TypeHint:
@@ -127,13 +117,8 @@ def HashMapMarketDepthBacktest(
     Returns:
         A jit`ed `HashMapMarketDepthBacktest` that can be used in an ``njit`` function.
     """
-    raw_hbt = build_hashmap_backtest(assets)
-
-    # Prevents the object from being gc`ed to avoid dangling references.
-    bt = HashMapMarketDepthBacktest_(raw_hbt.as_ptr())
-    __hftbacktests__[bt] = raw_hbt
-
-    return bt
+    ptr = build_hashmap_backtest(assets)
+    return HashMapMarketDepthBacktest_(ptr)
 
 
 def ROIVectorMarketBacktest(
@@ -148,10 +133,5 @@ def ROIVectorMarketBacktest(
     Returns:
         A jit`ed `ROIVectorMarketBacktest` that can be used in an ``njit`` function.
     """
-    raw_hbt = build_roivec_backtest(assets)
-
-    # Prevents the object from being gc`ed to avoid dangling references.
-    bt = ROIVectorMarketDepthBacktest_(raw_hbt.as_ptr())
-    __hftbacktests__[bt] = raw_hbt
-
-    return bt
+    ptr = build_roivec_backtest(assets)
+    return ROIVectorMarketDepthBacktest_(ptr)

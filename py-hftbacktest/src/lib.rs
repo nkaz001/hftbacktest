@@ -343,23 +343,7 @@ fn _hftbacktest(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_hashmap_backtest, m)?)?;
     m.add_function(wrap_pyfunction!(build_roivec_backtest, m)?)?;
     m.add_class::<BacktestAsset>()?;
-    m.add_class::<HashMapMarketDepthMultiAssetMultiExchangeBacktest>()?;
-    m.add_class::<ROIVectorMarketDepthMultiAssetMultiExchangeBacktest>()?;
     Ok(())
-}
-
-#[pyclass]
-pub struct HashMapMarketDepthMultiAssetMultiExchangeBacktest {
-    ptr: Box<Backtest<HashMapMarketDepth>>,
-}
-
-unsafe impl Send for HashMapMarketDepthMultiAssetMultiExchangeBacktest {}
-
-#[pymethods]
-impl HashMapMarketDepthMultiAssetMultiExchangeBacktest {
-    pub fn as_ptr(&mut self) -> PyResult<usize> {
-        Ok(&mut *self.ptr as *mut Backtest<HashMapMarketDepth> as *mut c_void as usize)
-    }
 }
 
 type LogProbQueueModelFunc = LogProbQueueFunc;
@@ -369,9 +353,7 @@ type PowerProbQueueModel2Func = PowerProbQueueFunc2;
 type PowerProbQueueModel3Func = PowerProbQueueFunc3;
 
 #[pyfunction]
-pub fn build_hashmap_backtest(
-    assets: Vec<PyRefMut<BacktestAsset>>,
-) -> PyResult<HashMapMarketDepthMultiAssetMultiExchangeBacktest> {
+pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<usize> {
     let mut local = Vec::new();
     let mut exch = Vec::new();
     for asset in assets {
@@ -404,27 +386,11 @@ pub fn build_hashmap_backtest(
     }
 
     let hbt = Backtest::new(local, exch);
-    Ok(HashMapMarketDepthMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
-}
-
-#[pyclass]
-pub struct ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {
-    ptr: Box<Backtest<ROIVectorMarketDepth>>,
-}
-
-unsafe impl Send for ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {}
-
-#[pymethods]
-impl ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {
-    pub fn as_ptr(&mut self) -> PyResult<usize> {
-        Ok(&mut *self.ptr as *mut Backtest<ROIVectorMarketDepth> as *mut c_void as usize)
-    }
+    Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
 }
 
 #[pyfunction]
-pub fn build_roivec_backtest(
-    assets: Vec<PyRefMut<BacktestAsset>>,
-) -> PyResult<ROIVectorMarketDepthMultiAssetMultiExchangeBacktest> {
+pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<usize> {
     let mut local = Vec::new();
     let mut exch = Vec::new();
     for asset in assets {
@@ -457,5 +423,5 @@ pub fn build_roivec_backtest(
     }
 
     let hbt = Backtest::new(local, exch);
-    Ok(ROIVectorMarketDepthMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
+    Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
 }

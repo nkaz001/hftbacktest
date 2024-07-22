@@ -51,7 +51,7 @@ pub extern "C" fn hashmapbt_position(
 
 #[no_mangle]
 pub extern "C" fn hashmapbt_close(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i64 {
-    let hbt = unsafe { &mut *hbt_ptr };
+    let mut hbt = unsafe { Box::from_raw(hbt_ptr) };
     match hbt.close() {
         Ok(()) => 0,
         Err(BacktestError::OrderIdExist) => 10,
@@ -377,7 +377,7 @@ pub extern "C" fn roivecbt_position(
 
 #[no_mangle]
 pub extern "C" fn roivecbt_close(hbt_ptr: *mut ROIVectorMarketDepthBacktest) -> i64 {
-    let hbt = unsafe { &mut *hbt_ptr };
+    let mut hbt = unsafe { Box::from_raw(hbt_ptr) };
     match hbt.close() {
         Ok(()) => 0,
         Err(BacktestError::OrderIdExist) => 10,
