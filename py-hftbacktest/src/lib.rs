@@ -22,8 +22,8 @@ use hftbacktest::{
         reader::{read_npz, Cache, Data, Reader},
         state::State,
         Asset,
+        Backtest,
         DataSource,
-        MultiAssetMultiExchangeBacktest,
     },
     prelude::{ApplySnapshot, Event, HashMapMarketDepth, ROIVectorMarketDepth},
 };
@@ -350,7 +350,7 @@ fn _hftbacktest(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[pyclass]
 pub struct HashMapMarketDepthMultiAssetMultiExchangeBacktest {
-    ptr: Box<MultiAssetMultiExchangeBacktest<HashMapMarketDepth>>,
+    ptr: Box<Backtest<HashMapMarketDepth>>,
 }
 
 unsafe impl Send for HashMapMarketDepthMultiAssetMultiExchangeBacktest {}
@@ -358,10 +358,7 @@ unsafe impl Send for HashMapMarketDepthMultiAssetMultiExchangeBacktest {}
 #[pymethods]
 impl HashMapMarketDepthMultiAssetMultiExchangeBacktest {
     pub fn as_ptr(&mut self) -> PyResult<usize> {
-        Ok(
-            &mut *self.ptr as *mut MultiAssetMultiExchangeBacktest<HashMapMarketDepth>
-                as *mut c_void as usize,
-        )
+        Ok(&mut *self.ptr as *mut Backtest<HashMapMarketDepth> as *mut c_void as usize)
     }
 }
 
@@ -406,13 +403,13 @@ pub fn build_hashmap_backtest(
         exch.push(asst.exch);
     }
 
-    let hbt = MultiAssetMultiExchangeBacktest::new(local, exch);
+    let hbt = Backtest::new(local, exch);
     Ok(HashMapMarketDepthMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
 }
 
 #[pyclass]
 pub struct ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {
-    ptr: Box<MultiAssetMultiExchangeBacktest<ROIVectorMarketDepth>>,
+    ptr: Box<Backtest<ROIVectorMarketDepth>>,
 }
 
 unsafe impl Send for ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {}
@@ -420,10 +417,7 @@ unsafe impl Send for ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {}
 #[pymethods]
 impl ROIVectorMarketDepthMultiAssetMultiExchangeBacktest {
     pub fn as_ptr(&mut self) -> PyResult<usize> {
-        Ok(
-            &mut *self.ptr as *mut MultiAssetMultiExchangeBacktest<ROIVectorMarketDepth>
-                as *mut c_void as usize,
-        )
+        Ok(&mut *self.ptr as *mut Backtest<ROIVectorMarketDepth> as *mut c_void as usize)
     }
 }
 
@@ -462,6 +456,6 @@ pub fn build_roivec_backtest(
         exch.push(asst.exch);
     }
 
-    let hbt = MultiAssetMultiExchangeBacktest::new(local, exch);
+    let hbt = Backtest::new(local, exch);
     Ok(ROIVectorMarketDepthMultiAssetMultiExchangeBacktest { ptr: Box::new(hbt) })
 }

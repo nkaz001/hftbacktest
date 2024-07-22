@@ -3,7 +3,7 @@ from typing import List
 import numpy as np
 from numpy.typing import NDArray
 
-from ... import BacktestAsset, HashMapMarketDepthMultiAssetMultiExchangeBacktest
+from ... import BacktestAsset, HashMapMarketDepthBacktest
 
 
 def create_last_snapshot(
@@ -43,7 +43,7 @@ def create_last_snapshot(
     if initial_snapshot is not None:
         asset.initial_snapshot(initial_snapshot)
 
-    hbt = HashMapMarketDepthMultiAssetMultiExchangeBacktest([asset])
+    hbt = HashMapMarketDepthBacktest([asset])
 
     # Go to the end of the data.
     if hbt._goto_end() not in [0, 1]:

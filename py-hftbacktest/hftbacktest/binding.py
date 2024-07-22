@@ -520,7 +520,7 @@ hashmapbt_goto_end.restype = c_int64
 hashmapbt_goto_end.argtypes = [c_void_p]
 
 
-class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
+class HashMapMarketDepthBacktest:
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
@@ -828,7 +828,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         return hashmapbt_goto_end(self.ptr)
 
 
-HashMapMarketDepthMultiAssetMultiExchangeBacktest_ = jitclass(HashMapMarketDepthMultiAssetMultiExchangeBacktest)
+HashMapMarketDepthBacktest_ = jitclass(HashMapMarketDepthBacktest)
 
 
 roivecbt_elapse = lib.roivecbt_elapse
@@ -926,7 +926,7 @@ roivecbt_order_latency.restype = c_bool
 roivecbt_order_latency.argtypes = [c_void_p, c_uint64, POINTER(c_int64), POINTER(c_int64), POINTER(c_int64)]
 
 
-class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
+class ROIVectorMarketDepthBacktest:
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
@@ -1231,4 +1231,4 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         return None
 
 
-ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_ = jitclass(ROIVectorMarketDepthMultiAssetMultiExchangeBacktest)
+ROIVectorMarketDepthBacktest_ = jitclass(ROIVectorMarketDepthBacktest)

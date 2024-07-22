@@ -1,14 +1,14 @@
 use std::{collections::HashMap, mem};
 
 use hftbacktest::{
-    backtest::{BacktestError, MultiAssetMultiExchangeBacktest},
+    backtest::{Backtest, BacktestError},
     depth::{HashMapMarketDepth, ROIVectorMarketDepth},
     prelude::{Bot, Event, Order, StateValues},
     types::{OrdType, TimeInForce},
 };
 
-type HashMapMarketDepthBacktest = MultiAssetMultiExchangeBacktest<HashMapMarketDepth>;
-type ROIVectorMarketDepthBacktest = MultiAssetMultiExchangeBacktest<ROIVectorMarketDepth>;
+type HashMapMarketDepthBacktest = Backtest<HashMapMarketDepth>;
+type ROIVectorMarketDepthBacktest = Backtest<ROIVectorMarketDepth>;
 
 #[no_mangle]
 pub extern "C" fn hashmapbt_current_timestamp(hbt_ptr: *const HashMapMarketDepthBacktest) -> i64 {
