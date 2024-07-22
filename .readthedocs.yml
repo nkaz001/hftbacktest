@@ -14,9 +14,16 @@ build:
   commands:
     - asdf install rust 1.79
     - asdf global rust 1.79
+    - python -mvirtualenv $READTHEDOCS_VIRTUALENV_PATH
+    - python -m pip install --upgrade --no-cache-dir pip setuptools
+    - python -m pip install --upgrade --no-cache-dir sphinx readthedocs-sphinx-ext
+    - python -m pip install --exists-action=w --no-cache-dir -r docs/requirements.txt
+    - python -m pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir ./py-hftbacktest
+    - cat docs/conf.py
+    - python -m sphinx -T -b html -d _build/doctrees -D language=en . $READTHEDOCS_OUTPUT/html
 
-python:
-  install:
-    - requirements: docs/requirements.txt
-    - method: pip
-      path: py-hftbacktest
+#python:
+#  install:
+#    - requirements: docs/requirements.txt
+#    - method: pip
+#      path: py-hftbacktest

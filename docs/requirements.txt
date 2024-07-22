@@ -1,8 +1,4 @@
-Sphinx>=7,<8
 sphinx_rtd_theme>=2,<3
 nbsphinx>=0.9,<0.10
 ipython>=8,<9
 jupyter>=1,<2
-numba
-numpy
-polars
