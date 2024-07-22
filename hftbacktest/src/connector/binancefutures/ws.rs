@@ -106,8 +106,8 @@ pub async fn connect(
                                     order_id: 0,
                                     px,
                                     qty,
-                                    priority: 0,
-                                    _reserved: 0,
+                                    ival: 0,
+                                    fval: 0.0,
                                 })
                             .collect();
                         let mut ask_events: Vec<_> = asks
@@ -119,8 +119,8 @@ pub async fn connect(
                                     order_id: 0,
                                     px,
                                     qty,
-                                    priority: 0,
-                                    _reserved: 0,
+                                    ival: 0,
+                                    fval: 0.0,
                                 })
                             .collect();
                         let mut events = Vec::new();
@@ -230,8 +230,8 @@ pub async fn connect(
                                                     order_id: 0,
                                                     px,
                                                     qty,
-                                                    priority: 0,
-                                                    _reserved: 0,
+                                                    ival: 0,
+                                                    fval: 0.0,
                                                 })
                                             .collect();
                                         let mut ask_events: Vec<_> = asks
@@ -243,8 +243,8 @@ pub async fn connect(
                                                     order_id: 0,
                                                     px,
                                                     qty,
-                                                    priority: 0,
-                                                    _reserved: 0,
+                                                    ival: 0,
+                                                    fval: 0.0,
                                                 })
                                             .collect();
                                         let mut events = Vec::new();
@@ -284,8 +284,8 @@ pub async fn connect(
                                                     order_id: 0,
                                                     px,
                                                     qty,
-                                                    priority: 0,
-                                                    _reserved: 0
+                                                    ival: 0,
+                                                    fval: 0.0,
                                                 }]
                                             }
                                         ).unwrap();

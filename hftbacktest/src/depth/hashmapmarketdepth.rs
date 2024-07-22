@@ -323,8 +323,8 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 px: px_tick as f64 * self.tick_size,
                 qty,
                 order_id: 0,
-                priority: 0,
-                _reserved: 0,
+                ival: 0,
+                fval: 0.0,
             });
         }
 
@@ -343,8 +343,8 @@ impl ApplySnapshot<Event> for HashMapMarketDepth {
                 px: px_tick as f64 * self.tick_size,
                 qty,
                 order_id: 0,
-                priority: 0,
-                _reserved: 0,
+                ival: 0,
+                fval: 0.0,
             });
         }
 

@@ -96,8 +96,8 @@ async fn handle_public_stream(
                         order_id: 0,
                         px,
                         qty,
-                        priority: 0,
-                        _reserved: 0,
+                        ival: 0,
+                        fval: 0.0,
                     })
                     .collect();
                 assert_eq!(asks.len(), 1);
@@ -110,8 +110,8 @@ async fn handle_public_stream(
                         order_id: 0,
                         px,
                         qty,
-                        priority: 0,
-                        _reserved: 0,
+                        ival: 0,
+                        fval: 0.0,
                     })
                     .collect();
                 let mut events = Vec::new();
@@ -136,8 +136,8 @@ async fn handle_public_stream(
                         order_id: 0,
                         px,
                         qty,
-                        priority: 0,
-                        _reserved: 0,
+                        ival: 0,
+                        fval: 0.0,
                     })
                     .collect();
                 let mut ask_events: Vec<_> = asks
@@ -149,8 +149,8 @@ async fn handle_public_stream(
                         order_id: 0,
                         px,
                         qty,
-                        priority: 0,
-                        _reserved: 0,
+                        ival: 0,
+                        fval: 0.0,
                     })
                     .collect();
                 let mut events = Vec::new();
@@ -182,8 +182,8 @@ async fn handle_public_stream(
                                 order_id: 0,
                                 px: item.trade_price,
                                 qty: item.trade_size,
-                                priority: 0,
-                                _reserved: 0,
+                                ival: 0,
+                                fval: 0.0,
                             }],
                         })
                         .unwrap();
