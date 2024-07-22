@@ -20,7 +20,8 @@ build:
     - python -m pip install --exists-action=w --no-cache-dir -r docs/requirements.txt
     - python -m pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir ./py-hftbacktest
     - cat docs/conf.py
-    - python -m sphinx -T -b html -d _build/doctrees -D language=en . $READTHEDOCS_OUTPUT/html
+    - python -m sphinx -T -b html -d _build/doctrees -D language=en ./docs $READTHEDOCS_OUTPUT/html
+    - python -m sphinx -T -b readthedocssinglehtmllocalmedia -d _build/doctrees -D language=en ./docs $READTHEDOCS_OUTPUT/htmlzip
 
 #python:
 #  install:
