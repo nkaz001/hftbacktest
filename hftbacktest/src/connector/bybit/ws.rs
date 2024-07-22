@@ -118,7 +118,7 @@ async fn handle_public_stream(
                 events.append(&mut bid_events);
                 events.append(&mut ask_events);
                 ev_tx
-                    .send(LiveEvent::L2Feed {
+                    .send(LiveEvent::FeedBatch {
                         asset_no: asset.asset_no,
                         events,
                     })
@@ -157,7 +157,7 @@ async fn handle_public_stream(
                 events.append(&mut bid_events);
                 events.append(&mut ask_events);
                 ev_tx
-                    .send(LiveEvent::L2Feed {
+                    .send(LiveEvent::FeedBatch {
                         asset_no: asset.asset_no,
                         events,
                     })
@@ -167,7 +167,7 @@ async fn handle_public_stream(
                 for item in data {
                     let asset_info = assets.get(&item.symbol).ok_or(HandleError::AssetNotFound)?;
                     ev_tx
-                        .send(LiveEvent::L2Feed {
+                        .send(LiveEvent::FeedBatch {
                             asset_no: asset_info.asset_no,
                             events: vec![Event {
                                 ev: {

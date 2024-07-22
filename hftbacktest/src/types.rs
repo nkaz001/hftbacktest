@@ -62,8 +62,8 @@ pub enum ErrorKind {
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
-    L2Feed { asset_no: usize, events: Vec<Event> },
-    L3Feed { asset_no: usize, event: Event },
+    FeedBatch { asset_no: usize, events: Vec<Event> },
+    Feed { asset_no: usize, event: Event },
     Order { asset_no: usize, order: Order },
     Position { asset_no: usize, qty: f64 },
     Error(LiveError),

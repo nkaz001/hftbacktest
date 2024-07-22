@@ -127,7 +127,7 @@ pub async fn connect(
                         events.append(&mut bid_events);
                         events.append(&mut ask_events);
                         ev_tx.send(
-                            LiveEvent::L2Feed {
+                            LiveEvent::FeedBatch {
                                 asset_no: asset.asset_no,
                                 events
                             }
@@ -251,7 +251,7 @@ pub async fn connect(
                                         events.append(&mut bid_events);
                                         events.append(&mut ask_events);
                                         ev_tx.send(
-                                            LiveEvent::L2Feed {
+                                            LiveEvent::FeedBatch {
                                                 asset_no: asset_info.asset_no,
                                                 events
                                             }
@@ -269,7 +269,7 @@ pub async fn connect(
                                             .get(&data.symbol)
                                         .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
-                                            LiveEvent::L2Feed {
+                                            LiveEvent::FeedBatch {
                                                 asset_no: asset_info.asset_no,
                                                 events: vec![Event {
                                                     ev: {
