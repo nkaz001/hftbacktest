@@ -41,8 +41,8 @@ event_dtype = np.dtype(
         ('px', 'f8'),
         ('qty', 'f8'),
         ('order_id', 'u8'),
-        ('priority', 'i8'),
-        ('_reserved', 'i8')
+        ('ival', 'i8'),
+        ('fval', 'f8')
     ],
     align=True
 )

@@ -243,9 +243,10 @@ pub struct Event {
     pub qty: f64,
     /// Order Id
     pub order_id: u64,
-    /// Priority, which is required when the order book needs to be recovered from the snapshot.
-    pub priority: i64,
-    pub _reserved: i64,
+    /// Reserved for an additional i64 value
+    pub ival: i64,
+    /// Reserved for an additional f64 value
+    pub fval: f64,
 }
 
 unsafe impl POD for Event {}
