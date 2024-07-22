@@ -10,7 +10,7 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-    rust: "1.78"
+    rust: "1.79"
 
 python:
   install:
