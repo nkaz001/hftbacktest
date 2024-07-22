@@ -3,14 +3,14 @@ version: 2
 sphinx:
   configuration: docs/conf.py
 
-formats:
-  - htmlzip
+#formats:
+#  - htmlzip
 
 build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-    # rust: "1.79"
+#    rust: "1.79"
   commands:
     - asdf install rust 1.79
     - asdf global rust 1.79
@@ -21,7 +21,7 @@ build:
     - python -m pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir ./py-hftbacktest
     - cat docs/conf.py
     - python -m sphinx -T -b html -d _build/doctrees -D language=en ./docs $READTHEDOCS_OUTPUT/html
-    - python -m sphinx -T -b readthedocssinglehtmllocalmedia -d _build/doctrees -D language=en ./docs $READTHEDOCS_OUTPUT/htmlzip
+#    - python -m sphinx -T -b readthedocssinglehtmllocalmedia -d _build/doctrees -D language=en ./docs $READTHEDOCS_OUTPUT/htmlzip
 
 #python:
 #  install:
