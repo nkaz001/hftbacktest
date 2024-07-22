@@ -10,7 +10,10 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-    rust: "1.79"
+    # rust: "1.79"
+  commands:
+    - asdf install rust 1.79
+    - asdf global rust 1.79
 
 python:
   install:
