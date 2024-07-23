@@ -114,7 +114,7 @@ impl BacktestAsset {
     }
 
     /// Sets the lower bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
-    /// Only valid if `ROIVectorMultiAssetMultiExchangeBacktest` is built.
+    /// Only valid if `ROIVectorMarketDepthBacktest` is built.
     ///
     /// Args:
     ///     roi_lb: the lower bound price of the range of interest.
@@ -124,7 +124,7 @@ impl BacktestAsset {
     }
 
     /// Sets the lower bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
-    /// Only valid if `ROIVectorMultiAssetMultiExchangeBacktest` is built.
+    /// Only valid if `ROIVectorMarketDepthBacktest` is built.
     ///
     /// Args:
     ///     roi_lb: the lower bound price of the range of interest.

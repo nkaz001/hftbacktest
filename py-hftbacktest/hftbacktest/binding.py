@@ -275,6 +275,13 @@ class ROIVectorMarketDepth:
 
     @property
     def bid_depth(self) -> np.ndarray[Any, float64]:
+        """
+        Returns the bid market depth array, which contains the quantity at each price. Its length is
+        `ROI upper bound in ticks + 1 - ROI lower bound in ticks`, the array contains the quantities at prices from
+        the ROI lower bound to the ROI upper bound. The index is calculated as
+        `price in ticks - ROI lower bound in ticks`. Respectively, the price is
+        `(index + ROI lower bound in ticks) * tick_size`.
+        """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = roivecdepth_bid_depth(self.ptr, len_ptr)
@@ -286,6 +293,13 @@ class ROIVectorMarketDepth:
 
     @property
     def ask_depth(self) -> np.ndarray[Any, float64]:
+        """
+        Returns the ask market depth array, which contains the quantity at each price. Its length is
+        `ROI upper bound in ticks + 1 - ROI lower bound in ticks`, the array contains the quantities at prices from
+        the ROI lower bound to the ROI upper bound. The index is calculated as
+        `price in ticks - ROI lower bound in ticks`. Respectively, the price is
+        `(index + ROI lower bound in ticks) * tick_size`.
+        """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = roivecdepth_ask_depth(self.ptr, len_ptr)
