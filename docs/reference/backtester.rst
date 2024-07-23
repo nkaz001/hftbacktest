@@ -5,11 +5,19 @@ Backtester
 
    <br />
 
-.. autoclass:: hftbacktest.binding.MultiAssetMultiExchangeBacktest()
+.. autoclass:: hftbacktest.binding.HashMapMarketDepthBacktest()
    :members:
    :member-order: bysource
 
-.. autoclass:: hftbacktest.binding.MarketDepth()
+.. autoclass:: hftbacktest.binding.HashMapMarketDepth()
+   :members:
+   :member-order: bysource
+
+.. autoclass:: hftbacktest.binding.ROIVectorMarketDepthBacktest()
+   :members:
+   :member-order: bysource
+
+.. autoclass:: hftbacktest.binding.ROIVectorMarketDepth()
    :members:
    :member-order: bysource
 
