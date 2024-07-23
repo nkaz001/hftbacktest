@@ -30,7 +30,16 @@ from .order import (
 )
 from .recorder import Recorder
 from .types import (
-    ALL_ASSETS, EVENT_ARRAY
+    ALL_ASSETS,
+    EVENT_ARRAY,
+    DEPTH_EVENT,
+    TRADE_EVENT,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    EXCH_EVENT,
+    LOCAL_EVENT,
+    BUY_EVENT,
+    SELL_EVENT
 )
 
 __all__ = (
@@ -39,6 +48,16 @@ __all__ = (
     'ROIVectorMarketDepthBacktest',
 
     'ALL_ASSETS',
+
+    # Event flags
+    'DEPTH_EVENT',
+    'TRADE_EVENT',
+    'DEPTH_CLEAR_EVENT',
+    'DEPTH_SNAPSHOT_EVENT',
+    'EXCH_EVENT',
+    'LOCAL_EVENT'
+    'BUY_EVENT',
+    'SELL_EVENT',
 
     # Side
     'BUY',
