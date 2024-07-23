@@ -7,7 +7,7 @@ from zipfile import ZipFile, is_zipfile
 import numpy as np
 from numpy.typing import NDArray
 
-from ...types import BUY_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT, TRADE_EVENT, event_dtype
+from ...types import BUY_EVENT, SELL_EVENT, DEPTH_EVENT, DEPTH_CLEAR_EVENT, DEPTH_SNAPSHOT_EVENT, TRADE_EVENT, event_dtype
 from .. import correct_event_order, validate_event_order
 from ..validation import correct_local_timestamp
 
@@ -51,10 +51,7 @@ def convert(
     tmp = np.empty(buffer_size, event_dtype)
     row_num = 0
 
-    timestamp_col = None
-    side_col = None
-    price_col = None
-    qty_col = None
+    orderbook_keys = ["a", "b"]
 
     print("Reading %s" % depth_filename)
     with ZipFile(depth_filename, "r") as zipfile:
@@ -63,12 +60,26 @@ def convert(
                 row: str = row.decode().strip()
                 obj: object = json.loads(row)
                 update_type: str = obj["type"]
-                timestamp_us: int = int(float(obj["ts"]) * 1000)
+                timestamp_ns: int = int(float(obj["ts"]) * 1_000_000)
 
-                keys = ["a", "b"]
-
-                for key in keys:
+                for key in orderbook_keys:
                     if key in obj["data"].keys():
+                        if update_type == "snapshot":
+                            # Insert DEPTH_CLEAR_EVENT before DEPTH_SNAPSHOT_EVENT
+                            print(obj["data"][key])
+                            tmp[row_num] = (
+                                DEPTH_CLEAR_EVENT | (SELL_EVENT if key == "a" else BUY_EVENT),
+                                timestamp_ns,
+                                timestamp_ns + feed_latency,
+                                obj["data"][key][-1][0],
+                                0,
+                                0,
+                                0,
+                                0,
+                            )
+                            row_num += 1
+
+                        # Insert DEPTH_SNAPSHOT_EVENT or DEPTH_EVENT
                         for px, qty in obj["data"][key]:
                             tmp[row_num] = (
                                 (
@@ -76,8 +87,8 @@ def convert(
                                     if update_type == "snapshot"
                                     else DEPTH_EVENT | (SELL_EVENT if key == "a" else BUY_EVENT)
                                 ),
-                                timestamp_us,
-                                timestamp_us + feed_latency,
+                                timestamp_ns,
+                                timestamp_ns + feed_latency,
                                 px,
                                 qty,
                                 0,
@@ -128,7 +139,7 @@ def convert(
                 if trades_has_header:
                     continue
 
-            exch_ts = int(float(row[timestamp_col]) * 1_000_000)
+            exch_ts = int(float(row[timestamp_col]) * 1_000_000_000)
             local_ts = exch_ts + feed_latency
 
             px = float(row[price_col])
