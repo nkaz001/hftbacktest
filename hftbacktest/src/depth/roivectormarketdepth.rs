@@ -286,8 +286,12 @@ impl L2MarketDepth for ROIVectorMarketDepth {
                 self.high_ask_tick = INVALID_MIN;
             }
         } else {
-            self.bid_depth.clear();
-            self.ask_depth.clear();
+            for qty in &mut self.bid_depth {
+                *qty = 0.0;
+            }
+            for qty in &mut self.ask_depth {
+                *qty = 0.0;
+            }
             self.best_bid_tick = INVALID_MIN;
             self.best_ask_tick = INVALID_MAX;
             self.low_bid_tick = INVALID_MAX;
@@ -370,8 +374,12 @@ impl ApplySnapshot<Event> for ROIVectorMarketDepth {
         self.best_ask_tick = INVALID_MAX;
         self.low_bid_tick = INVALID_MAX;
         self.high_ask_tick = INVALID_MIN;
-        self.bid_depth.clear();
-        self.ask_depth.clear();
+        for qty in &mut self.bid_depth {
+            *qty = 0.0;
+        }
+        for qty in &mut self.ask_depth {
+            *qty = 0.0;
+        }
         for row_num in 0..data.len() {
             let price = data[row_num].px;
             let qty = data[row_num].qty;
@@ -662,12 +670,20 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 
     fn clear_depth(&mut self, side: i64) {
         if side == BUY {
-            self.bid_depth.clear();
+            for qty in &mut self.bid_depth {
+                *qty = 0.0;
+            }
         } else if side == SELL {
-            self.ask_depth.clear();
+            for qty in &mut self.ask_depth {
+                *qty = 0.0;
+            }
         } else {
-            self.bid_depth.clear();
-            self.ask_depth.clear();
+            for qty in &mut self.bid_depth {
+                *qty = 0.0;
+            }
+            for qty in &mut self.ask_depth {
+                *qty = 0.0;
+            }
         }
     }
 
