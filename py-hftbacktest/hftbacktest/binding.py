@@ -273,6 +273,7 @@ class ROIVectorMarketDepth:
         """
         return roivecdepth_ask_qty_at_tick(self.ptr, price_tick)
 
+    @property
     def bid_depth(self) -> np.ndarray[Any, float64]:
         length = uint64(0)
         len_ptr = ptr_from_val(length)
@@ -283,6 +284,7 @@ class ROIVectorMarketDepth:
             float64
         )
 
+    @property
     def ask_depth(self) -> np.ndarray[Any, float64]:
         length = uint64(0)
         len_ptr = ptr_from_val(length)
