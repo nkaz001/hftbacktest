@@ -66,7 +66,6 @@ def convert(
                     if key in obj["data"].keys():
                         if update_type == "snapshot":
                             # Insert DEPTH_CLEAR_EVENT before DEPTH_SNAPSHOT_EVENT
-                            print(obj["data"][key])
                             tmp[row_num] = (
                                 DEPTH_CLEAR_EVENT | (SELL_EVENT if key == "a" else BUY_EVENT),
                                 timestamp_ns,
