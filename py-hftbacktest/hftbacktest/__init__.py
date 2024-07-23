@@ -121,7 +121,7 @@ def HashMapMarketDepthBacktest(
     return HashMapMarketDepthBacktest_(ptr)
 
 
-def ROIVectorMarketBacktest(
+def ROIVectorMarketDepthBacktest(
         assets: List[BacktestAsset]
 ) -> ROIVectorMarketDepthBacktest_TypeHint:
     """
