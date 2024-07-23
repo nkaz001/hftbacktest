@@ -273,7 +273,15 @@ class ROIVectorMarketDepth:
         """
         return roivecdepth_ask_qty_at_tick(self.ptr, price_tick)
 
+    @property
     def bid_depth(self) -> np.ndarray[Any, float64]:
+        """
+        Returns the bid market depth array, which contains the quantity at each price. Its length is
+        `ROI upper bound in ticks + 1 - ROI lower bound in ticks`, the array contains the quantities at prices from
+        the ROI lower bound to the ROI upper bound. The index is calculated as
+        `price in ticks - ROI lower bound in ticks`. Respectively, the price is
+        `(index + ROI lower bound in ticks) * tick_size`.
+        """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = roivecdepth_bid_depth(self.ptr, len_ptr)
@@ -283,7 +291,15 @@ class ROIVectorMarketDepth:
             float64
         )
 
+    @property
     def ask_depth(self) -> np.ndarray[Any, float64]:
+        """
+        Returns the ask market depth array, which contains the quantity at each price. Its length is
+        `ROI upper bound in ticks + 1 - ROI lower bound in ticks`, the array contains the quantities at prices from
+        the ROI lower bound to the ROI upper bound. The index is calculated as
+        `price in ticks - ROI lower bound in ticks`. Respectively, the price is
+        `(index + ROI lower bound in ticks) * tick_size`.
+        """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = roivecdepth_ask_depth(self.ptr, len_ptr)
@@ -520,7 +536,7 @@ hashmapbt_goto_end.restype = c_int64
 hashmapbt_goto_end.argtypes = [c_void_p]
 
 
-class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
+class HashMapMarketDepthBacktest:
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
@@ -828,7 +844,7 @@ class HashMapMarketDepthMultiAssetMultiExchangeBacktest:
         return hashmapbt_goto_end(self.ptr)
 
 
-HashMapMarketDepthMultiAssetMultiExchangeBacktest_ = jitclass(HashMapMarketDepthMultiAssetMultiExchangeBacktest)
+HashMapMarketDepthBacktest_ = jitclass(HashMapMarketDepthBacktest)
 
 
 roivecbt_elapse = lib.roivecbt_elapse
@@ -926,7 +942,7 @@ roivecbt_order_latency.restype = c_bool
 roivecbt_order_latency.argtypes = [c_void_p, c_uint64, POINTER(c_int64), POINTER(c_int64), POINTER(c_int64)]
 
 
-class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
+class ROIVectorMarketDepthBacktest:
     ptr: voidptr
 
     def __init__(self, ptr: voidptr):
@@ -1231,4 +1247,4 @@ class ROIVectorMarketDepthMultiAssetMultiExchangeBacktest:
         return None
 
 
-ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_ = jitclass(ROIVectorMarketDepthMultiAssetMultiExchangeBacktest)
+ROIVectorMarketDepthBacktest_ = jitclass(ROIVectorMarketDepthBacktest)

@@ -2,7 +2,7 @@
 HftBacktest
 ===========
 
-|codeql| |python| |pypi| |downloads| |crates| |license| |docs| |roadmap| |github|
+|codeql| |python| |pypi| |downloads| |rustc| |crates| |license| |docs| |roadmap| |github|
 
 **The master branch is switched to hftbacktest-2.0.0-alpha, which uses the Rust implementation as the backend. If you want to see the current version 1.8.4, please check out the corresponding tag.**
 
@@ -188,7 +188,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
 
 .. |python| image:: https://shields.io/badge/python-3.10-blue
     :alt: Python Version
-    :target: https://pypi.org/project/hftbacktest
+    :target: https://www.python.org/
 
 .. |codeql| image:: https://github.com/nkaz001/hftbacktest/actions/workflows/codeql.yml/badge.svg?branch=master&event=push
     :alt: CodeQL
@@ -221,3 +221,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
 .. |github| image:: https://img.shields.io/github/stars/nkaz001/hftbacktest?style=social
     :target: https://github.com/nkaz001/hftbacktest
     :alt: Github
+
+.. |rustc| image:: https://shields.io/badge/rustc-1.79-blue
+    :alt: Rust Version
+    :target: https://www.rust-lang.org/

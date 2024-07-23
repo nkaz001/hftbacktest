@@ -6,15 +6,15 @@ use hftbacktest::{
         reader::{read_npz, DataSource},
         recorder::BacktestRecorder,
         AssetBuilder,
+        Backtest,
         ExchangeKind,
-        MultiAssetMultiExchangeBacktest,
     },
     prelude::{ApplySnapshot, Bot, HashMapMarketDepth},
 };
 
 mod algo;
 
-fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {
+fn prepare_backtest() -> Backtest<HashMapMarketDepth> {
     let latency_data = (20240501..20240532)
         .map(|date| DataSource::File(format!("latency_{date}.npz")))
         .collect();
@@ -27,7 +27,7 @@ fn prepare_backtest() -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {
         .map(|date| DataSource::File(format!("1000SHIBUSDT_{date}.npz")))
         .collect();
 
-    let hbt = MultiAssetMultiExchangeBacktest::builder()
+    let hbt = Backtest::builder()
         .add(
             AssetBuilder::new()
                 .data(data)

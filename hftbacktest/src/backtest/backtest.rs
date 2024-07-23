@@ -23,13 +23,13 @@ use crate::{
     },
 };
 
-/// [`MultiAssetMultiExchangeBacktest`] builder.
-pub struct MultiAssetMultiExchangeBacktestBuilder<MD> {
+/// [`Backtest`] builder.
+pub struct BacktestBuilder<MD> {
     local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
     exch: Vec<Box<dyn Processor>>,
 }
 
-impl<MD> MultiAssetMultiExchangeBacktestBuilder<MD> {
+impl<MD> BacktestBuilder<MD> {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
     pub fn add(self, asset: Asset<dyn LocalProcessor<MD, Event>, dyn Processor>) -> Self {
         let mut self_ = Self { ..self };
@@ -38,13 +38,13 @@ impl<MD> MultiAssetMultiExchangeBacktestBuilder<MD> {
         self_
     }
 
-    /// Builds [`MultiAssetMultiExchangeBacktest`].
-    pub fn build(self) -> Result<MultiAssetMultiExchangeBacktest<MD>, BuildError> {
+    /// Builds [`Backtest`].
+    pub fn build(self) -> Result<Backtest<MD>, BuildError> {
         let num_assets = self.local.len();
         if self.local.len() != num_assets || self.exch.len() != num_assets {
             panic!();
         }
-        Ok(MultiAssetMultiExchangeBacktest {
+        Ok(Backtest {
             cur_ts: i64::MAX,
             evs: EventSet::new(num_assets),
             local: self.local,
@@ -55,20 +55,20 @@ impl<MD> MultiAssetMultiExchangeBacktestBuilder<MD> {
 
 /// This backtester provides multi-asset and multi-exchange model backtesting, allowing you to
 /// configure different setups such as queue models or asset types for each asset. However, this may
-/// result in slightly slower performance compared to [`MultiAssetSingleExchangeBacktest`].
-pub struct MultiAssetMultiExchangeBacktest<MD> {
+/// result in slightly slower performance compared to [`Backtest`].
+pub struct Backtest<MD> {
     cur_ts: i64,
     evs: EventSet,
     local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
     exch: Vec<Box<dyn Processor>>,
 }
 
-impl<MD> MultiAssetMultiExchangeBacktest<MD>
+impl<MD> Backtest<MD>
 where
     MD: MarketDepth,
 {
-    pub fn builder() -> MultiAssetMultiExchangeBacktestBuilder<MD> {
-        MultiAssetMultiExchangeBacktestBuilder {
+    pub fn builder() -> BacktestBuilder<MD> {
+        BacktestBuilder {
             local: vec![],
             exch: vec![],
         }
@@ -223,7 +223,7 @@ where
     }
 }
 
-impl<MD> Bot<MD> for MultiAssetMultiExchangeBacktest<MD>
+impl<MD> Bot<MD> for Backtest<MD>
 where
     MD: MarketDepth,
 {
@@ -515,8 +515,8 @@ where
 
 /// This backtester provides multi-asset and single-exchange model backtesting, meaning all assets
 /// have the same setups for models such as asset type or queue model. However, this can be slightly
-/// faster than [`MultiAssetMultiExchangeBacktest`]. If you need to configure different models for
-/// each asset, use [`MultiAssetMultiExchangeBacktest`].
+/// faster than [`Backtest`]. If you need to configure different models for each asset, use
+/// [`Backtest`].
 pub struct MultiAssetSingleExchangeBacktest<MD, Local, Exchange> {
     cur_ts: i64,
     evs: EventSet,

@@ -1,7 +1,6 @@
 from numba import njit
-import pandas as pd
 
-from hftbacktest import NONE, NEW, HftBacktest, GTX, BUY, SELL, Linear, IntpOrderLatency, SquareProbQueueModel
+from hftbacktest import HftBacktest, GTX, BUY, SELL, Linear, IntpOrderLatency, SquareProbQueueModel
 
 
 @njit
@@ -15,7 +14,6 @@ def market_making_algo(hbt):
         https://ieor.columbia.edu/files/seasdepts/industrial-engineering-operations-research/pdf-files/Borden_D_FESeminar_Sp10.pdf (page 5)
         https://arxiv.org/abs/1105.3115 (the last three equations on page 13 and 7 Backtests)
         https://blog.bitmex.com/wp-content/uploads/2019/11/Algo-Trading-and-Market-Making.pdf
-        https://www.wikijob.co.uk/trading/forex/market-making
 
         Also see my other repo.
         """

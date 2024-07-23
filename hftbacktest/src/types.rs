@@ -62,8 +62,8 @@ pub enum ErrorKind {
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub enum LiveEvent {
-    L2Feed { asset_no: usize, events: Vec<Event> },
-    L3Feed { asset_no: usize, event: Event },
+    FeedBatch { asset_no: usize, events: Vec<Event> },
+    Feed { asset_no: usize, event: Event },
     Order { asset_no: usize, order: Order },
     Position { asset_no: usize, qty: f64 },
     Error(LiveError),
@@ -243,9 +243,10 @@ pub struct Event {
     pub qty: f64,
     /// Order Id
     pub order_id: u64,
-    /// Priority, which is required when the order book needs to be recovered from the snapshot.
-    pub priority: i64,
-    pub _reserved: i64,
+    /// Reserved for an additional i64 value
+    pub ival: i64,
+    /// Reserved for an additional f64 value
+    pub fval: f64,
 }
 
 unsafe impl POD for Event {}
@@ -803,8 +804,8 @@ mod tests {
             order_id: 0,
             px: 0.0,
             qty: 0.0,
-            priority: 0,
-            _reserved: 0,
+            ival: 0,
+            fval: 0.0,
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));
@@ -818,8 +819,8 @@ mod tests {
             order_id: 0,
             px: 0.0,
             qty: 0.0,
-            priority: 0,
-            _reserved: 0,
+            ival: 0,
+            fval: 0.0,
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));

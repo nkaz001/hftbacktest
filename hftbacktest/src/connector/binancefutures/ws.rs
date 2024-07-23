@@ -106,8 +106,8 @@ pub async fn connect(
                                     order_id: 0,
                                     px,
                                     qty,
-                                    priority: 0,
-                                    _reserved: 0,
+                                    ival: 0,
+                                    fval: 0.0,
                                 })
                             .collect();
                         let mut ask_events: Vec<_> = asks
@@ -119,15 +119,15 @@ pub async fn connect(
                                     order_id: 0,
                                     px,
                                     qty,
-                                    priority: 0,
-                                    _reserved: 0,
+                                    ival: 0,
+                                    fval: 0.0,
                                 })
                             .collect();
                         let mut events = Vec::new();
                         events.append(&mut bid_events);
                         events.append(&mut ask_events);
                         ev_tx.send(
-                            LiveEvent::L2Feed {
+                            LiveEvent::FeedBatch {
                                 asset_no: asset.asset_no,
                                 events
                             }
@@ -230,8 +230,8 @@ pub async fn connect(
                                                     order_id: 0,
                                                     px,
                                                     qty,
-                                                    priority: 0,
-                                                    _reserved: 0,
+                                                    ival: 0,
+                                                    fval: 0.0,
                                                 })
                                             .collect();
                                         let mut ask_events: Vec<_> = asks
@@ -243,15 +243,15 @@ pub async fn connect(
                                                     order_id: 0,
                                                     px,
                                                     qty,
-                                                    priority: 0,
-                                                    _reserved: 0,
+                                                    ival: 0,
+                                                    fval: 0.0,
                                                 })
                                             .collect();
                                         let mut events = Vec::new();
                                         events.append(&mut bid_events);
                                         events.append(&mut ask_events);
                                         ev_tx.send(
-                                            LiveEvent::L2Feed {
+                                            LiveEvent::FeedBatch {
                                                 asset_no: asset_info.asset_no,
                                                 events
                                             }
@@ -269,7 +269,7 @@ pub async fn connect(
                                             .get(&data.symbol)
                                         .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
-                                            LiveEvent::L2Feed {
+                                            LiveEvent::FeedBatch {
                                                 asset_no: asset_info.asset_no,
                                                 events: vec![Event {
                                                     ev: {
@@ -284,8 +284,8 @@ pub async fn connect(
                                                     order_id: 0,
                                                     px,
                                                     qty,
-                                                    priority: 0,
-                                                    _reserved: 0
+                                                    ival: 0,
+                                                    fval: 0.0,
                                                 }]
                                             }
                                         ).unwrap();
