@@ -804,8 +804,8 @@ mod tests {
             order_id: 0,
             px: 0.0,
             qty: 0.0,
-            priority: 0,
-            _reserved: 0,
+            ival: 0,
+            fval: 0.0,
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));
@@ -819,8 +819,8 @@ mod tests {
             order_id: 0,
             px: 0.0,
             qty: 0.0,
-            priority: 0,
-            _reserved: 0,
+            ival: 0,
+            fval: 0.0,
         };
 
         assert!(!event.is(LOCAL_BID_DEPTH_EVENT));
