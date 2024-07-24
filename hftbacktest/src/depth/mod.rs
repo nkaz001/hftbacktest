@@ -30,15 +30,19 @@ pub const INVALID_MAX: i64 = i64::MAX;
 /// Provides MarketDepth interface.
 pub trait MarketDepth {
     /// Returns the best bid price.
+    /// If there is no best bid, it returns [`f64::NAN`].
     fn best_bid(&self) -> f64;
 
     /// Returns the best ask price.
+    /// If there is no best ask, it returns [`f64::NAN`].
     fn best_ask(&self) -> f64;
 
     /// Returns the best bid price in ticks.
+    /// If there is no best bid, it returns [`INVALID_MIN`].
     fn best_bid_tick(&self) -> i64;
 
     /// Returns the best ask price in ticks.
+    /// If there is no best ask, it returns [`INVALID_MAX`].
     fn best_ask_tick(&self) -> i64;
 
     /// Returns the tick size.
