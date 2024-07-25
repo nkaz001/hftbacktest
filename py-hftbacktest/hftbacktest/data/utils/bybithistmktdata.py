@@ -133,7 +133,7 @@ def convert(
                 timestamp_col = header.index("timestamp")
                 side_col = header.index("side")
                 price_col = header.index("price")
-                qty_col = header.index("homeNotional")
+                qty_col = header.index("size")
 
                 if trades_has_header:
                     continue
