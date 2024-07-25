@@ -340,7 +340,7 @@ where
         loop {
             let timeout = Duration::from_nanos(remaining_duration as u64);
             match self.ev_rx.recv_timeout(timeout) {
-                Ok(LiveEvent::L2Feed { asset_no, events }) => {
+                Ok(LiveEvent::FeedBatch { asset_no, events }) => {
                     for event in events {
                         *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
                             Some((event.exch_ts, event.local_ts));
@@ -363,7 +363,7 @@ where
                         return Ok(true);
                     }
                 }
-                Ok(LiveEvent::L3Feed { asset_no, event }) => {
+                Ok(LiveEvent::Feed { asset_no, event }) => {
                     todo!();
                 }
                 Ok(LiveEvent::Order { asset_no, order }) => {

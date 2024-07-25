@@ -9,10 +9,10 @@ from ._hftbacktest import (
     build_roivec_backtest
 )
 from .binding import (
-    HashMapMarketDepthMultiAssetMultiExchangeBacktest_,
-    HashMapMarketDepthMultiAssetMultiExchangeBacktest as HashMapMarketDepthMultiAssetMultiExchangeBacktest_TypeHint,
-    ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_,
-    ROIVectorMarketDepthMultiAssetMultiExchangeBacktest as ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_TypeHint,
+    HashMapMarketDepthBacktest_,
+    HashMapMarketDepthBacktest as HashMapMarketDepthBacktest_TypeHint,
+    ROIVectorMarketDepthBacktest_,
+    ROIVectorMarketDepthBacktest as ROIVectorMarketDepthBacktest_TypeHint,
     event_dtype
 )
 from .order import (
@@ -30,15 +30,34 @@ from .order import (
 )
 from .recorder import Recorder
 from .types import (
-    ALL_ASSETS, EVENT_ARRAY
+    ALL_ASSETS,
+    EVENT_ARRAY,
+    DEPTH_EVENT,
+    TRADE_EVENT,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    EXCH_EVENT,
+    LOCAL_EVENT,
+    BUY_EVENT,
+    SELL_EVENT
 )
 
 __all__ = (
     'BacktestAsset',
-    'HashMapMarketDepthMultiAssetMultiExchangeBacktest',
-    'ROIVectorMarketDepthMultiAssetMultiExchangeBacktest',
+    'HashMapMarketDepthBacktest',
+    'ROIVectorMarketDepthBacktest',
 
     'ALL_ASSETS',
+
+    # Event flags
+    'DEPTH_EVENT',
+    'TRADE_EVENT',
+    'DEPTH_CLEAR_EVENT',
+    'DEPTH_SNAPSHOT_EVENT',
+    'EXCH_EVENT',
+    'LOCAL_EVENT'
+    'BUY_EVENT',
+    'SELL_EVENT',
 
     # Side
     'BUY',
@@ -63,8 +82,6 @@ __all__ = (
 
 __version__ = '2.0.0-alpha'
 
-__hftbacktests__ = {}
-
 
 class BacktestAsset(BacktestAsset_):
     def add_data(self, data: EVENT_ARRAY):
@@ -72,6 +89,13 @@ class BacktestAsset(BacktestAsset_):
         return self
 
     def data(self, data: str | List[str] | EVENT_ARRAY | List[EVENT_ARRAY]):
+        """
+        Sets the feed data.
+
+        Args:
+            data: A list of file paths for the feed data in `.npz` format, or a list of NumPy arrays containing the feed
+                  data.
+        """
         if isinstance(data, str):
             self.add_file(data)
         elif isinstance(data, np.ndarray):
@@ -88,16 +112,35 @@ class BacktestAsset(BacktestAsset_):
             raise ValueError
         return self
 
-    def intp_order_latency(self, data: str | NDArray):
+    def intp_order_latency(self, data: str | NDArray | List[str]):
+        """
+        Uses `IntpOrderLatency <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.IntpOrderLatency.html>`_
+        for the order latency model.
+        Please see the data format.
+        The units of the historical latencies should match the timestamp units of your data.
+        Nanoseconds are typically used in HftBacktest.
+
+        Args:
+            data: A list of file paths for the historical order latency data in `npz`, or a NumPy array of the
+                  historical order latency data.
+        """
         if isinstance(data, str):
-            super().intp_order_latency_ndarray(data)
+            super().intp_order_latency([data])
         elif isinstance(data, np.ndarray):
             self._intp_order_latency_ndarray(data.ctypes.data, len(data))
+        elif isinstance(data, list):
+            super().intp_order_latency(data)
         else:
             raise ValueError
         return self
 
     def initial_snapshot(self, data: str | np.ndarray[Any, event_dtype]):
+        """
+        Sets the initial snapshot.
+
+        Args:
+            data: The initial snapshot file path, or a NumPy array of the initial snapshot.
+        """
         if isinstance(data, str):
             super().initial_snapshot(data)
         elif isinstance(data, np.ndarray):
@@ -107,51 +150,33 @@ class BacktestAsset(BacktestAsset_):
         return self
 
 
-def close(hbt):
-    """
-    Args:
-        hbt: HftBacktest to be allowed for garbage collection.
-    """
-    del __hftbacktests__[hbt]
-
-
-def HashMapMarketDepthMultiAssetMultiExchangeBacktest(
+def HashMapMarketDepthBacktest(
         assets: List[BacktestAsset]
-) -> HashMapMarketDepthMultiAssetMultiExchangeBacktest_TypeHint:
+) -> HashMapMarketDepthBacktest_TypeHint:
     """
-    Constructs an instance of `HashMapMarketDepthMultiAssetMultiExchangeBacktest`.
+    Constructs an instance of `HashMapMarketDepthBacktest`.
 
     Args:
         assets: A list of backtesting assets constructed using :class:`BacktestAsset`.
 
     Returns:
-        A jit`ed `HashMapMarketDepthMultiAssetMultiExchangeBacktest` that can be used in an ``njit`` function.
+        A jit`ed `HashMapMarketDepthBacktest` that can be used in an ``njit`` function.
     """
-    raw_hbt = build_hashmap_backtest(assets)
-
-    # Prevents the object from being gc`ed to avoid dangling references.
-    bt = HashMapMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
-    __hftbacktests__[bt] = raw_hbt
-
-    return bt
+    ptr = build_hashmap_backtest(assets)
+    return HashMapMarketDepthBacktest_(ptr)
 
 
-def ROIVectorMarketDepthMultiAssetMultiExchangeBacktest(
+def ROIVectorMarketDepthBacktest(
         assets: List[BacktestAsset]
-) -> ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_TypeHint:
+) -> ROIVectorMarketDepthBacktest_TypeHint:
     """
-    Constructs an instance of `HashMapMarketDepthMultiAssetMultiExchangeBacktest`.
+    Constructs an instance of `ROIVectorMarketBacktest`.
 
     Args:
         assets: A list of backtesting assets constructed using :class:`BacktestAsset`.
 
     Returns:
-        A jit`ed `HashMapMarketDepthMultiAssetMultiExchangeBacktest` that can be used in an ``njit`` function.
+        A jit`ed `ROIVectorMarketBacktest` that can be used in an ``njit`` function.
     """
-    raw_hbt = build_roivec_backtest(assets)
-
-    # Prevents the object from being gc`ed to avoid dangling references.
-    bt = ROIVectorMarketDepthMultiAssetMultiExchangeBacktest_(raw_hbt.as_ptr())
-    __hftbacktests__[bt] = raw_hbt
-
-    return bt
+    ptr = build_roivec_backtest(assets)
+    return ROIVectorMarketDepthBacktest_(ptr)

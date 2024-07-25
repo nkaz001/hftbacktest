@@ -4,7 +4,7 @@ use super::{ApplySnapshot, L1MarketDepth, L3Order, MarketDepth, INVALID_MAX, INV
 use crate::{
     backtest::{reader::Data, BacktestError},
     prelude::{L2MarketDepth, Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
-    types::{Event, BUY, SELL},
+    types::{Event, OrderId, BUY, SELL},
 };
 
 struct QtyTimestamp {
@@ -44,7 +44,7 @@ pub struct FusedHashMapMarketDepth {
     pub best_ask_timestamp: i64,
     pub low_bid_tick: i64,
     pub high_ask_tick: i64,
-    pub orders: HashMap<i64, L3Order>,
+    pub orders: HashMap<OrderId, L3Order>,
 }
 
 #[inline(always)]
@@ -389,6 +389,9 @@ impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
                 local_ts: 0,
                 px: px_tick as f64 * self.tick_size,
                 qty: qty.qty,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
             });
         }
 
@@ -406,6 +409,9 @@ impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
                 local_ts: 0,
                 px: px_tick as f64 * self.tick_size,
                 qty: qty.qty,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
             });
         }
 

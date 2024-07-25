@@ -7,9 +7,9 @@ use hftbacktest::{
         reader::read_npz,
         recorder::BacktestRecorder,
         AssetBuilder,
+        Backtest,
         DataSource,
         ExchangeKind,
-        MultiAssetMultiExchangeBacktest,
     },
     prelude::{ApplySnapshot, Bot, HashMapMarketDepth},
 };
@@ -61,7 +61,7 @@ fn prepare_backtest(
     lot_size: f64,
     maker_fee: f64,
     taker_fee: f64,
-) -> MultiAssetMultiExchangeBacktest<HashMapMarketDepth> {
+) -> Backtest<HashMapMarketDepth> {
     let latency_model = IntpOrderLatency::new(
         latency_files
             .iter()
@@ -71,7 +71,7 @@ fn prepare_backtest(
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 
-    let hbt = MultiAssetMultiExchangeBacktest::builder()
+    let hbt = Backtest::builder()
         .add(
             AssetBuilder::new()
                 .data(

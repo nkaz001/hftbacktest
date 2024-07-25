@@ -141,12 +141,12 @@ class Stats:
                 hv.Curve(
                     (entire_df['timestamp'], equity),
                     label='Equity',
-                    vdims=['Cumulative Return (%)']
+                    vdims=['Equity']
                 ),
                 hv.Curve(
                     (entire_df['timestamp'], equity_wo_fee),
                     label='Equity w/o fee',
-                    vdims=['Cumulative Return (%)']
+                    vdims=['Equity']
                 )
             ]) * hv.Curve(
                 (entire_df['timestamp'], entire_df['price']),

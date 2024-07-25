@@ -17,6 +17,7 @@ Currently, the Rust implementation is being more actively developed especially f
 * [ ] Adjust feed and order latency for exchanges located in different regions if the original feed and order latency data was collected at a different site.
 * [ ] Additional queue position model or exchange model.
 * [X] A vector-based implementation for fast L2 market depth within the specified ROI (range of interest).
+* [ ] Add fee model: fee per trading value (current), fee per trading quantity, fee per trade, and different fees based on the direction.
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.

@@ -37,10 +37,7 @@ def convert(in_path, out_path, exchange, symbol, yyyymmdd, sod):
             files,
             output_filename=os.path.join(out_path, f'{symbol}_{yyyymmdd}.npz'),
             buffer_size=buffer_size,
-            compress=True,
-            structured_array=True,
             snapshot_mode='process' if sod else 'ignore',
-            timestamp_unit='ns'
         )
         # Deletes the input csv files.
         for file in files:

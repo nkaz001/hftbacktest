@@ -9,7 +9,6 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-import sys
 
 import hftbacktest
 
@@ -70,9 +69,8 @@ autosummary_generate = True
 autodoc_typehints = 'description'
 keep_warnings = False
 
-python_version = '.'.join(map(str, sys.version_info[0:2]))
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/' + python_version, None),
+    'python': ('https://docs.python.org/3.10/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'numba': ('https://numba.readthedocs.io/en/stable/', None),
     'polars': ('https://docs.pola.rs/api/python/stable/', None),

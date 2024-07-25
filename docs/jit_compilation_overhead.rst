@@ -1,60 +1,50 @@
 JIT Compilation Overhead
 ========================
 
-HftBacktest takes advantage of Numba's capabilities, with a significant portion of its implementation relying on Numba
-JIT'ed classes. As a result, the first run of HftBacktest requires JIT compilation, which can take several tens of
-seconds. Although this may not be significant when backtesting for multiple days, it can still be bothersome.
-
-To minimize this overhead, you can consider using Numba's ``cache`` feature along with ``reset`` method to reset
-HftBacktest. See the example below.
+HftBacktest takes advantage of Numba's capabilities, relying on Numba JIT'ed classes. As a result, importing
+HftBacktest requires JIT compilation, which may take a few seconds. Additionally, the strategy function needs to be
+JIT'ed' for performant backtesting, which also takes time to compile. Although this may not be significant when
+backtesting for multiple days, it can still be bothersome. To minimize this overhead, you can consider using Numba's
+``cache`` feature. See the example below.
 
 .. code-block:: python
 
     from numba import njit
-    from hftbacktest import HftBacktest, IntpOrderLatency, SquareProbQueueModel, Linear
+    # May take a few seconds
+    from hftbacktest import BacktestAsset, HashMapMarketDepthBacktest
 
-    # enables caching feature
+    # Enables caching feature
     @njit(cache=True)
     def algo(arguments, hbt):
         # your algo implementation.
 
-    hbt = HftBacktest(
-        [
-            'data/ethusdt_20221003.npz',
-            'data/ethusdt_20221004.npz',
-            'data/ethusdt_20221005.npz',
-            'data/ethusdt_20221006.npz',
-            'data/ethusdt_20221007.npz'
-        ],
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(),
-        queue_model=SquareProbQueueModel(),
-        asset_type=Linear,
-        snapshot='data/ethusdt_20221002_eod.npz'
+    asset = (
+        BacktestAsset()
+            .linear_asset(1.0)
+            .data([
+                'data/ethusdt_20221003.npz',
+                'data/ethusdt_20221004.npz',
+                'data/ethusdt_20221005.npz',
+                'data/ethusdt_20221006.npz',
+                'data/ethusdt_20221007.npz'
+            ])
+            .initial_snapshot('data/ethusdt_20221002_eod.npz')
+            .no_partial_fill_exchange()
+            .intp_order_latency([
+                'data/latency_20221003.npz',
+                'data/latency_20221004.npz',
+                'data/latency_20221005.npz',
+                'data/latency_20221006.npz',
+                'data/latency_20221007.npz'
+            ])
+            .power_prob_queue_model3(3.0)
+            .tick_size(0.01)
+            .lot_size(0.001)
+            .maker_fee(-0.00005),
+            .taker_fee(0.0007),
+            .trade_len(0)
     )
 
+    hbt = HashMapMarketDepthBacktest([asset])
     algo(arguments, hbt)
 
-When you need to execute the same code using varying arguments or different datasets,
-you can proceed as follows.
-
-.. code-block:: python
-
-    from hftbacktest import reset
-
-    reset(
-        hbt,
-        [
-            'data/ethusdt_20221003.npz',
-            'data/ethusdt_20221004.npz',
-            'data/ethusdt_20221005.npz',
-            'data/ethusdt_20221006.npz',
-            'data/ethusdt_20221007.npz'
-        ],
-        snapshot='data/ethusdt_20221002_eod.npz'
-    )
-
-    algo(arguments, hbt)

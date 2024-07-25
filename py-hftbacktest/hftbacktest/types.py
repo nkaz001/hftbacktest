@@ -10,6 +10,7 @@ TRADE_EVENT = 2
 DEPTH_CLEAR_EVENT = 3
 DEPTH_SNAPSHOT_EVENT = 4
 
+# todo: fix WAIT_ORDER_RESPONSE flags.
 WAIT_ORDER_RESPONSE_NONE = -1
 WAIT_ORDER_RESPONSE_ANY = -2
 
@@ -41,8 +42,8 @@ event_dtype = np.dtype(
         ('px', 'f8'),
         ('qty', 'f8'),
         ('order_id', 'u8'),
-        ('priority', 'i8'),
-        ('_reserved', 'i8')
+        ('ival', 'i8'),
+        ('fval', 'f8')
     ],
     align=True
 )
