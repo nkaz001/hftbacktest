@@ -662,7 +662,9 @@ class HashMapMarketDepthBacktest:
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
-            -1 when an error occurs; otherwise, it succeeds in submitting a buy order.
+            * `0` when it successfully submits an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_submit_buy_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
@@ -699,7 +701,9 @@ class HashMapMarketDepthBacktest:
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
-            `-1` when an error occurs; otherwise, it succeeds in submitting a sell order.
+            * `0` when it successfully submits an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
@@ -713,7 +717,9 @@ class HashMapMarketDepthBacktest:
             wait: If `True`, wait until the order cancel response is received.
 
         Returns:
-            `-1` when an error occurs; otherwise, it successfully submits a cancel order.
+            * `0` when it successfully cancels an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_cancel(self.ptr, asset_no, order_id, wait)
 
@@ -739,9 +745,10 @@ class HashMapMarketDepthBacktest:
                      be the same as the data’s timestamp unit.
 
         Returns:
-            * `1` when it receives an order response for the specified order ID of the specified asset number.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it receives an order response for the specified order ID of the specified asset number, or
+              reaches the timeout.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_hashmapbt_wait_order_response(self.ptr, asset_no, order_id, timeout)
 
@@ -756,9 +763,9 @@ class HashMapMarketDepthBacktest:
                      However, unit should be the same as the data’s timestamp unit.
 
         Returns:
-            * `1` when it receives a feed or an order response.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it receives a feed or an order response, or reaches the timeout.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_wait_next_feed(self.ptr, include_order_resp, timeout)
 
@@ -771,9 +778,9 @@ class HashMapMarketDepthBacktest:
                       data’s timestamp unit.
 
         Returns:
-            * `1` when it reaches the specified timestamp within the data.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it successfully elapses the given duration.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_elapse(self.ptr, duration)
 
@@ -789,9 +796,9 @@ class HashMapMarketDepthBacktest:
                       data’s timestamp unit.
 
         Returns:
-            * `1` when it reaches the specified timestamp within the data.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it successfully elapses the given duration.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_elapse_bt(self.ptr, duration)
 
@@ -800,7 +807,8 @@ class HashMapMarketDepthBacktest:
         Closes this backtester or bot.
 
         Returns:
-            `-1` when an error occurs; otherwise, it successfully closes the bot.
+            * `0` when it successfully closes the bot.
+            * Otherwise, an error occurred.
         """
         return hashmapbt_close(self.ptr)
 
@@ -1068,7 +1076,9 @@ class ROIVectorMarketDepthBacktest:
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
-            -1 when an error occurs; otherwise, it succeeds in submitting a buy order.
+            * `0` when it successfully submits an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
         """
         return roivecbt_submit_buy_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
@@ -1105,7 +1115,9 @@ class ROIVectorMarketDepthBacktest:
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
-            `-1` when an error occurs; otherwise, it succeeds in submitting a sell order.
+            * `0` when it successfully submits an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
         """
         return roivecbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
@@ -1119,7 +1131,9 @@ class ROIVectorMarketDepthBacktest:
             wait: If `True`, wait until the order cancel response is received.
 
         Returns:
-            `-1` when an error occurs; otherwise, it successfully submits a cancel order.
+            * `0` when it successfully cancels an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
         """
         return roivecbt_cancel(self.ptr, asset_no, order_id, wait)
 
@@ -1145,9 +1159,10 @@ class ROIVectorMarketDepthBacktest:
                      be the same as the data’s timestamp unit.
 
         Returns:
-            * `1` when it receives an order response for the specified order ID of the specified asset number.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it receives an order response for the specified order ID of the specified asset number, or
+              reaches the timeout.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return roivecbt_roivecbt_wait_order_response(self.ptr, asset_no, order_id, timeout)
 
@@ -1162,9 +1177,9 @@ class ROIVectorMarketDepthBacktest:
                      However, unit should be the same as the data’s timestamp unit.
 
         Returns:
-            * `1` when it receives a feed or an order response.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it receives a feed or an order response, or reaches the timeout.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return roivecbt_wait_next_feed(self.ptr, include_order_resp, timeout)
 
@@ -1177,9 +1192,9 @@ class ROIVectorMarketDepthBacktest:
                       data’s timestamp unit.
 
         Returns:
-            * `1` when it reaches the specified timestamp within the data.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it successfully elapses the given duration.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return roivecbt_elapse(self.ptr, duration)
 
@@ -1195,9 +1210,9 @@ class ROIVectorMarketDepthBacktest:
                       data’s timestamp unit.
 
         Returns:
-            * `1` when it reaches the specified timestamp within the data.
-            * `0` when it reaches the end of the data.
-            * `-1` when an error occurs.
+            * `0` when it successfully elapses the given duration.
+            * `1` when it reaches the end of the data.
+            * Otherwise, an error occurred.
         """
         return roivecbt_elapse_bt(self.ptr, duration)
 
@@ -1206,7 +1221,8 @@ class ROIVectorMarketDepthBacktest:
         Closes this backtester or bot.
 
         Returns:
-            `-1` when an error occurs; otherwise, it successfully closes the bot.
+            * `0` when it successfully closes the bot.
+            * Otherwise, an error occurred.
         """
         return roivecbt_close(self.ptr)
 

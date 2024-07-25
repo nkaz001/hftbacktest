@@ -227,7 +227,7 @@ pub enum WaitOrderResponse {
     Specified(usize, OrderId),
 }
 
-/// Exchange Level3 Market-By-Order event data.
+/// Feed event data.
 #[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(64))]
 pub struct Event {
@@ -254,7 +254,7 @@ unsafe impl POD for Event {}
 unsafe impl NpyFile for Event {}
 
 impl Event {
-    /// Checks if this `L3Event` corresponds to the given event.
+    /// Checks if this `Event` corresponds to the given event.
     #[inline(always)]
     pub fn is(&self, event: i64) -> bool {
         if (self.ev & event) != event {

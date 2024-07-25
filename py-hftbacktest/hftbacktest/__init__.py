@@ -89,6 +89,13 @@ class BacktestAsset(BacktestAsset_):
         return self
 
     def data(self, data: str | List[str] | EVENT_ARRAY | List[EVENT_ARRAY]):
+        """
+        Sets the feed data.
+
+        Args:
+            data: A list of file paths for the feed data in `.npz` format, or a list of NumPy arrays containing the feed
+                  data.
+        """
         if isinstance(data, str):
             self.add_file(data)
         elif isinstance(data, np.ndarray):
@@ -105,16 +112,35 @@ class BacktestAsset(BacktestAsset_):
             raise ValueError
         return self
 
-    def intp_order_latency(self, data: str | NDArray):
+    def intp_order_latency(self, data: str | NDArray | List[str]):
+        """
+        Uses `IntpOrderLatency <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.IntpOrderLatency.html>`_
+        for the order latency model.
+        Please see the data format.
+        The units of the historical latencies should match the timestamp units of your data.
+        Nanoseconds are typically used in HftBacktest.
+
+        Args:
+            data: A list of file paths for the historical order latency data in `npz`, or a NumPy array of the
+                  historical order latency data.
+        """
         if isinstance(data, str):
-            super().intp_order_latency_ndarray(data)
+            super().intp_order_latency([data])
         elif isinstance(data, np.ndarray):
             self._intp_order_latency_ndarray(data.ctypes.data, len(data))
+        elif isinstance(data, list):
+            super().intp_order_latency(data)
         else:
             raise ValueError
         return self
 
     def initial_snapshot(self, data: str | np.ndarray[Any, event_dtype]):
+        """
+        Sets the initial snapshot.
+
+        Args:
+            data: The initial snapshot file path, or a NumPy array of the initial snapshot.
+        """
         if isinstance(data, str):
             super().initial_snapshot(data)
         elif isinstance(data, np.ndarray):
