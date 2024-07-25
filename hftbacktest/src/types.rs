@@ -113,6 +113,12 @@ pub const EXCH_EVENT: i64 = 1 << 31;
 /// Indicates that it is a valid event to be handled by the local processor at the local timestamp.
 pub const LOCAL_EVENT: i64 = 1 << 30;
 
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], and [`LOCAL_EVENT`].
+pub const LOCAL_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | LOCAL_EVENT;
+
+/// Represents a combination of [`DEPTH_CLEAR_EVENT`], and [`EXCH_EVENT`].
+pub const EXCH_DEPTH_CLEAR_EVENT: i64 = DEPTH_CLEAR_EVENT | EXCH_EVENT;
+
 /// Represents a combination of a [`DEPTH_EVENT`], [`BUY`], and [`LOCAL_EVENT`].
 pub const LOCAL_BID_DEPTH_EVENT: i64 = DEPTH_EVENT | BUY | LOCAL_EVENT;
 

@@ -23,13 +23,13 @@ use crate::{
         StateValues,
         Status,
         TimeInForce,
-        WaitOrderResponse,
         BUY,
         LOCAL_ASK_ADD_ORDER_EVENT,
         LOCAL_ASK_DEPTH_CLEAR_EVENT,
         LOCAL_BID_ADD_ORDER_EVENT,
         LOCAL_BID_DEPTH_CLEAR_EVENT,
         LOCAL_CANCEL_ORDER_EVENT,
+        LOCAL_DEPTH_CLEAR_EVENT,
         LOCAL_EVENT,
         LOCAL_FILL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
@@ -251,6 +251,8 @@ where
             self.depth.clear_depth(BUY);
         } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(SELL);
+        } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(0);
         } else if ev.is(LOCAL_BID_ADD_ORDER_EVENT) {
             self.depth
                 .add_buy_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;

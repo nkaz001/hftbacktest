@@ -30,6 +30,7 @@ use crate::{
         LOCAL_BID_DEPTH_CLEAR_EVENT,
         LOCAL_BID_DEPTH_EVENT,
         LOCAL_BID_DEPTH_SNAPSHOT_EVENT,
+        LOCAL_DEPTH_CLEAR_EVENT,
         LOCAL_EVENT,
         LOCAL_TRADE_EVENT,
         SELL,
@@ -248,6 +249,8 @@ where
             self.depth.clear_depth(BUY, ev.px);
         } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(SELL, ev.px);
+        } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(0, 0.0);
         } else if ev.is(LOCAL_BID_DEPTH_EVENT) || ev.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT) {
             self.depth.update_bid_depth(ev.px, ev.qty, ev.local_ts);
         } else if ev.is(LOCAL_ASK_DEPTH_EVENT) || ev.is(LOCAL_ASK_DEPTH_SNAPSHOT_EVENT) {

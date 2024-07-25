@@ -24,6 +24,7 @@ use crate::{
         EXCH_BID_ADD_ORDER_EVENT,
         EXCH_BID_DEPTH_CLEAR_EVENT,
         EXCH_CANCEL_ORDER_EVENT,
+        EXCH_DEPTH_CLEAR_EVENT,
         EXCH_EVENT,
         EXCH_FILL_EVENT,
         EXCH_MODIFY_ORDER_EVENT,
@@ -377,6 +378,8 @@ where
             self.depth.clear_depth(BUY);
         } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(SELL);
+        } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(0);
         } else if self.data[row_num].is(EXCH_BID_ADD_ORDER_EVENT) {
             let (prev_best_bid_tick, best_bid_tick) = self.depth.add_buy_order(
                 self.data[row_num].order_id,
