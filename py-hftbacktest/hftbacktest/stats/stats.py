@@ -104,17 +104,17 @@ class Stats:
             if price_as_ret:
                 equity_plt = hv.Overlay([
                     hv.Curve(
-                        (entire_df['timestamp'], equity / book_size),
+                        (entire_df['timestamp'], equity / book_size * 100),
                         label='Equity',
                         vdims=['Cumulative Return (%)']
                     ),
                     hv.Curve(
-                        (entire_df['timestamp'], equity_wo_fee / book_size),
+                        (entire_df['timestamp'], equity_wo_fee / book_size * 100),
                         label='Equity w/o fee',
                         vdims=['Cumulative Return (%)']
                     ),
                     hv.Curve(
-                        (entire_df['timestamp'], entire_df['price'] / entire_df['price'][0] - 1.0),
+                        (entire_df['timestamp'], (entire_df['price'] / entire_df['price'][0] - 1.0) * 100),
                         label='Price',
                         vdims=['Cumulative Return (%)']
                     ).opts(alpha=0.2, color='black')
@@ -122,12 +122,12 @@ class Stats:
             else:
                 equity_plt = hv.Overlay([
                     hv.Curve(
-                        (entire_df['timestamp'], equity / book_size),
+                        (entire_df['timestamp'], equity / book_size * 100),
                         label='Equity',
                         vdims=['Cumulative Return (%)']
                     ),
                     hv.Curve(
-                        (entire_df['timestamp'], equity_wo_fee / book_size),
+                        (entire_df['timestamp'], equity_wo_fee / book_size * 100),
                         label='Equity w/o fee',
                         vdims=['Cumulative Return (%)']
                     )
