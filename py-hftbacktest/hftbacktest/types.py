@@ -67,7 +67,7 @@ order_dtype = np.dtype(
         ('order_type', 'u1'),
         ('req', 'u1'),
         ('status', 'u1'),
-        ('side', 'u1'),
+        ('side', 'i1'),
         ('time_in_force', 'u1')
     ],
     align=True
