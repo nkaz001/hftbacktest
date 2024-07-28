@@ -36,7 +36,7 @@ state_values_dtype = np.dtype(
 
 event_dtype = np.dtype(
     [
-        ('ev', 'i8'),
+        ('ev', 'u8'),
         ('exch_ts', 'i8'),
         ('local_ts', 'i8'),
         ('px', 'f8'),

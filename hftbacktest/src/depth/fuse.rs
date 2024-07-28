@@ -4,7 +4,7 @@ use super::{ApplySnapshot, L1MarketDepth, L3Order, MarketDepth, INVALID_MAX, INV
 use crate::{
     backtest::{reader::Data, BacktestError},
     prelude::{L2MarketDepth, Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
-    types::{Event, OrderId, BUY, SELL},
+    types::{Event, OrderId, BUY_EVENT, SELL_EVENT},
 };
 
 struct QtyTimestamp {
@@ -249,7 +249,7 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
 
     fn clear_depth(&mut self, side: i64, clear_upto_price: f64) {
         let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
-        if side == BUY {
+        if side == BUY_EVENT {
             if self.best_bid_tick != INVALID_MIN {
                 for t in clear_upto..(self.best_bid_tick + 1) {
                     if self.bid_depth.contains_key(&t) {
@@ -261,7 +261,7 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             if self.best_bid_tick == INVALID_MIN {
                 self.low_bid_tick = INVALID_MAX;
             }
-        } else if side == SELL {
+        } else if side == SELL_EVENT {
             if self.best_ask_tick != INVALID_MAX {
                 for t in self.best_ask_tick..(clear_upto + 1) {
                     if self.ask_depth.contains_key(&t) {
@@ -354,14 +354,14 @@ impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
             let timestamp = data[row_num].exch_ts;
 
             let price_tick = (price / self.tick_size).round() as i64;
-            if data[row_num].ev & BUY == BUY {
+            if data[row_num].ev & BUY_EVENT == BUY_EVENT {
                 self.best_bid_tick = self.best_bid_tick.max(price_tick);
                 self.low_bid_tick = self.low_bid_tick.min(price_tick);
                 *self
                     .bid_depth
                     .entry(price_tick)
                     .or_insert(Default::default()) = QtyTimestamp { qty, timestamp };
-            } else if data[row_num].ev & SELL == SELL {
+            } else if data[row_num].ev & SELL_EVENT == SELL_EVENT {
                 self.best_ask_tick = self.best_ask_tick.min(price_tick);
                 self.high_ask_tick = self.high_ask_tick.max(price_tick);
                 *self
@@ -383,7 +383,7 @@ impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
         bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
         for (px_tick, qty) in bid_depth {
             events.push(Event {
-                ev: EXCH_EVENT | LOCAL_EVENT | BUY | DEPTH_SNAPSHOT_EVENT,
+                ev: EXCH_EVENT | LOCAL_EVENT | BUY_EVENT | DEPTH_SNAPSHOT_EVENT,
                 exch_ts: qty.timestamp,
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 local_ts: 0,
@@ -403,7 +403,7 @@ impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
         ask_depth.sort_by(|a, b| a.0.cmp(&b.0));
         for (px_tick, qty) in ask_depth {
             events.push(Event {
-                ev: EXCH_EVENT | LOCAL_EVENT | SELL | DEPTH_SNAPSHOT_EVENT,
+                ev: EXCH_EVENT | LOCAL_EVENT | SELL_EVENT | DEPTH_SNAPSHOT_EVENT,
                 exch_ts: qty.timestamp,
                 // todo: it's not a problem now, but it would be better to have valid timestamps.
                 local_ts: 0,

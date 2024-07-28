@@ -12,7 +12,7 @@ use super::{
 use crate::{
     backtest::{reader::Data, BacktestError},
     prelude::{OrderId, Side},
-    types::{Event, BUY, SELL},
+    types::{Event, BUY_EVENT, SELL_EVENT},
 };
 
 /// L2 Market depth implementation based on a B-Tree map.
@@ -114,9 +114,9 @@ impl L2MarketDepth for BTreeMarketDepth {
         )
     }
 
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f64) {
+    fn clear_depth(&mut self, side: Side, clear_upto_price: f64) {
         let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
-        if side == BUY {
+        if side == Side::Buy {
             let best_bid_tick = self.best_bid_tick();
             if best_bid_tick != INVALID_MIN {
                 for t in clear_upto..(best_bid_tick + 1) {
@@ -126,7 +126,7 @@ impl L2MarketDepth for BTreeMarketDepth {
                 }
             }
             self.best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
-        } else if side == SELL {
+        } else if side == Side::Sell {
             let best_ask_tick = self.best_ask_tick();
             if best_ask_tick != INVALID_MAX {
                 for t in best_ask_tick..(clear_upto + 1) {
@@ -202,9 +202,9 @@ impl ApplySnapshot<Event> for BTreeMarketDepth {
             let qty = data[row_num].qty;
 
             let price_tick = (price / self.tick_size).round() as i64;
-            if data[row_num].ev & BUY == BUY {
+            if data[row_num].ev & BUY_EVENT == BUY_EVENT {
                 *self.bid_depth.entry(price_tick).or_insert(0f64) = qty;
-            } else if data[row_num].ev & SELL == SELL {
+            } else if data[row_num].ev & SELL_EVENT == SELL_EVENT {
                 *self.ask_depth.entry(price_tick).or_insert(0f64) = qty;
             }
         }
@@ -292,7 +292,7 @@ impl L3MarketDepth for BTreeMarketDepth {
         &mut self,
         order_id: OrderId,
         _timestamp: i64,
-    ) -> Result<(i64, i64, i64), Self::Error> {
+    ) -> Result<(Side, i64, i64), Self::Error> {
         let order = self
             .orders
             .remove(&order_id)
@@ -308,7 +308,7 @@ impl L3MarketDepth for BTreeMarketDepth {
                     self.best_bid_tick = *self.bid_depth.keys().next().unwrap_or(&INVALID_MIN);
                 }
             }
-            Ok((BUY, prev_best_tick, self.best_bid_tick))
+            Ok((Side::Buy, prev_best_tick, self.best_bid_tick))
         } else {
             let prev_best_tick = self.best_ask_tick;
 
@@ -320,7 +320,7 @@ impl L3MarketDepth for BTreeMarketDepth {
                     self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
                 }
             }
-            Ok((SELL, prev_best_tick, self.best_ask_tick))
+            Ok((Side::Sell, prev_best_tick, self.best_ask_tick))
         }
     }
 
@@ -330,7 +330,7 @@ impl L3MarketDepth for BTreeMarketDepth {
         px: f64,
         qty: f64,
         timestamp: i64,
-    ) -> Result<(i64, i64, i64), Self::Error> {
+    ) -> Result<(Side, i64, i64), Self::Error> {
         let order = self
             .orders
             .get_mut(&order_id)
@@ -357,12 +357,12 @@ impl L3MarketDepth for BTreeMarketDepth {
                 if price_tick > self.best_bid_tick {
                     self.best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
                 }
-                Ok((BUY, prev_best_tick, self.best_bid_tick))
+                Ok((Side::Buy, prev_best_tick, self.best_bid_tick))
             } else {
                 let depth_qty = self.bid_depth.get_mut(&order.price_tick).unwrap();
                 *depth_qty += qty - order.qty;
                 order.qty = qty;
-                Ok((BUY, self.best_bid_tick, self.best_bid_tick))
+                Ok((Side::Buy, self.best_bid_tick, self.best_bid_tick))
             }
         } else {
             let prev_best_tick = self.best_ask_tick;
@@ -386,20 +386,20 @@ impl L3MarketDepth for BTreeMarketDepth {
                 if price_tick < self.best_ask_tick {
                     self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
                 }
-                Ok((SELL, prev_best_tick, self.best_ask_tick))
+                Ok((Side::Sell, prev_best_tick, self.best_ask_tick))
             } else {
                 let depth_qty = self.ask_depth.get_mut(&order.price_tick).unwrap();
                 *depth_qty += qty - order.qty;
                 order.qty = qty;
-                Ok((SELL, self.best_ask_tick, self.best_ask_tick))
+                Ok((Side::Sell, self.best_ask_tick, self.best_ask_tick))
             }
         }
     }
 
-    fn clear_depth(&mut self, side: i64) {
-        if side == BUY {
+    fn clear_depth(&mut self, side: Side) {
+        if side == Side::Buy {
             self.bid_depth.clear();
-        } else if side == SELL {
+        } else if side == Side::Sell {
             self.ask_depth.clear();
         } else {
             self.bid_depth.clear();
@@ -416,7 +416,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 mod tests {
     use crate::{
         depth::{BTreeMarketDepth, L3MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
-        types::{BUY, SELL},
+        types::{Side, BUY_EVENT, SELL_EVENT},
     };
 
     macro_rules! assert_eq_qty {
@@ -462,28 +462,28 @@ mod tests {
         assert!(depth.delete_order(10, 0).is_err());
 
         let (side, prev_best, best) = depth.delete_order(2, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5005);
         assert_eq!(best, 5005);
         assert_eq!(depth.best_bid_tick(), 5005);
         assert_eq_qty!(depth.bid_qty_at_tick(5003), 0.0, lot_size);
 
         let (side, prev_best, best) = depth.delete_order(4, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5005);
         assert_eq!(best, 5001);
         assert_eq!(depth.best_bid_tick(), 5001);
         assert_eq_qty!(depth.bid_qty_at_tick(5005), 0.0, lot_size);
 
         let (side, prev_best, best) = depth.delete_order(3, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5001);
         assert_eq!(best, 5001);
         assert_eq!(depth.best_bid_tick(), 5001);
         assert_eq_qty!(depth.bid_qty_at_tick(5001), 0.001, lot_size);
 
         let (side, prev_best, best) = depth.delete_order(1, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5001);
         assert_eq!(best, INVALID_MIN);
         assert_eq!(depth.best_bid_tick(), INVALID_MIN);
@@ -524,28 +524,28 @@ mod tests {
         assert!(depth.delete_order(10, 0).is_err());
 
         let (side, prev_best, best) = depth.delete_order(2, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 4985);
         assert_eq!(best, 4985);
         assert_eq!(depth.best_ask_tick(), 4985);
         assert_eq_qty!(depth.ask_qty_at_tick(4993), 0.0, lot_size);
 
         let (side, prev_best, best) = depth.delete_order(4, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 4985);
         assert_eq!(best, 5001);
         assert_eq!(depth.best_ask_tick(), 5001);
         assert_eq_qty!(depth.ask_qty_at_tick(4985), 0.0, lot_size);
 
         let (side, prev_best, best) = depth.delete_order(3, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 5001);
         assert_eq!(best, 5001);
         assert_eq!(depth.best_ask_tick(), 5001);
         assert_eq_qty!(depth.ask_qty_at_tick(5001), 0.001, lot_size);
 
         let (side, prev_best, best) = depth.delete_order(1, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 5001);
         assert_eq!(best, INVALID_MAX);
         assert_eq!(depth.best_ask_tick(), INVALID_MAX);
@@ -565,14 +565,14 @@ mod tests {
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 
         let (side, prev_best, best) = depth.modify_order(2, 500.5, 0.001, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5005);
         assert_eq!(best, 5005);
         assert_eq!(depth.best_bid_tick(), 5005);
         assert_eq_qty!(depth.bid_qty_at_tick(5005), 0.006, lot_size);
 
         let (side, prev_best, best) = depth.modify_order(2, 500.7, 0.002, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5005);
         assert_eq!(best, 5007);
         assert_eq!(depth.best_bid_tick(), 5007);
@@ -580,7 +580,7 @@ mod tests {
         assert_eq_qty!(depth.bid_qty_at_tick(5007), 0.002, lot_size);
 
         let (side, prev_best, best) = depth.modify_order(2, 500.6, 0.002, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5007);
         assert_eq!(best, 5006);
         assert_eq!(depth.best_bid_tick(), 5006);
@@ -588,7 +588,7 @@ mod tests {
 
         let _ = depth.delete_order(4, 0).unwrap();
         let (side, prev_best, best) = depth.modify_order(2, 500.0, 0.002, 0).unwrap();
-        assert_eq!(side, BUY);
+        assert_eq!(side, Side::Buy);
         assert_eq!(prev_best, 5006);
         assert_eq!(best, 5001);
         assert_eq!(depth.best_bid_tick(), 5001);
@@ -609,14 +609,14 @@ mod tests {
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 
         let (side, prev_best, best) = depth.modify_order(2, 498.5, 0.001, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 4985);
         assert_eq!(best, 4985);
         assert_eq!(depth.best_ask_tick(), 4985);
         assert_eq_qty!(depth.ask_qty_at_tick(4985), 0.006, lot_size);
 
         let (side, prev_best, best) = depth.modify_order(2, 497.7, 0.002, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 4985);
         assert_eq!(best, 4977);
         assert_eq!(depth.best_ask_tick(), 4977);
@@ -624,7 +624,7 @@ mod tests {
         assert_eq_qty!(depth.ask_qty_at_tick(4977), 0.002, lot_size);
 
         let (side, prev_best, best) = depth.modify_order(2, 498.1, 0.002, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 4977);
         assert_eq!(best, 4981);
         assert_eq!(depth.best_ask_tick(), 4981);
@@ -632,7 +632,7 @@ mod tests {
 
         let _ = depth.delete_order(4, 0).unwrap();
         let (side, prev_best, best) = depth.modify_order(2, 500.2, 0.002, 0).unwrap();
-        assert_eq!(side, SELL);
+        assert_eq!(side, Side::Sell);
         assert_eq!(prev_best, 4981);
         assert_eq!(best, 5001);
         assert_eq!(depth.best_ask_tick(), 5001);

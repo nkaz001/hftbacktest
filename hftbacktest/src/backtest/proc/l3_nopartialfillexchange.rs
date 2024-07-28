@@ -18,7 +18,7 @@ use crate::{
         Side,
         Status,
         TimeInForce,
-        BUY,
+        BUY_EVENT,
         EXCH_ASK_ADD_ORDER_EVENT,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
         EXCH_BID_ADD_ORDER_EVENT,
@@ -28,7 +28,7 @@ use crate::{
         EXCH_EVENT,
         EXCH_FILL_EVENT,
         EXCH_MODIFY_ORDER_EVENT,
-        SELL,
+        SELL_EVENT,
     },
 };
 
@@ -375,9 +375,9 @@ where
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row_num = self.row_num;
         if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(BUY);
+            self.depth.clear_depth(BUY_EVENT);
         } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(SELL);
+            self.depth.clear_depth(SELL_EVENT);
         } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(0);
         } else if self.data[row_num].is(EXCH_BID_ADD_ORDER_EVENT) {
@@ -415,7 +415,7 @@ where
                 self.data[row_num].qty,
                 self.data[row_num].exch_ts,
             )?;
-            if side == BUY {
+            if side == BUY_EVENT {
                 if best_tick > prev_best_tick {
                     self.on_best_bid_update(prev_best_tick, best_tick, self.data[row_num].exch_ts)?;
                 }

@@ -23,7 +23,6 @@ use crate::{
         Side,
         Status,
         TimeInForce,
-        BUY,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
         EXCH_ASK_DEPTH_EVENT,
         EXCH_ASK_DEPTH_SNAPSHOT_EVENT,
@@ -34,7 +33,6 @@ use crate::{
         EXCH_DEPTH_CLEAR_EVENT,
         EXCH_EVENT,
         EXCH_SELL_TRADE_EVENT,
-        SELL,
     },
 };
 
@@ -611,11 +609,11 @@ where
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row_num = self.row_num;
         if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(BUY, self.data[row_num].px);
+            self.depth.clear_depth(Side::Buy, self.data[row_num].px);
         } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(SELL, self.data[row_num].px);
+            self.depth.clear_depth(Side::Sell, self.data[row_num].px);
         } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(0, 0.0);
+            self.depth.clear_depth(Side::None, 0.0);
         } else if self.data[row_num].is(EXCH_BID_DEPTH_EVENT)
             || self.data[row_num].is(EXCH_BID_DEPTH_SNAPSHOT_EVENT)
         {
