@@ -147,6 +147,8 @@ where
         // notification.
         if order_entry_latency < 0 {
             // Rejects the order.
+            order.req = Status::None;
+            order.status = Status::Expired;
             let rej_recv_timestamp = current_timestamp - order_entry_latency;
             self.orders_from.append(order, rej_recv_timestamp);
         } else {
@@ -174,6 +176,7 @@ where
         // notification.
         if order_entry_latency < 0 {
             // Rejects the order.
+            order.req = Status::None;
             let rej_recv_timestamp = current_timestamp - order_entry_latency;
             self.orders_from.append(order.clone(), rej_recv_timestamp);
         } else {
