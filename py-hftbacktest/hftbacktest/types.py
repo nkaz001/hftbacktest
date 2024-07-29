@@ -36,7 +36,7 @@ state_values_dtype = np.dtype(
 
 event_dtype = np.dtype(
     [
-        ('ev', 'i8'),
+        ('ev', 'u8'),
         ('exch_ts', 'i8'),
         ('local_ts', 'i8'),
         ('px', 'f8'),
@@ -67,7 +67,7 @@ order_dtype = np.dtype(
         ('order_type', 'u1'),
         ('req', 'u1'),
         ('status', 'u1'),
-        ('side', 'u1'),
+        ('side', 'i1'),
         ('time_in_force', 'u1')
     ],
     align=True

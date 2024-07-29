@@ -86,9 +86,9 @@ pub trait L2MarketDepth {
         timestamp: i64,
     ) -> (i64, i64, i64, f64, f64, i64);
 
-    /// Clears the market depth. If the `side` is neither [crate::types::BUY] nor [crate::types::SELL],
-    /// both sides are cleared. In this case, `clear_upto_price` is ignored.
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f64);
+    /// Clears the market depth. If the `side` is neither [Side::Buy] nor [Side::Sell], both sides
+    /// are cleared. In this case, `clear_upto_price` is ignored.
+    fn clear_depth(&mut self, side: Side, clear_upto_price: f64);
 }
 
 /// Provides a method to initialize the `MarketDepth` from the given snapshot data, such as
@@ -143,7 +143,7 @@ pub trait L3MarketDepth: MarketDepth {
         &mut self,
         order_id: OrderId,
         timestamp: i64,
-    ) -> Result<(i64, i64, i64), Self::Error>;
+    ) -> Result<(Side, i64, i64), Self::Error>;
 
     /// Modifies the order in the order book and returns a tuple containing (side, the previous best
     /// in ticks, the current best in ticks).
@@ -153,11 +153,11 @@ pub trait L3MarketDepth: MarketDepth {
         px: f64,
         qty: f64,
         timestamp: i64,
-    ) -> Result<(i64, i64, i64), Self::Error>;
+    ) -> Result<(Side, i64, i64), Self::Error>;
 
-    /// Clears the market depth. If the `side` is neither [crate::types::BUY] nor
-    /// [crate::types::SELL], both sides are cleared.
-    fn clear_depth(&mut self, side: i64);
+    /// Clears the market depth. If the `side` is neither [Side::Buy] nor [Side::Sell], both sides
+    /// are cleared.
+    fn clear_depth(&mut self, side: Side);
 
     /// Returns the orders held in the order book.
     fn orders(&self) -> &HashMap<OrderId, L3Order>;

@@ -57,13 +57,13 @@ impl LatencyModel for ConstantLatency {
 #[repr(C, align(32))]
 pub struct OrderLatencyRow {
     /// Timestamp at which the request occurs.
-    pub req_timestamp: i64,
+    pub req_ts: i64,
     /// Timestamp at which the exchange processes the request.
-    pub exch_timestamp: i64,
+    pub exch_ts: i64,
     /// Timestamp at which the response is received.
-    pub resp_timestamp: i64,
+    pub resp_ts: i64,
     /// For the alignment.
-    pub _reserved: i64,
+    pub _padding: i64,
 }
 
 unsafe impl POD for OrderLatencyRow {}
@@ -164,8 +164,8 @@ impl IntpOrderLatency {
 impl LatencyModel for IntpOrderLatency {
     fn entry(&mut self, timestamp: i64, _order: &Order) -> i64 {
         let first_row = &self.data[0];
-        if timestamp < first_row.req_timestamp {
-            return first_row.exch_timestamp - first_row.req_timestamp;
+        if timestamp < first_row.req_ts {
+            return first_row.exch_ts - first_row.req_ts;
         }
 
         loop {
@@ -176,23 +176,23 @@ impl LatencyModel for IntpOrderLatency {
                 &self.next_data[0]
             } else {
                 let last_row = &self.data[self.data.len() - 1];
-                return last_row.exch_timestamp - last_row.req_timestamp;
+                return last_row.exch_ts - last_row.req_ts;
             };
 
-            let req_local_timestamp = row.req_timestamp;
-            let next_req_local_timestamp = next_row.req_timestamp;
+            let req_local_timestamp = row.req_ts;
+            let next_req_local_timestamp = next_row.req_ts;
 
-            if row.req_timestamp <= timestamp && timestamp < next_row.req_timestamp {
-                let exch_timestamp = row.exch_timestamp;
-                let next_exch_timestamp = next_row.exch_timestamp;
+            if row.req_ts <= timestamp && timestamp < next_row.req_ts {
+                let exch_timestamp = row.exch_ts;
+                let next_exch_timestamp = next_row.exch_ts;
 
                 // The exchange may reject an order request due to technical issues such
                 // congestion, this is particularly common in crypto markets. A timestamp of
                 // zero on the exchange represents the occurrence of those kinds of errors at
                 // that time.
                 if exch_timestamp <= 0 || next_exch_timestamp <= 0 {
-                    let resp_timestamp = row.resp_timestamp;
-                    let next_resp_timestamp = next_row.resp_timestamp;
+                    let resp_timestamp = row.resp_ts;
+                    let next_resp_timestamp = next_row.resp_ts;
                     let lat1 = resp_timestamp - req_local_timestamp;
                     let lat2 = next_resp_timestamp - next_req_local_timestamp;
 
@@ -231,8 +231,8 @@ impl LatencyModel for IntpOrderLatency {
 
     fn response(&mut self, timestamp: i64, _order: &Order) -> i64 {
         let first_row = &self.data[0];
-        if timestamp < first_row.exch_timestamp {
-            return first_row.resp_timestamp - first_row.exch_timestamp;
+        if timestamp < first_row.exch_ts {
+            return first_row.resp_ts - first_row.exch_ts;
         }
 
         loop {
@@ -243,14 +243,14 @@ impl LatencyModel for IntpOrderLatency {
                 &self.next_data[0]
             } else {
                 let last_row = &self.data[self.data.len() - 1];
-                return last_row.resp_timestamp - last_row.exch_timestamp;
+                return last_row.resp_ts - last_row.exch_ts;
             };
 
-            let exch_timestamp = row.exch_timestamp;
-            let next_exch_timestamp = next_row.exch_timestamp;
+            let exch_timestamp = row.exch_ts;
+            let next_exch_timestamp = next_row.exch_ts;
             if exch_timestamp <= timestamp && timestamp < next_exch_timestamp {
-                let resp_local_timestamp = row.resp_timestamp;
-                let next_resp_local_timestamp = next_row.resp_timestamp;
+                let resp_local_timestamp = row.resp_ts;
+                let next_resp_local_timestamp = next_row.resp_ts;
 
                 let lat1 = resp_local_timestamp - exch_timestamp;
                 let lat2 = next_resp_local_timestamp - next_exch_timestamp;

@@ -124,7 +124,7 @@ impl OrderManager {
                 match order.side {
                     Side::Buy => "Buy".to_string(),
                     Side::Sell => "Sell".to_string(),
-                    Side::Unsupported => return Err(HandleError::InvalidArg("side")),
+                    Side::None | Side::Unsupported => return Err(HandleError::InvalidArg("side")),
                 }
             }),
             order_type: Some({

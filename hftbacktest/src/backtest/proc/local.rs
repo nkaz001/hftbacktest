@@ -23,16 +23,15 @@ use crate::{
         StateValues,
         Status,
         TimeInForce,
-        BUY,
         LOCAL_ASK_DEPTH_CLEAR_EVENT,
         LOCAL_ASK_DEPTH_EVENT,
         LOCAL_ASK_DEPTH_SNAPSHOT_EVENT,
         LOCAL_BID_DEPTH_CLEAR_EVENT,
         LOCAL_BID_DEPTH_EVENT,
         LOCAL_BID_DEPTH_SNAPSHOT_EVENT,
+        LOCAL_DEPTH_CLEAR_EVENT,
         LOCAL_EVENT,
         LOCAL_TRADE_EVENT,
-        SELL,
     },
 };
 
@@ -146,6 +145,8 @@ where
         // notification.
         if order_entry_latency < 0 {
             // Rejects the order.
+            order.req = Status::None;
+            order.status = Status::Expired;
             let rej_recv_timestamp = current_timestamp - order_entry_latency;
             self.orders_from.append(order, rej_recv_timestamp);
         } else {
@@ -173,6 +174,7 @@ where
         // notification.
         if order_entry_latency < 0 {
             // Rejects the order.
+            order.req = Status::None;
             let rej_recv_timestamp = current_timestamp - order_entry_latency;
             self.orders_from.append(order.clone(), rej_recv_timestamp);
         } else {
@@ -245,9 +247,11 @@ where
         let ev = &self.data[self.row_num];
         // Processes a depth event
         if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(BUY, ev.px);
+            self.depth.clear_depth(Side::Buy, ev.px);
         } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(SELL, ev.px);
+            self.depth.clear_depth(Side::Sell, ev.px);
+        } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(Side::None, 0.0);
         } else if ev.is(LOCAL_BID_DEPTH_EVENT) || ev.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT) {
             self.depth.update_bid_depth(ev.px, ev.qty, ev.local_ts);
         } else if ev.is(LOCAL_ASK_DEPTH_EVENT) || ev.is(LOCAL_ASK_DEPTH_SNAPSHOT_EVENT) {

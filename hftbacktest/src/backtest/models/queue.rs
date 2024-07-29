@@ -418,7 +418,7 @@ impl L3QueueModel for L3FIFOQueueModel {
         let priority = match side {
             Side::Buy => self.bid_queue.entry(order_price_tick).or_insert(Vec::new()),
             Side::Sell => self.ask_queue.entry(order_price_tick).or_insert(Vec::new()),
-            Side::Unsupported => unreachable!(),
+            Side::None | Side::Unsupported => unreachable!(),
         };
 
         priority.push(order);
@@ -470,7 +470,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                 // }
                 Ok(order)
             }
-            Side::Unsupported => unreachable!(),
+            Side::None | Side::Unsupported => unreachable!(),
         }
     }
 
@@ -553,7 +553,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                     }
                 }
             }
-            Side::Unsupported => unreachable!(),
+            Side::None | Side::Unsupported => unreachable!(),
         }
 
         Ok(())
@@ -630,7 +630,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                 }
                 Ok(filled)
             }
-            Side::Unsupported => unreachable!(),
+            Side::None | Side::Unsupported => unreachable!(),
         }
     }
 }
