@@ -3,6 +3,7 @@ import gzip
 import json
 from typing import Optional
 from zipfile import ZipFile, is_zipfile
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -170,6 +171,13 @@ def convert(
 
     if output_filename is not None:
         print("Saving to %s" % output_filename)
-        np.savez_compressed(output_filename, data=data)
-
+        path = Path(output_filename)
+        temp_path = path.parent / ("temp_" + path.name)
+        
+        try:
+            np.savez_compressed(temp_path, data=data)
+            temp_path.rename(path)
+        except:
+            if temp_path.exists():
+                temp_path.unlink()
     return data
