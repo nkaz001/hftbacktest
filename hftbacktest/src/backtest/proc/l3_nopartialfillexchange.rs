@@ -320,7 +320,7 @@ where
         }
     }
 
-    fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<i64, BacktestError> {
+    fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
         match self
             .queue_model
             .cancel_order(L3OrderId::Backtest(order.order_id))
@@ -333,17 +333,15 @@ where
                     timestamp + self.order_latency.response(timestamp, &exch_order);
                 self.orders_to
                     .append(exch_order.clone(), local_recv_timestamp);
-                Ok(local_recv_timestamp)
+                Ok(())
             }
             Err(BacktestError::OrderNotFound) => {
-                order.status = Status::Expired;
+                order.req = Status::Rejected;
                 order.exch_timestamp = timestamp;
                 let local_recv_timestamp =
                     timestamp + self.order_latency.response(timestamp, &order);
-                // It can overwrite another existing order on the local side if order_id is the same.
-                // So, commented out.
-                // self.orders_to.append(order.copy(), local_recv_timestamp)
-                return Ok(local_recv_timestamp);
+                self.orders_to.append(order, local_recv_timestamp);
+                return Ok(());
             }
             Err(e) => Err(e),
         }
@@ -375,11 +373,11 @@ where
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row_num = self.row_num;
         if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(BUY_EVENT);
+            self.depth.clear_depth(Side::Buy);
         } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(SELL_EVENT);
+            self.depth.clear_depth(Side::Sell);
         } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(0);
+            self.depth.clear_depth(Side::None);
         } else if self.data[row_num].is(EXCH_BID_ADD_ORDER_EVENT) {
             let (prev_best_bid_tick, best_bid_tick) = self.depth.add_buy_order(
                 self.data[row_num].order_id,
@@ -415,7 +413,7 @@ where
                 self.data[row_num].qty,
                 self.data[row_num].exch_ts,
             )?;
-            if side == BUY_EVENT {
+            if side == Side::Buy {
                 if best_tick > prev_best_tick {
                     self.on_best_bid_update(prev_best_tick, best_tick, self.data[row_num].exch_ts)?;
                 }
