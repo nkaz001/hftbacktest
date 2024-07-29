@@ -406,20 +406,18 @@ where
         }
     }
 
-    fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<i64, BacktestError> {
+    fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
         let exch_order = {
             let mut order_borrowed = self.orders.borrow_mut();
             order_borrowed.remove(&order.order_id)
         };
 
         if exch_order.is_none() {
-            order.status = Status::Expired;
+            order.req = Status::Rejected;
             order.exch_timestamp = timestamp;
             let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &order);
-            // It can overwrite another existing order on the local side if order_id is the same.
-            // So, commented out.
-            // self.orders_to.append(order.copy(), local_recv_timestamp)
-            return Ok(local_recv_timestamp);
+            self.orders_to.append(order, local_recv_timestamp);
+            return Ok(());
         }
 
         // Deletes the order.
@@ -442,7 +440,7 @@ where
         let local_recv_timestamp = timestamp + self.order_latency.response(timestamp, &exch_order);
         self.orders_to
             .append(exch_order.clone(), local_recv_timestamp);
-        Ok(local_recv_timestamp)
+        Ok(())
     }
 
     fn ack_modify(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
@@ -452,13 +450,11 @@ where
 
             // The order can be already deleted due to fill or expiration.
             if exch_order.is_none() {
-                order.status = Status::Expired;
+                order.req = Status::Rejected;
                 order.exch_timestamp = timestamp;
-                // let local_recv_timestamp =
-                //     timestamp + self.order_latency.response(timestamp, &order);
-                // It can overwrite another existing order on the local side if order_id is the
-                // same. So, commented out.
-                // self.orders_to.append(order.copy(), local_recv_timestamp)
+                let local_recv_timestamp =
+                    timestamp + self.order_latency.response(timestamp, &order);
+                self.orders_to.append(order, local_recv_timestamp);
                 return Ok(());
             }
 

@@ -95,10 +95,24 @@ where
         // Applies the received order response to the local orders.
         match self.orders.entry(order.order_id) {
             Entry::Occupied(mut entry) => {
-                *entry.get_mut() = order;
+                let local_order = entry.get_mut();
+                if order.req == Status::Rejected {
+                    if order.local_timestamp == local_order.local_timestamp {
+                        if local_order.req == Status::New {
+                            local_order.req = Status::None;
+                            local_order.status = Status::Expired;
+                        } else {
+                            local_order.req = Status::None;
+                        }
+                    }
+                } else {
+                    local_order.update(&order);
+                }
             }
             Entry::Vacant(entry) => {
-                entry.insert(order);
+                if order.req != Status::Rejected {
+                    entry.insert(order);
+                }
             }
         }
         Ok(())
@@ -145,8 +159,7 @@ where
         // notification.
         if order_entry_latency < 0 {
             // Rejects the order.
-            order.req = Status::None;
-            order.status = Status::Expired;
+            order.req = Status::Rejected;
             let rej_recv_timestamp = current_timestamp - order_entry_latency;
             self.orders_from.append(order, rej_recv_timestamp);
         } else {
@@ -167,16 +180,16 @@ where
         }
 
         order.req = Status::Canceled;
-        order.local_timestamp = current_timestamp;
         let order_entry_latency = self.order_latency.entry(current_timestamp, order);
         // Negative latency indicates that the order is rejected for technical reasons, and its
         // value represents the latency that the local experiences when receiving the rejection
         // notification.
         if order_entry_latency < 0 {
             // Rejects the order.
-            order.req = Status::None;
+            let mut order_ = order.clone();
+            order_.req = Status::Rejected;
             let rej_recv_timestamp = current_timestamp - order_entry_latency;
-            self.orders_from.append(order.clone(), rej_recv_timestamp);
+            self.orders_from.append(order_, rej_recv_timestamp);
         } else {
             let exch_recv_timestamp = current_timestamp + order_entry_latency;
             self.orders_to.append(order.clone(), exch_recv_timestamp);
@@ -301,8 +314,13 @@ where
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();
 
-                self.last_order_latency =
-                    Some((order.local_timestamp, order.exch_timestamp, recv_timestamp));
+                // Updates the order latency only if it has a valid exchange timestamp. When the
+                // order is rejected before it reaches the matching engine, it has no exchange
+                // timestamp. This situation occurs in crypto exchanges.
+                if order.exch_timestamp > 0 {
+                    self.last_order_latency =
+                        Some((order.local_timestamp, order.exch_timestamp, recv_timestamp));
+                }
 
                 if let Some(wait_resp_order_id) = wait_resp_order_id {
                     if order.order_id == wait_resp_order_id {

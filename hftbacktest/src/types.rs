@@ -326,6 +326,7 @@ pub enum Status {
     Filled = 3,
     Canceled = 4,
     PartiallyFilled = 5,
+    Rejected = 6,
     /// This occurs when the [`Connector`](`crate::connector::Connector`) receives an order status
     /// value that does not have a corresponding enum value.
     Unsupported = 255,
@@ -521,9 +522,9 @@ impl Order {
             self.exch_timestamp = order.exch_timestamp;
         }
         self.status = order.status;
-        if order.local_timestamp > 0 {
-            self.local_timestamp = order.local_timestamp;
-        }
+        // if order.local_timestamp > 0 {
+        //     self.local_timestamp = order.local_timestamp;
+        // }
         self.req = order.req;
         self.exec_price_tick = order.exec_price_tick;
         self.exec_qty = order.exec_qty;

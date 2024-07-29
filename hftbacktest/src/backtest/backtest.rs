@@ -810,6 +810,8 @@ where
         )?;
         self.evs
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
+        self.evs
+            .update_local_order(asset_no, local.earliest_recv_order_timestamp());
 
         if wait {
             return self.goto::<false>(
@@ -831,6 +833,8 @@ where
         local.cancel(order_id, self.cur_ts)?;
         self.evs
             .update_exch_order(asset_no, local.earliest_send_order_timestamp());
+        self.evs
+            .update_local_order(asset_no, local.earliest_recv_order_timestamp());
 
         if wait {
             return self.goto::<false>(
