@@ -2,6 +2,7 @@ use std::io::Error as IoError;
 
 pub use backtest::*;
 pub use reader::DataSource;
+use reader::{Cache, Reader};
 use thiserror::Error;
 
 use crate::{
@@ -10,7 +11,6 @@ use crate::{
         models::{LatencyModel, QueueModel},
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
-        reader::{Cache, Reader},
         state::State,
     },
     depth::{L2MarketDepth, MarketDepth},
@@ -30,9 +30,6 @@ pub mod order;
 /// Local and exchange models
 pub mod proc;
 
-/// The data reader
-pub mod reader;
-
 /// Trading state.
 pub mod state;
 
@@ -40,6 +37,7 @@ pub mod state;
 pub mod recorder;
 
 mod evs;
+pub mod reader;
 
 /// Errors that can occur during backtesting.
 #[derive(Error, Debug)]

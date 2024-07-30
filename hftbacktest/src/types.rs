@@ -6,12 +6,10 @@ use std::{
 };
 
 use dyn_clone::DynClone;
+use hftbacktest_derive::NpyDTyped;
 use thiserror::Error;
 
-use crate::{
-    backtest::reader::{NpyFile, POD},
-    depth::MarketDepth,
-};
+use crate::{backtest::reader::POD, depth::MarketDepth};
 
 /// Error conveyed through [`LiveEvent`].
 #[derive(Clone, Debug)]
@@ -234,8 +232,8 @@ pub enum WaitOrderResponse {
 }
 
 /// Feed event data.
-#[derive(Clone, PartialEq, Debug)]
 #[repr(C, align(64))]
+#[derive(Clone, PartialEq, Debug, NpyDTyped)]
 pub struct Event {
     /// Event flag
     pub ev: u64,
@@ -256,8 +254,6 @@ pub struct Event {
 }
 
 unsafe impl POD for Event {}
-
-unsafe impl NpyFile for Event {}
 
 impl Event {
     /// Checks if this `Event` corresponds to the given event.

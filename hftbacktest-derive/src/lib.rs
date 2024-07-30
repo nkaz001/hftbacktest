@@ -3,13 +3,92 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
 use syn::{
+    self,
     braced,
     bracketed,
     parse::{Parse, ParseStream},
     parse_macro_input,
+    Data,
+    DeriveInput,
     Error,
+    Fields,
     Token,
 };
+
+#[proc_macro_derive(NpyDTyped)]
+pub fn dtype_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let name = &input.ident;
+
+    let mut field_names = Vec::new();
+    let mut field_types = Vec::new();
+
+    let expanded = match input.data {
+        Data::Struct(ref data_struct) => {
+            if let Fields::Named(ref fields_named) = data_struct.fields {
+                for field in fields_named.named.iter() {
+                    let field_name = field.ident.as_ref().unwrap().to_string();
+                    let field_type = field.ty.clone();
+
+                    let ty_str = quote! { #field_type }.to_string();
+                    let endianess = if is_little_endian() { "<" } else { ">" };
+                    let ty = match ty_str.as_str() {
+                        "f64" => "f8",
+                        "f32" => "f4",
+                        "f16" => "f2",
+                        "f8" => "f1",
+                        "i64" => "i8",
+                        "i32" => "i4",
+                        "i16" => "i2",
+                        "i8" => "i1",
+                        "u64" => "u8",
+                        "u32" => "u4",
+                        "u16" => "u2",
+                        "u8" => "u1",
+                        "bool" => "bool",
+                        s => panic!("\"{field_name}: {s}\": {s} is unsupported."),
+                    };
+
+                    field_names.push(field_name);
+                    field_types.push(endianess.to_string() + ty);
+                }
+            }
+
+            // Generate code to print field names and types
+            quote! {
+                impl crate::backtest::reader::NpyDTyped for #name {
+                    fn descr() -> Vec<crate::backtest::reader::Field> {
+                        return vec![
+                            #(
+                                crate::backtest::reader::Field {
+                                    name: #field_names.to_string(),
+                                    ty: #field_types.to_string(),
+                                }
+                            ),*
+                        ];
+                    }
+                }
+            }
+        }
+        _ => quote! {
+            compile_error!("must be a struct");
+        },
+    };
+
+    expanded.into()
+}
+
+fn is_little_endian() -> bool {
+    let n: u32 = 1;
+    if n.to_be() == n {
+        false
+    } else if n.to_le() == n {
+        true
+    } else {
+        panic!();
+    }
+}
 
 struct EnumArgs {
     name: Ident,
@@ -175,7 +254,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let mut market_depth = #depth_construct;
                             match #asset.initial_snapshot.as_ref() {
                                 Some(DataSource::File(file)) => {
-                                    let data = read_npz(&file).unwrap();
+                                    let data = read_npz_file(&file, "data").unwrap();
                                     market_depth.apply_snapshot(&data);
                                 }
                                 Some(DataSource::Data(data)) => {
@@ -197,7 +276,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let mut market_depth = #depth_construct;
                             match #asset.initial_snapshot.as_ref() {
                                 Some(DataSource::File(file)) => {
-                                    let data = read_npz(&file).unwrap();
+                                    let data = read_npz_file(&file, "data").unwrap();
                                     market_depth.apply_snapshot(&data);
                                 }
                                 Some(DataSource::Data(data)) => {

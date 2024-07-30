@@ -1,3 +1,5 @@
+use std::mem::{forget, size_of};
+
 /// Gets price precision.
 ///
 /// * `tick_size` - This should not be a computed value.

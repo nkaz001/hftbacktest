@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::{ApplySnapshot, L1MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
-    backtest::{reader::Data, BacktestError},
+    backtest::{reader::reader::Data, BacktestError},
     prelude::{L2MarketDepth, Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
     types::{Event, OrderId, BUY_EVENT, SELL_EVENT},
 };

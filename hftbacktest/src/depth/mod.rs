@@ -4,10 +4,7 @@ pub use btreemarketdepth::BTreeMarketDepth;
 pub use hashmapmarketdepth::HashMapMarketDepth;
 pub use roivectormarketdepth::ROIVectorMarketDepth;
 
-use crate::{
-    backtest::reader::{Data, POD},
-    prelude::Side,
-};
+use crate::prelude::Side;
 
 mod btreemarketdepth;
 mod hashmapmarketdepth;
@@ -19,7 +16,10 @@ mod fuse;
 #[cfg(any(feature = "unstable_fuse", doc))]
 pub use fuse::FusedHashMapMarketDepth;
 
-use crate::types::OrderId;
+use crate::{
+    backtest::reader::{Data, POD},
+    types::OrderId,
+};
 
 /// Represents no best bid.
 pub const INVALID_MIN: i64 = i64::MIN;

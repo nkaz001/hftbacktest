@@ -9,7 +9,7 @@ use crate::{
         models::LatencyModel,
         order::OrderBus,
         proc::proc::{LocalProcessor, Processor},
-        reader::{Data, Reader},
+        reader::reader::{Data, Reader},
         state::State,
         BacktestError,
     },
@@ -23,7 +23,6 @@ use crate::{
         StateValues,
         Status,
         TimeInForce,
-        BUY_EVENT,
         LOCAL_ASK_ADD_ORDER_EVENT,
         LOCAL_ASK_DEPTH_CLEAR_EVENT,
         LOCAL_BID_ADD_ORDER_EVENT,
@@ -33,7 +32,6 @@ use crate::{
         LOCAL_EVENT,
         LOCAL_FILL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
-        SELL_EVENT,
     },
 };
 

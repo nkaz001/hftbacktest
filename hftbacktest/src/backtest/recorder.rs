@@ -4,15 +4,17 @@ use std::{
     path::Path,
 };
 
-use npyz::{npz::NpzWriter, AutoSerialize, WriterBuilder};
-use zip_old::{write::FileOptions, CompressionMethod};
+use hftbacktest_derive::NpyDTyped;
+use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{
+    backtest::reader::{write_npy, POD},
     depth::MarketDepth,
     types::{Bot, Recorder},
 };
 
-#[derive(AutoSerialize, npyz::Serialize)]
+#[repr(C)]
+#[derive(NpyDTyped)]
 struct Record {
     timestamp: i64,
     price: f64,
@@ -23,6 +25,8 @@ struct Record {
     trading_volume: f64,
     trading_value: f64,
 }
+
+unsafe impl POD for Record {}
 
 /// Provides recording of the backtesting strategy's state values, which are needed to compute
 /// performance metrics.
@@ -122,26 +126,24 @@ impl BacktestRecorder {
         Ok(())
     }
 
-    pub fn to_npz<Prefix, P>(&self, prefix: Prefix, path: P) -> Result<(), Error>
+    pub fn to_npz<P>(&self, path: P) -> Result<(), Error>
     where
-        Prefix: AsRef<str>,
         P: AsRef<Path>,
     {
-        let prefix = prefix.as_ref();
-        let file_path = path.as_ref().join(format!("{prefix}.npz"));
-        let mut npz = NpzWriter::create(file_path)?;
-        let options = FileOptions::default()
-            .compression_method(CompressionMethod::DEFLATE)
+        let file = File::create(path)?;
+
+        let mut zip = ZipWriter::new(file);
+
+        let options = SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::DEFLATE)
             .compression_level(Some(9));
+
         for (asset_no, values) in self.values.iter().enumerate() {
-            let mut writer = npz
-                .array(&format!("{asset_no}"), options)?
-                .default_dtype()
-                .shape(&[values.len() as u64])
-                .begin_nd()?;
-            writer.extend(values)?;
-            writer.finish()?;
+            zip.start_file(format!("{asset_no}"), options)?;
+            write_npy(&mut zip, values)?;
         }
+
+        zip.finish()?;
         Ok(())
     }
 }

@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 pyo3 = { version = "0.22.1", features = ["extension-module"] }
 hftbacktest = { path = "../hftbacktest", features = ["backtest"] }
-procmacro = { path = "procmacro" }
+hftbacktest-derive = { path = "../hftbacktest-derive" }
 
 [lib]
 name = "hftbacktest"

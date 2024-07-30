@@ -6,7 +6,7 @@ use crate::{
         models::{L3FIFOQueueModel, L3OrderId, L3OrderSource, L3QueueModel, LatencyModel},
         order::OrderBus,
         proc::proc::Processor,
-        reader::{Data, Reader},
+        reader::reader::{Data, Reader},
         state::State,
         BacktestError,
     },
@@ -18,7 +18,6 @@ use crate::{
         Side,
         Status,
         TimeInForce,
-        BUY_EVENT,
         EXCH_ASK_ADD_ORDER_EVENT,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
         EXCH_BID_ADD_ORDER_EVENT,
@@ -28,7 +27,6 @@ use crate::{
         EXCH_EVENT,
         EXCH_FILL_EVENT,
         EXCH_MODIFY_ORDER_EVENT,
-        SELL_EVENT,
     },
 };
 
