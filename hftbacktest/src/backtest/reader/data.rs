@@ -91,7 +91,7 @@ pub struct DataPtr {
 
 impl DataPtr {
     pub fn new(size: usize) -> Self {
-        let vec = aligned_vec(size);
+        let vec = aligned_heap_array(size);
         Self {
             ptr: Box::into_raw(vec),
             managed: true,
@@ -161,16 +161,25 @@ impl Drop for DataPtr {
 #[repr(C, align(64))]
 struct Align64([u8; 64]);
 
-fn aligned_vec(size: usize) -> Box<[u8]> {
+fn aligned_heap_array(size: usize) -> Box<[u8]> {
     let capacity = (size / size_of::<Align64>()) + 1;
     let mut aligned: Vec<Align64> = Vec::with_capacity(capacity);
+    unsafe {
+        aligned.set_len(capacity);
+    }
 
     let ptr = aligned.as_mut_ptr();
+    let len = aligned.len();
     let cap = aligned.capacity();
 
     forget(aligned);
 
-    unsafe {
-        Vec::from_raw_parts(ptr as *mut u8, size, cap * size_of::<Align64>()).into_boxed_slice()
-    }
+    let vec = unsafe {
+        Vec::from_raw_parts(
+            ptr.cast(),
+            len * size_of::<Align64>(),
+            cap * size_of::<Align64>(),
+        )
+    };
+    vec.into_boxed_slice()
 }
