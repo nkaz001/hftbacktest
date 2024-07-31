@@ -266,7 +266,10 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let local: Box<dyn LocalProcessor<#marketdepth, Event>> = Box::new(Local::new(
                                 reader.clone(),
                                 market_depth,
-                                State::new(asset_type.clone(), #asset.maker_fee, #asset.taker_fee),
+                                State::new(asset_type.clone(), TradingValueFeeModel {
+                                    maker_fee: #asset.maker_fee,
+                                    taker_fee: #asset.taker_fee,
+                                }),
                                 latency_model.clone(),
                                 #asset.last_trades_cap,
                                 ob_local_to_exch.clone(),
@@ -290,7 +293,10 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let exch: Box<dyn Processor> = Box::new(#em_ident::new(
                                 reader,
                                 market_depth,
-                                State::new(asset_type, #asset.maker_fee, #asset.taker_fee),
+                                State::new(asset_type, TradingValueFeeModel {
+                                    maker_fee: #asset.maker_fee,
+                                    taker_fee: #asset.taker_fee,
+                                }),
                                 latency_model,
                                 queue_model,
                                 ob_exch_to_local,

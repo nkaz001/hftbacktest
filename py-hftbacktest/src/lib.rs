@@ -6,6 +6,7 @@ use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
         data::{read_npz_file, Cache, Data, DataPtr, Reader},
+        feemodel::TradingValueFeeModel,
         models::{
             ConstantLatency,
             IntpOrderLatency,

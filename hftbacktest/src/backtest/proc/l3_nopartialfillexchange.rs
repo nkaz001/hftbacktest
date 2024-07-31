@@ -55,11 +55,12 @@ use crate::{
 /// best. Be aware that this may cause unrealistic fill simulations if you attempt to execute a
 /// large quantity.
 ///
-pub struct L3NoPartialFillExchange<AT, LM, MD>
+pub struct L3NoPartialFillExchange<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: L3MarketDepth,
+    FM: FeeModel,
 {
     reader: Reader<Event>,
     data: Data<Event>,
@@ -68,23 +69,24 @@ where
     orders_from: OrderBus,
 
     depth: MD,
-    state: State<AT>,
+    state: State<AT, FM>,
     order_latency: LM,
     queue_model: L3FIFOQueueModel,
 }
 
-impl<AT, LM, MD> L3NoPartialFillExchange<AT, LM, MD>
+impl<AT, LM, MD> L3NoPartialFillExchange<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: L3MarketDepth,
+    FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     /// Constructs an instance of `NoPartialFillExchange`.
     pub fn new(
         reader: Reader<Event>,
         depth: MD,
-        state: State<AT>,
+        state: State<AT, FM>,
         order_latency: LM,
         orders_to: OrderBus,
         orders_from: OrderBus,
