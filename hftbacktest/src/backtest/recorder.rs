@@ -139,7 +139,7 @@ impl BacktestRecorder {
             .compression_level(Some(9));
 
         for (asset_no, values) in self.values.iter().enumerate() {
-            zip.start_file(format!("{asset_no}"), options)?;
+            zip.start_file(format!("{asset_no}.npy"), options)?;
             write_npy(&mut zip, values)?;
         }
 
