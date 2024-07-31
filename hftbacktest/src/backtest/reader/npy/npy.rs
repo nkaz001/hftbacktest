@@ -207,7 +207,7 @@ pub fn read_npy_file<D: NpyDTyped + Clone>(filepath: &str) -> Result<Data<D>> {
 pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> Result<Data<D>> {
     let mut archive = zip::ZipArchive::new(File::open(filepath)?)?;
 
-    let mut file = archive.by_name(name)?;
+    let mut file = archive.by_name(&format!("{}.npy", name))?;
     let size = file.size() as usize;
 
     read_npy(&mut file, size)
