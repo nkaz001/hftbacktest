@@ -93,9 +93,9 @@ pub struct DataPtr {
 
 impl DataPtr {
     pub fn new(size: usize) -> Self {
-        let vec = AlignedArray::<u8, CACHE_LINE_SIZE>::new(size);
+        let arr = AlignedArray::<u8, CACHE_LINE_SIZE>::new(size);
         Self {
-            ptr: vec.into_ptr(),
+            ptr: arr.into_ptr(),
             managed: true,
         }
     }
