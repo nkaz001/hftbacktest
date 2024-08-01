@@ -335,9 +335,11 @@ orders_values_next.argtypes = [c_void_p]
 
 class Values:
     ptr: voidptr
+    order_ptr: voidptr
 
     def __init__(self, ptr: voidptr):
         self.ptr = ptr
+        self.order_ptr = 0
 
     # def __next__(self) -> Order:
     #     if is_null_ptr(self.ptr):
@@ -369,6 +371,25 @@ class Values:
             )
             return Order_(arr)
 
+    def has_next(self) -> bool:
+        if is_null_ptr(self.ptr):
+            return False
+        self.order_ptr = orders_values_next(self.ptr)
+        if is_null_ptr(self.order_ptr):
+            self.ptr = 0
+            return False
+        return True
+
+    def get(self) -> Order:
+        if is_null_ptr(self.order_ptr):
+            raise RuntimeError
+        arr = carray(
+            address_as_void_pointer(self.order_ptr),
+            1,
+            dtype=order_dtype
+        )
+        return Order_(arr)
+
 
 Values_ = jitclass(Values)
 
@@ -398,6 +419,14 @@ class OrderDict:
                 order = values.next()
                 if order is None:
                     break
+                # Do what you need with the order.
+
+
+        .. code-block:: python
+
+            values = order_dict.values()
+            while values.has_next():
+                order = values.get()
                 # Do what you need with the order.
 
         """
