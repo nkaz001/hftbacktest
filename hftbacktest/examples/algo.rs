@@ -72,7 +72,7 @@ where
             let orders = hbt.orders(0);
             let mut new_bid_orders = HashMap::new();
             if position < max_position && bid_price.is_finite() {
-                for i in 0..grid_num {
+                for _ in 0..grid_num {
                     let bid_price_tick = (bid_price / tick_size).round() as u64;
 
                     // order price in tick is used as order id.
@@ -118,7 +118,7 @@ where
             let orders = hbt.orders(0);
             let mut new_ask_orders = HashMap::new();
             if position > -max_position && ask_price.is_finite() {
-                for i in 0..grid_num {
+                for _ in 0..grid_num {
                     let ask_price_tick = (ask_price / tick_size).round() as u64;
 
                     // order price in tick is used as order id.

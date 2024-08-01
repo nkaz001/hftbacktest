@@ -1,11 +1,13 @@
-use std::{alloc, fmt};
-use std::borrow::{Borrow, BorrowMut};
-use std::fmt::{Debug, Formatter};
-use std::fmt::Pointer;
-use std::mem::{forget, size_of};
-use std::ops::{Deref, DerefMut, Index, IndexMut};
-use std::ptr::{NonNull, slice_from_raw_parts_mut};
-use std::slice::SliceIndex;
+use std::{
+    alloc,
+    borrow::{Borrow, BorrowMut},
+    fmt,
+    fmt::{Debug, Formatter, Pointer},
+    mem::{forget, size_of},
+    ops::{Deref, DerefMut, Index, IndexMut},
+    ptr::{slice_from_raw_parts_mut, NonNull},
+    slice::SliceIndex,
+};
 
 pub const CACHE_LINE_SIZE: usize = 64;
 
@@ -18,7 +20,8 @@ impl<T, const ALIGNMENT: usize> Drop for AlignedArray<T, ALIGNMENT> {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            let layout = alloc::Layout::from_size_align_unchecked(self.len * size_of::<T>(), ALIGNMENT);
+            let layout =
+                alloc::Layout::from_size_align_unchecked(self.len * size_of::<T>(), ALIGNMENT);
             alloc::dealloc(self.ptr.as_ptr() as _, layout);
         }
     }
@@ -41,17 +44,15 @@ impl<T, const ALIGNMENT: usize> AlignedArray<T, ALIGNMENT> {
                 "`len * size_of::<T>()` cannot exceed isize::MAX - (ALIGNMENT - 1)"
             );
             let ptr = unsafe {
-                let layout = alloc::Layout::from_size_align_unchecked(len * size_of::<T>(), ALIGNMENT);
+                let layout =
+                    alloc::Layout::from_size_align_unchecked(len * size_of::<T>(), ALIGNMENT);
                 let ptr = alloc::alloc(layout);
                 if ptr.is_null() {
                     alloc::handle_alloc_error(layout);
                 }
                 NonNull::new_unchecked(slice_from_raw_parts_mut(ptr as *mut T, len))
             };
-            Self {
-                ptr,
-                len,
-            }
+            Self { ptr, len }
         }
     }
 

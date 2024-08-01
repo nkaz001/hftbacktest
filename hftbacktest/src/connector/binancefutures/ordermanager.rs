@@ -137,18 +137,18 @@ impl OrderManager {
         client_order_id: String,
     ) -> Option<Order> {
         match error {
-            BinanceFuturesError::OrderError(-5022, _) => {
+            BinanceFuturesError::OrderError { code: -5022, .. } => {
                 // GTX rejection.
             }
-            BinanceFuturesError::OrderError(-1008, _) => {
+            BinanceFuturesError::OrderError { code: -1008, .. } => {
                 // Server is currently overloaded with other requests. Please try again in a few minutes.
                 error!("Server is currently overloaded with other requests. Please try again in a few minutes.");
             }
-            BinanceFuturesError::OrderError(-2019, _) => {
+            BinanceFuturesError::OrderError { code: -2019, .. } => {
                 // Margin is insufficient.
                 error!("Margin is insufficient.");
             }
-            BinanceFuturesError::OrderError(-1015, _) => {
+            BinanceFuturesError::OrderError { code: -1015, .. } => {
                 // Too many new orders; current limit is 300 orders per TEN_SECONDS."
                 error!("Too many new orders; current limit is 300 orders per TEN_SECONDS.");
             }
@@ -198,7 +198,7 @@ impl OrderManager {
         client_order_id: String,
     ) -> Option<Order> {
         match error {
-            BinanceFuturesError::OrderError(-2011, _) => {
+            BinanceFuturesError::OrderError { code: -2011, .. } => {
                 // The given order may no longer exist; it could have already been filled or
                 // canceled. But, it cannot determine the order status because it lacks the
                 // necessary information.

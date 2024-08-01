@@ -364,7 +364,20 @@ where
                     }
                 }
                 Ok(LiveEvent::Feed { asset_no, event }) => {
-                    todo!();
+                    *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
+                        Some((event.exch_ts, event.local_ts));
+                    if event.is(LOCAL_BID_DEPTH_EVENT) {
+                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                        depth.update_bid_depth(event.px, event.qty, event.exch_ts);
+                    } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
+                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                        depth.update_ask_depth(event.px, event.qty, event.exch_ts);
+                    } else if event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT) {
+                        if self.trade_len > 0 {
+                            let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+                            trade.push(event);
+                        }
+                    }
                 }
                 Ok(LiveEvent::Order { asset_no, order }) => {
                     debug!(%asset_no, ?order, "Event::Order");

@@ -203,9 +203,10 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => {
-                Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
-            }
+            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError {
+                code: resp.code,
+                msg: resp.msg,
+            }),
         }
     }
 
@@ -247,9 +248,10 @@ impl BinanceFuturesClient {
             .into_iter()
             .map(|resp| match resp {
                 OrderResponseResult::Ok(resp) => Ok(resp),
-                OrderResponseResult::Err(resp) => {
-                    Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
-                }
+                OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError {
+                    code: resp.code,
+                    msg: resp.msg,
+                }),
             })
             .collect())
     }
@@ -280,9 +282,10 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => {
-                Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
-            }
+            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError {
+                code: resp.code,
+                msg: resp.msg,
+            }),
         }
     }
 
@@ -302,9 +305,10 @@ impl BinanceFuturesClient {
             .await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
-            OrderResponseResult::Err(resp) => {
-                Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
-            }
+            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError {
+                code: resp.code,
+                msg: resp.msg,
+            }),
         }
     }
 
@@ -336,9 +340,10 @@ impl BinanceFuturesClient {
             .into_iter()
             .map(|resp| match resp {
                 OrderResponseResult::Ok(resp) => Ok(resp),
-                OrderResponseResult::Err(resp) => {
-                    Err(BinanceFuturesError::OrderError(resp.code, resp.msg))
-                }
+                OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError {
+                    code: resp.code,
+                    msg: resp.msg,
+                }),
             })
             .collect())
     }

@@ -12,7 +12,6 @@ use nom::{
     multi::separated_list0,
     sequence::{delimited, preceded, separated_pair, terminated},
     IResult,
-    Parser,
 };
 
 #[derive(PartialEq, Eq, Debug, Clone)]

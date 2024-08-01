@@ -1,8 +1,8 @@
 use algo::gridtrading;
 use hftbacktest::{
-    connector::binancefutures::{BinanceFutures, BinanceFuturesError, Endpoint},
+    connector::binancefutures::{BinanceFutures, Endpoint},
     live::{BotError, LiveBot, LoggingRecorder},
-    prelude::{Bot, ErrorKind, HashMapMarketDepth},
+    prelude::{Bot, ErrorKind, HashMapMarketDepth, Value},
 };
 use tracing::error;
 
@@ -33,20 +33,15 @@ fn prepare_live() -> LiveBot<HashMapMarketDepth> {
                     error!("CriticalConnectionError");
                 }
                 ErrorKind::OrderError => {
-                    let error: &BinanceFuturesError = error.value_downcast_ref().unwrap();
+                    let error = error.value();
                     match error {
-                        BinanceFuturesError::AssetNotFound => {
-                            error!("AssetNotFound");
+                        Value::String(err) => {
+                            error!(?err, "OrderError");
                         }
-                        BinanceFuturesError::InvalidRequest => {
-                            error!("InvalidRequest");
+                        Value::Map(err) => {
+                            error!(?err, "OrderError");
                         }
-                        BinanceFuturesError::ReqError(error) => {
-                            error!(?error, "ReqError");
-                        }
-                        BinanceFuturesError::OrderError(code, msg) => {
-                            error!(%code, %msg, "OrderError");
-                        }
+                        _ => {}
                     }
                 }
                 ErrorKind::Custom(errno) => {

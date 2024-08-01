@@ -3,7 +3,6 @@ use std::{
     collections::HashMap,
     io::{Error as IoError, ErrorKind},
     rc::Rc,
-    slice::SliceIndex,
 };
 
 use uuid::Uuid;

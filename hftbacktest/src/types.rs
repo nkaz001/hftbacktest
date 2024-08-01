@@ -2,7 +2,6 @@ use std::{
     any::Any,
     collections::HashMap,
     fmt::{Debug, Formatter},
-    sync::Arc,
 };
 
 use dyn_clone::DynClone;
@@ -11,40 +10,110 @@ use thiserror::Error;
 
 use crate::{backtest::reader::POD, depth::MarketDepth};
 
+#[derive(Clone, Debug)]
+pub enum Value {
+    String(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    List(Vec<Value>),
+    Map(HashMap<String, Value>),
+    Empty,
+}
+
+impl Value {
+    pub fn get_str(&self) -> Option<&str> {
+        if let Value::String(val) = self {
+            Some(val.as_str())
+        } else {
+            None
+        }
+    }
+
+    pub fn get_int(&self) -> Option<i64> {
+        if let Value::Int(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_float(&self) -> Option<f64> {
+        if let Value::Float(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_bool(&self) -> Option<bool> {
+        if let Value::Bool(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_list(&self) -> Option<&Vec<Value>> {
+        if let Value::List(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_map(&self) -> Option<&HashMap<String, Value>> {
+        if let Value::Map(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+}
+
+impl Into<Value> for anyhow::Error {
+    fn into(self) -> Value {
+        // todo!: improve this to deliver detailed error information.
+        Value::String(self.to_string())
+    }
+}
+
+#[cfg(feature = "use_reqwest")]
+impl Into<Value> for reqwest::Error {
+    fn into(self) -> Value {
+        let mut map = HashMap::new();
+        if let Some(code) = self.status() {
+            map.insert("status_code".to_string(), Value::String(code.to_string()));
+        }
+        map.insert("msg".to_string(), Value::String(self.to_string()));
+        Value::Map(map)
+    }
+}
+
 /// Error conveyed through [`LiveEvent`].
 #[derive(Clone, Debug)]
 pub struct LiveError {
     pub kind: ErrorKind,
-    pub value: Option<Arc<Box<dyn Any + Send + Sync>>>,
+    pub value: Value,
 }
 
 impl LiveError {
     /// Constructs an instance of `LiveError`.
     pub fn new(kind: ErrorKind) -> LiveError {
-        Self { kind, value: None }
-    }
-
-    /// Constructs an instance of `LiveError` with a value that is either the original error or
-    /// contains detailed error information.
-    pub fn with<T>(kind: ErrorKind, value: T) -> LiveError
-    where
-        T: Send + Sync + 'static,
-    {
         Self {
             kind,
-            value: Some(Arc::new(Box::new(value))),
+            value: Value::Empty,
         }
     }
 
-    /// Returns some reference to the value if it exists and is of type `T`, or `None` if it isn’t.
-    pub fn value_downcast_ref<T>(&self) -> Option<&T>
-    where
-        T: 'static,
-    {
-        self.value
-            .as_ref()
-            .map(|value| value.downcast_ref())
-            .flatten()
+    /// Constructs an instance of `LiveError` with a value that contains detailed error information.
+    pub fn with(kind: ErrorKind, value: Value) -> LiveError {
+        Self { kind, value }
+    }
+
+    /// Returns a reference to the value that contains detailed error information.
+    pub fn value(&self) -> &Value {
+        &self.value
     }
 }
 

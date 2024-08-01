@@ -1,6 +1,6 @@
 use algo::gridtrading;
 use hftbacktest::{
-    connector::bybit::{Bybit, BybitError, Endpoint},
+    connector::bybit::{Bybit, Endpoint},
     live::{LiveBot, LoggingRecorder},
     prelude::{Bot, ErrorKind, HashMapMarketDepth},
 };
@@ -36,7 +36,7 @@ fn prepare_live() -> LiveBot<HashMapMarketDepth> {
                     error!("CriticalConnectionError");
                 }
                 ErrorKind::OrderError => {
-                    let error: &BybitError = error.value_downcast_ref().unwrap();
+                    let error = error.value();
                     error!(?error, "OrderError");
                 }
                 ErrorKind::Custom(errno) => {

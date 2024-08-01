@@ -18,7 +18,7 @@ use crate::{
         Connector,
     },
     live::Asset,
-    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order},
+    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Value},
 };
 
 mod msg;
@@ -45,14 +45,34 @@ impl From<&'static str> for Endpoint {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Clone, Debug)]
 pub enum BybitError {
     #[error("asset not found")]
     AssetNotFound,
-    #[error("auth error {0}: {1}")]
-    AuthError(i64, String),
-    #[error("order error {0}: {1}")]
-    OrderError(i64, String),
+    #[error("auth error {code}: {msg}")]
+    AuthError { code: i64, msg: String },
+    #[error("order error {code}: {msg}")]
+    OrderError { code: i64, msg: String },
+}
+
+impl Into<Value> for BybitError {
+    fn into(self) -> Value {
+        match self {
+            BybitError::AssetNotFound => Value::Empty,
+            BybitError::AuthError { code, msg } => Value::Map({
+                let mut map = HashMap::new();
+                map.insert("code".to_string(), Value::Int(code));
+                map.insert("msg".to_string(), Value::String(msg));
+                map
+            }),
+            BybitError::OrderError { code, msg } => Value::Map({
+                let mut map = HashMap::new();
+                map.insert("code".to_string(), Value::Int(code));
+                map.insert("msg".to_string(), Value::String(msg));
+                map
+            }),
+        }
+    }
 }
 
 /// Bybit connector [`Bybit`] builder.
@@ -320,7 +340,7 @@ impl Connector for Bybit {
                     ev_tx_public
                         .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
-                            error,
+                            error.into(),
                         )))
                         .unwrap();
                 } else {
@@ -361,7 +381,7 @@ impl Connector for Bybit {
                         ev_tx_private
                             .send(LiveEvent::Error(LiveError::with(
                                 ErrorKind::OrderError,
-                                error,
+                                error.into(),
                             )))
                             .unwrap();
                         error_count += 1;
@@ -418,7 +438,7 @@ impl Connector for Bybit {
                     ev_tx_private
                         .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
-                            error,
+                            error.into(),
                         )))
                         .unwrap();
                 } else {
@@ -460,7 +480,7 @@ impl Connector for Bybit {
                     ev_tx_trade
                         .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
-                            error,
+                            error.into(),
                         )))
                         .unwrap();
                 } else {
