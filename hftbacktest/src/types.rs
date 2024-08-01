@@ -297,7 +297,7 @@ pub type OrderId = u64;
 pub enum WaitOrderResponse {
     None,
     Any,
-    Specified(usize, OrderId),
+    Specified { asset_no: usize, order_id: OrderId },
 }
 
 /// Feed event data.

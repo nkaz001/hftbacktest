@@ -171,10 +171,10 @@ where
                         EventIntentKind::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
                             let wait_order_resp_id = match wait_order_response {
-                                WaitOrderResponse::Specified(
-                                    wait_order_asset_no,
-                                    wait_order_id,
-                                ) if ev.asset_no == wait_order_asset_no => Some(wait_order_id),
+                                WaitOrderResponse::Specified {
+                                    asset_no: wait_order_asset_no,
+                                    order_id: wait_order_id,
+                                } if ev.asset_no == wait_order_asset_no => Some(wait_order_id),
                                 _ => None,
                             };
                             if local.process_recv_order(ev.timestamp, wait_order_resp_id)?
@@ -302,7 +302,7 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order_id),
+                WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
         Ok(true)
@@ -333,7 +333,7 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order_id),
+                WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
         Ok(true)
@@ -359,7 +359,10 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order.order_id),
+                WaitOrderResponse::Specified {
+                    asset_no,
+                    order_id: order.order_id,
+                },
             );
         }
         Ok(true)
@@ -378,7 +381,7 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order_id),
+                WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
         Ok(true)
@@ -410,7 +413,7 @@ where
     ) -> Result<bool, BacktestError> {
         self.goto::<false>(
             self.cur_ts + timeout,
-            WaitOrderResponse::Specified(asset_no, order_id),
+            WaitOrderResponse::Specified { asset_no, order_id },
         )
     }
 
@@ -618,10 +621,10 @@ where
                         EventIntentKind::LocalOrder => {
                             let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
                             let wait_order_resp_id = match wait_order_response {
-                                WaitOrderResponse::Specified(
-                                    wait_order_asset_no,
-                                    wait_order_id,
-                                ) if ev.asset_no == wait_order_asset_no => Some(wait_order_id),
+                                WaitOrderResponse::Specified {
+                                    asset_no: wait_order_asset_no,
+                                    order_id: wait_order_id,
+                                } if ev.asset_no == wait_order_asset_no => Some(wait_order_id),
                                 _ => None,
                             };
                             if local.process_recv_order(ev.timestamp, wait_order_resp_id)?
@@ -753,7 +756,7 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order_id),
+                WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
         Ok(true)
@@ -786,7 +789,7 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order_id),
+                WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
         Ok(true)
@@ -816,7 +819,10 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order.order_id),
+                WaitOrderResponse::Specified {
+                    asset_no,
+                    order_id: order.order_id,
+                },
             );
         }
         Ok(true)
@@ -839,7 +845,7 @@ where
         if wait {
             return self.goto::<false>(
                 UNTIL_END_OF_DATA,
-                WaitOrderResponse::Specified(asset_no, order_id),
+                WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
         Ok(true)
@@ -871,7 +877,7 @@ where
     ) -> Result<bool, BacktestError> {
         self.goto::<false>(
             self.cur_ts + timeout,
-            WaitOrderResponse::Specified(asset_no, order_id),
+            WaitOrderResponse::Specified { asset_no, order_id },
         )
     }
 
