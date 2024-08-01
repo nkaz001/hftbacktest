@@ -1,11 +1,13 @@
 use std::{
     marker::PhantomData,
-    mem::{forget, size_of},
+    mem::size_of,
     ops::{Index, IndexMut},
     ptr::null_mut,
     rc::Rc,
     slice::SliceIndex,
 };
+
+use crate::utils::{AlignedArray, CACHE_LINE_SIZE};
 
 /// Marker trait for plain old data.
 pub unsafe trait POD: Sized {}
@@ -91,9 +93,9 @@ pub struct DataPtr {
 
 impl DataPtr {
     pub fn new(size: usize) -> Self {
-        let vec = aligned_heap_array(size);
+        let vec = AlignedArray::<u8, CACHE_LINE_SIZE>::new(size);
         Self {
-            ptr: Box::into_raw(vec),
+            ptr: vec.into_ptr(),
             managed: true,
         }
     }
@@ -156,30 +158,4 @@ impl Drop for DataPtr {
             let _ = unsafe { Box::from_raw(self.ptr) };
         }
     }
-}
-
-#[repr(C, align(64))]
-struct Align64([u8; 64]);
-
-fn aligned_heap_array(size: usize) -> Box<[u8]> {
-    let capacity = (size / size_of::<Align64>()) + 1;
-    let mut aligned: Vec<Align64> = Vec::with_capacity(capacity);
-    unsafe {
-        aligned.set_len(capacity);
-    }
-
-    let ptr = aligned.as_mut_ptr();
-    let len = aligned.len();
-    let cap = aligned.capacity();
-
-    forget(aligned);
-
-    let vec = unsafe {
-        Vec::from_raw_parts(
-            ptr.cast(),
-            len * size_of::<Align64>(),
-            cap * size_of::<Align64>(),
-        )
-    };
-    vec.into_boxed_slice()
 }

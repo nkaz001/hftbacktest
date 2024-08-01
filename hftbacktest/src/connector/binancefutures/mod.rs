@@ -23,7 +23,7 @@ use crate::{
     },
     live::Asset,
     types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status},
-    util::get_precision,
+    utils::get_precision,
 };
 
 #[derive(Clone)]
