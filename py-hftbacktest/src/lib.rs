@@ -5,6 +5,7 @@ pub use depth::*;
 use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
+        data::{read_npz_file, Cache, Data, Reader},
         models::{
             ConstantLatency,
             IntpOrderLatency,
@@ -19,7 +20,6 @@ use hftbacktest::{
         },
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
-        reader::{read_npz_file, Cache, Data, Reader},
         state::State,
         Asset,
         Backtest,
@@ -91,6 +91,7 @@ unsafe impl Send for BacktestAsset {}
 #[pymethods]
 impl BacktestAsset {
     /// Constructs an instance of `AssetBuilder`.
+    #[allow(clippy::new_without_default)]
     #[new]
     pub fn new() -> Self {
         Self {

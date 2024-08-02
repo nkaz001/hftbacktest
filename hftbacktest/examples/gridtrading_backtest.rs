@@ -2,8 +2,8 @@ use algo::gridtrading;
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
+        data::{read_npz_file, DataSource},
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel},
-        reader::{read_npz_file, DataSource},
         recorder::BacktestRecorder,
         AssetBuilder,
         Backtest,
@@ -28,7 +28,7 @@ fn prepare_backtest() -> Backtest<HashMapMarketDepth> {
         .collect();
 
     let hbt = Backtest::builder()
-        .add(
+        .add_asset(
             AssetBuilder::new()
                 .data(data)
                 .latency_model(latency_model)

@@ -1,3 +1,5 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 use std::{
     collections::{hash_map::Values, HashMap},
     os::raw::c_void,

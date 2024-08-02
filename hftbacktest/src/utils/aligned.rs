@@ -37,7 +37,7 @@ impl<T, const ALIGNMENT: usize> AlignedArray<T, ALIGNMENT> {
     #[inline]
     pub fn new(len: usize) -> Self {
         if len == 0 {
-            panic!();
+            panic!("`len` cannot be zero.");
         } else {
             assert!(
                 len * size_of::<T>() <= Self::MAX_CAPACITY,
@@ -76,17 +76,27 @@ impl<T, const ALIGNMENT: usize> AlignedArray<T, ALIGNMENT> {
         unsafe { self.ptr.as_ref() }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
-    pub fn into_ptr(mut self) -> *mut [T] {
+    /// Consumes the ``AlignedArray``, returning a wrapped fat pointer, similar to ``Box::into_raw``.
+    pub fn into_raw(mut self) -> *mut [T] {
         let ptr = self.as_mut_ptr();
         forget(self);
         ptr
     }
 
+    /// Constructs an AlignedArray from a fat pointer, similar to ``Box::from_raw``, but with
+    /// the specified alignment.
+    ///
+    /// # Safety
+    /// This function is unsafe because improper use may lead to memory problems. For example, a
+    /// double-free may occur if the function is called twice on the same fat pointer.
+    ///
+    /// The fat pointer must originate from [`AlignedArray::into_raw`].
     pub unsafe fn from_raw(ptr: *mut [T]) -> Self {
         Self {
             ptr: NonNull::new_unchecked(ptr),

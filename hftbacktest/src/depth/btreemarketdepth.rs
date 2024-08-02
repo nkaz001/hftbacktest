@@ -10,7 +10,7 @@ use super::{
     INVALID_MIN,
 };
 use crate::{
-    backtest::{reader::Data, BacktestError},
+    backtest::{data::Data, BacktestError},
     prelude::{OrderId, Side},
     types::{Event, BUY_EVENT, SELL_EVENT},
 };

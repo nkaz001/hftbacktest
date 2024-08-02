@@ -1,12 +1,12 @@
 mod local;
 mod nopartialfillexchange;
 mod partialfillexchange;
-mod proc;
+mod traits;
 
 pub use local::Local;
 pub use nopartialfillexchange::NoPartialFillExchange;
 pub use partialfillexchange::PartialFillExchange;
-pub use proc::{LocalProcessor, Processor};
+pub use traits::{LocalProcessor, Processor};
 
 #[cfg(any(feature = "unstable_l3", doc))]
 mod l3_local;

@@ -8,9 +8,10 @@ use std::{
 use uuid::Uuid;
 
 use crate::backtest::{
-    reader::{
-        data::{Data, POD},
+    data::{
         npy::{read_npy_file, read_npz_file, NpyDTyped},
+        Data,
+        POD,
     },
     BacktestError,
 };
@@ -125,7 +126,7 @@ where
     }
 
     /// Retrieves the next `Data` based on the order of your additions.
-    pub fn next(&mut self) -> Result<Data<D>, BacktestError> {
+    pub fn next_data(&mut self) -> Result<Data<D>, BacktestError> {
         if self.data_num < self.file_list.len() {
             let filepath = self.file_list.get(self.data_num).unwrap();
             if !self.cache.contains(filepath) {

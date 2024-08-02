@@ -23,6 +23,7 @@ where
     /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
     ///                     See to the exchange model for details.
     /// * `current_timestamp` - The current backtesting timestamp.
+    #[allow(clippy::too_many_arguments)]
     fn submit_order(
         &mut self,
         order_id: OrderId,

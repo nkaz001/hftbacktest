@@ -1,8 +1,8 @@
 use std::io::Error as IoError;
 
 pub use backtest::*;
-pub use reader::DataSource;
-use reader::{Cache, Reader};
+pub use data::DataSource;
+use data::{Cache, Reader};
 use thiserror::Error;
 
 use crate::{
@@ -36,8 +36,8 @@ pub mod state;
 /// Recorder for a bot's trading statistics.
 pub mod recorder;
 
+pub mod data;
 mod evs;
-pub mod reader;
 
 /// Errors that can occur during backtesting.
 #[derive(Error, Debug)]
@@ -335,5 +335,17 @@ where
             local: Box::new(local),
             exch: Box::new(exch),
         })
+    }
+}
+
+impl<LM, AT, QM, MD> Default for AssetBuilder<LM, AT, QM, MD>
+where
+    AT: AssetType + Clone + 'static,
+    MD: MarketDepth + L2MarketDepth + 'static,
+    QM: QueueModel<MD> + 'static,
+    LM: LatencyModel + Clone + 'static,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }

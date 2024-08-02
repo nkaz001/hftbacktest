@@ -9,6 +9,7 @@ use crate::{
 };
 
 /// Provides logging of the live strategy's state values.
+#[derive(Default)]
 pub struct LoggingRecorder {
     state: HashMap<usize, (f64, StateValues)>,
 }
@@ -59,8 +60,6 @@ impl Recorder for LoggingRecorder {
 impl LoggingRecorder {
     /// Constructs an instance of `LoggingRecorder`.
     pub fn new() -> Self {
-        Self {
-            state: Default::default(),
-        }
+        Default::default()
     }
 }

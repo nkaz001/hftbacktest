@@ -6,10 +6,10 @@ use std::{
 use crate::{
     backtest::{
         assettype::AssetType,
+        data::{Data, Reader},
         models::LatencyModel,
         order::OrderBus,
-        proc::proc::{LocalProcessor, Processor},
-        reader::{Data, Reader},
+        proc::traits::{LocalProcessor, Processor},
         state::State,
         BacktestError,
     },
@@ -245,7 +245,7 @@ where
     MD: MarketDepth + L2MarketDepth,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next()?;
+        self.data = self.reader.next_data()?;
         for rn in 0..self.data.len() {
             if self.data[rn].is(LOCAL_EVENT) {
                 self.row_num = rn;
@@ -271,10 +271,8 @@ where
             self.depth.update_ask_depth(ev.px, ev.qty, ev.local_ts);
         }
         // Processes a trade event
-        else if ev.is(LOCAL_TRADE_EVENT) {
-            if self.trades.capacity() > 0 {
-                self.trades.push(ev.clone());
-            }
+        else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
+            self.trades.push(ev.clone());
         }
 
         // Stores the current feed latency
@@ -291,7 +289,7 @@ where
         }
 
         if next_ts <= 0 {
-            let next_data = self.reader.next()?;
+            let next_data = self.reader.next_data()?;
             let next_row = &next_data[0];
             next_ts = next_row.local_ts;
             let data = mem::replace(&mut self.data, next_data);
@@ -309,7 +307,7 @@ where
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
         let mut wait_resp_order_received = false;
-        while self.orders_from.len() > 0 {
+        while !self.orders_from.is_empty() {
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();

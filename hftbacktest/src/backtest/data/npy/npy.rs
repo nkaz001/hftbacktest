@@ -3,7 +3,7 @@ use std::{
     io::{Error, ErrorKind, Read, Result, Write},
 };
 
-use crate::backtest::reader::{
+use crate::backtest::data::{
     npy::{parser, parser::Value},
     Data,
     DataPtr,
@@ -35,7 +35,7 @@ impl NpyHeader {
     pub fn descr(&self) -> String {
         self.descr
             .iter()
-            .map(|&Field { ref name, ref ty }| format!("('{name}', '{ty}'), "))
+            .map(|Field { name, ty }| format!("('{name}', '{ty}'), "))
             .fold("[".to_string(), |o, n| o + &n)
             + "]"
     }
@@ -72,7 +72,7 @@ impl NpyHeader {
                         match tuple.len() {
                             2 => {
                                 match (&tuple[0], &tuple[1]) {
-                                    (&Value::String(ref name), &Value::String(ref dtype)) => {
+                                    (Value::String(name), Value::String(dtype)) => {
                                         descr.push(Field {
                                             name: name.clone(),
                                             ty: dtype.clone(),
@@ -213,7 +213,7 @@ pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> Result
     read_npy(&mut file, size)
 }
 
-pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &Vec<T>) -> Result<()> {
+pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &[T]) -> Result<()> {
     let descr = T::descr();
     let header = NpyHeader {
         descr,
@@ -226,12 +226,12 @@ pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &Vec<T>) -> Result
     let len = header_str.len() as u16;
     write.write_all(&len.to_le_bytes())?;
     write.write_all(header_str.as_bytes())?;
-    write.write_all(vec_as_bytes(&data))?;
+    write.write_all(vec_as_bytes(data))?;
     Ok(())
 }
 
 fn vec_as_bytes<T>(vec: &[T]) -> &[u8] {
-    let len = vec.len() * std::mem::size_of::<T>();
+    let len = std::mem::size_of_val(vec);
     let ptr = vec.as_ptr() as *const u8;
     unsafe { std::slice::from_raw_parts(ptr, len) }
 }

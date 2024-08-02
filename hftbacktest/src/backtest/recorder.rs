@@ -8,7 +8,7 @@ use hftbacktest_derive::NpyDTyped;
 use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{
-    backtest::reader::{write_npy, POD},
+    backtest::data::{write_npy, POD},
     depth::MarketDepth,
     types::{Bot, Recorder},
 };
@@ -94,9 +94,9 @@ impl BacktestRecorder {
         for (asset_no, values) in self.values.iter().enumerate() {
             let file_path = path.as_ref().join(format!("{prefix}{asset_no}.csv"));
             let mut file = File::create(file_path)?;
-            write!(
+            writeln!(
                 file,
-                "timestamp,balance,position,fee,trading_volume,trading_value,num_trades,price\n",
+                "timestamp,balance,position,fee,trading_volume,trading_value,num_trades,price",
             )?;
             for Record {
                 timestamp,
@@ -109,9 +109,9 @@ impl BacktestRecorder {
                 price: mid_price,
             } in values
             {
-                write!(
+                writeln!(
                     file,
-                    "{},{},{},{},{},{},{},{}\n",
+                    "{},{},{},{},{},{},{},{}",
                     timestamp,
                     balance,
                     position,

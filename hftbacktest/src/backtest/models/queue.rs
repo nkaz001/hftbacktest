@@ -44,7 +44,7 @@ impl AnyClone for f64 {
 
 impl<MD> RiskAdverseQueueModel<MD> {
     pub fn new() -> Self {
-        Self(Default::default())
+        Self(PhantomData)
     }
 }
 
@@ -53,12 +53,11 @@ where
     MD: MarketDepth,
 {
     fn new_order(&self, order: &mut Order, depth: &MD) {
-        let front_q_qty: f64;
-        if order.side == Side::Buy {
-            front_q_qty = depth.bid_qty_at_tick(order.price_tick);
+        let front_q_qty = if order.side == Side::Buy {
+            depth.bid_qty_at_tick(order.price_tick)
         } else {
-            front_q_qty = depth.ask_qty_at_tick(order.price_tick);
-        }
+            depth.ask_qty_at_tick(order.price_tick)
+        };
         order.q = Box::new(front_q_qty);
     }
 
@@ -75,8 +74,7 @@ where
     fn is_filled(&self, order: &Order, depth: &MD) -> f64 {
         let front_q_qty = order.q.as_any().downcast_ref::<f64>().unwrap();
         if (front_q_qty / depth.lot_size()).round() < 0.0 {
-            let q_qty = (-front_q_qty / depth.lot_size()).floor() * depth.lot_size();
-            q_qty
+            (-front_q_qty / depth.lot_size()).floor() * depth.lot_size()
         } else {
             0.0
         }
@@ -171,7 +169,7 @@ where
         // In order to avoid duplicate order queue position adjustment, subtract queue position
         // change by trades.
         let q = order.q.as_any_mut().downcast_mut::<QueuePos>().unwrap();
-        chg = chg - q.cum_trade_qty;
+        chg -= q.cum_trade_qty;
         // Reset, as quantity change by trade should be already reflected in qty.
         q.cum_trade_qty = 0.0;
         // For an increase of the quantity, front queue doesn't change by the quantity change.
@@ -195,8 +193,7 @@ where
     fn is_filled(&self, order: &Order, depth: &MD) -> f64 {
         let q = order.q.as_any().downcast_ref::<QueuePos>().unwrap();
         if (q.front_q_qty / depth.lot_size()).round() < 0.0 {
-            let q_qty = (-q.front_q_qty / depth.lot_size()).floor() * depth.lot_size();
-            q_qty
+            (-q.front_q_qty / depth.lot_size()).floor() * depth.lot_size()
         } else {
             0.0
         }
@@ -228,12 +225,13 @@ impl Probability for PowerProbQueueFunc {
 
 /// This probability model uses a logarithmic function `f(x) = log(1 + x)` to adjust the
 /// probability which is calculated as `f(back) / (f(back) + f(front))`.
+#[derive(Default)]
 pub struct LogProbQueueFunc(());
 
 impl LogProbQueueFunc {
     /// Constructs an instance of `LogProbQueueFunc`.
     pub fn new() -> Self {
-        Self(())
+        Default::default()
     }
 
     fn f(&self, x: f64) -> f64 {
@@ -249,12 +247,13 @@ impl Probability for LogProbQueueFunc {
 
 /// This probability model uses a logarithmic function `f(x) = log(1 + x)` to adjust the
 /// probability which is calculated as `f(back) / f(back + front)`.
+#[derive(Default)]
 pub struct LogProbQueueFunc2(());
 
 impl LogProbQueueFunc2 {
     /// Constructs an instance of `LogProbQueueFunc2`.
     pub fn new() -> Self {
-        Self(())
+        Default::default()
     }
 
     fn f(&self, x: f64) -> f64 {
@@ -416,8 +415,8 @@ impl L3QueueModel for L3FIFOQueueModel {
         let side = order.side;
 
         let priority = match side {
-            Side::Buy => self.bid_queue.entry(order_price_tick).or_insert(Vec::new()),
-            Side::Sell => self.ask_queue.entry(order_price_tick).or_insert(Vec::new()),
+            Side::Buy => self.bid_queue.entry(order_price_tick).or_default(),
+            Side::Sell => self.ask_queue.entry(order_price_tick).or_default(),
             Side::None | Side::Unsupported => unreachable!(),
         };
 
@@ -482,7 +481,7 @@ impl L3QueueModel for L3FIFOQueueModel {
 
         match side {
             Side::Buy => {
-                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
+                let queue = self.bid_queue.get_mut(order_price_tick).unwrap();
                 let mut processed = false;
                 let mut pos = None;
                 for (i, order_in_q) in queue.iter_mut().enumerate() {
@@ -518,7 +517,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                 }
             }
             Side::Sell => {
-                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
+                let queue = self.ask_queue.get_mut(order_price_tick).unwrap();
                 let mut processed = false;
                 let mut pos = None;
                 for (i, order_in_q) in queue.iter_mut().enumerate() {
