@@ -155,7 +155,7 @@ where
 impl Drop for DataPtr {
     fn drop(&mut self) {
         if self.managed {
-            let _ = unsafe { Box::from_raw(self.ptr) };
+            let _ = unsafe { AlignedArray::<u8, CACHE_LINE_SIZE>::from_raw(self.ptr) };
         }
     }
 }
