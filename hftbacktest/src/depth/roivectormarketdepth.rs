@@ -696,7 +696,7 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 mod tests {
     use crate::{
         depth::{L3MarketDepth, MarketDepth, ROIVectorMarketDepth, INVALID_MAX, INVALID_MIN},
-        types::{Side, BUY_EVENT, SELL_EVENT},
+        types::Side,
     };
 
     macro_rules! assert_eq_qty {

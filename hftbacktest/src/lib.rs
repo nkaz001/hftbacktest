@@ -52,5 +52,5 @@ pub mod types;
 /// Provides common types.
 pub mod prelude;
 
-/// Provides utility functions.
-pub mod util;
+/// Provides utilities.
+mod utils;

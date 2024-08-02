@@ -3,7 +3,7 @@ use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel},
-        reader::{read_npz, DataSource},
+        reader::{read_npz_file, DataSource},
         recorder::BacktestRecorder,
         AssetBuilder,
         Backtest,
@@ -38,7 +38,9 @@ fn prepare_backtest() -> Backtest<HashMapMarketDepth> {
                 .queue_model(queue_model)
                 .depth(|| {
                     let mut depth = HashMapMarketDepth::new(0.000001, 1.0);
-                    depth.apply_snapshot(&read_npz("1000SHIBUSDT_20240501_SOD.npz").unwrap());
+                    depth.apply_snapshot(
+                        &read_npz_file("1000SHIBUSDT_20240501_SOD.npz", "data").unwrap(),
+                    );
                     depth
                 })
                 .exchange(ExchangeKind::NoPartialFillExchange)

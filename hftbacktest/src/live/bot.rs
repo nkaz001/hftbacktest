@@ -364,16 +364,29 @@ where
                     }
                 }
                 Ok(LiveEvent::Feed { asset_no, event }) => {
-                    todo!();
+                    *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
+                        Some((event.exch_ts, event.local_ts));
+                    if event.is(LOCAL_BID_DEPTH_EVENT) {
+                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                        depth.update_bid_depth(event.px, event.qty, event.exch_ts);
+                    } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
+                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                        depth.update_ask_depth(event.px, event.qty, event.exch_ts);
+                    } else if event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT) {
+                        if self.trade_len > 0 {
+                            let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+                            trade.push(event);
+                        }
+                    }
                 }
                 Ok(LiveEvent::Order { asset_no, order }) => {
                     debug!(%asset_no, ?order, "Event::Order");
                     let received_order_resp = match wait_order_response {
                         WaitOrderResponse::Any => true,
-                        WaitOrderResponse::Specified(wait_order_asset_no, wait_order_id)
-                            if wait_order_id == order.order_id
-                                && wait_order_asset_no == asset_no =>
-                        {
+                        WaitOrderResponse::Specified {
+                            asset_no: wait_order_asset_no,
+                            order_id: wait_order_id,
+                        } if wait_order_id == order.order_id && wait_order_asset_no == asset_no => {
                             true
                         }
                         _ => false,
@@ -666,7 +679,7 @@ where
         order_id: OrderId,
         timeout: i64,
     ) -> Result<bool, Self::Error> {
-        self.elapse_::<false>(timeout, WaitOrderResponse::Specified(asset_no, order_id))
+        self.elapse_::<false>(timeout, WaitOrderResponse::Specified { asset_no, order_id })
     }
 
     #[inline]

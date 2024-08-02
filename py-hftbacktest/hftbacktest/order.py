@@ -17,8 +17,7 @@ EXPIRED = 2
 FILLED = 3
 CANCELED = 4
 PARTIALLY_FILLED = 5
-MODIFIED = 6
-REJECTED = 7
+REJECTED = 6
 
 GTC = 0  # Good 'till cancel
 GTX = 1  # Post only

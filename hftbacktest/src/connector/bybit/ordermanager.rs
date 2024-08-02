@@ -12,7 +12,7 @@ use crate::{
         util::gen_random_string,
     },
     prelude::{get_precision, OrdType, OrderId, Side, TimeInForce},
-    types::{Order, Status},
+    types::{Order, Status, Value},
 };
 
 pub type OrderManagerWrapper = Arc<Mutex<OrderManager>>;
@@ -39,6 +39,13 @@ pub(super) enum HandleError {
     SerdeError(#[from] serde_json::Error),
     #[error("tokio: {0}")]
     TokioError(#[from] tokio_tungstenite::tungstenite::Error),
+}
+
+impl Into<Value> for HandleError {
+    fn into(self) -> Value {
+        // todo!: improve this to deliver detailed error information.
+        Value::String(self.to_string())
+    }
 }
 
 pub struct OrderManager {

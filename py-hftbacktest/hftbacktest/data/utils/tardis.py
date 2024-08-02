@@ -192,7 +192,7 @@ def convert(
                             ss_ask = None
                         # Insert DEPTH_EVENT
                         tmp[row_num] = (
-                            DEPTH_EVENT | (BUY_EVENT if cols[5] == 'buy' else SELL_EVENT),
+                            DEPTH_EVENT | (BUY_EVENT if cols[5] == 'bid' else SELL_EVENT),
                             int(cols[2]) * timestamp_mul,
                             int(cols[3]) * timestamp_mul,
                             float(cols[6]),

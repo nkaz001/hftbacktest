@@ -1,11 +1,12 @@
 import unittest
+import numpy as np
 
 from numba import njit
 
 from hftbacktest import (
     BacktestAsset,
-    MultiAssetMultiExchangeBacktest,
-    ALL_ASSETS
+    HashMapMarketDepthBacktest,
+    ALL_ASSETS, ROIVectorMarketDepthBacktest
 )
 
 
@@ -55,6 +56,8 @@ class TestPyHftBacktest(unittest.TestCase):
         pass
 
     def test_run_backtest(self):
+        arr = np.load('tmp_20240501.npz')['data']
+
         asset = (
             BacktestAsset()
                 .linear_asset(1.0)
@@ -65,8 +68,10 @@ class TestPyHftBacktest(unittest.TestCase):
                 .tick_size(0.000001)
                 .lot_size(1.0)
                 .trade_len(1000)
+                .roi_lb(0.0)
+                .roi_ub(1.0)
         )
-        # todo: providing the initial snapshot.
 
-        hbt = MultiAssetMultiExchangeBacktest([asset])
+        # hbt = HashMapMarketDepthMultiAssetMultiExchangeBacktest([asset])
+        hbt = ROIVectorMarketDepthBacktest([asset])
         test_run(hbt)

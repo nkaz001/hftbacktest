@@ -1,7 +1,6 @@
-use std::{
-    mem,
-    mem::{forget, size_of},
-};
+use std::mem;
+
+use crate::utils::{AlignedArray, CACHE_LINE_SIZE};
 
 #[derive(Clone, Copy)]
 #[repr(C, align(32))]
@@ -22,27 +21,9 @@ pub enum EventIntentKind {
     ExchOrder = 3,
 }
 
-#[repr(C, align(64))]
-struct Align64([u8; 64]);
-
-fn aligned_vec_i64(count: usize) -> Box<[i64]> {
-    let capacity = (count * 8 / size_of::<Align64>()) + 1;
-    let mut aligned: Vec<Align64> = Vec::with_capacity(capacity);
-
-    let ptr = aligned.as_mut_ptr();
-    let cap = aligned.capacity();
-
-    forget(aligned);
-
-    unsafe {
-        Vec::from_raw_parts(ptr as *mut i64, count, cap * size_of::<Align64>() / 8)
-            .into_boxed_slice()
-    }
-}
-
 /// Manages the event timestamps to determine the next event to be processed.
 pub struct EventSet {
-    timestamp: Box<[i64]>,
+    timestamp: AlignedArray<i64, CACHE_LINE_SIZE>,
     invalid: usize,
     num_assets: usize,
 }
@@ -53,7 +34,7 @@ impl EventSet {
         if num_assets == 0 {
             panic!();
         }
-        let mut timestamp = aligned_vec_i64(num_assets * 4);
+        let mut timestamp = AlignedArray::<i64, CACHE_LINE_SIZE>::new(num_assets * 4);
         for i in 0..(num_assets * 4) {
             timestamp[i] = i64::MAX;
         }

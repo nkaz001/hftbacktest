@@ -72,12 +72,13 @@ where
             let orders = hbt.orders(0);
             let mut new_bid_orders = HashMap::new();
             if position < max_position && bid_price.is_finite() {
-                for i in 0..grid_num {
-                    bid_price -= i as f64 * grid_interval;
+                for _ in 0..grid_num {
                     let bid_price_tick = (bid_price / tick_size).round() as u64;
 
                     // order price in tick is used as order id.
                     new_bid_orders.insert(bid_price_tick, bid_price);
+
+                    bid_price -= grid_interval;
                 }
             }
             // Cancels if an order is not in the new grid.
@@ -117,12 +118,13 @@ where
             let orders = hbt.orders(0);
             let mut new_ask_orders = HashMap::new();
             if position > -max_position && ask_price.is_finite() {
-                for i in 0..grid_num {
-                    ask_price += i as f64 * grid_interval;
+                for _ in 0..grid_num {
                     let ask_price_tick = (ask_price / tick_size).round() as u64;
 
                     // order price in tick is used as order id.
                     new_ask_orders.insert(ask_price_tick, ask_price);
+
+                    ask_price += grid_interval;
                 }
             }
             // Cancels if an order is not in the new grid.

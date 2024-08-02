@@ -22,8 +22,8 @@ use crate::{
         Connector,
     },
     live::Asset,
-    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status},
-    util::get_precision,
+    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status, Value},
+    utils::get_precision,
 };
 
 #[derive(Clone)]
@@ -55,8 +55,24 @@ pub enum BinanceFuturesError {
     InvalidRequest,
     #[error("http error: {0:?}")]
     ReqError(#[from] reqwest::Error),
-    #[error("error({1}) at order_id({0})")]
-    OrderError(i64, String),
+    #[error("error({code}) at order_id({msg})")]
+    OrderError { code: i64, msg: String },
+}
+
+impl Into<Value> for BinanceFuturesError {
+    fn into(self) -> Value {
+        match self {
+            BinanceFuturesError::AssetNotFound => Value::String(self.to_string()),
+            BinanceFuturesError::InvalidRequest => Value::String(self.to_string()),
+            BinanceFuturesError::ReqError(err) => err.into(),
+            BinanceFuturesError::OrderError { code, msg } => Value::Map({
+                let mut map = HashMap::new();
+                map.insert("code".to_string(), Value::Int(code));
+                map.insert("msg".to_string(), Value::String(msg));
+                map
+            }),
+        }
+    }
 }
 
 /// Binance Futures USD-M connector [`BinanceFutures`] builder.
@@ -268,7 +284,7 @@ impl Connector for BinanceFutures {
                         ev_tx
                             .send(LiveEvent::Error(LiveError::with(
                                 ErrorKind::OrderError,
-                                error,
+                                error.into(),
                             )))
                             .unwrap();
                         error_count += 1;
@@ -314,7 +330,7 @@ impl Connector for BinanceFutures {
                         ev_tx
                             .send(LiveEvent::Error(LiveError::with(
                                 ErrorKind::Custom(1000),
-                                error,
+                                error.into(),
                             )))
                             .unwrap();
                         continue 'connection;
@@ -354,7 +370,7 @@ impl Connector for BinanceFutures {
                     ev_tx
                         .send(LiveEvent::Error(LiveError::with(
                             ErrorKind::ConnectionInterrupted,
-                            error,
+                            error.into(),
                         )))
                         .unwrap();
                 } else {
@@ -426,7 +442,7 @@ impl Connector for BinanceFutures {
 
                             tx.send(LiveEvent::Error(LiveError::with(
                                 ErrorKind::OrderError,
-                                error,
+                                error.into(),
                             )))
                             .unwrap();
                         }
@@ -488,7 +504,7 @@ impl Connector for BinanceFutures {
 
                             tx.send(LiveEvent::Error(LiveError::with(
                                 ErrorKind::OrderError,
-                                error,
+                                error.into(),
                             )))
                             .unwrap();
                         }

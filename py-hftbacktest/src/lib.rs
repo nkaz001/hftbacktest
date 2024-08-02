@@ -19,7 +19,7 @@ use hftbacktest::{
         },
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
-        reader::{read_npz, Cache, Data, Reader},
+        reader::{read_npz_file, Cache, Data, Reader},
         state::State,
         Asset,
         Backtest,
@@ -27,8 +27,8 @@ use hftbacktest::{
     },
     prelude::{ApplySnapshot, Event, HashMapMarketDepth, ROIVectorMarketDepth},
 };
+use hftbacktest_derive::build_asset;
 pub use order::*;
-use procmacro::build_asset;
 use pyo3::prelude::*;
 
 mod backtest;

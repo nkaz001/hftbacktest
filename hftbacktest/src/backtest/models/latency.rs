@@ -1,8 +1,10 @@
 use std::mem;
 
+use hftbacktest_derive::NpyDTyped;
+
 use crate::{
     backtest::{
-        reader::{Cache, Data, DataSource, NpyFile, Reader, POD},
+        reader::{Cache, Data, DataSource, Reader, POD},
         BacktestError,
     },
     types::Order,
@@ -53,8 +55,8 @@ impl LatencyModel for ConstantLatency {
 }
 
 /// The historical order latency data
-#[derive(Clone, Debug)]
 #[repr(C, align(32))]
+#[derive(Clone, Debug, NpyDTyped)]
 pub struct OrderLatencyRow {
     /// Timestamp at which the request occurs.
     pub req_ts: i64,
@@ -67,8 +69,6 @@ pub struct OrderLatencyRow {
 }
 
 unsafe impl POD for OrderLatencyRow {}
-
-unsafe impl NpyFile for OrderLatencyRow {}
 
 /// Provides order latency based on actual historical order latency data through interpolation.
 ///

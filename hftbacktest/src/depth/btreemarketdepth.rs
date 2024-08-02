@@ -416,7 +416,7 @@ impl L3MarketDepth for BTreeMarketDepth {
 mod tests {
     use crate::{
         depth::{BTreeMarketDepth, L3MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
-        types::{Side, BUY_EVENT, SELL_EVENT},
+        types::Side,
     };
 
     macro_rules! assert_eq_qty {

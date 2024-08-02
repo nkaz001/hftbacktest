@@ -553,16 +553,17 @@ async fn handle_trade_stream(
     let stream = serde_json::from_str::<TradeStreamMsg>(text)?;
     if stream.op == "auth" {
         if stream.ret_code != 0 {
+            let err = BybitError::AuthError {
+                code: stream.ret_code,
+                msg: stream.ret_msg.clone(),
+            };
             ev_tx
                 .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::CriticalConnectionError,
-                    BybitError::AuthError(stream.ret_code, stream.ret_msg.clone()),
+                    err.clone().into(),
                 )))
                 .unwrap();
-            return Err(anyhow::Error::from(BybitError::AuthError(
-                stream.ret_code,
-                stream.ret_msg,
-            )));
+            return Err(anyhow::Error::from(err));
         }
     } else if stream.op == "order.create" {
         let req_id = stream.req_id.ok_or(HandleError::InvalidReqId)?;
@@ -581,7 +582,11 @@ async fn handle_trade_stream(
             ev_tx
                 .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::OrderError,
-                    BybitError::OrderError(stream.ret_code, stream.ret_msg.clone()),
+                    BybitError::OrderError {
+                        code: stream.ret_code,
+                        msg: stream.ret_msg.clone(),
+                    }
+                    .into(),
                 )))
                 .unwrap();
         }
@@ -602,7 +607,11 @@ async fn handle_trade_stream(
             ev_tx
                 .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::OrderError,
-                    BybitError::OrderError(stream.ret_code, stream.ret_msg.clone()),
+                    BybitError::OrderError {
+                        code: stream.ret_code,
+                        msg: stream.ret_msg.clone(),
+                    }
+                    .into(),
                 )))
                 .unwrap();
         }

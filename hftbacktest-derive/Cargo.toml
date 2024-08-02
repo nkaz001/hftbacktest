@@ -1,0 +1,12 @@
+[package]
+name = "hftbacktest-derive"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0.36"
+syn = "2.0.72"
+proc-macro2 = "1.0.86"
