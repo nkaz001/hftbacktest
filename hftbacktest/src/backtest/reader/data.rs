@@ -109,7 +109,7 @@ impl DataPtr {
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.ptr.len()
+        unsafe { (*self.ptr).len() }
     }
 
     #[inline]

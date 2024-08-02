@@ -90,7 +90,7 @@ impl<T, const ALIGNMENT: usize> AlignedArray<T, ALIGNMENT> {
     pub unsafe fn from_raw(ptr: *mut [T]) -> Self {
         Self {
             ptr: NonNull::new_unchecked(ptr),
-            len: ptr.len(),
+            len: unsafe { (*ptr).len() },
         }
     }
 }
