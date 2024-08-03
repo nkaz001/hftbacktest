@@ -44,7 +44,7 @@ pub extern "C" fn orders_values_next(ptr: *mut Values<u64, Order>) -> *const Ord
         None => {
             let _ = unsafe { Box::from_raw(ptr) };
             null()
-        }
+        },
         Some(order) => order as *const _,
     }
 }

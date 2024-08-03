@@ -296,7 +296,7 @@ pub extern "C" fn hashmapbt_feed_latency(
                 *local_ts = local_ts_;
             }
             true
-        }
+        },
     }
 }
 
@@ -318,7 +318,7 @@ pub extern "C" fn hashmapbt_order_latency(
                 *resp_ts = resp_ts_;
             }
             true
-        }
+        },
     }
 }
 
@@ -625,7 +625,7 @@ pub extern "C" fn roivecbt_feed_latency(
                 *local_ts = local_ts_;
             }
             true
-        }
+        },
     }
 }
 
@@ -647,6 +647,6 @@ pub extern "C" fn roivecbt_order_latency(
                 *resp_ts = resp_ts_;
             }
             true
-        }
+        },
     }
 }
