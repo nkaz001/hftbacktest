@@ -170,6 +170,7 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(reader: &mut R, size: usize) -> R
     let check_type_only = |a: &DType, b: &DType| -> bool {
         for (a_, b_) in a.iter().zip(b.iter()) {
             if a_.ty != b_.ty {
+                println!("Error: Field types miss matched, {} != {}", a_.ty, b_.ty);
                 return false;
             }
         }
