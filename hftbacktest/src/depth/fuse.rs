@@ -340,7 +340,7 @@ impl MarketDepth for FusedHashMapMarketDepth {
     }
 }
 
-impl ApplySnapshot<Event> for FusedHashMapMarketDepth {
+impl ApplySnapshot for FusedHashMapMarketDepth {
     fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.best_bid_tick = INVALID_MIN;
         self.best_ask_tick = INVALID_MAX;
