@@ -109,13 +109,15 @@ async fn thread_main(
 pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
+pub type DepthBuilder<MD> = Box<dyn FnMut(&Asset) -> MD>;
+
 /// Live [`LiveBot`] builder.
 pub struct LiveBotBuilder<MD> {
     conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
     assets: Vec<(String, Asset)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
-    depth_builder: Option<Box<dyn FnMut(&Asset) -> MD>>,
+    depth_builder: Option<DepthBuilder<MD>>,
     trade_len: usize,
 }
 
@@ -350,13 +352,12 @@ where
                         } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
                             let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
                             depth.update_ask_depth(event.px, event.qty, event.exch_ts);
-                        } else if event.is(LOCAL_BUY_TRADE_EVENT)
-                            || event.is(LOCAL_SELL_TRADE_EVENT)
+                        } else if (event.is(LOCAL_BUY_TRADE_EVENT)
+                            || event.is(LOCAL_SELL_TRADE_EVENT))
+                            && self.trade_len > 0
                         {
-                            if self.trade_len > 0 {
-                                let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-                                trade.push(event);
-                            }
+                            let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+                            trade.push(event);
                         }
                     }
                     if WAIT_NEXT_FEED {
@@ -372,11 +373,11 @@ where
                     } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
                         let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
                         depth.update_ask_depth(event.px, event.qty, event.exch_ts);
-                    } else if event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT) {
-                        if self.trade_len > 0 {
-                            let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-                            trade.push(event);
-                        }
+                    } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
+                        && self.trade_len > 0
+                    {
+                        let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+                        trade.push(event);
                     }
                 }
                 Ok(LiveEvent::Order { asset_no, order }) => {

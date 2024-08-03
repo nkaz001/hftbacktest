@@ -387,6 +387,7 @@ pub trait L3QueueModel {
 /// Exchanges may have different matching algorithms, such as Pro-Rata, and may have exotic order
 /// types that aren't executed in a FIFO manner. Therefore, you should carefully choose the queue
 /// model, even when dealing with a Level 3 Market-By-Order feed.
+#[derive(Default)]
 pub struct L3FIFOQueueModel {
     // Stores the location of the queue that holds the order by (side, price in ticks).
     pub orders: HashMap<L3OrderId, (Side, i64)>,
@@ -399,11 +400,7 @@ pub struct L3FIFOQueueModel {
 impl L3FIFOQueueModel {
     /// Constructs an instance of `L3FIFOQueueModel`.
     pub fn new() -> Self {
-        Self {
-            orders: Default::default(),
-            bid_queue: Default::default(),
-            ask_queue: Default::default(),
-        }
+        Default::default()
     }
 }
 

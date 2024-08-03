@@ -6,7 +6,7 @@ use std::{
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::reader::{Data, Reader},
+        data::{Data, Reader},
         models::LatencyModel,
         order::OrderBus,
         proc::traits::{LocalProcessor, Processor},

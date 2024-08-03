@@ -280,7 +280,7 @@ impl MarketDepth for HashMapMarketDepth {
     }
 }
 
-impl ApplySnapshot<Event> for HashMapMarketDepth {
+impl ApplySnapshot for HashMapMarketDepth {
     fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.best_bid_tick = INVALID_MIN;
         self.best_ask_tick = INVALID_MAX;
@@ -704,10 +704,10 @@ mod tests {
         let lot_size = 0.001;
         let mut depth = HashMapMarketDepth::new(0.1, lot_size);
 
-        let (prev_best, best) = depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
+        depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
+        depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
+        depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
+        depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
 
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 
@@ -748,10 +748,10 @@ mod tests {
         let lot_size = 0.001;
         let mut depth = HashMapMarketDepth::new(0.1, lot_size);
 
-        let (prev_best, best) = depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
+        depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
+        depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
+        depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
+        depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
 
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 

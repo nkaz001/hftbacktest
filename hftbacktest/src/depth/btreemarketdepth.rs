@@ -193,7 +193,7 @@ impl MarketDepth for BTreeMarketDepth {
     }
 }
 
-impl ApplySnapshot<Event> for BTreeMarketDepth {
+impl ApplySnapshot for BTreeMarketDepth {
     fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.bid_depth.clear();
         self.ask_depth.clear();
@@ -213,31 +213,7 @@ impl ApplySnapshot<Event> for BTreeMarketDepth {
     }
 
     fn snapshot(&self) -> Vec<Event> {
-        let mut events = Vec::new();
-
-        // for (&px_tick, &qty) in self.bid_depth.iter().rev() {
-        //     events.push(Event {
-        //         ev: EXCH_EVENT | LOCAL_EVENT | BUY | DEPTH_SNAPSHOT_EVENT,
-        //         // todo: it's not a problem now, but it would be better to have valid timestamps.
-        //         exch_ts: 0,
-        //         local_ts: 0,
-        //         px: px_tick as f64 * self.tick_size,
-        //         qty,
-        //     });
-        // }
-        //
-        // for (&px_tick, &qty) in self.ask_depth.iter() {
-        //     events.push(Event {
-        //         ev: EXCH_EVENT | LOCAL_EVENT | SELL | DEPTH_SNAPSHOT_EVENT,
-        //         // todo: it's not a problem now, but it would be better to have valid timestamps.
-        //         exch_ts: 0,
-        //         local_ts: 0,
-        //         px: px_tick as f64 * self.tick_size,
-        //         qty,
-        //     });
-        // }
-
-        events
+        todo!()
     }
 }
 
@@ -557,10 +533,10 @@ mod tests {
         let lot_size = 0.001;
         let mut depth = BTreeMarketDepth::new(0.1, lot_size);
 
-        let (prev_best, best) = depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
+        depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
+        depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
+        depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
+        depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
 
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 
@@ -601,10 +577,10 @@ mod tests {
         let lot_size = 0.001;
         let mut depth = BTreeMarketDepth::new(0.1, lot_size);
 
-        let (prev_best, best) = depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
+        depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
+        depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
+        depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
+        depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
 
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 

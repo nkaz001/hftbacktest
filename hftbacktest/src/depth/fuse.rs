@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::{ApplySnapshot, L1MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
-    backtest::{data::reader::Data, BacktestError},
+    backtest::{data::Data, BacktestError},
     prelude::{L2MarketDepth, Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
     types::{Event, OrderId, BUY_EVENT, SELL_EVENT},
 };
@@ -54,7 +54,7 @@ fn depth_below(depth: &HashMap<i64, QtyTimestamp>, start: i64, end: i64) -> i64 
             return t;
         }
     }
-    return INVALID_MIN;
+    INVALID_MIN
 }
 
 #[inline(always)]
@@ -64,7 +64,7 @@ fn depth_above(depth: &HashMap<i64, QtyTimestamp>, start: i64, end: i64) -> i64 
             return t;
         }
     }
-    return INVALID_MAX;
+    INVALID_MAX
 }
 
 impl FusedHashMapMarketDepth {
@@ -247,9 +247,9 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
         )
     }
 
-    fn clear_depth(&mut self, side: i64, clear_upto_price: f64) {
+    fn clear_depth(&mut self, side: Side, clear_upto_price: f64) {
         let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
-        if side == BUY_EVENT {
+        if side == Side::Buy {
             if self.best_bid_tick != INVALID_MIN {
                 for t in clear_upto..(self.best_bid_tick + 1) {
                     if self.bid_depth.contains_key(&t) {
@@ -261,7 +261,7 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             if self.best_bid_tick == INVALID_MIN {
                 self.low_bid_tick = INVALID_MAX;
             }
-        } else if side == SELL_EVENT {
+        } else if side == Side::Sell {
             if self.best_ask_tick != INVALID_MAX {
                 for t in self.best_ask_tick..(clear_upto + 1) {
                     if self.ask_depth.contains_key(&t) {
