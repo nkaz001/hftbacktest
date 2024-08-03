@@ -2,7 +2,7 @@ use std::{collections::HashMap, io::Error as IoError, marker::PhantomData};
 
 pub use data::DataSource;
 use data::{Cache, Reader};
-use feemodel::TradingValueFeeModel;
+use feemodel::{CommonFees, TradingValueFeeModel};
 use thiserror::Error;
 
 use crate::{
@@ -254,8 +254,10 @@ where
             State::new(
                 asset_type,
                 TradingValueFeeModel {
-                    maker_fee: self.maker_fee,
-                    taker_fee: self.taker_fee,
+                    common_fees: CommonFees {
+                        maker_fee: self.maker_fee,
+                        taker_fee: self.taker_fee,
+                    },
                 },
             ),
             order_latency,
@@ -284,8 +286,10 @@ where
                     State::new(
                         asset_type,
                         TradingValueFeeModel {
-                            maker_fee: self.maker_fee,
-                            taker_fee: self.taker_fee,
+                            common_fees: CommonFees {
+                                maker_fee: self.maker_fee,
+                                taker_fee: self.taker_fee,
+                            },
                         },
                     ),
                     order_latency,
@@ -306,8 +310,10 @@ where
                     State::new(
                         asset_type,
                         TradingValueFeeModel {
-                            maker_fee: self.maker_fee,
-                            taker_fee: self.taker_fee,
+                            common_fees: CommonFees {
+                                maker_fee: self.maker_fee,
+                                taker_fee: self.taker_fee,
+                            },
                         },
                     ),
                     order_latency,
@@ -392,12 +398,13 @@ where
     }
 }
 
-impl<LM, AT, QM, MD> Default for AssetBuilder<LM, AT, QM, MD>
+impl<LM, AT, QM, MD, FM> Default for AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
     MD: MarketDepth + L2MarketDepth + 'static,
     QM: QueueModel<MD> + 'static,
     LM: LatencyModel + Clone + 'static,
+    FM: FeeModel + Clone + 'static,
 {
     fn default() -> Self {
         Self::new()

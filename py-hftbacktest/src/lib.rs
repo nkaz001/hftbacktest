@@ -6,7 +6,13 @@ use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
         data::{read_npz_file, Cache, Data, DataPtr, Reader},
-        feemodel::TradingValueFeeModel,
+        feemodel::{
+            CommonFees,
+            DirectionalFeeModel,
+            FlatPerTradeFeeModel,
+            TradingQtyFeeModel,
+            TradingValueFeeModel,
+        },
         models::{
             ConstantLatency,
             IntpOrderLatency,
@@ -69,6 +75,14 @@ pub enum ExchangeKind {
     PartialFillExchange {},
 }
 
+#[derive(Clone)]
+pub enum FeeModel {
+    TradingValueFeeModel { common_fees: CommonFees },
+    TradingQtyFeeModel { common_fees: CommonFees },
+    FlatPerTradeFeeModel { common_fees: CommonFees },
+    DirectionalFeeModel { common_fees: CommonFees },
+}
+
 /// Builds a backtesting asset.
 #[pyclass(subclass)]
 pub struct BacktestAsset {
@@ -85,6 +99,7 @@ pub struct BacktestAsset {
     roi_lb: f64,
     roi_ub: f64,
     initial_snapshot: Option<DataSource<Event>>,
+    fee_model: FeeModel,
 }
 
 unsafe impl Send for BacktestAsset {}
@@ -112,6 +127,12 @@ impl BacktestAsset {
             roi_lb: 0.0,
             roi_ub: 0.0,
             initial_snapshot: None,
+            fee_model: FeeModel::TradingValueFeeModel {
+                common_fees: CommonFees {
+                    maker_fee: 0.0,
+                    taker_fee: 0.0,
+                },
+            },
         }
     }
 
@@ -382,7 +403,13 @@ pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<
                 PowerProbQueueModel2 { n },
                 PowerProbQueueModel3 { n }
             ],
-            [NoPartialFillExchange {}, PartialFillExchange {}]
+            [NoPartialFillExchange {}, PartialFillExchange {}],
+            [
+                TradingValueFeeModel { common_fees },
+                TradingQtyFeeModel { common_fees },
+                FlatPerTradeFeeModel { common_fees },
+                DirectionalFeeModel { common_fees }
+            ]
         );
         local.push(asst.local);
         exch.push(asst.exch);
@@ -419,7 +446,13 @@ pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<u
                 PowerProbQueueModel2 { n },
                 PowerProbQueueModel3 { n }
             ],
-            [NoPartialFillExchange {}, PartialFillExchange {}]
+            [NoPartialFillExchange {}, PartialFillExchange {}],
+            [
+                TradingValueFeeModel { common_fees },
+                TradingQtyFeeModel { common_fees },
+                FlatPerTradeFeeModel { common_fees },
+                DirectionalFeeModel { common_fees }
+            ]
         );
         local.push(asst.local);
         exch.push(asst.exch);

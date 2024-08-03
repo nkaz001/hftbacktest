@@ -1,8 +1,5 @@
 use crate::{
-    backtest::{
-        assettype::AssetType,
-        feemodel::{FeeArgs, FeeModel},
-    },
+    backtest::{assettype::AssetType, feemodel::FeeModel},
     types::{Order, StateValues},
 };
 
@@ -45,10 +42,7 @@ where
         self.state_values.num_trades += 1;
         self.state_values.trading_volume += order.exec_qty;
         self.state_values.trading_value += amount;
-        self.state_values.fee += self.fee_model.amount(FeeArgs {
-            order: order,
-            amount: amount,
-        });
+        self.state_values.fee += self.fee_model.amount(order, amount);
     }
 
     #[inline]

@@ -1,54 +1,96 @@
 use crate::types::Order;
-
-pub struct FeeArgs<'a> {
-    pub order: &'a Order,
-    pub amount: f64,
+#[derive(Clone)]
+pub struct CommonFees {
+    pub maker_fee: f64,
+    pub taker_fee: f64,
 }
 
 pub trait FeeModel {
     // Calculates the fee amount.
-    fn amount(&self, args: FeeArgs) -> f64;
+    fn amount(&self, order: &Order, amount: f64) -> f64;
 }
 
 // fee based on a percentage of the order value, with the rate
 // depending on whether the order is a maker or taker.
-pub struct TradingValueFeeModel {
-    pub maker_fee: f64,
-    pub taker_fee: f64,
+#[derive(Clone)]
+
+pub struct TradingValueFeeModel<Fees> {
+    pub common_fees: Fees,
 }
-impl FeeModel for TradingValueFeeModel {
-    fn amount(&self, args: FeeArgs) -> f64 {
-        if args.order.maker {
-            self.maker_fee * args.amount
+
+impl TradingValueFeeModel<CommonFees> {
+    pub fn new(common_fees: CommonFees) -> Self {
+        Self { common_fees }
+    }
+}
+
+impl FeeModel for TradingValueFeeModel<CommonFees> {
+    fn amount(&self, order: &Order, amount: f64) -> f64 {
+        if order.maker {
+            self.common_fees.maker_fee * amount
         } else {
-            self.taker_fee * args.amount
+            self.common_fees.taker_fee * amount
         }
     }
 }
 // fee per trading quantity
-pub struct TradingQtyFeeModel {
-    pub per_qty_fee: f64,
+#[derive(Clone)]
+
+pub struct TradingQtyFeeModel<Fees> {
+    pub common_fees: Fees,
 }
-impl FeeModel for TradingQtyFeeModel {
-    fn amount(&self, args: FeeArgs) -> f64 {
-        self.per_qty_fee * args.order.qty
+
+impl TradingQtyFeeModel<CommonFees> {
+    pub fn new(common_fees: CommonFees) -> Self {
+        Self { common_fees }
+    }
+}
+impl FeeModel for TradingQtyFeeModel<CommonFees> {
+    fn amount(&self, order: &Order, amount: f64) -> f64 {
+        if order.maker {
+            self.common_fees.maker_fee * order.exec_qty
+        } else {
+            self.common_fees.taker_fee * order.exec_qty
+        }
     }
 }
 
 // fee per trade
-pub struct FlatPerTradeFeeModel {
-    pub flat_fee: f64,
+#[derive(Clone)]
+
+pub struct FlatPerTradeFeeModel<Fees> {
+    pub common_fees: Fees,
 }
-impl FeeModel for FlatPerTradeFeeModel {
-    fn amount(&self, args: FeeArgs) -> f64 {
-        self.flat_fee
+impl FlatPerTradeFeeModel<CommonFees> {
+    pub fn new(common_fees: CommonFees) -> Self {
+        Self { common_fees }
+    }
+}
+
+impl FeeModel for FlatPerTradeFeeModel<CommonFees> {
+    fn amount(&self, order: &Order, amount: f64) -> f64 {
+        if order.maker {
+            self.common_fees.maker_fee
+        } else {
+            self.common_fees.taker_fee
+        }
     }
 }
 
 // different fees based on the direction.
-pub struct DirectionalFeeModel {}
-impl FeeModel for DirectionalFeeModel {
-    fn amount(&self, args: FeeArgs) -> f64 {
+#[derive(Clone)]
+
+pub struct DirectionalFeeModel<Fees> {
+    pub common_fees: Fees,
+}
+impl DirectionalFeeModel<CommonFees> {
+    pub fn new(common_fees: CommonFees) -> Self {
+        Self { common_fees }
+    }
+}
+
+impl FeeModel for DirectionalFeeModel<CommonFees> {
+    fn amount(&self, order: &Order, amount: f64) -> f64 {
         panic!("Not implemented");
     }
 }
