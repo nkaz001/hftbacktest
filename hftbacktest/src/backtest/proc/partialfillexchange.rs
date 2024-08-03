@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     mem,
     rc::Rc,
@@ -164,22 +165,26 @@ where
         qty: f64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        if order.price_tick < price_tick {
-            self.filled_orders.push(order.order_id);
-            return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
-        } else if order.price_tick == price_tick {
-            // Updates the order's queue position.
-            self.queue_model.trade(order, qty, &self.depth);
-            let filled_qty = self.queue_model.is_filled(order, &self.depth);
-            if filled_qty > 0.0 {
-                // q_ahead is negative since is_filled is true and its value represents the
-                // executable quantity of this order after execution in the queue ahead of this
-                // order.
-                // let q_qty =
-                //     (-order.front_q_qty / self.depth.lot_size()).floor() * self.depth.lot_size();
-                let exec_qty = filled_qty.min(qty).min(order.leaves_qty);
+        match order.price_tick.cmp(&price_tick) {
+            Ordering::Greater => {}
+            Ordering::Less => {
                 self.filled_orders.push(order.order_id);
-                return self.fill(order, timestamp, true, order.price_tick, exec_qty);
+                return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
+            }
+            Ordering::Equal => {
+                // Updates the order's queue position.
+                self.queue_model.trade(order, qty, &self.depth);
+                let filled_qty = self.queue_model.is_filled(order, &self.depth);
+                if filled_qty > 0.0 {
+                    // q_ahead is negative since is_filled is true and its value represents the
+                    // executable quantity of this order after execution in the queue ahead of this
+                    // order.
+                    // let q_qty =
+                    //     (-order.front_q_qty / self.depth.lot_size()).floor() * self.depth.lot_size();
+                    let exec_qty = filled_qty.min(qty).min(order.leaves_qty);
+                    self.filled_orders.push(order.order_id);
+                    return self.fill(order, timestamp, true, order.price_tick, exec_qty);
+                }
             }
         }
         Ok(())
@@ -192,22 +197,26 @@ where
         qty: f64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        if order.price_tick > price_tick {
-            self.filled_orders.push(order.order_id);
-            return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
-        } else if order.price_tick == price_tick {
-            // Updates the order's queue position.
-            self.queue_model.trade(order, qty, &self.depth);
-            let filled_qty = self.queue_model.is_filled(order, &self.depth);
-            if filled_qty > 0.0 {
-                // q_ahead is negative since is_filled is true and its value represents the
-                // executable quantity of this order after execution in the queue ahead of this
-                // order.
-                // let q_qty =
-                //     (-order.front_q_qty / self.depth.lot_size()).floor() * self.depth.lot_size();
-                let exec_qty = filled_qty.min(qty).min(order.leaves_qty);
+        match order.price_tick.cmp(&price_tick) {
+            Ordering::Greater => {
                 self.filled_orders.push(order.order_id);
-                return self.fill(order, timestamp, true, order.price_tick, exec_qty);
+                return self.fill(order, timestamp, true, order.price_tick, order.leaves_qty);
+            }
+            Ordering::Less => {}
+            Ordering::Equal => {
+                // Updates the order's queue position.
+                self.queue_model.trade(order, qty, &self.depth);
+                let filled_qty = self.queue_model.is_filled(order, &self.depth);
+                if filled_qty > 0.0 {
+                    // q_ahead is negative since is_filled is true and its value represents the
+                    // executable quantity of this order after execution in the queue ahead of this
+                    // order.
+                    // let q_qty =
+                    //     (-order.front_q_qty / self.depth.lot_size()).floor() * self.depth.lot_size();
+                    let exec_qty = filled_qty.min(qty).min(order.leaves_qty);
+                    self.filled_orders.push(order.order_id);
+                    return self.fill(order, timestamp, true, order.price_tick, exec_qty);
+                }
             }
         }
         Ok(())

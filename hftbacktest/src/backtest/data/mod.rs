@@ -60,7 +60,11 @@ where
     }
 
     /// Constructs `Data` from [`DataPtr`] with the specified offset.
-    pub fn from_data_ptr(ptr: DataPtr, offset: usize) -> Self {
+    ///
+    /// # Safety
+    /// The underlying memory layout must match the layout of type `D` and be aligned from the
+    /// offset.
+    pub unsafe fn from_data_ptr(ptr: DataPtr, offset: usize) -> Self {
         Self {
             ptr: Rc::new(ptr),
             offset,
@@ -68,18 +72,11 @@ where
         }
     }
 
-    /// Constructs `Data` from a fat pointer with the specified offset.
-    ///
-    /// `Data` uses a [`DataPtr`], which is constructed from the given fat pointer. Please refer
-    /// to the safety guidelines in [`DataPtr::from_ptr`].
+    /// Returns a reference to an element, without doing bounds checking.
     ///
     /// # Safety
-    /// The underlying memory layout must match the layout of type `D`.
-    pub unsafe fn from_ptr(ptr: *mut [u8], offset: usize) -> Self {
-        Self::from_data_ptr(DataPtr::from_ptr(ptr), offset)
-    }
-
-    /// Returns a reference to an element, without doing bounds checking.
+    /// Calling this method with an out-of-bounds index is undefined behavior even if the resulting
+    /// reference is not used.
     #[inline(always)]
     pub unsafe fn get_unchecked(&self, index: usize) -> &D {
         let size = size_of::<D>();

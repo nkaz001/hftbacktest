@@ -5,7 +5,7 @@ pub use depth::*;
 use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
-        data::{read_npz_file, Cache, Data, Reader},
+        data::{read_npz_file, Cache, Data, DataPtr, Reader},
         models::{
             ConstantLatency,
             IntpOrderLatency,
@@ -141,7 +141,7 @@ impl BacktestAsset {
 
     pub fn _add_data_ndarray(mut slf: PyRefMut<Self>, data: usize, len: usize) -> PyRefMut<Self> {
         let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<Event>());
-        let data = unsafe { Data::<Event>::from_ptr(arr, 0) };
+        let data = unsafe { Data::<Event>::from_data_ptr(DataPtr::from_ptr(arr), 0) };
         slf.data.push(DataSource::Data(data));
         slf
     }
@@ -208,7 +208,7 @@ impl BacktestAsset {
         len: usize,
     ) -> PyRefMut<Self> {
         let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<OrderLatencyRow>());
-        let data = unsafe { Data::<OrderLatencyRow>::from_ptr(arr, 0) };
+        let data = unsafe { Data::<OrderLatencyRow>::from_data_ptr(DataPtr::from_ptr(arr), 0) };
         slf.latency_model = LatencyModel::IntpOrderLatency {
             data: vec![DataSource::Data(data)],
         };
@@ -289,7 +289,7 @@ impl BacktestAsset {
         len: usize,
     ) -> PyRefMut<Self> {
         let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<Event>());
-        let data = unsafe { Data::<Event>::from_ptr(arr, 0) };
+        let data = unsafe { Data::<Event>::from_data_ptr(DataPtr::from_ptr(arr), 0) };
         slf.initial_snapshot = Some(DataSource::Data(data));
         slf
     }

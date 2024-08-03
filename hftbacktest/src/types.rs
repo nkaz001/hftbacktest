@@ -309,13 +309,13 @@ pub struct Event {
     pub ev: u64,
     /// Exchange timestamp, which is the time at which the event occurs on the exchange.
     pub exch_ts: i64,
-    /// Exchange timestamp, which is the time at which the event occurs on the local.
+    /// Local timestamp, which is the time at which the event is received by the local.
     pub local_ts: i64,
     /// Price
     pub px: f64,
     /// Quantity
     pub qty: f64,
-    /// Order Id
+    /// Order ID is only for the L3 Market-By-Order feed.
     pub order_id: u64,
     /// Reserved for an additional i64 value
     pub ival: i64,

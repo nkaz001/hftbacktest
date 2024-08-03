@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     mem,
     rc::Rc,
@@ -150,15 +151,19 @@ where
         qty: f64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        if order.price_tick < price_tick {
-            self.filled_orders.push(order.order_id);
-            return self.fill(order, timestamp, true, order.price_tick);
-        } else if order.price_tick == price_tick {
-            // Updates the order's queue position.
-            self.queue_model.trade(order, qty, &self.depth);
-            if self.queue_model.is_filled(order, &self.depth) > 0.0 {
+        match order.price_tick.cmp(&price_tick) {
+            Ordering::Greater => {}
+            Ordering::Less => {
                 self.filled_orders.push(order.order_id);
                 return self.fill(order, timestamp, true, order.price_tick);
+            }
+            Ordering::Equal => {
+                // Updates the order's queue position.
+                self.queue_model.trade(order, qty, &self.depth);
+                if self.queue_model.is_filled(order, &self.depth) > 0.0 {
+                    self.filled_orders.push(order.order_id);
+                    return self.fill(order, timestamp, true, order.price_tick);
+                }
             }
         }
         Ok(())
@@ -171,15 +176,19 @@ where
         qty: f64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        if order.price_tick > price_tick {
-            self.filled_orders.push(order.order_id);
-            return self.fill(order, timestamp, true, order.price_tick);
-        } else if order.price_tick == price_tick {
-            // Updates the order's queue position.
-            self.queue_model.trade(order, qty, &self.depth);
-            if self.queue_model.is_filled(order, &self.depth) > 0.0 {
+        match order.price_tick.cmp(&price_tick) {
+            Ordering::Greater => {
                 self.filled_orders.push(order.order_id);
                 return self.fill(order, timestamp, true, order.price_tick);
+            }
+            Ordering::Less => {}
+            Ordering::Equal => {
+                // Updates the order's queue position.
+                self.queue_model.trade(order, qty, &self.depth);
+                if self.queue_model.is_filled(order, &self.depth) > 0.0 {
+                    self.filled_orders.push(order.order_id);
+                    return self.fill(order, timestamp, true, order.price_tick);
+                }
             }
         }
         Ok(())

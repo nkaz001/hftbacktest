@@ -192,7 +192,8 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
         return Err(Error::new(ErrorKind::InvalidData, "only 1-d is supported"));
     }
 
-    Ok(Data::from_data_ptr(buf, 10 + header_len))
+    let data = unsafe { Data::from_data_ptr(buf, 10 + header_len) };
+    Ok(data)
 }
 
 /// Reads a structured array `numpy` file. Currently, it doesn't check if the data structure is the
