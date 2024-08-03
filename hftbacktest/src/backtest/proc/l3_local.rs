@@ -222,7 +222,7 @@ where
         &self.orders
     }
 
-    fn trade(&self) -> &[Event] {
+    fn last_trades(&self) -> &[Event] {
         self.trades.as_slice()
     }
 

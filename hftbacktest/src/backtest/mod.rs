@@ -114,7 +114,7 @@ pub struct AssetBuilder<LM, AT, QM, MD> {
     maker_fee: f64,
     taker_fee: f64,
     exch_kind: ExchangeKind,
-    trade_len: usize,
+    last_trades_cap: usize,
 }
 
 impl<LM, AT, QM, MD> AssetBuilder<LM, AT, QM, MD>
@@ -138,7 +138,7 @@ where
             maker_fee: 0.0,
             taker_fee: 0.0,
             exch_kind: ExchangeKind::NoPartialFillExchange,
-            trade_len: 0,
+            last_trades_cap: 0,
         }
     }
 
@@ -207,10 +207,13 @@ where
         Self { exch_kind, ..self }
     }
 
-    /// Sets the length of market trades to be stored in the local processor. The default value is
-    /// `0`.
-    pub fn trade_len(self, trade_len: usize) -> Self {
-        Self { trade_len, ..self }
+    /// Sets the initial capacity of the vector storing the last market trades.
+    /// The default value is `0`, indicating that no last trades are stored.
+    pub fn last_trades_capacity(self, capacity: usize) -> Self {
+        Self {
+            last_trades_cap: capacity,
+            ..self
+        }
     }
 
     /// Builds an `Asset`.
@@ -236,7 +239,7 @@ where
             create_depth(),
             State::new(asset_type, self.maker_fee, self.taker_fee),
             order_latency,
-            self.trade_len,
+            self.last_trades_cap,
             ob_local_to_exch.clone(),
             ob_exch_to_local.clone(),
         );
@@ -590,8 +593,8 @@ where
         self.local.get(asset_no).unwrap().depth()
     }
 
-    fn trade(&self, asset_no: usize) -> &[Event] {
-        self.local.get(asset_no).unwrap().trade()
+    fn last_trades(&self, asset_no: usize) -> &[Event] {
+        self.local.get(asset_no).unwrap().last_trades()
     }
 
     #[inline]
@@ -1042,8 +1045,8 @@ where
         self.local.get(asset_no).unwrap().depth()
     }
 
-    fn trade(&self, asset_no: usize) -> &[Event] {
-        self.local.get(asset_no).unwrap().trade()
+    fn last_trades(&self, asset_no: usize) -> &[Event] {
+        self.local.get(asset_no).unwrap().last_trades()
     }
 
     #[inline]

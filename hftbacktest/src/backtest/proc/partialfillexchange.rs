@@ -12,7 +12,7 @@ use crate::{
         data::{Data, Reader},
         models::{LatencyModel, QueueModel},
         order::OrderBus,
-        proc::traits::Processor,
+        proc::Processor,
         state::State,
         BacktestError,
     },

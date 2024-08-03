@@ -268,7 +268,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 market_depth,
                                 State::new(asset_type.clone(), #asset.maker_fee, #asset.taker_fee),
                                 latency_model.clone(),
-                                #asset.trade_len,
+                                #asset.last_trades_cap,
                                 ob_local_to_exch.clone(),
                                 ob_exch_to_local.clone(),
                             ));

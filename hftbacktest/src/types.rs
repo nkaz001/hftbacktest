@@ -707,7 +707,7 @@ where
     /// Returns the last market trades.
     ///
     /// * `asset_no` - Asset number from which the last market trades will be retrieved.
-    fn trade(&self, asset_no: usize) -> &[Event];
+    fn last_trades(&self, asset_no: usize) -> &[Event];
 
     /// Clears the last market trades from the buffer.
     ///

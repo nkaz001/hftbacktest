@@ -29,13 +29,13 @@ pub extern "C" fn hashmapbt_depth(
 }
 
 #[no_mangle]
-pub extern "C" fn hashmapbt_trade(
+pub extern "C" fn hashmapbt_last_trades(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
     len_ptr: *mut usize,
 ) -> *const Event {
     let hbt = unsafe { &*hbt_ptr };
-    let trade = hbt.trade(asset_no);
+    let trade = hbt.last_trades(asset_no);
     unsafe {
         *len_ptr = trade.len();
     }
@@ -355,13 +355,13 @@ pub extern "C" fn roivecbt_depth(
 }
 
 #[no_mangle]
-pub extern "C" fn roivecbt_trade(
+pub extern "C" fn roivecbt_last_trades(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
     len_ptr: *mut usize,
 ) -> *const Event {
     let hbt = unsafe { &*hbt_ptr };
-    let trade = hbt.trade(asset_no);
+    let trade = hbt.last_trades(asset_no);
     unsafe {
         *len_ptr = trade.len();
     }

@@ -9,7 +9,7 @@ use crate::{
         data::{Data, Reader},
         models::LatencyModel,
         order::OrderBus,
-        proc::traits::{LocalProcessor, Processor},
+        proc::{LocalProcessor, Processor},
         state::State,
         BacktestError,
     },
@@ -221,7 +221,7 @@ where
         &self.orders
     }
 
-    fn trade(&self) -> &[Event] {
+    fn last_trades(&self) -> &[Event] {
         self.trades.as_slice()
     }
 

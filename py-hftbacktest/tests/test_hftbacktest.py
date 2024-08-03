@@ -15,11 +15,11 @@ def test_run(hbt):
     order_id = 0
     while hbt.elapse(10_000_000_000) == 0:
         current_timestamp = hbt.current_timestamp
-        depth = hbt.depth_typed(0)
+        depth = hbt.depth(0)
         best_bid = depth.best_bid
         best_ask = depth.best_ask
 
-        # trades = hbt.trade_typed(0)
+        # trades = hbt.last_trades(0)
         #
         # i = 0
         # for trade in trades:

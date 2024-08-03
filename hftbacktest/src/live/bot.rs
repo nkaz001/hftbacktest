@@ -542,7 +542,7 @@ where
     }
 
     #[inline]
-    fn trade(&self, asset_no: usize) -> &[Event] {
+    fn last_trades(&self, asset_no: usize) -> &[Event] {
         self.trade.get(asset_no).unwrap().as_slice()
     }
 

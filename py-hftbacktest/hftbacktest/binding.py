@@ -498,9 +498,9 @@ hashmapbt_depth = lib.hashmapbt_depth
 hashmapbt_depth.restype = c_void_p
 hashmapbt_depth.argtypes = [c_void_p, c_uint64]
 
-hashmapbt_trade = lib.hashmapbt_trade
-hashmapbt_trade.restype = c_void_p
-hashmapbt_trade.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
+hashmapbt_last_trades = lib.hashmapbt_last_trades
+hashmapbt_last_trades.restype = c_void_p
+hashmapbt_last_trades.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
 
 hashmapbt_num_assets = lib.hashmapbt_num_assets
 hashmapbt_num_assets.restype = c_uint64
@@ -621,7 +621,7 @@ class HashMapMarketDepthBacktest:
         )
         return StateValues_(arr)
 
-    def trade(self, asset_no: uint64) -> EVENT_ARRAY:
+    def last_trades(self, asset_no: uint64) -> EVENT_ARRAY:
         """
         Args:
             asset_no: Asset number from which the trades will be retrieved.
@@ -631,7 +631,7 @@ class HashMapMarketDepthBacktest:
         """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
-        ptr = hashmapbt_trade(self.ptr, asset_no, len_ptr)
+        ptr = hashmapbt_last_trades(self.ptr, asset_no, len_ptr)
         return numba.carray(
             address_as_void_pointer(ptr),
             val_from_ptr(len_ptr),
@@ -916,9 +916,9 @@ roivecbt_depth = lib.roivecbt_depth
 roivecbt_depth.restype = c_void_p
 roivecbt_depth.argtypes = [c_void_p, c_uint64]
 
-roivecbt_trade = lib.roivecbt_trade
-roivecbt_trade.restype = c_void_p
-roivecbt_trade.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
+roivecbt_last_trades = lib.roivecbt_last_trades
+roivecbt_last_trades.restype = c_void_p
+roivecbt_last_trades.argtypes = [c_void_p, c_uint64, POINTER(c_uint64)]
 
 roivecbt_num_assets = lib.roivecbt_num_assets
 roivecbt_num_assets.restype = c_uint64
@@ -1035,7 +1035,7 @@ class ROIVectorMarketDepthBacktest:
         )
         return StateValues_(arr)
 
-    def trade(self, asset_no: uint64) -> EVENT_ARRAY:
+    def last_trades(self, asset_no: uint64) -> EVENT_ARRAY:
         """
         Args:
             asset_no: Asset number from which the trades will be retrieved.
@@ -1045,7 +1045,7 @@ class ROIVectorMarketDepthBacktest:
         """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
-        ptr = roivecbt_trade(self.ptr, asset_no, len_ptr)
+        ptr = roivecbt_last_trades(self.ptr, asset_no, len_ptr)
         return numba.carray(
             address_as_void_pointer(ptr),
             val_from_ptr(len_ptr),
