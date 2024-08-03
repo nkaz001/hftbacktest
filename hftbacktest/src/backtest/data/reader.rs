@@ -1,5 +1,5 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::RefCell,
     collections::HashMap,
     io::{Error as IoError, ErrorKind},
     rc::Rc,
@@ -22,17 +22,45 @@ pub enum DataSource<D>
 where
     D: POD + Clone,
 {
-    /// Data needs to be loaded from the specified  file. It will be loaded when needed and released
-    /// when no processor is reading the data.
+    /// Data needs to be loaded from the specified file. It will be loaded when needed and released
+    /// when no [Processor](`crate::backtest::proc::Processor`) is reading the data.
     File(String),
     /// Data is loaded and set by the user.
     Data(Data<D>),
 }
 
+#[derive(Debug)]
+struct CachedData<D>
+where
+    D: POD + Clone,
+{
+    count: usize,
+    data: Data<D>,
+}
+
+impl<D> CachedData<D>
+where
+    D: POD + Clone,
+{
+    pub fn new(data: Data<D>) -> Self {
+        Self { count: 0, data }
+    }
+
+    pub fn checkout(&mut self) -> Data<D> {
+        self.count += 1;
+        self.data.clone()
+    }
+
+    pub fn turn_in(&mut self) -> bool {
+        self.count -= 1;
+        self.count == 0
+    }
+}
+
 /// Provides a data cache that allows both the local processor and exchange processor to access the
 /// same or different data based on their timestamps without the need for reloading.
 #[derive(Clone, Debug)]
-pub struct Cache<D>(Rc<RefCell<HashMap<String, (Cell<usize>, Data<D>)>>>)
+pub struct Cache<D>(Rc<RefCell<HashMap<String, CachedData<D>>>>)
 where
     D: POD + Clone;
 
@@ -47,16 +75,15 @@ where
 
     /// Inserts a key-value pair into the `Cache`.
     pub fn insert(&mut self, key: String, data: Data<D>) {
-        self.0.borrow_mut().insert(key, (Cell::new(0), data));
+        self.0.borrow_mut().insert(key, CachedData::new(data));
     }
 
-    /// Removes the `Data` if all retrieved `Data` are released.
+    /// Removes the [`Data`] if all retrieved [`Data`] are released.
     pub fn remove(&mut self, data: Data<D>) {
         let mut remove = None;
-        for (key, (ref_count, cached_data)) in self.0.borrow_mut().iter_mut() {
-            if data.ptr_eq(cached_data) {
-                *ref_count.get_mut() -= 1;
-                if ref_count.get() == 0 {
+        for (key, cached_data) in self.0.borrow_mut().iter_mut() {
+            if data.data_eq(&cached_data.data) {
+                if cached_data.turn_in() {
                     remove = Some(key.clone());
                 }
                 break;
@@ -67,17 +94,25 @@ where
         }
     }
 
-    /// Returns `true` if the `Cache` contains the `Data` for the specified key.
+    /// Returns `true` if the `Cache` contains the [`Data`] for the specified key.
     pub fn contains(&self, key: &str) -> bool {
         self.0.borrow().contains_key(key)
     }
 
-    /// Returns the `Data` corresponding to the key.
+    /// Returns the [`Data`] corresponding to the key.
     pub fn get(&mut self, key: &str) -> Data<D> {
         let mut borrowed = self.0.borrow_mut();
-        let (ref_count, data) = borrowed.get_mut(key).unwrap();
-        *ref_count.get_mut() += 1;
-        data.clone()
+        let cached_data = borrowed.get_mut(key).unwrap();
+        cached_data.checkout()
+    }
+}
+
+impl<D> Default for Cache<D>
+where
+    D: POD + Clone,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

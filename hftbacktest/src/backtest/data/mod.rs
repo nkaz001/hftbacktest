@@ -15,7 +15,7 @@ pub use reader::{Cache, DataSource, Reader};
 
 use crate::utils::{AlignedArray, CACHE_LINE_SIZE};
 
-/// Marker trait for plain old data.
+/// Marker trait for C representation plain old data.
 ///
 /// # Safety
 /// This marker trait should be implemented only if the struct has a C representation and contains
@@ -44,7 +44,7 @@ where
         (self.ptr.len() - self.offset) / size
     }
 
-    /// Returns ``true`` if the ``Data`` is empty.
+    /// Returns `true` if the `Data` is empty.
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.ptr.len() == 0
@@ -59,6 +59,7 @@ where
         }
     }
 
+    /// Constructs `Data` from [`DataPtr`] with the specified offset.
     pub fn from_data_ptr(ptr: DataPtr, offset: usize) -> Self {
         Self {
             ptr: Rc::new(ptr),
@@ -67,13 +68,13 @@ where
         }
     }
 
-    /// Constructs ``Data`` from a fat pointer with the specified offset.
+    /// Constructs `Data` from a fat pointer with the specified offset.
     ///
-    /// ``Data`` uses a [`DataPtr`], which is constructed from the given fat pointer. Please refer
+    /// `Data` uses a [`DataPtr`], which is constructed from the given fat pointer. Please refer
     /// to the safety guidelines in [`DataPtr::from_ptr`].
     ///
     /// # Safety
-    /// The underlying memory layout must match the layout of type ``D``.
+    /// The underlying memory layout must match the layout of type `D`.
     pub unsafe fn from_ptr(ptr: *mut [u8], offset: usize) -> Self {
         Self::from_data_ptr(DataPtr::from_ptr(ptr), offset)
     }
@@ -86,7 +87,8 @@ where
         unsafe { &*(self.ptr.at(i) as *const D) }
     }
 
-    pub fn ptr_eq(&self, other: &Self) -> bool {
+    /// Returns `true` if the two `Data` point to the same data.
+    pub fn data_eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.ptr, &other.ptr)
     }
 }
@@ -123,13 +125,13 @@ impl DataPtr {
         }
     }
 
-    /// Constructs ``DataPtr`` from a fat pointer.
+    /// Constructs a `DataPtr` from a fat pointer.
     ///
     /// Unlike other methods that construct an instance from a raw pointer, the raw pointer is not
-    /// owned by the resulting ``DataPtr``. Memory should still be managed by the caller.
+    /// owned by the resulting `DataPtr`. Memory should still be managed by the caller.
     ///
     /// # Safety
-    /// The fat pointer must remain valid for the lifetime of the resulting ``DataPtr``.
+    /// The fat pointer must remain valid for the lifetime of the resulting `DataPtr`.
     pub unsafe fn from_ptr(ptr: *mut [u8]) -> Self {
         Self {
             ptr,
