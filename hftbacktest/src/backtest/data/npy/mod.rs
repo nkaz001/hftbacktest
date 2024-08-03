@@ -168,20 +168,23 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
         ));
     }
 
-    let check_type_only = |a: &DType, b: &DType| -> bool {
+    let check_type_only = |a: &DType, b: &DType| -> Result<(), String> {
         for (a_, b_) in a.iter().zip(b.iter()) {
             if a_.ty != b_.ty {
-                return false;
+                return Err(format!("Field types miss matched, {} != {}", a_.ty, b_.ty));
             }
         }
-        true
+        Ok(())
     };
 
     if D::descr() != header.descr {
-        if check_type_only(&D::descr(), &header.descr) {
-            println!("Warning: Field types match, but the field names are different.")
-        } else {
-            return Err(Error::new(ErrorKind::InvalidData, "struct does not match"));
+        match check_type_only(&D::descr(), &header.descr) {
+            Ok(_) => {
+                println!("Warning: Field types match, but the field names are different.");
+            }
+            Err(err) => {
+                return Err(Error::new(ErrorKind::InvalidData, err));
+            }
         }
     }
 
