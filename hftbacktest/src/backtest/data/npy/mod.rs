@@ -1,15 +1,13 @@
 use std::{
     fs::File,
-    io::{Error, ErrorKind, Read, Result, Write},
+    io::{Error, ErrorKind, Read, Write},
 };
 
-use crate::backtest::reader::{
-    npy::{parser, parser::Value},
-    Data,
-    DataPtr,
-    POD,
-};
+use crate::backtest::data::{npy::parser::Value, Data, DataPtr, POD};
 
+mod parser;
+
+/// Trait
 pub trait NpyDTyped: POD {
     fn descr() -> DType;
 }
@@ -35,7 +33,7 @@ impl NpyHeader {
     pub fn descr(&self) -> String {
         self.descr
             .iter()
-            .map(|&Field { ref name, ref ty }| format!("('{name}', '{ty}'), "))
+            .map(|Field { name, ty }| format!("('{name}', '{ty}'), "))
             .fold("[".to_string(), |o, n| o + &n)
             + "]"
     }
@@ -56,7 +54,7 @@ impl NpyHeader {
             + ")"
     }
 
-    pub fn from_header(header: &str) -> Result<Self> {
+    pub fn from_header(header: &str) -> std::io::Result<Self> {
         let (_, header) = parser::parse::<(&str, nom::error::ErrorKind)>(header)
             .map_err(|err| Error::new(ErrorKind::InvalidData, err.to_string()))?;
         let dict = header.get_dict()?;
@@ -72,7 +70,7 @@ impl NpyHeader {
                         match tuple.len() {
                             2 => {
                                 match (&tuple[0], &tuple[1]) {
-                                    (&Value::String(ref name), &Value::String(ref dtype)) => {
+                                    (Value::String(name), Value::String(dtype)) => {
                                         descr.push(Field {
                                             name: name.clone(),
                                             ty: dtype.clone(),
@@ -135,7 +133,39 @@ impl NpyHeader {
     }
 }
 
-pub fn read_npy<R: Read, D: NpyDTyped + Clone>(reader: &mut R, size: usize) -> Result<Data<D>> {
+#[allow(dead_code)]
+#[derive(Debug)]
+struct FieldCheckResult {
+    expected: String,
+    found: String,
+}
+
+fn check_field_consistency(
+    expected_types: &DType,
+    found_types: &DType,
+) -> Result<Vec<FieldCheckResult>, String> {
+    let mut discrepancies = vec![];
+    for (expected, found) in expected_types.iter().zip(found_types.iter()) {
+        if expected.ty != found.ty {
+            return Err(format!(
+                "Field type mismatch: expected '{}: {}', but found '{}: {}'",
+                expected.name, expected.ty, found.name, found.ty
+            ));
+        }
+        if expected.name != found.name {
+            discrepancies.push(FieldCheckResult {
+                expected: expected.name.to_string(),
+                found: found.name.to_string(),
+            });
+        }
+    }
+    Ok(discrepancies)
+}
+
+pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
+    reader: &mut R,
+    size: usize,
+) -> std::io::Result<Data<D>> {
     let mut buf = DataPtr::new(size);
 
     let mut read_size = 0;
@@ -167,20 +197,14 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(reader: &mut R, size: usize) -> R
         ));
     }
 
-    let check_type_only = |a: &DType, b: &DType| -> bool {
-        for (a_, b_) in a.iter().zip(b.iter()) {
-            if a_.ty != b_.ty {
-                return false;
-            }
-        }
-        true
-    };
-
     if D::descr() != header.descr {
-        if check_type_only(&D::descr(), &header.descr) {
-            println!("Warning: Field types match, but the field names are different.")
-        } else {
-            return Err(Error::new(ErrorKind::InvalidData, "struct does not match"));
+        match check_field_consistency(&D::descr(), &header.descr) {
+            Ok(diff) => {
+                println!("Warning: Field name mismatch - {:?}", diff);
+            }
+            Err(err) => {
+                return Err(Error::new(ErrorKind::InvalidData, err));
+            }
         }
     }
 
@@ -188,12 +212,13 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(reader: &mut R, size: usize) -> R
         return Err(Error::new(ErrorKind::InvalidData, "only 1-d is supported"));
     }
 
-    Ok(Data::from_data_ptr(buf, 10 + header_len))
+    let data = unsafe { Data::from_data_ptr(buf, 10 + header_len) };
+    Ok(data)
 }
 
 /// Reads a structured array `numpy` file. Currently, it doesn't check if the data structure is the
 /// same as what the file contains. Users should be cautious about this.
-pub fn read_npy_file<D: NpyDTyped + Clone>(filepath: &str) -> Result<Data<D>> {
+pub fn read_npy_file<D: NpyDTyped + Clone>(filepath: &str) -> std::io::Result<Data<D>> {
     let mut file = File::open(filepath)?;
 
     file.sync_all()?;
@@ -204,7 +229,7 @@ pub fn read_npy_file<D: NpyDTyped + Clone>(filepath: &str) -> Result<Data<D>> {
 
 /// Reads a structured array `numpy` zip archived file. Currently, it doesn't check if the data
 /// structure is the same as what the file contains. Users should be cautious about this.
-pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> Result<Data<D>> {
+pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> std::io::Result<Data<D>> {
     let mut archive = zip::ZipArchive::new(File::open(filepath)?)?;
 
     let mut file = archive.by_name(&format!("{}.npy", name))?;
@@ -213,7 +238,7 @@ pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> Result
     read_npy(&mut file, size)
 }
 
-pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &Vec<T>) -> Result<()> {
+pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &[T]) -> std::io::Result<()> {
     let descr = T::descr();
     let header = NpyHeader {
         descr,
@@ -226,12 +251,12 @@ pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &Vec<T>) -> Result
     let len = header_str.len() as u16;
     write.write_all(&len.to_le_bytes())?;
     write.write_all(header_str.as_bytes())?;
-    write.write_all(vec_as_bytes(&data))?;
+    write.write_all(vec_as_bytes(data))?;
     Ok(())
 }
 
 fn vec_as_bytes<T>(vec: &[T]) -> &[u8] {
-    let len = vec.len() * std::mem::size_of::<T>();
+    let len = std::mem::size_of_val(vec);
     let ptr = vec.as_ptr() as *const u8;
     unsafe { std::slice::from_raw_parts(ptr, len) }
 }

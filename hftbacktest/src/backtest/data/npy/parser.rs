@@ -27,60 +27,50 @@ impl Value {
     pub fn get_string(&self) -> std::io::Result<&str> {
         match self {
             Value::String(s) => Ok(s),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "must be a string".to_string(),
-                ))
-            }
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                "must be a string".to_string(),
+            )),
         }
     }
 
     pub fn get_integer(&self) -> std::io::Result<usize> {
         match self {
             Value::Integer(n) => Ok(*n),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "must be an unsigned integer".to_string(),
-                ))
-            }
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                "must be an unsigned integer".to_string(),
+            )),
         }
     }
 
     pub fn get_bool(&self) -> std::io::Result<bool> {
         match self {
             Value::Bool(b) => Ok(*b),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "must be a bool".to_string(),
-                ))
-            }
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                "must be a bool".to_string(),
+            )),
         }
     }
 
     pub fn get_list(&self) -> std::io::Result<&Vec<Value>> {
         match self {
             Value::List(list) => Ok(list),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "must be a list".to_string(),
-                ))
-            }
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                "must be a list".to_string(),
+            )),
         }
     }
 
     pub fn get_dict(&self) -> std::io::Result<&HashMap<String, Value>> {
         match self {
             Value::Dict(dict) => Ok(dict),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "must be a dict".to_string(),
-                ))
-            }
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                "must be a dict".to_string(),
+            )),
         }
     }
 }

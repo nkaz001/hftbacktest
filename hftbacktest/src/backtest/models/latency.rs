@@ -4,7 +4,7 @@ use hftbacktest_derive::NpyDTyped;
 
 use crate::{
     backtest::{
-        reader::{Cache, Data, DataSource, Reader, POD},
+        data::{Cache, Data, DataSource, Reader, POD},
         BacktestError,
     },
     types::Order,
@@ -116,12 +116,12 @@ impl IntpOrderLatency {
                 }
             }
         }
-        let data = match reader.next() {
+        let data = match reader.next_data() {
             Ok(data) => data,
             Err(BacktestError::EndOfData) => Data::empty(),
             Err(e) => return Err(e),
         };
-        let next_data = match reader.next() {
+        let next_data = match reader.next_data() {
             Ok(data) => data,
             Err(BacktestError::EndOfData) => Data::empty(),
             Err(e) => return Err(e),
@@ -144,9 +144,9 @@ impl IntpOrderLatency {
         (((y2 - y1) as f64) / ((x2 - x1) as f64) * ((x - x1) as f64)) as i64 + y1
     }
 
-    fn next(&mut self) -> Result<bool, BacktestError> {
-        if self.next_data.len() > 0 {
-            let next_data = match self.reader.next() {
+    fn next_data(&mut self) -> Result<bool, BacktestError> {
+        if !self.next_data.is_empty() {
+            let next_data = match self.reader.next_data() {
                 Ok(data) => data,
                 Err(BacktestError::EndOfData) => Data::empty(),
                 Err(e) => return Err(e),
@@ -172,7 +172,7 @@ impl LatencyModel for IntpOrderLatency {
             let row = &self.data[self.entry_rn];
             let next_row = if self.entry_rn + 1 < self.data.len() {
                 &self.data[self.entry_rn + 1]
-            } else if self.next_data.len() > 0 {
+            } else if !self.next_data.is_empty() {
                 &self.next_data[0]
             } else {
                 let last_row = &self.data[self.data.len() - 1];
@@ -217,14 +217,12 @@ impl LatencyModel for IntpOrderLatency {
                     next_req_local_timestamp,
                     lat2,
                 );
-            } else {
-                if self.entry_rn == self.data.len() - 1 {
-                    if self.next().unwrap() {
-                        self.entry_rn = 0;
-                    }
-                } else {
-                    self.entry_rn += 1;
+            } else if self.entry_rn == self.data.len() - 1 {
+                if self.next_data().unwrap() {
+                    self.entry_rn = 0;
                 }
+            } else {
+                self.entry_rn += 1;
             }
         }
     }
@@ -239,7 +237,7 @@ impl LatencyModel for IntpOrderLatency {
             let row = &self.data[self.resp_rn];
             let next_row = if self.resp_rn + 1 < self.data.len() {
                 &self.data[self.resp_rn + 1]
-            } else if self.next_data.len() > 0 {
+            } else if !self.next_data.is_empty() {
                 &self.next_data[0]
             } else {
                 let last_row = &self.data[self.data.len() - 1];
@@ -258,14 +256,12 @@ impl LatencyModel for IntpOrderLatency {
                 let lat = self.intp(timestamp, exch_timestamp, lat1, next_exch_timestamp, lat2);
                 assert!(lat >= 0);
                 return lat;
-            } else {
-                if self.resp_rn == self.data.len() - 1 {
-                    if self.next().unwrap() {
-                        self.resp_rn = 0;
-                    }
-                } else {
-                    self.resp_rn += 1;
+            } else if self.resp_rn == self.data.len() - 1 {
+                if self.next_data().unwrap() {
+                    self.resp_rn = 0;
                 }
+            } else {
+                self.resp_rn += 1;
             }
         }
     }

@@ -5,6 +5,7 @@ pub use depth::*;
 use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
+        data::{read_npz_file, Cache, Data, DataPtr, Reader},
         models::{
             ConstantLatency,
             IntpOrderLatency,
@@ -19,7 +20,6 @@ use hftbacktest::{
         },
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
-        reader::{read_npz_file, Cache, Data, Reader},
         state::State,
         Asset,
         Backtest,
@@ -80,7 +80,7 @@ pub struct BacktestAsset {
     lot_size: f64,
     maker_fee: f64,
     taker_fee: f64,
-    trade_len: usize,
+    last_trades_cap: usize,
     roi_lb: f64,
     roi_ub: f64,
     initial_snapshot: Option<DataSource<Event>>,
@@ -91,6 +91,7 @@ unsafe impl Send for BacktestAsset {}
 #[pymethods]
 impl BacktestAsset {
     /// Constructs an instance of `AssetBuilder`.
+    #[allow(clippy::new_without_default)]
     #[new]
     pub fn new() -> Self {
         Self {
@@ -106,7 +107,7 @@ impl BacktestAsset {
             maker_fee: 0.0,
             taker_fee: 0.0,
             exch_kind: ExchangeKind::NoPartialFillExchange {},
-            trade_len: 0,
+            last_trades_cap: 0,
             roi_lb: 0.0,
             roi_ub: 0.0,
             initial_snapshot: None,
@@ -140,7 +141,7 @@ impl BacktestAsset {
 
     pub fn _add_data_ndarray(mut slf: PyRefMut<Self>, data: usize, len: usize) -> PyRefMut<Self> {
         let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<Event>());
-        let data = unsafe { Data::<Event>::from_ptr(arr, 0) };
+        let data = unsafe { Data::<Event>::from_data_ptr(DataPtr::from_ptr(arr), 0) };
         slf.data.push(DataSource::Data(data));
         slf
     }
@@ -207,7 +208,7 @@ impl BacktestAsset {
         len: usize,
     ) -> PyRefMut<Self> {
         let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<OrderLatencyRow>());
-        let data = unsafe { Data::<OrderLatencyRow>::from_ptr(arr, 0) };
+        let data = unsafe { Data::<OrderLatencyRow>::from_data_ptr(DataPtr::from_ptr(arr), 0) };
         slf.latency_model = LatencyModel::IntpOrderLatency {
             data: vec![DataSource::Data(data)],
         };
@@ -288,7 +289,7 @@ impl BacktestAsset {
         len: usize,
     ) -> PyRefMut<Self> {
         let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<Event>());
-        let data = unsafe { Data::<Event>::from_ptr(arr, 0) };
+        let data = unsafe { Data::<Event>::from_data_ptr(DataPtr::from_ptr(arr), 0) };
         slf.initial_snapshot = Some(DataSource::Data(data));
         slf
     }
@@ -331,9 +332,10 @@ impl BacktestAsset {
         slf
     }
 
-    /// Sets the initial capacity of the vector storing the trades occurring in the market.
-    pub fn trade_len(mut slf: PyRefMut<Self>, trade_len: usize) -> PyRefMut<Self> {
-        slf.trade_len = trade_len;
+    /// Sets the initial capacity of the vector storing the last market trades.
+    /// The default value is `0`, indicating that no last trades are stored.
+    pub fn last_trades_capacity(mut slf: PyRefMut<Self>, capacity: usize) -> PyRefMut<Self> {
+        slf.last_trades_cap = capacity;
         slf
     }
 }

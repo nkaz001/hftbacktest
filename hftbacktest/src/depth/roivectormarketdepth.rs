@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
-    backtest::{reader::Data, BacktestError},
+    backtest::{data::Data, BacktestError},
     prelude::{L2MarketDepth, OrderId, Side},
     types::{Event, BUY_EVENT, SELL_EVENT},
 };
@@ -28,7 +28,7 @@ pub struct ROIVectorMarketDepth {
 }
 
 #[inline(always)]
-fn depth_below(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
+fn depth_below(depth: &[f64], start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
     let start = (start.min(roi_ub) - roi_lb) as usize;
     let end = (end.max(roi_lb) - roi_lb) as usize;
     for t in (end..start).rev() {
@@ -36,11 +36,11 @@ fn depth_below(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64)
             return t as i64 + roi_lb;
         }
     }
-    return INVALID_MIN;
+    INVALID_MIN
 }
 
 #[inline(always)]
-fn depth_above(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
+fn depth_above(depth: &[f64], start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
     let start = (start.max(roi_lb) - roi_lb) as usize;
     let end = (end.min(roi_ub) - roi_lb) as usize;
     for t in (start + 1)..(end + 1) {
@@ -48,7 +48,7 @@ fn depth_above(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64)
             return t as i64 + roi_lb;
         }
     }
-    return INVALID_MAX;
+    INVALID_MAX
 }
 
 impl ROIVectorMarketDepth {
@@ -368,7 +368,7 @@ impl MarketDepth for ROIVectorMarketDepth {
     }
 }
 
-impl ApplySnapshot<Event> for ROIVectorMarketDepth {
+impl ApplySnapshot for ROIVectorMarketDepth {
     fn apply_snapshot(&mut self, data: &Data<Event>) {
         self.best_bid_tick = INVALID_MIN;
         self.best_ask_tick = INVALID_MAX;
@@ -837,10 +837,10 @@ mod tests {
         let lot_size = 0.001;
         let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 0.0, 2000.0);
 
-        let (prev_best, best) = depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
+        depth.add_buy_order(1, 500.1, 0.001, 0).unwrap();
+        depth.add_buy_order(2, 500.3, 0.005, 0).unwrap();
+        depth.add_buy_order(3, 500.1, 0.005, 0).unwrap();
+        depth.add_buy_order(4, 500.5, 0.005, 0).unwrap();
 
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 
@@ -881,10 +881,10 @@ mod tests {
         let lot_size = 0.001;
         let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 0.0, 2000.0);
 
-        let (prev_best, best) = depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
-        let (prev_best, best) = depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
+        depth.add_sell_order(1, 500.1, 0.001, 0).unwrap();
+        depth.add_sell_order(2, 499.3, 0.005, 0).unwrap();
+        depth.add_sell_order(3, 500.1, 0.005, 0).unwrap();
+        depth.add_sell_order(4, 498.5, 0.005, 0).unwrap();
 
         assert!(depth.modify_order(10, 500.5, 0.001, 0).is_err());
 

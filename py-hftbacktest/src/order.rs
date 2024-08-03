@@ -1,3 +1,5 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 use std::{
     collections::{hash_map::Values, HashMap},
     os::raw::c_void,
@@ -42,7 +44,7 @@ pub extern "C" fn orders_values_next(ptr: *mut Values<u64, Order>) -> *const Ord
         None => {
             let _ = unsafe { Box::from_raw(ptr) };
             null()
-        }
+        },
         Some(order) => order as *const _,
     }
 }

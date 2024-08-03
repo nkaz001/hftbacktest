@@ -44,7 +44,7 @@ class Recorder:
     def recorder(self):
         return self._recorder
 
-    def save(self, file: str):
+    def to_npz(self, file: str):
         data = self._recorder.records[:self._recorder.i]
         kwargs = {str(asset_no): data[:, asset_no] for asset_no in range(data.shape[1])}
         np.savez_compressed(file, **kwargs)

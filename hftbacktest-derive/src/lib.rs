@@ -57,11 +57,11 @@ pub fn dtype_derive(input: TokenStream) -> TokenStream {
 
             // Generate code to print field names and types
             quote! {
-                impl crate::backtest::reader::NpyDTyped for #name {
-                    fn descr() -> Vec<crate::backtest::reader::Field> {
+                impl crate::backtest::data::NpyDTyped for #name {
+                    fn descr() -> Vec<crate::backtest::data::Field> {
                         return vec![
                             #(
-                                crate::backtest::reader::Field {
+                                crate::backtest::data::Field {
                                     name: #field_names.to_string(),
                                     ty: #field_types.to_string(),
                                 }
@@ -268,7 +268,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 market_depth,
                                 State::new(asset_type.clone(), #asset.maker_fee, #asset.taker_fee),
                                 latency_model.clone(),
-                                #asset.trade_len,
+                                #asset.last_trades_cap,
                                 ob_local_to_exch.clone(),
                                 ob_exch_to_local.clone(),
                             ));
