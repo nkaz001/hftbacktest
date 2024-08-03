@@ -133,6 +133,35 @@ impl NpyHeader {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+struct FieldCheckResult {
+    expected: String,
+    found: String,
+}
+
+fn check_field_consistency(
+    expected_types: &DType,
+    found_types: &DType,
+) -> Result<Vec<FieldCheckResult>, String> {
+    let mut discrepancies = vec![];
+    for (expected, found) in expected_types.iter().zip(found_types.iter()) {
+        if expected.ty != found.ty {
+            return Err(format!(
+                "Field type mismatch: expected '{}: {}', but found '{}: {}'",
+                expected.name, expected.ty, found.name, found.ty
+            ));
+        }
+        if expected.name != found.name {
+            discrepancies.push(FieldCheckResult {
+                expected: expected.name.to_string(),
+                found: found.name.to_string(),
+            });
+        }
+    }
+    Ok(discrepancies)
+}
+
 pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
     reader: &mut R,
     size: usize,
@@ -168,19 +197,10 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
         ));
     }
 
-    let check_type_only = |a: &DType, b: &DType| -> Result<(), String> {
-        for (a_, b_) in a.iter().zip(b.iter()) {
-            if a_.ty != b_.ty {
-                return Err(format!("Field types miss matched, {} != {}", a_.ty, b_.ty));
-            }
-        }
-        Ok(())
-    };
-
     if D::descr() != header.descr {
-        match check_type_only(&D::descr(), &header.descr) {
-            Ok(_) => {
-                println!("Warning: Field types match, but the field names are different.");
+        match check_field_consistency(&D::descr(), &header.descr) {
+            Ok(diff) => {
+                println!("Warning: Field name mismatch - {:?}", diff);
             }
             Err(err) => {
                 return Err(Error::new(ErrorKind::InvalidData, err));
