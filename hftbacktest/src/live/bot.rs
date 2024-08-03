@@ -455,6 +455,7 @@ where
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn submit_order(
         &mut self,
         asset_no: usize,

@@ -59,7 +59,7 @@ impl EventSet {
             }
         }
         let asset_no = evst_no >> 2;
-        let ty = unsafe { mem::transmute(evst_no & 3) };
+        let ty = unsafe { mem::transmute::<usize, EventIntentKind>(evst_no & 3) };
         Some(EventIntent {
             timestamp,
             asset_no,

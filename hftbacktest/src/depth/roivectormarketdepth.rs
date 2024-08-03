@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
-    backtest::{reader::Data, BacktestError},
+    backtest::{data::Data, BacktestError},
     prelude::{L2MarketDepth, OrderId, Side},
     types::{Event, BUY_EVENT, SELL_EVENT},
 };
@@ -28,7 +28,7 @@ pub struct ROIVectorMarketDepth {
 }
 
 #[inline(always)]
-fn depth_below(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
+fn depth_below(depth: &[f64], start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
     let start = (start.min(roi_ub) - roi_lb) as usize;
     let end = (end.max(roi_lb) - roi_lb) as usize;
     for t in (end..start).rev() {
@@ -36,11 +36,11 @@ fn depth_below(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64)
             return t as i64 + roi_lb;
         }
     }
-    return INVALID_MIN;
+    INVALID_MIN
 }
 
 #[inline(always)]
-fn depth_above(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
+fn depth_above(depth: &[f64], start: i64, end: i64, roi_lb: i64, roi_ub: i64) -> i64 {
     let start = (start.max(roi_lb) - roi_lb) as usize;
     let end = (end.min(roi_ub) - roi_lb) as usize;
     for t in (start + 1)..(end + 1) {
@@ -48,7 +48,7 @@ fn depth_above(depth: &Vec<f64>, start: i64, end: i64, roi_lb: i64, roi_ub: i64)
             return t as i64 + roi_lb;
         }
     }
-    return INVALID_MAX;
+    INVALID_MAX
 }
 
 impl ROIVectorMarketDepth {

@@ -8,10 +8,10 @@ use std::{
 use crate::{
     backtest::{
         assettype::AssetType,
+        data::{Data, Reader},
         models::{LatencyModel, QueueModel},
         order::OrderBus,
-        proc::proc::Processor,
-        reader::{Data, Reader},
+        proc::traits::Processor,
         state::State,
         BacktestError,
     },
@@ -211,7 +211,7 @@ where
         order.status = Status::Filled;
         order.exch_timestamp = timestamp;
         let local_recv_timestamp =
-            order.exch_timestamp + self.order_latency.response(timestamp, &order);
+            order.exch_timestamp + self.order_latency.response(timestamp, order);
 
         self.state.apply_fill(order);
         self.orders_to.append(order.clone(), local_recv_timestamp);
@@ -219,7 +219,7 @@ where
     }
 
     fn remove_filled_orders(&mut self) {
-        if self.filled_orders.len() > 0 {
+        if !self.filled_orders.is_empty() {
             let mut orders = self.orders.borrow_mut();
             for order_id in self.filled_orders.drain(..) {
                 let order = orders.remove(&order_id).unwrap();
@@ -361,7 +361,7 @@ where
                 // The exchange accepts this order.
                 self.buy_orders
                     .entry(order.price_tick)
-                    .or_insert(HashSet::new())
+                    .or_default()
                     .insert(order.order_id);
 
                 order.exch_timestamp = timestamp;
@@ -393,7 +393,7 @@ where
                 // The exchange accepts this order.
                 self.sell_orders
                     .entry(order.price_tick)
-                    .or_insert(HashSet::new())
+                    .or_default()
                     .insert(order.order_id);
 
                 order.exch_timestamp = timestamp;
@@ -505,7 +505,7 @@ where
                         .remove(&exch_order.order_id);
                     self.buy_orders
                         .entry(exch_order.price_tick)
-                        .or_insert(HashSet::new())
+                        .or_default()
                         .insert(exch_order.order_id);
                 }
                 if init_q_pos || prev_price_tick != exch_order.price_tick {
@@ -560,7 +560,7 @@ where
                         .remove(&exch_order.order_id);
                     self.sell_orders
                         .entry(exch_order.price_tick)
-                        .or_insert(HashSet::new())
+                        .or_default()
                         .insert(exch_order.order_id);
                 }
                 if init_q_pos || prev_price_tick != exch_order.price_tick {
@@ -592,7 +592,7 @@ where
     MD: MarketDepth + L2MarketDepth,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next()?;
+        self.data = self.reader.next_data()?;
         for rn in 0..self.data.len() {
             if self.data[rn].is(EXCH_EVENT) {
                 self.row_num = rn;
@@ -659,7 +659,7 @@ where
                     for t in (self.depth.best_bid_tick() + 1)..=price_tick {
                         if let Some(order_ids) = self.sell_orders.get(&t) {
                             for order_id in order_ids.clone().iter() {
-                                let order = orders_borrowed.get_mut(&order_id).unwrap();
+                                let order = orders_borrowed.get_mut(order_id).unwrap();
                                 self.check_if_sell_filled(
                                     order,
                                     price_tick,
@@ -695,7 +695,7 @@ where
                     for t in (price_tick..self.depth.best_ask_tick()).rev() {
                         if let Some(order_ids) = self.buy_orders.get(&t) {
                             for order_id in order_ids.clone().iter() {
-                                let order = orders_borrowed.get_mut(&order_id).unwrap();
+                                let order = orders_borrowed.get_mut(order_id).unwrap();
                                 self.check_if_buy_filled(
                                     order,
                                     price_tick,
@@ -721,7 +721,7 @@ where
         }
 
         if next_ts <= 0 {
-            let next_data = self.reader.next()?;
+            let next_data = self.reader.next_data()?;
             let next_row = &next_data[0];
             next_ts = next_row.exch_ts;
             let data = mem::replace(&mut self.data, next_data);
@@ -737,7 +737,7 @@ where
         _wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
-        while self.orders_from.len() > 0 {
+        while !self.orders_from.is_empty() {
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();

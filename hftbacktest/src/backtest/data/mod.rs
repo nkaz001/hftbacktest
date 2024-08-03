@@ -1,3 +1,6 @@
+mod npy;
+mod reader;
+
 use std::{
     marker::PhantomData,
     mem::size_of,
@@ -7,9 +10,16 @@ use std::{
     slice::SliceIndex,
 };
 
+pub use npy::{read_npy_file, read_npz_file, write_npy, Field, NpyDTyped, NpyHeader};
+pub use reader::{Cache, DataSource, Reader};
+
 use crate::utils::{AlignedArray, CACHE_LINE_SIZE};
 
 /// Marker trait for plain old data.
+///
+/// # Safety
+/// This marker trait should be implemented only if the struct has a C representation and contains
+/// only plain old data.
 pub unsafe trait POD: Sized {}
 
 /// Provides access to an array of structs from the buffer.
@@ -34,6 +44,12 @@ where
         (self.ptr.len() - self.offset) / size
     }
 
+    /// Returns ``true`` if the ``Data`` is empty.
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.ptr.len() == 0
+    }
+
     /// Constructs an empty `Data`.
     pub fn empty() -> Self {
         Self {
@@ -51,6 +67,13 @@ where
         }
     }
 
+    /// Constructs ``Data`` from a fat pointer with the specified offset.
+    ///
+    /// ``Data`` uses a [`DataPtr`], which is constructed from the given fat pointer. Please refer
+    /// to the safety guidelines in [`DataPtr::from_ptr`].
+    ///
+    /// # Safety
+    /// The underlying memory layout must match the layout of type ``D``.
     pub unsafe fn from_ptr(ptr: *mut [u8], offset: usize) -> Self {
         Self::from_data_ptr(DataPtr::from_ptr(ptr), offset)
     }
@@ -95,18 +118,26 @@ impl DataPtr {
     pub fn new(size: usize) -> Self {
         let arr = AlignedArray::<u8, CACHE_LINE_SIZE>::new(size);
         Self {
-            ptr: arr.into_ptr(),
+            ptr: arr.into_raw(),
             managed: true,
         }
     }
 
-    pub fn from_ptr(ptr: *mut [u8]) -> Self {
+    /// Constructs ``DataPtr`` from a fat pointer.
+    ///
+    /// Unlike other methods that construct an instance from a raw pointer, the raw pointer is not
+    /// owned by the resulting ``DataPtr``. Memory should still be managed by the caller.
+    ///
+    /// # Safety
+    /// The fat pointer must remain valid for the lifetime of the resulting ``DataPtr``.
+    pub unsafe fn from_ptr(ptr: *mut [u8]) -> Self {
         Self {
             ptr,
             managed: false,
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     #[inline]
     pub fn len(&self) -> usize {
         self.ptr.len()
@@ -155,7 +186,7 @@ where
 impl Drop for DataPtr {
     fn drop(&mut self) {
         if self.managed {
-            let _ = unsafe { Box::from_raw(self.ptr) };
+            let _ = unsafe { AlignedArray::<u8, CACHE_LINE_SIZE>::from_raw(self.ptr) };
         }
     }
 }

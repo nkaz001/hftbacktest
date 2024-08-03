@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
 use crate::{
-    backtest::{reader::Data, BacktestError},
+    backtest::{data::Data, BacktestError},
     prelude::{L2MarketDepth, OrderId, Side},
     types::{Event, BUY_EVENT, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT, SELL_EVENT},
 };
@@ -38,7 +38,7 @@ fn depth_below(depth: &HashMap<i64, f64>, start: i64, end: i64) -> i64 {
             return t;
         }
     }
-    return INVALID_MIN;
+    INVALID_MIN
 }
 
 #[inline(always)]
@@ -48,7 +48,7 @@ fn depth_above(depth: &HashMap<i64, f64>, start: i64, end: i64) -> i64 {
             return t;
         }
     }
-    return INVALID_MAX;
+    INVALID_MAX
 }
 
 impl HashMapMarketDepth {

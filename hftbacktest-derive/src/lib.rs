@@ -57,11 +57,11 @@ pub fn dtype_derive(input: TokenStream) -> TokenStream {
 
             // Generate code to print field names and types
             quote! {
-                impl crate::backtest::reader::NpyDTyped for #name {
-                    fn descr() -> Vec<crate::backtest::reader::Field> {
+                impl crate::backtest::data::NpyDTyped for #name {
+                    fn descr() -> Vec<crate::backtest::data::Field> {
                         return vec![
                             #(
-                                crate::backtest::reader::Field {
+                                crate::backtest::data::Field {
                                     name: #field_names.to_string(),
                                     ty: #field_types.to_string(),
                                 }

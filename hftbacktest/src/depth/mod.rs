@@ -17,7 +17,7 @@ mod fuse;
 pub use fuse::FusedHashMapMarketDepth;
 
 use crate::{
-    backtest::reader::{Data, POD},
+    backtest::data::{Data, POD},
     types::OrderId,
 };
 

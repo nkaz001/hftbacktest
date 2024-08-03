@@ -3,8 +3,8 @@ use clap::Parser;
 use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
+        data::read_npz_file,
         models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel},
-        reader::read_npz_file,
         recorder::BacktestRecorder,
         AssetBuilder,
         Backtest,
@@ -72,7 +72,7 @@ fn prepare_backtest(
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 
     let hbt = Backtest::builder()
-        .add(
+        .add_asset(
             AssetBuilder::new()
                 .data(
                     data_files

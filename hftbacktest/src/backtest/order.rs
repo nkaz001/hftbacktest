@@ -4,23 +4,21 @@ use crate::types::Order;
 
 /// Provides a bus for transporting backtesting orders between the exchange and the local model
 /// based on the given timestamp.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct OrderBus {
     order_list: Rc<UnsafeCell<VecDeque<(Order, i64)>>>,
 }
 
 impl OrderBus {
-    /// Constructs an instance of `OrderBus`.
+    /// Constructs an instance of ``OrderBus``.
     pub fn new() -> Self {
-        Self {
-            order_list: Default::default(),
-        }
+        Default::default()
     }
 
     /// Returns the timestamp of the earliest order in the bus.
     pub fn earliest_timestamp(&self) -> Option<i64> {
         unsafe { &*self.order_list.get() }
-            .get(0)
+            .front()
             .map(|(_order, ts)| *ts)
     }
 
@@ -58,7 +56,12 @@ impl OrderBus {
         unsafe { &*self.order_list.get() }.len()
     }
 
-    /// Removes the first order and its timestamp and returns it, or `None` if the bus is empty.
+    /// Returns ``true`` if the ``OrderBus`` is empty.
+    pub fn is_empty(&self) -> bool {
+        unsafe { &*self.order_list.get() }.is_empty()
+    }
+
+    /// Removes the first order and its timestamp and returns it, or ``None`` if the bus is empty.
     pub fn pop_front(&mut self) -> Option<(Order, i64)> {
         unsafe { &mut *self.order_list.get() }.pop_front()
     }

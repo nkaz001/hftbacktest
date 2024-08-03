@@ -31,7 +31,7 @@ pub struct BacktestBuilder<MD> {
 
 impl<MD> BacktestBuilder<MD> {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add(self, asset: Asset<dyn LocalProcessor<MD, Event>, dyn Processor>) -> Self {
+    pub fn add_asset(self, asset: Asset<dyn LocalProcessor<MD, Event>, dyn Processor>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(asset.local);
         self_.exch.push(asset.exch);
@@ -274,7 +274,7 @@ where
 
     #[inline]
     fn orders(&self, asset_no: usize) -> &HashMap<u64, Order> {
-        &self.local.get(asset_no).unwrap().orders()
+        self.local.get(asset_no).unwrap().orders()
     }
 
     #[inline]
@@ -490,7 +490,7 @@ where
     Exchange: Processor + 'static,
 {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add(self, asset: Asset<Local, Exchange>) -> Self {
+    pub fn add_asset(self, asset: Asset<Local, Exchange>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(*asset.local);
         self_.exch.push(*asset.exch);
@@ -726,7 +726,7 @@ where
 
     #[inline]
     fn orders(&self, asset_no: usize) -> &HashMap<OrderId, Order> {
-        &self.local.get(asset_no).unwrap().orders()
+        self.local.get(asset_no).unwrap().orders()
     }
 
     #[inline]

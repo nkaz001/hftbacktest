@@ -3,10 +3,10 @@ use std::mem;
 use crate::{
     backtest::{
         assettype::AssetType,
+        data::reader::{Data, Reader},
         models::{L3FIFOQueueModel, L3OrderId, L3OrderSource, L3QueueModel, LatencyModel},
         order::OrderBus,
-        proc::proc::Processor,
-        reader::reader::{Data, Reader},
+        proc::traits::Processor,
         state::State,
         BacktestError,
     },
@@ -358,7 +358,7 @@ where
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next()?;
+        self.data = self.reader.next_data()?;
         for rn in 0..self.data.len() {
             if self.data[rn].is(EXCH_EVENT) {
                 self.row_num = rn;
@@ -448,7 +448,7 @@ where
         }
 
         if next_ts <= 0 {
-            let next_data = self.reader.next()?;
+            let next_data = self.reader.next_data()?;
             let next_row = &next_data[0];
             next_ts = next_row.exch_ts;
             let data = mem::replace(&mut self.data, next_data);

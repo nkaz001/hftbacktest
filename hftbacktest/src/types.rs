@@ -4,11 +4,12 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
+use anyhow::Error;
 use dyn_clone::DynClone;
 use hftbacktest_derive::NpyDTyped;
 use thiserror::Error;
 
-use crate::{backtest::reader::POD, depth::MarketDepth};
+use crate::{backtest::data::POD, depth::MarketDepth};
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -71,21 +72,21 @@ impl Value {
     }
 }
 
-impl Into<Value> for anyhow::Error {
-    fn into(self) -> Value {
+impl From<anyhow::Error> for Value {
+    fn from(value: Error) -> Self {
         // todo!: improve this to deliver detailed error information.
-        Value::String(self.to_string())
+        Value::String(value.to_string())
     }
 }
 
 #[cfg(feature = "use_reqwest")]
-impl Into<Value> for reqwest::Error {
-    fn into(self) -> Value {
+impl From<reqwest::Error> for Value {
+    fn from(value: reqwest::Error) -> Self {
         let mut map = HashMap::new();
-        if let Some(code) = self.status() {
+        if let Some(code) = value.status() {
             map.insert("status_code".to_string(), Value::String(code.to_string()));
         }
-        map.insert("msg".to_string(), Value::String(self.to_string()));
+        map.insert("msg".to_string(), Value::String(value.to_string()));
         Value::Map(map)
     }
 }
@@ -733,6 +734,7 @@ where
     ///                   the exchange model for details.
     ///
     ///  * `wait` - If true, wait until the order placement response is received.
+    #[allow(clippy::too_many_arguments)]
     fn submit_buy_order(
         &mut self,
         asset_no: usize,
@@ -758,6 +760,7 @@ where
     ///                   the exchange model for details.
     ///
     ///  * `wait` - If true, wait until the order placement response is received.
+    #[allow(clippy::too_many_arguments)]
     fn submit_sell_order(
         &mut self,
         asset_no: usize,
