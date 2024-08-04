@@ -326,7 +326,7 @@ where
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
         let mut wait_resp_order_received = false;
-        while self.orders_from.len() > 0 {
+        while !self.orders_from.is_empty() {
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();

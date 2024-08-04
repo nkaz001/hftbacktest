@@ -378,7 +378,7 @@ impl ApplySnapshot for FusedHashMapMarketDepth {
         let mut bid_depth = self
             .bid_depth
             .iter()
-            .map(|(&px_tick, qty)| (px_tick, qty.clone()))
+            .map(|(&px_tick, qty)| (px_tick, qty))
             .collect::<Vec<_>>();
         bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
         for (px_tick, qty) in bid_depth {
@@ -398,7 +398,7 @@ impl ApplySnapshot for FusedHashMapMarketDepth {
         let mut ask_depth = self
             .ask_depth
             .iter()
-            .map(|(&px_tick, qty)| (px_tick, qty.clone()))
+            .map(|(&px_tick, qty)| (px_tick, qty))
             .collect::<Vec<_>>();
         ask_depth.sort_by(|a, b| a.0.cmp(&b.0));
         for (px_tick, qty) in ask_depth {

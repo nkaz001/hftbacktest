@@ -43,6 +43,7 @@ impl AnyClone for f64 {
 }
 
 impl<MD> RiskAdverseQueueModel<MD> {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self(PhantomData)
     }
