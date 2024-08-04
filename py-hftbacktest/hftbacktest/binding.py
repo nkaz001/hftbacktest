@@ -421,6 +421,12 @@ class OrderDict:
                     break
                 # Do what you need with the order.
 
+        Alternatively, ``has_next`` returns ``True`` if there is a next element and ``False`` otherwise, while also
+        moving the iterator to the next element internally. ``get`` method then returns the element moved to by the
+        ``has_next`` method. Since ``has_next`` internally moves the iterator, it should not be used solely to check if
+        there is a next element.
+
+        **Example**
 
         .. code-block:: python
 
@@ -640,11 +646,12 @@ class HashMapMarketDepthBacktest:
 
     def clear_last_trades(self, asset_no: uint64) -> None:
         """
-        Clears the last trades occurring in the market from the buffer for :func:`trade`.
+        Clears the last trades occurring in the market from the buffer for :func:`last_trades`.
 
         Args:
-            asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all last trades in
-                      any assets will be cleared.
+            asset_no: Asset number at which this command will be executed.
+                      If :const:`ALL_ASSETS <hftbacktest.types.ALL_ASSETS>`,
+                      all last trades in any assets will be cleared.
         """
         hashmapbt_clear_last_trades(self.ptr, asset_no)
 
@@ -654,7 +661,8 @@ class HashMapMarketDepthBacktest:
             asset_no: Asset number from which orders will be retrieved.
 
         Returns:
-            An order dictionary where the keys are order IDs and the corresponding values are :class:`Order`s.
+            An order dictionary where the keys are order IDs and the corresponding values are
+            :class:`Order <hftbacktest.order.Order>`.
         """
         return OrderDict_(hashmapbt_orders(self.ptr, asset_no))
 
@@ -677,17 +685,18 @@ class HashMapMarketDepthBacktest:
                       exchange sides.
             price: Order price.
             qty: Quantity to buy.
-            time_in_force: Available options vary depending on the exchange model. See to the exchange model for
-                           details.
+            time_in_force: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`GTC`
-                * :const:`GTX`
-                * :const:`FOK`
-                * :const:`IOC`
+                * :const:`GTC <hftbacktest.order.GTC>`
+                * :const:`GTX <hftbacktest.order.GTX>`
+                * :const:`FOK <hftbacktest.order.FOK>`
+                * :const:`IOC <hftbacktest.order.IOC>`
+
             order_type: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`LIMIT`
-                * :const:`MARKET`
+                * :const:`LIMIT <hftbacktest.order.LIMIT>`
+                * :const:`MARKET <hftbacktest.order.MARKET>`
+
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
@@ -715,18 +724,19 @@ class HashMapMarketDepthBacktest:
             order_id: The unique order ID; there should not be any existing order with the same ID on both local and
                       exchange sides.
             price: Order price.
-            qty: Quantity to buy.
-            time_in_force: Available options vary depending on the exchange model. See to the exchange model for
-                           details.
+            qty: Quantity to sell.
+            time_in_force: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`GTC`
-                * :const:`GTX`
-                * :const:`FOK`
-                * :const:`IOC`
+                * :const:`GTC <hftbacktest.order.GTC>`
+                * :const:`GTX <hftbacktest.order.GTX>`
+                * :const:`FOK <hftbacktest.order.FOK>`
+                * :const:`IOC <hftbacktest.order.IOC>`
+
             order_type: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`LIMIT`
-                * :const:`MARKET`
+                * :const:`LIMIT <hftbacktest.order.LIMIT>`
+                * :const:`MARKET <hftbacktest.order.MARKET>`
+
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
@@ -754,12 +764,13 @@ class HashMapMarketDepthBacktest:
 
     def clear_inactive_orders(self, asset_no: uint64) -> None:
         """
-        Clears inactive orders from the local order dictionary whose status is neither :const:`NEW` nor
-        :const:`PARTIALLY_FILLED`.
+        Clears inactive orders from the local order dictionary whose status is neither
+        :const:`NEW <hftbacktest.order.NEW>` nor :const:`PARTIALLY_FILLED <hftbacktest.order.PARTIALLY_FILLED>`.
 
         Args:
-            asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all inactive orders
-                      in any assets will be cleared.
+            asset_no: Asset number at which this command will be executed.
+                      If :const:`ALL_ASSETS <hftbacktest.types.ALL_ASSETS>`,
+                      all inactive orders in any assets will be cleared.
         """
         hashmapbt_clear_inactive_orders(self.ptr, asset_no)
 
@@ -1054,11 +1065,12 @@ class ROIVectorMarketDepthBacktest:
 
     def clear_last_trades(self, asset_no: uint64) -> None:
         """
-        Clears the last trades occurring in the market from the buffer for :func:`trade`.
+        Clears the last trades occurring in the market from the buffer for :func:`last_trades`.
 
         Args:
-            asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all last trades in
-                      any assets will be cleared.
+            asset_no: Asset number at which this command will be executed.
+                      If :const:`ALL_ASSETS <hftbacktest.types.ALL_ASSETS>`,
+                      all last trades in any assets will be cleared.
         """
         roivecbt_clear_last_trades(self.ptr, asset_no)
 
@@ -1068,7 +1080,8 @@ class ROIVectorMarketDepthBacktest:
             asset_no: Asset number from which orders will be retrieved.
 
         Returns:
-            An order dictionary where the keys are order IDs and the corresponding values are :class:`Order`s.
+            An order dictionary where the keys are order IDs and the corresponding values are
+            :class:`Order <hftbacktest.order.Order>`.
         """
         return OrderDict_(roivecbt_orders(self.ptr, asset_no))
 
@@ -1091,17 +1104,18 @@ class ROIVectorMarketDepthBacktest:
                       exchange sides.
             price: Order price.
             qty: Quantity to buy.
-            time_in_force: Available options vary depending on the exchange model. See to the exchange model for
-                           details.
+            time_in_force: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`GTC`
-                * :const:`GTX`
-                * :const:`FOK`
-                * :const:`IOC`
+                * :const:`GTC <hftbacktest.order.GTC>`
+                * :const:`GTX <hftbacktest.order.GTX>`
+                * :const:`FOK <hftbacktest.order.FOK>`
+                * :const:`IOC <hftbacktest.order.IOC>`
+
             order_type: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`LIMIT`
-                * :const:`MARKET`
+                * :const:`LIMIT <hftbacktest.order.LIMIT>`
+                * :const:`MARKET <hftbacktest.order.MARKET>`
+
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
@@ -1129,18 +1143,19 @@ class ROIVectorMarketDepthBacktest:
             order_id: The unique order ID; there should not be any existing order with the same ID on both local and
                       exchange sides.
             price: Order price.
-            qty: Quantity to buy.
-            time_in_force: Available options vary depending on the exchange model. See to the exchange model for
-                           details.
+            qty: Quantity to sell.
+            time_in_force: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`GTC`
-                * :const:`GTX`
-                * :const:`FOK`
-                * :const:`IOC`
+                * :const:`GTC <hftbacktest.order.GTC>`
+                * :const:`GTX <hftbacktest.order.GTX>`
+                * :const:`FOK <hftbacktest.order.FOK>`
+                * :const:`IOC <hftbacktest.order.IOC>`
+
             order_type: Available options vary depending on the exchange model. See to the exchange model for details.
 
-                * :const:`LIMIT`
-                * :const:`MARKET`
+                * :const:`LIMIT <hftbacktest.order.LIMIT>`
+                * :const:`MARKET <hftbacktest.order.MARKET>`
+
             wait: If `True`, wait until the order placement response is received.
 
         Returns:
@@ -1168,12 +1183,13 @@ class ROIVectorMarketDepthBacktest:
 
     def clear_inactive_orders(self, asset_no: uint64) -> None:
         """
-        Clears inactive orders from the local order dictionary whose status is neither :const:`NEW` nor
-        :const:`PARTIALLY_FILLED`.
+        Clears inactive orders from the local order dictionary whose status is neither
+        :const:`NEW <hftbacktest.order.NEW>` nor :const:`PARTIALLY_FILLED <hftbacktest.order.PARTIALLY_FILLED>`.
 
         Args:
-            asset_no: Asset number at which this command will be executed. If :const:`ALL_ASSETS`, all inactive orders
-                      in any assets will be cleared.
+            asset_no: Asset number at which this command will be executed.
+                      If :const:`ALL_ASSETS <hftbacktest.types.ALL_ASSETS>`,
+                      all inactive orders in any assets will be cleared.
         """
         roivecbt_clear_inactive_orders(self.ptr, asset_no)
 

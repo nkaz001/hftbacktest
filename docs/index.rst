@@ -266,6 +266,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
 
    Initialization <reference/initialization>
    Backtester <reference/backtester>
+   Constants <reference/constants>
    Statistics <reference/stats>
    Data Validation <reference/data_validation>
    Data Utilities <reference/data_utilities>

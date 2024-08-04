@@ -4,6 +4,7 @@ from .stats import (
     LinearAssetRecord
 )
 from .metrics import (
+    Metric,
     Ret,
     AnnualRet,
     SR,
@@ -28,6 +29,7 @@ __all__ = (
     'InverseAssetRecord',
     'LinearAssetRecord',
 
+    'Metric',
     'Ret',
     'AnnualRet',
     'SR',

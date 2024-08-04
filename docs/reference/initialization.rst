@@ -6,4 +6,6 @@ Initialization
    :inherited-members:
    :member-order: bysource
 
-.. autofunction:: hftbacktest.MultiAssetMultiExchangeBacktest
+.. autofunction:: hftbacktest.HashMapMarketDepthBacktest
+
+.. autofunction:: hftbacktest.ROIVectorMarketDepthBacktest

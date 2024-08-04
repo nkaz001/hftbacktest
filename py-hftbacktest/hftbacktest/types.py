@@ -1,26 +1,48 @@
-import sys
 from typing import Any
 
 import numpy as np
 
-ALL_ASSETS = -1  # the maximum value of uint64_t
+#: Indicates all assets.
+ALL_ASSETS = -1  # the maximum value of uint64
 
+#: Indicates that the market depth is changed.
 DEPTH_EVENT = 1
+
+#: Indicates that a trade occurs in the market.
 TRADE_EVENT = 2
+
+#: Indicates that the market depth is cleared.
 DEPTH_CLEAR_EVENT = 3
+
+#: Indicates that the market depth snapshot is received.
 DEPTH_SNAPSHOT_EVENT = 4
 
 # todo: fix WAIT_ORDER_RESPONSE flags.
 WAIT_ORDER_RESPONSE_NONE = -1
 WAIT_ORDER_RESPONSE_ANY = -2
 
-UNTIL_END_OF_DATA = sys.maxsize
+#: Indicates that one should continue until the end of the data.
+UNTIL_END_OF_DATA = 9223372036854775807  # the maximum value of int64
 
+#: Indicates that it is a valid event to be handled by the exchange processor at the exchange timestamp.
 EXCH_EVENT = 1 << 31
+
+#: Indicates that it is a valid event to be handled by the local processor at the local timestamp.
 LOCAL_EVENT = 1 << 30
 
 BUY_EVENT = 1 << 29
+"""
+Indicates a buy, with specific meaning that can vary depending on the situation. 
+For example, when combined with a depth event, it means a bid-side event, while when combined with a trade event, 
+it means that the trade initiator is a buyer.
+"""
+
 SELL_EVENT = 1 << 28
+"""
+Indicates a sell, with specific meaning that can vary depending on the situation. 
+For example, when combined with a depth event, it means an ask-side event, while when combined with a trade event, 
+it means that the trade initiator is a seller.
+"""
 
 state_values_dtype = np.dtype(
     [

@@ -9,22 +9,54 @@ from .types import order_dtype
 UNSUPPORTED = 255
 
 BUY = 1
-SELL = -1
+"""
+In the market depth event, this indicates the bid side; in the market trade event, 
+it indicates that the trade initiator is a buyer.
+"""
 
+SELL = -1
+"""
+In the market depth event, this indicates the ask side; in the market trade event, 
+it indicates that the trade initiator is a seller.
+"""
+
+#: NONE
 NONE = 0
+
+#: NEW
 NEW = 1
+
+#: EXPIRED
 EXPIRED = 2
+
+#: FILLED
 FILLED = 3
+
+#: CANCELED
 CANCELED = 4
+
+#: PARTIALLY_FILLED
 PARTIALLY_FILLED = 5
+
+#: REJECTED
 REJECTED = 6
 
-GTC = 0  # Good 'till cancel
-GTX = 1  # Post only
-FOK = 2  # Fill or kill
-IOC = 3  # Immediate or cancel
+#: Good 'till cancel
+GTC = 0
 
+#: Post only
+GTX = 1
+
+#: Fill or kill
+FOK = 2
+
+#: Immediate or cancel
+IOC = 3
+
+#: LIMIT
 LIMIT = 0
+
+#: MARKET
 MARKET = 1
 
 

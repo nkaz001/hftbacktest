@@ -1,5 +1,5 @@
 Data Validation
 ===============
 
-.. automodule:: hftbacktest.data.validation
+.. automodule:: hftbacktest.data
    :members:
