@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["nkaz001 <nkaz001@protonmail.com>"]
 license = "MIT"
+description = "hftbacktest: [internal] helper derive proc-macros"
 repository = "https://github.com/nkaz001/hftbacktest/"
 rust-version = "1.79"
 
