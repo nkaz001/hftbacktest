@@ -8,7 +8,7 @@ description = "file: ../README.rst"
 readme = "../README.rst"
 authors = [{ name = "nkaz001", email = "nkaz001@protonmail.com" }]
 license = { file = "../LICENSE" }
-version = "2.0.0-alpha"
+version = "2.0.0-rc0"
 requires-python = ">=3.10"
 
 keywords = ["hft", "high-frequency trading", "trading", "market-making", "backtest"]
