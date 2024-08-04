@@ -2,7 +2,7 @@ use std::{collections::HashMap, io::Error as IoError, marker::PhantomData};
 
 pub use data::DataSource;
 use data::{Cache, Reader};
-use models::fee::FeeModel;
+use models::FeeModel;
 use thiserror::Error;
 
 use crate::{

@@ -4,10 +4,11 @@ use hftbacktest::{
         assettype::LinearAsset,
         data::{read_npz_file, DataSource},
         models::{
-            fee::{CommonFees, TradingValueFeeModel},
+            CommonFees,
             IntpOrderLatency,
             PowerProbQueueFunc3,
             ProbQueueModel,
+            TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
         AssetBuilder,

@@ -1,5 +1,5 @@
 use crate::{
-    backtest::{assettype::AssetType, models::fee::FeeModel},
+    backtest::{assettype::AssetType, models::FeeModel},
     types::{Order, StateValues},
 };
 

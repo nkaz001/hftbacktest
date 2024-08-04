@@ -7,7 +7,7 @@ use crate::{
     backtest::{
         assettype::AssetType,
         data::{Data, Reader},
-        models::{fee::FeeModel, LatencyModel},
+        models::{FeeModel, LatencyModel},
         order::OrderBus,
         proc::{LocalProcessor, Processor},
         state::State,

@@ -5,7 +5,7 @@ use crate::{
         assettype::AssetType,
         data::{Data, Reader},
         models::{
-            fee::FeeModel,
+            FeeModel,
             L3FIFOQueueModel,
             L3OrderId,
             L3OrderSource,
