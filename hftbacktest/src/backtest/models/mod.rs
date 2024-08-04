@@ -3,6 +3,7 @@
 //! Please find more details in the documents below.
 //! * [Latency Models](https://hftbacktest.readthedocs.io/en/latest/latency_models.html)
 //! * [Order Fill](https://hftbacktest.readthedocs.io/en/latest/order_fill.html)
+pub mod fee;
 mod latency;
 mod queue;
 

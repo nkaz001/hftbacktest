@@ -4,9 +4,16 @@ use crate::{
     backtest::{
         assettype::AssetType,
         data::{Data, Reader},
-        models::{L3FIFOQueueModel, L3OrderId, L3OrderSource, L3QueueModel, LatencyModel},
+        models::{
+            fee::FeeModel,
+            L3FIFOQueueModel,
+            L3OrderId,
+            L3OrderSource,
+            L3QueueModel,
+            LatencyModel,
+        },
         order::OrderBus,
-        proc::traits::Processor,
+        proc::Processor,
         state::State,
         BacktestError,
     },
@@ -74,7 +81,7 @@ where
     queue_model: L3FIFOQueueModel,
 }
 
-impl<AT, LM, MD> L3NoPartialFillExchange<AT, LM, MD, FM>
+impl<AT, LM, MD, FM> L3NoPartialFillExchange<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
@@ -352,11 +359,12 @@ where
     }
 }
 
-impl<AT, LM, MD> Processor for L3NoPartialFillExchange<AT, LM, MD>
+impl<AT, LM, MD, FM> Processor for L3NoPartialFillExchange<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: L3MarketDepth,
+    FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {

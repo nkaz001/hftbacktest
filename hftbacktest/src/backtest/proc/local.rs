@@ -7,8 +7,7 @@ use crate::{
     backtest::{
         assettype::AssetType,
         data::{Data, Reader},
-        feemodel::FeeModel,
-        models::LatencyModel,
+        models::{fee::FeeModel, LatencyModel},
         order::OrderBus,
         proc::{LocalProcessor, Processor},
         state::State,
@@ -71,7 +70,7 @@ where
         depth: MD,
         state: State<AT, FM>,
         order_latency: LM,
-        trade_len: usize,
+        last_trades_cap: usize,
         orders_to: OrderBus,
         orders_from: OrderBus,
     ) -> Self {
@@ -85,7 +84,7 @@ where
             depth,
             state,
             order_latency,
-            trades: Vec::with_capacity(trade_len),
+            trades: Vec::with_capacity(last_trades_cap),
             last_feed_latency: None,
             last_order_latency: None,
         }

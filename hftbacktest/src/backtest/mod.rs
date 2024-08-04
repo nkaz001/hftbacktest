@@ -2,14 +2,13 @@ use std::{collections::HashMap, io::Error as IoError, marker::PhantomData};
 
 pub use data::DataSource;
 use data::{Cache, Reader};
-use feemodel::{CommonFees, TradingValueFeeModel};
+use models::fee::FeeModel;
 use thiserror::Error;
 
 use crate::{
     backtest::{
         assettype::AssetType,
         evs::{EventIntentKind, EventSet},
-        feemodel::FeeModel,
         models::{LatencyModel, QueueModel},
         order::OrderBus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
@@ -33,7 +32,6 @@ use crate::{
 
 /// Provides asset types.
 pub mod assettype;
-pub mod feemodel;
 
 pub mod models;
 
@@ -115,11 +113,9 @@ pub struct AssetBuilder<LM, AT, QM, MD, FM> {
     queue_model: Option<QM>,
     depth_builder: Option<Box<dyn Fn() -> MD>>,
     reader: Reader<Event>,
-    maker_fee: f64,
-    taker_fee: f64,
+    fee_model: Option<FM>,
     exch_kind: ExchangeKind,
     last_trades_cap: usize,
-    fee_model: Option<FM>,
 }
 
 impl<LM, AT, QM, MD, FM> AssetBuilder<LM, AT, QM, MD, FM>
@@ -141,11 +137,9 @@ where
             queue_model: None,
             depth_builder: None,
             reader,
-            maker_fee: 0.0,
-            taker_fee: 0.0,
+            fee_model: None,
             exch_kind: ExchangeKind::NoPartialFillExchange,
             last_trades_cap: 0,
-            fee_model: None,
         }
     }
 
@@ -180,16 +174,6 @@ where
         }
     }
 
-    /// Sets the maker fee.
-    pub fn maker_fee(self, maker_fee: f64) -> Self {
-        Self { maker_fee, ..self }
-    }
-
-    /// Sets the taker fee.
-    pub fn taker_fee(self, taker_fee: f64) -> Self {
-        Self { taker_fee, ..self }
-    }
-
     /// Sets a queue model.
     pub fn queue_model(self, queue_model: QM) -> Self {
         Self {
@@ -198,6 +182,7 @@ where
         }
     }
 
+    /// Sets a fee model.
     pub fn fee_model(self, fee_model: FM) -> Self {
         Self {
             fee_model: Some(fee_model),
@@ -247,19 +232,15 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         let local = Local::new(
             self.reader.clone(),
             create_depth(),
-            State::new(
-                asset_type,
-                TradingValueFeeModel {
-                    common_fees: CommonFees {
-                        maker_fee: self.maker_fee,
-                        taker_fee: self.taker_fee,
-                    },
-                },
-            ),
+            State::new(asset_type, fee_model),
             order_latency,
             self.last_trades_cap,
             ob_local_to_exch.clone(),
@@ -277,21 +258,17 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         match self.exch_kind {
             ExchangeKind::NoPartialFillExchange => {
                 let exch = NoPartialFillExchange::new(
                     self.reader.clone(),
                     create_depth(),
-                    State::new(
-                        asset_type,
-                        TradingValueFeeModel {
-                            common_fees: CommonFees {
-                                maker_fee: self.maker_fee,
-                                taker_fee: self.taker_fee,
-                            },
-                        },
-                    ),
+                    State::new(asset_type, fee_model),
                     order_latency,
                     queue_model,
                     ob_exch_to_local,
@@ -307,15 +284,7 @@ where
                 let exch = PartialFillExchange::new(
                     self.reader.clone(),
                     create_depth(),
-                    State::new(
-                        asset_type,
-                        TradingValueFeeModel {
-                            common_fees: CommonFees {
-                                maker_fee: self.maker_fee,
-                                taker_fee: self.taker_fee,
-                            },
-                        },
-                    ),
+                    State::new(asset_type, fee_model),
                     order_latency,
                     queue_model,
                     ob_exch_to_local,
@@ -351,7 +320,7 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
-        let fee_model: FM = self
+        let fee_model = self
             .fee_model
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
@@ -361,7 +330,7 @@ where
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,
-            1000,
+            self.last_trades_cap,
             ob_local_to_exch.clone(),
             ob_exch_to_local.clone(),
         );
@@ -377,7 +346,7 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
-        let fee_model: FM = self
+        let fee_model = self
             .fee_model
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;

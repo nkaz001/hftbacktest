@@ -6,14 +6,8 @@ use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
         data::{read_npz_file, Cache, Data, DataPtr, Reader},
-        feemodel::{
-            CommonFees,
-            DirectionalFeeModel,
-            FlatPerTradeFeeModel,
-            TradingQtyFeeModel,
-            TradingValueFeeModel,
-        },
         models::{
+            fee::{CommonFees, FlatPerTradeFeeModel, TradingQtyFeeModel, TradingValueFeeModel},
             ConstantLatency,
             IntpOrderLatency,
             LogProbQueueFunc,
@@ -77,10 +71,9 @@ pub enum ExchangeKind {
 
 #[derive(Clone)]
 pub enum FeeModel {
-    TradingValueFeeModel { common_fees: CommonFees },
-    TradingQtyFeeModel { common_fees: CommonFees },
-    FlatPerTradeFeeModel { common_fees: CommonFees },
-    DirectionalFeeModel { common_fees: CommonFees },
+    TradingValueFeeModel { fees: CommonFees },
+    TradingQtyFeeModel { fees: CommonFees },
+    FlatPerTradeFeeModel { fees: CommonFees },
 }
 
 /// Builds a backtesting asset.
@@ -93,8 +86,6 @@ pub struct BacktestAsset {
     exch_kind: ExchangeKind,
     tick_size: f64,
     lot_size: f64,
-    maker_fee: f64,
-    taker_fee: f64,
     last_trades_cap: usize,
     roi_lb: f64,
     roi_ub: f64,
@@ -120,18 +111,13 @@ impl BacktestAsset {
             queue_model: QueueModel::LogProbQueueModel2 {},
             tick_size: 0.0,
             lot_size: 0.0,
-            maker_fee: 0.0,
-            taker_fee: 0.0,
             exch_kind: ExchangeKind::NoPartialFillExchange {},
             last_trades_cap: 0,
             roi_lb: 0.0,
             roi_ub: 0.0,
             initial_snapshot: None,
             fee_model: FeeModel::TradingValueFeeModel {
-                common_fees: CommonFees {
-                    maker_fee: 0.0,
-                    taker_fee: 0.0,
-                },
+                fees: CommonFees::new(0.0, 0.0),
             },
         }
     }
@@ -342,22 +328,49 @@ impl BacktestAsset {
         slf
     }
 
-    /// Sets the maker fee. A negative fee represents rebates.
-    pub fn maker_fee(mut slf: PyRefMut<Self>, maker_fee: f64) -> PyRefMut<Self> {
-        slf.maker_fee = maker_fee;
-        slf
-    }
-
-    /// Sets the taker fee. A negative fee represents rebates.
-    pub fn taker_fee(mut slf: PyRefMut<Self>, taker_fee: f64) -> PyRefMut<Self> {
-        slf.taker_fee = taker_fee;
-        slf
-    }
-
     /// Sets the initial capacity of the vector storing the last market trades.
     /// The default value is `0`, indicating that no last trades are stored.
     pub fn last_trades_capacity(mut slf: PyRefMut<Self>, capacity: usize) -> PyRefMut<Self> {
         slf.last_trades_cap = capacity;
+        slf
+    }
+
+    /// Uses `TradingValueFeeModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.TradingValueFeeModel.html>`_.
+    /// A negative fee represents rebates.
+    pub fn trading_value_fee_model(
+        mut slf: PyRefMut<Self>,
+        maker_fee: f64,
+        taker_fee: f64,
+    ) -> PyRefMut<Self> {
+        slf.fee_model = FeeModel::TradingValueFeeModel {
+            fees: CommonFees::new(maker_fee, taker_fee),
+        };
+        slf
+    }
+
+    /// Uses `TradingQtyFeeModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.TradingQtyFeeModel.html>`_.
+    /// A negative fee represents rebates.
+    pub fn trading_qty_fee_model(
+        mut slf: PyRefMut<Self>,
+        maker_fee: f64,
+        taker_fee: f64,
+    ) -> PyRefMut<Self> {
+        slf.fee_model = FeeModel::TradingQtyFeeModel {
+            fees: CommonFees::new(maker_fee, taker_fee),
+        };
+        slf
+    }
+
+    /// Uses `FlatPerTradeFeeModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.FlatPerTradeFeeModel.html>`_.
+    /// A negative fee represents rebates.
+    pub fn flat_per_trade_fee_model(
+        mut slf: PyRefMut<Self>,
+        maker_fee: f64,
+        taker_fee: f64,
+    ) -> PyRefMut<Self> {
+        slf.fee_model = FeeModel::FlatPerTradeFeeModel {
+            fees: CommonFees::new(maker_fee, taker_fee),
+        };
         slf
     }
 }
@@ -405,10 +418,9 @@ pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<
             ],
             [NoPartialFillExchange {}, PartialFillExchange {}],
             [
-                TradingValueFeeModel { common_fees },
-                TradingQtyFeeModel { common_fees },
-                FlatPerTradeFeeModel { common_fees },
-                DirectionalFeeModel { common_fees }
+                TradingValueFeeModel { fees },
+                TradingQtyFeeModel { fees },
+                FlatPerTradeFeeModel { fees },
             ]
         );
         local.push(asst.local);
@@ -448,10 +460,9 @@ pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<u
             ],
             [NoPartialFillExchange {}, PartialFillExchange {}],
             [
-                TradingValueFeeModel { common_fees },
-                TradingQtyFeeModel { common_fees },
-                FlatPerTradeFeeModel { common_fees },
-                DirectionalFeeModel { common_fees }
+                TradingValueFeeModel { fees },
+                TradingQtyFeeModel { fees },
+                FlatPerTradeFeeModel { fees },
             ]
         );
         local.push(asst.local);
