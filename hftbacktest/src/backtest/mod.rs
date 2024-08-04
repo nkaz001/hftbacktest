@@ -2,6 +2,7 @@ use std::{collections::HashMap, io::Error as IoError, marker::PhantomData};
 
 pub use data::DataSource;
 use data::{Cache, Reader};
+use models::fee::FeeModel;
 use thiserror::Error;
 
 use crate::{
@@ -85,12 +86,13 @@ impl<L, E> Asset<L, E> {
     }
 
     /// Returns a builder for `Asset`.
-    pub fn builder<Q, LM, AT, QM, MD>() -> AssetBuilder<LM, AT, QM, MD>
+    pub fn builder<Q, LM, AT, QM, MD, FM>() -> AssetBuilder<LM, AT, QM, MD, FM>
     where
         AT: AssetType + Clone + 'static,
         MD: MarketDepth + L2MarketDepth + 'static,
         QM: QueueModel<MD> + 'static,
         LM: LatencyModel + Clone + 'static,
+        FM: FeeModel + Clone + 'static,
     {
         AssetBuilder::new()
     }
@@ -105,24 +107,24 @@ pub enum ExchangeKind {
 }
 
 /// A builder for `Asset`.
-pub struct AssetBuilder<LM, AT, QM, MD> {
+pub struct AssetBuilder<LM, AT, QM, MD, FM> {
     latency_model: Option<LM>,
     asset_type: Option<AT>,
     queue_model: Option<QM>,
     depth_builder: Option<Box<dyn Fn() -> MD>>,
     reader: Reader<Event>,
-    maker_fee: f64,
-    taker_fee: f64,
+    fee_model: Option<FM>,
     exch_kind: ExchangeKind,
     last_trades_cap: usize,
 }
 
-impl<LM, AT, QM, MD> AssetBuilder<LM, AT, QM, MD>
+impl<LM, AT, QM, MD, FM> AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
     MD: MarketDepth + L2MarketDepth + 'static,
     QM: QueueModel<MD> + 'static,
     LM: LatencyModel + Clone + 'static,
+    FM: FeeModel + Clone + 'static,
 {
     /// Constructs an instance of `AssetBuilder`.
     pub fn new() -> Self {
@@ -135,8 +137,7 @@ where
             queue_model: None,
             depth_builder: None,
             reader,
-            maker_fee: 0.0,
-            taker_fee: 0.0,
+            fee_model: None,
             exch_kind: ExchangeKind::NoPartialFillExchange,
             last_trades_cap: 0,
         }
@@ -173,20 +174,18 @@ where
         }
     }
 
-    /// Sets the maker fee.
-    pub fn maker_fee(self, maker_fee: f64) -> Self {
-        Self { maker_fee, ..self }
-    }
-
-    /// Sets the taker fee.
-    pub fn taker_fee(self, taker_fee: f64) -> Self {
-        Self { taker_fee, ..self }
-    }
-
     /// Sets a queue model.
     pub fn queue_model(self, queue_model: QM) -> Self {
         Self {
             queue_model: Some(queue_model),
+            ..self
+        }
+    }
+
+    /// Sets a fee model.
+    pub fn fee_model(self, fee_model: FM) -> Self {
+        Self {
+            fee_model: Some(fee_model),
             ..self
         }
     }
@@ -233,11 +232,15 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         let local = Local::new(
             self.reader.clone(),
             create_depth(),
-            State::new(asset_type, self.maker_fee, self.taker_fee),
+            State::new(asset_type, fee_model),
             order_latency,
             self.last_trades_cap,
             ob_local_to_exch.clone(),
@@ -255,13 +258,17 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         match self.exch_kind {
             ExchangeKind::NoPartialFillExchange => {
                 let exch = NoPartialFillExchange::new(
                     self.reader.clone(),
                     create_depth(),
-                    State::new(asset_type, self.maker_fee, self.taker_fee),
+                    State::new(asset_type, fee_model),
                     order_latency,
                     queue_model,
                     ob_exch_to_local,
@@ -277,7 +284,7 @@ where
                 let exch = PartialFillExchange::new(
                     self.reader.clone(),
                     create_depth(),
-                    State::new(asset_type, self.maker_fee, self.taker_fee),
+                    State::new(asset_type, fee_model),
                     order_latency,
                     queue_model,
                     ob_exch_to_local,
@@ -296,7 +303,8 @@ where
     /// a multi-asset multi-exchange backtest.
     pub fn build_single(
         self,
-    ) -> Result<Asset<Local<AT, LM, MD>, NoPartialFillExchange<AT, LM, QM, MD>>, BuildError> {
+    ) -> Result<Asset<Local<AT, LM, MD, FM>, NoPartialFillExchange<AT, LM, QM, MD, FM>>, BuildError>
+    {
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 
@@ -312,13 +320,17 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         let local = Local::new(
             self.reader.clone(),
             create_depth(),
-            State::new(asset_type, self.maker_fee, self.taker_fee),
+            State::new(asset_type, fee_model),
             order_latency,
-            1000,
+            self.last_trades_cap,
             ob_local_to_exch.clone(),
             ob_exch_to_local.clone(),
         );
@@ -334,10 +346,14 @@ where
             .asset_type
             .clone()
             .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
         let exch = NoPartialFillExchange::new(
             self.reader.clone(),
             create_depth(),
-            State::new(asset_type, self.maker_fee, self.taker_fee),
+            State::new(asset_type, fee_model),
             order_latency,
             queue_model,
             ob_exch_to_local,
@@ -351,12 +367,13 @@ where
     }
 }
 
-impl<LM, AT, QM, MD> Default for AssetBuilder<LM, AT, QM, MD>
+impl<LM, AT, QM, MD, FM> Default for AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
     MD: MarketDepth + L2MarketDepth + 'static,
     QM: QueueModel<MD> + 'static,
     LM: LatencyModel + Clone + 'static,
+    FM: FeeModel + Clone + 'static,
 {
     fn default() -> Self {
         Self::new()

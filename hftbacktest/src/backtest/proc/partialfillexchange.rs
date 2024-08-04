@@ -10,7 +10,7 @@ use crate::{
     backtest::{
         assettype::AssetType,
         data::{Data, Reader},
-        models::{LatencyModel, QueueModel},
+        models::{fee::FeeModel, LatencyModel, QueueModel},
         order::OrderBus,
         proc::Processor,
         state::State,
@@ -76,12 +76,13 @@ use crate::{
 /// results.
 /// (more comment will be added...)
 ///
-pub struct PartialFillExchange<AT, LM, QM, MD>
+pub struct PartialFillExchange<AT, LM, QM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     QM: QueueModel<MD>,
     MD: MarketDepth,
+    FM: FeeModel,
 {
     reader: Reader<Event>,
     data: Data<Event>,
@@ -97,25 +98,26 @@ where
     orders_from: OrderBus,
 
     depth: MD,
-    state: State<AT>,
+    state: State<AT, FM>,
     order_latency: LM,
     queue_model: QM,
 
     filled_orders: Vec<OrderId>,
 }
 
-impl<AT, LM, QM, MD> PartialFillExchange<AT, LM, QM, MD>
+impl<AT, LM, QM, MD, FM> PartialFillExchange<AT, LM, QM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     QM: QueueModel<MD>,
     MD: MarketDepth,
+    FM: FeeModel,
 {
     /// Constructs an instance of `PartialFillExchange`.
     pub fn new(
         reader: Reader<Event>,
         depth: MD,
-        state: State<AT>,
+        state: State<AT, FM>,
         order_latency: LM,
         queue_model: QM,
         orders_to: OrderBus,
@@ -777,12 +779,13 @@ where
     }
 }
 
-impl<AT, LM, QM, MD> Processor for PartialFillExchange<AT, LM, QM, MD>
+impl<AT, LM, QM, MD, FM> Processor for PartialFillExchange<AT, LM, QM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     QM: QueueModel<MD>,
     MD: MarketDepth + L2MarketDepth,
+    FM: FeeModel,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
         self.data = self.reader.next_data()?;

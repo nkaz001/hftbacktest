@@ -118,6 +118,7 @@ struct BuildAssetInput {
     latency_model: Vec<EnumArgs>,
     queue_model: Vec<EnumArgs>,
     exchange_model: Vec<EnumArgs>,
+    fee_model: Vec<EnumArgs>,
 }
 
 impl Parse for BuildAssetInput {
@@ -133,6 +134,7 @@ impl Parse for BuildAssetInput {
             latency_model: Default::default(),
             queue_model: Default::default(),
             exchange_model: Default::default(),
+            fee_model: Default::default(),
         };
 
         let mut content;
@@ -165,6 +167,13 @@ impl Parse for BuildAssetInput {
             .into_iter()
             .collect();
 
+        input.parse::<syn::token::Comma>()?;
+        let _bracket_token = bracketed!(content in input);
+        parsed_input.fee_model = content
+            .parse_terminated(EnumArgs::parse, Token![,])?
+            .into_iter()
+            .collect();
+
         Ok(parsed_input)
     }
 }
@@ -181,55 +190,61 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
         for latency_model in input.latency_model.iter() {
             for queue_model in input.queue_model.iter() {
                 for exchange_model in input.exchange_model.iter() {
-                    let at_ident = &asset_type.name;
-                    let at_args = &asset_type.args;
+                    for fee_model in input.fee_model.iter() {
+                        let at_ident = &asset_type.name;
+                        let at_args = &asset_type.args;
 
-                    let lm_ident = &latency_model.name;
-                    let lm_args = &latency_model.args;
+                        let lm_ident = &latency_model.name;
+                        let lm_args = &latency_model.args;
 
-                    let qm_ident = &queue_model.name;
-                    let qm_args = &queue_model.args;
+                        let qm_ident = &queue_model.name;
+                        let qm_args = &queue_model.args;
 
-                    let em_ident = &exchange_model.name;
-                    let em_args = &exchange_model.args;
+                        let em_ident = &exchange_model.name;
+                        let em_args = &exchange_model.args;
 
-                    let prob_func_ident = Ident::new(&format!("{}Func", qm_ident), qm_ident.span());
+                        let fm_ident = &fee_model.name;
+                        let fm_args = &fee_model.args;
 
-                    let qm_construct = if qm_ident.to_string().contains("ProbQueueModel") {
-                        quote! {
-                            ProbQueueModel::<#prob_func_ident, #marketdepth>::new(#prob_func_ident::new(#(#qm_args.clone()),*));
-                        }
-                    } else {
-                        quote! {
-                            #qm_ident::new();
-                        }
-                    };
+                        let prob_func_ident =
+                            Ident::new(&format!("{}Func", qm_ident), qm_ident.span());
 
-                    let depth_construct = match marketdepth.to_string().as_str() {
-                        "HashMapMarketDepth" => {
+                        let qm_construct = if qm_ident.to_string().contains("ProbQueueModel") {
                             quote! {
-                                #marketdepth::new(#asset.tick_size, #asset.lot_size);
+                                ProbQueueModel::<#prob_func_ident, #marketdepth>::new(#prob_func_ident::new(#(#qm_args.clone()),*));
                             }
-                        }
-                        "ROIVectorMarketDepth" => {
+                        } else {
                             quote! {
-                                #marketdepth::new(
-                                    #asset.tick_size,
-                                    #asset.lot_size,
-                                    #asset.roi_lb,
-                                    #asset.roi_ub
-                                );
+                                #qm_ident::new();
                             }
-                        }
-                        _ => panic!(),
-                    };
+                        };
 
-                    arms.push(quote! {
+                        let depth_construct = match marketdepth.to_string().as_str() {
+                            "HashMapMarketDepth" => {
+                                quote! {
+                                    #marketdepth::new(#asset.tick_size, #asset.lot_size);
+                                }
+                            }
+                            "ROIVectorMarketDepth" => {
+                                quote! {
+                                    #marketdepth::new(
+                                        #asset.tick_size,
+                                        #asset.lot_size,
+                                        #asset.roi_lb,
+                                        #asset.roi_ub
+                                    );
+                                }
+                            }
+                            _ => panic!(),
+                        };
+
+                        arms.push(quote! {
                         (
                             AssetType::#at_ident { #(#at_args),* },
                             LatencyModel::#lm_ident { #(#lm_args),* },
                             QueueModel::#qm_ident { #(#qm_args),* },
                             ExchangeKind::#em_ident { #(#em_args),* },
+                            FeeModel::#fm_ident { #(#fm_args),* },
                         ) => {
                             let cache = Cache::new();
                             let mut reader = Reader::new(cache);
@@ -250,6 +265,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
 
                             let asset_type = #at_ident::new(#(#at_args.clone()),*);
                             let latency_model = #lm_ident::new(#(#lm_args.clone()),*);
+                            let fee_model = #fm_ident::new(#(#fm_args.clone()),*);
 
                             let mut market_depth = #depth_construct;
                             match #asset.initial_snapshot.as_ref() {
@@ -266,7 +282,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let local: Box<dyn LocalProcessor<#marketdepth, Event>> = Box::new(Local::new(
                                 reader.clone(),
                                 market_depth,
-                                State::new(asset_type.clone(), #asset.maker_fee, #asset.taker_fee),
+                                State::new(asset_type.clone(), fee_model.clone()),
                                 latency_model.clone(),
                                 #asset.last_trades_cap,
                                 ob_local_to_exch.clone(),
@@ -290,7 +306,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let exch: Box<dyn Processor> = Box::new(#em_ident::new(
                                 reader,
                                 market_depth,
-                                State::new(asset_type, #asset.maker_fee, #asset.taker_fee),
+                                State::new(asset_type, fee_model.clone()),
                                 latency_model,
                                 queue_model,
                                 ob_exch_to_local,
@@ -303,6 +319,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             }
                         },
                     });
+                    }
                 }
             }
         }
@@ -313,7 +330,8 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
             &#asset.asset_type,
             &#asset.latency_model,
             &#asset.queue_model,
-            &#asset.exch_kind
+            &#asset.exch_kind,
+            &#asset.fee_model,
         ) {
             #(#arms)*
         }

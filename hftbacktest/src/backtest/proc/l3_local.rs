@@ -7,9 +7,9 @@ use crate::{
     backtest::{
         assettype::AssetType,
         data::{Data, Reader},
-        models::LatencyModel,
+        models::{fee::FeeModel, LatencyModel},
         order::OrderBus,
-        proc::traits::{LocalProcessor, Processor},
+        proc::{LocalProcessor, Processor},
         state::State,
         BacktestError,
     },
@@ -32,15 +32,17 @@ use crate::{
         LOCAL_EVENT,
         LOCAL_FILL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
+        LOCAL_TRADE_EVENT,
     },
 };
 
 /// The Level3 Market-By-Order local model.
-pub struct L3Local<AT, LM, MD>
+pub struct L3Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: L3MarketDepth,
+    FM: FeeModel,
 {
     reader: Reader<Event>,
     data: Data<Event>,
@@ -49,24 +51,25 @@ where
     orders_to: OrderBus,
     orders_from: OrderBus,
     depth: MD,
-    state: State<AT>,
+    state: State<AT, FM>,
     order_latency: LM,
     trades: Vec<Event>,
     last_feed_latency: Option<(i64, i64)>,
     last_order_latency: Option<(i64, i64, i64)>,
 }
 
-impl<AT, LM, MD> L3Local<AT, LM, MD>
+impl<AT, LM, MD, FM> L3Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: L3MarketDepth,
+    FM: FeeModel,
 {
     /// Constructs an instance of `L3Local`.
     pub fn new(
         reader: Reader<Event>,
         depth: MD,
-        state: State<AT>,
+        state: State<AT, FM>,
         order_latency: LM,
         trade_len: usize,
         orders_to: OrderBus,
@@ -119,11 +122,12 @@ where
     }
 }
 
-impl<AT, LM, MD> LocalProcessor<MD, Event> for L3Local<AT, LM, MD>
+impl<AT, LM, MD, FM> LocalProcessor<MD, Event> for L3Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: L3MarketDepth,
+    FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     fn submit_order(
@@ -239,11 +243,12 @@ where
     }
 }
 
-impl<AT, LM, MD> Processor for L3Local<AT, LM, MD>
+impl<AT, LM, MD, FM> Processor for L3Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: L3MarketDepth,
+    FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     fn initialize_data(&mut self) -> Result<i64, BacktestError> {
@@ -285,10 +290,8 @@ where
             // self.depth.delete_order(ev.order_id, ev.local_ts)?;
         }
         // Processes a trade event
-        else if ev.is(LOCAL_FILL_EVENT) {
-            if self.trades.capacity() > 0 {
-                self.trades.push(ev.clone());
-            }
+        else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
+            self.trades.push(ev.clone());
         }
 
         // Stores the current feed latency

@@ -3,7 +3,12 @@ use hftbacktest::{
     backtest::{
         assettype::LinearAsset,
         data::{read_npz_file, DataSource},
-        models::{IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel},
+        models::{
+            fee::{CommonFees, TradingValueFeeModel},
+            IntpOrderLatency,
+            PowerProbQueueFunc3,
+            ProbQueueModel,
+        },
         recorder::BacktestRecorder,
         AssetBuilder,
         Backtest,
@@ -33,8 +38,7 @@ fn prepare_backtest() -> Backtest<HashMapMarketDepth> {
                 .data(data)
                 .latency_model(latency_model)
                 .asset_type(asset_type)
-                .maker_fee(-0.00005)
-                .taker_fee(0.0007)
+                .fee_model(TradingValueFeeModel::new(CommonFees::new(-0.00005, 0.0007)))
                 .queue_model(queue_model)
                 .depth(|| {
                     let mut depth = HashMapMarketDepth::new(0.000001, 1.0);
