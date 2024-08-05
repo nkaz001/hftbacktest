@@ -31,14 +31,9 @@ def create_last_snapshot(
     # Just to reconstruct order book from the given snapshot to the end of the given data.
     asset = (
         BacktestAsset()
-            .linear_asset(1.0)
             .data(data)
-            .no_partial_fill_exchange()
-            .constant_latency(0, 0)
-            .risk_adverse_queue_model()
             .tick_size(tick_size)
             .lot_size(lot_size)
-            .trade_len(0)
     )
     if initial_snapshot is not None:
         asset.initial_snapshot(initial_snapshot)
