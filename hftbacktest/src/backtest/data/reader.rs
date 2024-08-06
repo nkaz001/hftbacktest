@@ -135,6 +135,7 @@ where
         let mut borrowed = self.0.borrow_mut();
         let cached_data = borrowed.get_mut(key).unwrap();
         cached_data.set(data);
+        cached_data.ready = true;
     }
 
     pub fn is_ready(&self, key: &str) -> bool {
