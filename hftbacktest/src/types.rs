@@ -5,13 +5,21 @@ use std::{
 };
 
 use anyhow::Error;
+use bincode::{
+    de::{BorrowDecoder, Decoder},
+    enc::Encoder,
+    error::{DecodeError, EncodeError},
+    BorrowDecode,
+    Decode,
+    Encode,
+};
 use dyn_clone::DynClone;
 use hftbacktest_derive::NpyDTyped;
 use thiserror::Error;
 
 use crate::{backtest::data::POD, depth::MarketDepth};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub enum Value {
     String(String),
     Int(i64),
@@ -92,7 +100,7 @@ impl From<reqwest::Error> for Value {
 }
 
 /// Error conveyed through [`LiveEvent`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub struct LiveError {
     pub kind: ErrorKind,
     pub value: Value,
@@ -119,7 +127,7 @@ impl LiveError {
 }
 
 /// Error type assigned to [`LiveError`].
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Decode, Encode)]
 pub enum ErrorKind {
     ConnectionInterrupted,
     CriticalConnectionError,
@@ -128,7 +136,7 @@ pub enum ErrorKind {
 }
 
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub enum LiveEvent {
     FeedBatch { asset_no: usize, events: Vec<Event> },
     Feed { asset_no: usize, event: Event },
@@ -303,7 +311,7 @@ pub enum WaitOrderResponse {
 
 /// Feed event data.
 #[repr(C, align(64))]
-#[derive(Clone, PartialEq, Debug, NpyDTyped)]
+#[derive(Clone, PartialEq, Debug, NpyDTyped, Decode, Encode)]
 pub struct Event {
     /// Event flag
     pub ev: u64,
@@ -344,7 +352,7 @@ impl Event {
 
 /// Represents a side, which can refer to either the side of an order or the initiator's side in a
 /// trade event, with the meaning varying depending on the context.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Decode, Encode)]
 #[repr(i8)]
 pub enum Side {
     /// In the market depth event, this indicates the bid side; in the market trade event, it
@@ -383,7 +391,7 @@ impl AsRef<str> for Side {
 }
 
 /// Order status
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Decode, Encode)]
 #[repr(u8)]
 pub enum Status {
     None = 0,
@@ -399,7 +407,7 @@ pub enum Status {
 }
 
 /// Time In Force
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Decode, Encode)]
 #[repr(u8)]
 pub enum TimeInForce {
     /// Good 'Til Canceled
@@ -428,7 +436,7 @@ impl AsRef<str> for TimeInForce {
 }
 
 /// Order type
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Decode, Encode)]
 #[repr(u8)]
 pub enum OrdType {
     Limit = 0,
@@ -623,6 +631,76 @@ impl Debug for Order {
     }
 }
 
+impl Decode for Order {
+    fn decode<D: Decoder>(decoder: &mut D) -> Result<Self, DecodeError> {
+        Ok(Self {
+            qty: Decode::decode(decoder)?,
+            leaves_qty: Decode::decode(decoder)?,
+            exec_qty: Decode::decode(decoder)?,
+            exec_price_tick: Decode::decode(decoder)?,
+            price_tick: Decode::decode(decoder)?,
+            tick_size: Decode::decode(decoder)?,
+            exch_timestamp: Decode::decode(decoder)?,
+            local_timestamp: Decode::decode(decoder)?,
+            order_id: Decode::decode(decoder)?,
+            // In a live bot, q isn't used.
+            q: Box::new(()),
+            maker: Decode::decode(decoder)?,
+            order_type: Decode::decode(decoder)?,
+            req: Decode::decode(decoder)?,
+            status: Decode::decode(decoder)?,
+            side: Decode::decode(decoder)?,
+            time_in_force: Decode::decode(decoder)?,
+        })
+    }
+}
+
+impl<'de> BorrowDecode<'de> for Order {
+    fn borrow_decode<D: BorrowDecoder<'de>>(decoder: &mut D) -> Result<Self, DecodeError> {
+        Ok(Self {
+            qty: Decode::decode(decoder)?,
+            leaves_qty: Decode::decode(decoder)?,
+            exec_qty: Decode::decode(decoder)?,
+            exec_price_tick: Decode::decode(decoder)?,
+            price_tick: Decode::decode(decoder)?,
+            tick_size: Decode::decode(decoder)?,
+            exch_timestamp: Decode::decode(decoder)?,
+            local_timestamp: Decode::decode(decoder)?,
+            order_id: Decode::decode(decoder)?,
+            // In a live bot, q isn't used.
+            q: Box::new(()),
+            maker: Decode::decode(decoder)?,
+            order_type: Decode::decode(decoder)?,
+            req: Decode::decode(decoder)?,
+            status: Decode::decode(decoder)?,
+            side: Decode::decode(decoder)?,
+            time_in_force: Decode::decode(decoder)?,
+        })
+    }
+}
+
+impl Encode for Order {
+    fn encode<E: Encoder>(&self, encoder: &mut E) -> Result<(), EncodeError> {
+        self.qty.encode(encoder)?;
+        self.leaves_qty.encode(encoder)?;
+        self.exec_qty.encode(encoder)?;
+        self.exec_price_tick.encode(encoder)?;
+        self.price_tick.encode(encoder)?;
+        self.tick_size.encode(encoder)?;
+        self.exch_timestamp.encode(encoder)?;
+        self.local_timestamp.encode(encoder)?;
+        self.order_id.encode(encoder)?;
+        // In a live bot, q isn't used.
+        self.maker.encode(encoder)?;
+        self.order_type.encode(encoder)?;
+        self.req.encode(encoder)?;
+        self.status.encode(encoder)?;
+        self.side.encode(encoder)?;
+        self.time_in_force.encode(encoder)?;
+        Ok(())
+    }
+}
+
 /// An asynchronous request to [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug)]
 pub enum Request {
@@ -668,6 +746,7 @@ pub enum BuildError {
 }
 
 /// Used to submit an order in a live bot.
+#[derive(Decode, Encode)]
 pub struct OrderRequest {
     pub order_id: u64,
     pub price: f64,

@@ -166,10 +166,10 @@ class Stats:
         )
 
         plt1 = equity_plt.opts(yformatter='$%.2f')
-        plt1.opts(multi_y=True, width=1000, height=400, legend_position='right')
+        plt1.opts(multi_y=True, width=1000, height=400, legend_position='right', show_grid=True)
 
         plt2 = pos_plt.opts(yformatter='$%d') * px_plt
-        plt2.opts(multi_y=True, width=1000, height=400, legend_position='right')
+        plt2.opts(multi_y=True, width=1000, height=400, legend_position='right', show_grid=True)
 
         return (plt1.relabel('Equity') + plt2.relabel('Position')).cols(1)
 
