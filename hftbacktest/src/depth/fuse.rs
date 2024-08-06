@@ -338,6 +338,8 @@ impl MarketDepth for FusedHashMapMarketDepth {
             .unwrap_or(&Default::default())
             .qty
     }
+
+    
 }
 
 impl ApplySnapshot for FusedHashMapMarketDepth {
