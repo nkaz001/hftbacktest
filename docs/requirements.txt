@@ -6,3 +6,4 @@ numpy>=1.16,<2
 numba~=0.59
 polars
 holoviews
+matplotlib

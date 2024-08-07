@@ -39,6 +39,7 @@ numpy = ["numpy ~= 1.26, < 2"]
 numba = ["numba ~= 0.59"]
 polars = ["polars"]
 holoviews = ["holoviews"]
+matplotlib = ["matplotlib"]
 
 [tool.maturin]
 include = [{ path = "rust-toolchain.toml", format = "sdist" }]
