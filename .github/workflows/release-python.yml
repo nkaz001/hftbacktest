@@ -51,7 +51,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
-          sccache: 'true'
+          # sccache: 'true'
           manylinux: 2_24
       - name: Upload wheels
         uses: actions/upload-artifact@v4
