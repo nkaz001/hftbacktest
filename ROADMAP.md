@@ -3,7 +3,7 @@
 Currently, the Rust implementation is being more actively developed especially for new features.
 
 ## Python
-* [X] Rust implementation as the backend. (WIP)
+* [X] Rust implementation as the backend.
 * [X] Improve performance reporting tools.
   * https://github.com/ranaroussi/quantstats
   * https://www.prestolabs.io/research/optimizing-risk-adjusted-return-in-constructing-portfolios-of-alphas
@@ -12,12 +12,12 @@ Currently, the Rust implementation is being more actively developed especially f
 ## Rust
 
 ### Backtesting
-* [X] Level 3 Market-By-Order backtesting (unstable_l3).
-* [X] Data fusion to provide the most frequent and granular data using different streams with different update frequencies and market depth ranges (unstable_fuse)
+* [X] Level 3 Market-By-Order backtesting. ``unstable_l3``
+* [X] Data fusion to provide the most frequent and granular data using different streams with different update frequencies and market depth ranges. ``unstable_fuse``
 * [ ] Adjust feed and order latency for exchanges located in different regions if the original feed and order latency data was collected at a different site.
 * [ ] Additional queue position model or exchange model.
 * [X] A vector-based implementation for fast L2 market depth within the specified ROI (range of interest).
-* [ ] Add fee model: fee per trading value (current), fee per trading quantity, fee per trade, and different fees based on the direction.
+* [X] Add fee model: fee per trading value (current), fee per trading quantity, fee per trade, and different fees based on the direction. (@roykim98)
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
@@ -33,7 +33,7 @@ Currently, the Rust implementation is being more actively developed especially f
   * https://developers.binance.com/docs/binance-spot-api-docs/README
   * https://developers.binance.com/docs/derivatives/coin-margined-futures/general-info
   * https://developers.binance.com/docs/derivatives/option/general-info
-* [X] Bybit (MVP)
+* [X] Bybit ``MVP``
   * https://bybit-exchange.github.io/docs/v5/intro
 * [ ] OKX
   * https://www.okx.com/docs-v5/en/
