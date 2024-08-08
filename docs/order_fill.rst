@@ -10,12 +10,14 @@ simulated market, no market impact is considered. Therefore, one of the most imp
 small enough not to make any market impact. In the end, you must test it in a live market with real market participants
 and adjust your backtesting based on the discrepancies between the backtesting results and the live outcomes.
 
-Hftbacktest offers two types of exchange simulation. `NoPartialFillExchange`_ is the default exchange simulation where
-no partial fills occur. `PartialFillExchange`_ is the extended exchange simulation that accounts for partial fills in
+Hftbacktest offers two types of exchange simulation. :ref:`order_fill_no_partial_fill_exchange` is the default exchange simulation where
+no partial fills occur. :ref:`order_fill_partial_fill_exchange` is the extended exchange simulation that accounts for partial fills in
 specific cases. Since the market-data replay-based backtesting cannot alter the market, some partial fill cases may
 still be unrealistic, such as taking market liquidity. This is because even if your order takes market liquidity, the
 replayed market data's market depth and trades cannot change. It is essential to understand the underlying assumptions
 in each backtesting simulation.
+
+.. _order_fill_no_partial_fill_exchange:
 
 NoPartialFillExchange
 ---------------------
@@ -41,22 +43,12 @@ Liquidity-Taking Order
     Regardless of the quantity at the best, liquidity-taking orders will be fully executed at the best. Be aware that
     this may cause unrealistic fill simulations if you attempt to execute a large quantity.
 
-Usage
-~~~~~
+You can find details below.
 
-..  code-block:: python
+* `NoPartialFillExchange <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.NoPartialFillExchange.html>`_
+  and :meth:`no_partial_fill_exchange <hftbacktest.BacktestAsset.no_partial_fill_exchange>`
 
-    from hftbacktest import NoPartialFillExchange
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        exchange_model=NoPartialFillExchange,  # Default
-        asset_type=Linear
-    )
+.. _order_fill_partial_fill_exchange:
 
 PartialFillExchange
 -------------------
@@ -94,22 +86,10 @@ Liquidity-Taking Order
     quantity do not change due to your execution. Be aware that this may cause unrealistic fill simulations if you
     attempt to execute a large quantity.
 
-Usage
-~~~~~
+You can find details below.
 
-..  code-block:: python
-
-    from hftbacktest import PartialFillExchange
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        exchange_model=PartialFillExchange,
-        asset_type=Linear
-    )
+* `PartialFillExchange <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/proc/struct.PartialFillExchange.html>`_
+  and :meth:`partial_fill_exchange <hftbacktest.BacktestAsset.partial_fill_exchange>`
 
 Queue Models
 ============
@@ -120,7 +100,7 @@ If an exchange doesn't provide Market-By-Order, you have to guess it by modeling
 HftBacktest currently only supports Market-By-Price that is most crypto exchanges provide and it provides the following
 queue position models for order fill simulation.
 
-Please refer to the details at :doc:`Queue Models <reference/queue_models>`.
+Please refer to the details at `Models <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/index.html>`.
 
 .. image:: images/liquidity-and-trade-activities.png
 
@@ -132,22 +112,12 @@ The decrease in quantity by cancellation or modification in the order book happe
 order queue position doesn't change.
 The order queue position will be advanced only if a trade happens at the price.
 
-..  code-block:: python
+You can find details below.
 
-    from hftbacktest import RiskAverseQueueModel
+* `RiskAdverseQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.RiskAdverseQueueModel.html>`_
+  and :meth:`risk_adverse_queue_model <hftbacktest.BacktestAsset.risk_adverse_queue_model>`
 
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=RiskAverseQueueModel()  # Default
-        asset_type=Linear
-    )
-
-
+.. _order_fill_prob_queue_model:
 
 ProbQueueModel
 --------------
@@ -158,6 +128,25 @@ This model is implemented as described in
 
 * https://quant.stackexchange.com/questions/3782/how-do-we-estimate-position-of-our-order-in-order-book
 * https://rigtorp.se/2013/06/08/estimating-order-queue-position.html
+
+You can find details below.
+
+* `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
+
+* `PowerProbQueueFunc <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc.html>`_
+  and :meth:`power_prob_queue_model <hftbacktest.BacktestAsset.power_prob_queue_model>`
+
+* `PowerProbQueueFunc2 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc2.html>`_
+  and :meth:`power_prob_queue_model2 <hftbacktest.BacktestAsset.power_prob_queue_model2>`
+
+* `PowerProbQueueFunc3 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc3.html>`_
+  and :meth:`power_prob_queue_model3 <hftbacktest.BacktestAsset.power_prob_queue_model3>`
+
+* `LogProbQueueFunc <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc.html>`_
+  and :meth:`log_prob_queue_model <hftbacktest.BacktestAsset.log_prob_queue_model>`
+
+* `LogProbQueueFunc2 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc2.html>`_
+  and :meth:`log_prob_queue_model2 <hftbacktest.BacktestAsset.log_prob_queue_model2>`
 
 By default, three variations are provided. These three models have different probability profiles.
 
@@ -174,192 +163,20 @@ unlike power functions.
 When you set the function f, it should be as follows.
 
 * The probability at 0 should be 0 because if the order is at the head of the queue, all decreases should happen after
-the order.
+  the order.
 * The probability at 1 should be 1 because if the order is at the tail of the queue, all decreases should happen before
-the order.
+  the order.
 
 You can see the comparison of the models :doc:`here <tutorials/Probability Queue Models>`.
 
-LogProbQueueModel
-~~~~~~~~~~~~~~~~~
-
-..  code-block:: python
-
-    from hftbacktest import LogProbQueueModel
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=LogProbQueueModel()
-        asset_type=Linear
-    )
-
-IdentityProbQueueModel
-~~~~~~~~~~~~~~~~~~~~~~
-
-..  code-block:: python
-
-    from hftbacktest import IdentityProbQueueModel
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=IdentityProbQueueModel()
-        asset_type=Linear
-    )
-
-SquareProbQueueModel
-~~~~~~~~~~~~~~~~~~~~
-
-..  code-block:: python
-
-    from hftbacktest import SquareProbQueueModel
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=SquareProbQueueModel()
-        asset_type=Linear
-    )
-
-PowerProbQueueModel
-~~~~~~~~~~~~~~~~~~~
-
-..  code-block:: python
-
-    from hftbacktest import PowerProbQueueModel
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=PowerProbQueueModel(3)
-        asset_type=Linear
-    )
-
-ProbQueueModel2
----------------
-This model is a variation of the `ProbQueueModel`_ that changes the probability calculation to
-f(back) / f(front + back) from f(back) / (f(front) + f(back)).
-
-LogProbQueueModel2
-~~~~~~~~~~~~~~~~~~
-
-..  code-block:: python
-
-    from hftbacktest import LogProbQueueModel2
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=LogProbQueueModel2()
-        asset_type=Linear
-    )
-
-PowerProbQueueModel2
-~~~~~~~~~~~~~~~~~~~~
-
-..  code-block:: python
-
-    from hftbacktest import PowerProbQueueModel2
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=PowerProbQueueModel2(3)
-        asset_type=Linear
-    )
-
-ProbQueueModel3
----------------
-This model is a variation of the `ProbQueueModel`_ that changes the probability calculation to
-1 - f(front / (front + back)) from f(back) / (f(front) + f(back)).
-
-PowerProbQueueModel3
-~~~~~~~~~~~~~~~~~~~~
-
-..  code-block:: python
-
-    from hftbacktest import PowerProbQueueModel3
-
-    hbt = HftBacktest(
-        data,
-        tick_size=0.01,
-        lot_size=0.001,
-        maker_fee=-0.00005,
-        taker_fee=0.0007,
-        order_latency=IntpOrderLatency(latency_data),
-        queue_model=PowerProbQueueModel3(3)
-        asset_type=Linear
-    )
-
-Implement a custom probability queue position model
----------------------------------------------------
-
-.. code-block:: python
-
-    @jitclass
-    class CustomProbQueueModel(ProbQueueModel):
-        def f(self, x):
-            # todo: custom formula
-            return x ** 3
-
-
 Implement a custom queue model
 ------------------------------
-You need to implement ``numba`` ``jitclass`` that has four methods: ``new``, ``trade``, ``depth``, ``is_filled``
+You need to implement the following traits in Rust based on your usage requirements.
 
-See `Queue position model implementation
-<https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/models/queue.py>`_ in detail.
+* `QueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/trait.QueueModel.html>`_
+* `L3QueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/trait.L3QueueModel.html>`_
 
-.. code-block:: python
-
-    @jitclass
-    class CustomQueuePositionModel:
-        def __init__(self):
-            pass
-
-        def new(self, order, proc):
-            # todo: when a new order is submitted.
-            pass
-
-        def trade(self, order, qty, proc):
-            # todo: when a trade happens.
-            pass
-
-        def depth(self, order, prev_qty, new_qty, proc):
-            # todo: when the order book quantity at the price is changed.
-            pass
-
-        def is_filled(self, order, proc):
-            # todo: check if a given order is filled.
-            return False
-
-        def reset(self):
-            pass
+Please refer to `the queue model implementation <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/src/backtest/models/queue.rs>`_.
 
 References
 ==========
