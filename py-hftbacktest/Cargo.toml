@@ -11,7 +11,3 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.22.1", features = ["extension-module"] }
 hftbacktest = { path = "../hftbacktest", features = ["backtest"] }
 hftbacktest-derive = { path = "../hftbacktest-derive" }
-
-[dependencies.openssl-sys]
-version = "0.9"
-features = ["vendored"]
