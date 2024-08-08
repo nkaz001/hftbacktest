@@ -41,9 +41,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
       - name: Install dependencies
         run: |
+          python3 -m ensurepip
           sudo apt-get update
           sudo apt-get install -y pkg-config openssl libssl-dev
       - name: Build wheels
@@ -52,7 +52,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
           sccache: 'true'
-          manylinux: 2_28
+          manylinux: 2_24
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
