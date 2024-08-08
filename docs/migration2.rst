@@ -24,8 +24,8 @@ check if their return values equal ``0`` to confirm success instead of checking 
 Data Format Changes
 -------------------
 The data format fed into HftBacktest has undergone significant changes. It is strongly recommended to reprocess the data
-from raw data to preserve all information. However, if raw data is unavailable, a data conversion utility from v1 to v2
-is provided.
+from raw data to preserve all information. However, if raw data is unavailable,
+:mod:`the data conversion utility <hftbacktest.data.utils.migration2>` from v1 to v2 is provided.
 
 The major changes are as follows:
 
