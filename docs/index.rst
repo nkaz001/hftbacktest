@@ -169,6 +169,10 @@ Examples
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/tree/master/rust/examples>`_.
 
+Migration to V2
+===============
+Please see the `migration guide <https://hftbacktest.readthedocs.io/en/latest/Migration%20To%20v2.html>`_.
+
 Roadmap
 =======
 
@@ -253,6 +257,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    :caption: User Guide
    :hidden:
 
+   Migration To v2 <migration2>
    Data <data>
    Latency Models <latency_models>
    Order Fill <order_fill>

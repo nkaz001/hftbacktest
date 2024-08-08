@@ -166,6 +166,10 @@ Examples
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/tree/master/rust/examples>`_.
 
+Migration to V2
+===============
+Please see the `migration guide <https://hftbacktest.readthedocs.io/en/latest/Migration%20To%20v2.html>`_.
+
 Roadmap
 =======
 
