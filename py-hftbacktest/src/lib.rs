@@ -135,11 +135,11 @@ impl BacktestAsset {
         slf
     }
 
-    /// Sets the lower bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
+    /// Sets the upper bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
     /// Only valid if `ROIVectorMarketDepthBacktest` is built.
     ///
     /// Args:
-    ///     roi_lb: the lower bound price of the range of interest.
+    ///     roi_ub: the upper bound price of the range of interest.
     pub fn roi_ub(mut slf: PyRefMut<Self>, roi_ub: f64) -> PyRefMut<Self> {
         slf.roi_ub = roi_ub;
         slf
