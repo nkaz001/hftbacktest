@@ -34,7 +34,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let (writer_tx, mut writer_rx) = unbounded_channel();
 
     let handle = match args.exchange.as_str() {
-        "binancefuturesum" => {
+        "binancefutures" | "binancefuturesum" => {
             let streams = vec![
                 "$symbol@trade",
                 "$symbol@bookTicker",
@@ -68,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 writer_tx,
             ))
         }
-        "binance" => {
+        "binance" | "binancespot" => {
             let streams = vec!["$symbol@trade", "$symbol@bookTicker", "$symbol@depth@100ms"]
                 .iter()
                 .map(|stream| stream.to_string())
