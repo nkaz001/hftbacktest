@@ -251,7 +251,9 @@ impl L2MarketDepth for ROIVectorMarketDepth {
         let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
         if side == Side::Buy {
             if self.best_bid_tick != INVALID_MIN {
-                for t in clear_upto.max(self.roi_lb)..(self.best_bid_tick + 1) {
+                let from = (clear_upto - self.roi_lb).max(0);
+                let to = self.best_bid_tick + 1 - self.roi_lb;
+                for t in from..to {
                     unsafe {
                         *self.bid_depth.get_unchecked_mut(t as usize) = 0.0;
                     }
@@ -269,7 +271,9 @@ impl L2MarketDepth for ROIVectorMarketDepth {
             }
         } else if side == Side::Sell {
             if self.best_ask_tick != INVALID_MAX {
-                for t in self.best_ask_tick..(clear_upto.min(self.roi_ub) + 1) {
+                let from = self.best_ask_tick - self.roi_lb;
+                let to = (clear_upto + 1 - self.roi_ub).min(self.ask_depth.len() as i64);
+                for t in from..to {
                     unsafe {
                         *self.ask_depth.get_unchecked_mut(t as usize) = 0.0;
                     }
@@ -343,7 +347,7 @@ impl MarketDepth for ROIVectorMarketDepth {
     fn bid_qty_at_tick(&self, price_tick: i64) -> f64 {
         if price_tick < self.roi_lb || price_tick > self.roi_ub {
             // This is outside the range of interest.
-            0.0
+            f64::NAN
         } else {
             unsafe {
                 *self
@@ -357,7 +361,7 @@ impl MarketDepth for ROIVectorMarketDepth {
     fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
         if price_tick < self.roi_lb || price_tick > self.roi_ub {
             // This is outside the range of interest.
-            0.0
+            f64::NAN
         } else {
             unsafe {
                 *self
