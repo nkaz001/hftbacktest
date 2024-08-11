@@ -62,7 +62,7 @@ def convert(
 
     tmp = np.empty(len(df), event_dtype)
 
-    adjust_ts = False
+    snapshot_ts = False
 
     rn = 0
     for (ts_event, action, side, price, size, order_id, flags, ts_recv) in df.iter_rows():
@@ -93,14 +93,18 @@ def convert(
         else:
             raise ValueError(side)
 
-        # The timestamp of the first clear event is significantly earlier than the next feed message (start of session),
-        # causing an unnecessary delay by elapse method in reaching the session's start time.
-        # To resolve this, the clear event's timestamp is adjusted to match the first session message.
-        if rn == 0 and ev & DEPTH_CLEAR_EVENT == DEPTH_CLEAR_EVENT:
-            adjust_ts = True
-        if rn == 1 and adjust_ts:
-            tmp[0]['exch_ts'] = exch_ts
-            tmp[0]['local_ts'] = local_ts
+        # DataBento's historical data includes a Start-of-Day (SOD) snapshot for CME data. In this snapshot, the
+        # exchange timestamp represents the original time when the order was submitted, and the data is sorted in
+        # chronological order. This ensures that orders are built with the correct price-time priority.
+        # However, since these timestamps are in the past, the exchange timestamp is artificially set to the local
+        # timestamp to indicate the snapshot.
+        # This adjustment maintains the chronological order of exchange timestamps during multi-day backtesting.
+        if DEPTH_CLEAR_EVENT == DEPTH_CLEAR_EVENT:
+            snapshot_ts = local_ts
+        if local_ts != snapshot_ts:
+            snapshot_ts = None
+        if snapshot_ts is not None:
+            exch_ts = local_ts = snapshot_ts
 
         tmp[rn] = (ev, exch_ts, local_ts, price, size, order_id, flags, 0)
 
