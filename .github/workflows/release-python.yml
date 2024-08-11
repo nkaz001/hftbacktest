@@ -177,7 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     if: inputs.dry-run == false
     needs: [linux, musllinux, windows, macos, sdist]
-    container: ghcr.io/pyo3/maturin:main
+    environment: release-python
     steps:
       - uses: actions/download-artifact@v4
       - name: Publish to PyPI
