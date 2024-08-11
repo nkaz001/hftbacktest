@@ -4,11 +4,11 @@ build-backend = "maturin"
 
 [project]
 name = "hftbacktest"
-description = "file: ../README.rst"
+description = "A high-frequency trading and market-making backtesting tool accounts for limit orders, queue positions, and latencies, utilizing full tick data for trades and order books."
 readme = "README.rst"
 authors = [{ name = "nkaz001", email = "nkaz001@protonmail.com" }]
 license = { file = "LICENSE" }
-version = "2.0.0rc1"
+version = "2.0.0"
 requires-python = ">=3.10"
 
 keywords = ["hft", "high-frequency trading", "trading", "market-making", "backtest"]
@@ -19,7 +19,7 @@ classifiers = [
   "Intended Audience :: Financial and Insurance Industry",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
-  "Operating System :: POSIX :: Linux",
+  "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
