@@ -4,20 +4,13 @@ use crate::{
     backtest::{
         assettype::AssetType,
         data::{Data, Reader},
-        models::{
-            FeeModel,
-            L3FIFOQueueModel,
-            L3OrderId,
-            L3OrderSource,
-            L3QueueModel,
-            LatencyModel,
-        },
+        models::{FeeModel, L3QueueModel, LatencyModel},
         order::OrderBus,
         proc::Processor,
         state::State,
         BacktestError,
     },
-    depth::{L3MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::L3MarketDepth,
     types::{
         Event,
         Order,
@@ -62,10 +55,11 @@ use crate::{
 /// best. Be aware that this may cause unrealistic fill simulations if you attempt to execute a
 /// large quantity.
 ///
-pub struct L3NoPartialFillExchange<AT, LM, MD, FM>
+pub struct L3NoPartialFillExchange<AT, LM, QM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
+    QM: L3QueueModel<MD>,
     MD: L3MarketDepth,
     FM: FeeModel,
 {
@@ -78,13 +72,14 @@ where
     depth: MD,
     state: State<AT, FM>,
     order_latency: LM,
-    queue_model: L3FIFOQueueModel,
+    queue_model: QM,
 }
 
-impl<AT, LM, MD, FM> L3NoPartialFillExchange<AT, LM, MD, FM>
+impl<AT, LM, QM, MD, FM> L3NoPartialFillExchange<AT, LM, QM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
+    QM: L3QueueModel<MD>,
     MD: L3MarketDepth,
     FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
@@ -94,6 +89,7 @@ where
         reader: Reader<Event>,
         depth: MD,
         state: State<AT, FM>,
+        queue_model: QM,
         order_latency: LM,
         orders_to: OrderBus,
         orders_from: OrderBus,
@@ -107,7 +103,7 @@ where
             depth,
             state,
             order_latency,
-            queue_model: L3FIFOQueueModel::new(),
+            queue_model,
         }
     }
 
@@ -128,6 +124,18 @@ where
         } else {
             return Err(BacktestError::InvalidOrderRequest);
         }
+        Ok(())
+    }
+
+    fn expired(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
+        order.exec_qty = 0.0;
+        order.leaves_qty = 0.0;
+        order.status = Status::Expired;
+        order.exch_timestamp = timestamp;
+        let local_recv_timestamp =
+            order.exch_timestamp + self.order_latency.response(timestamp, &order);
+
+        self.orders_to.append(order, local_recv_timestamp);
         Ok(())
     }
 
@@ -157,7 +165,7 @@ where
         order.status = Status::Filled;
         order.exch_timestamp = timestamp;
         let local_recv_timestamp =
-            order.exch_timestamp + self.order_latency.response(timestamp, &order);
+            order.exch_timestamp + self.order_latency.response(timestamp, order);
 
         self.state.apply_fill(order);
         self.orders_to.append(order.clone(), local_recv_timestamp);
@@ -170,41 +178,9 @@ where
         new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        // If the best has been significantly updated compared to the previous best, it would be
-        // better to iterate orders dict instead of order price ladder.
-        let mut filled_orders = Vec::new();
-        if prev_best_tick == INVALID_MIN
-            || (self.queue_model.orders.len() as i64) < new_best_tick - prev_best_tick
-        {
-            let mut filled_orders = Vec::new();
-            for (order_id, &mut (side, price_tick)) in self.queue_model.orders.iter_mut() {
-                if side == Side::Sell && price_tick <= new_best_tick {
-                    let priority = self.queue_model.ask_queue.get_mut(&price_tick).unwrap();
-                    let mut i = 0;
-                    while i < priority.len() {
-                        let order = priority.get(i).unwrap();
-                        if order_id.is(order) {
-                            filled_orders.push(priority.remove(i));
-                            break;
-                        }
-                    }
-                }
-            }
-        } else {
-            for t in (prev_best_tick + 1)..=new_best_tick {
-                if let Some(orders) = self.queue_model.ask_queue.get_mut(&t) {
-                    let mut i = 0;
-                    while i < orders.len() {
-                        let order = orders.get(i).unwrap();
-                        let order_source =
-                            order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
-                        if *order_source == L3OrderSource::Backtest {
-                            filled_orders.push(orders.remove(i));
-                        }
-                    }
-                }
-            }
-        }
+        let filled_orders = self
+            .queue_model
+            .on_best_bid_update(prev_best_tick, new_best_tick)?;
         for mut order in filled_orders {
             let price_tick = order.price_tick;
             self.fill(&mut order, timestamp, true, price_tick)?;
@@ -218,40 +194,9 @@ where
         new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        // If the best has been significantly updated compared to the previous best, it would be
-        // better to iterate orders dict instead of order price ladder.
-        let mut filled_orders = Vec::new();
-        if prev_best_tick == INVALID_MAX
-            || (self.queue_model.orders.len() as i64) < prev_best_tick - new_best_tick
-        {
-            for (order_id, &mut (side, price_tick)) in self.queue_model.orders.iter_mut() {
-                if side == Side::Buy && price_tick >= new_best_tick {
-                    let priority = self.queue_model.ask_queue.get_mut(&price_tick).unwrap();
-                    let mut i = 0;
-                    while i < priority.len() {
-                        let order = priority.get(i).unwrap();
-                        if order_id.is(order) {
-                            filled_orders.push(priority.remove(i));
-                            break;
-                        }
-                    }
-                }
-            }
-        } else {
-            for t in new_best_tick..prev_best_tick {
-                if let Some(orders) = self.queue_model.bid_queue.get_mut(&t) {
-                    let mut i = 0;
-                    while i < orders.len() {
-                        let order = orders.get(i).unwrap();
-                        let order_source =
-                            order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
-                        if *order_source == L3OrderSource::Backtest {
-                            filled_orders.push(orders.remove(i));
-                        }
-                    }
-                }
-            }
-        }
+        let filled_orders = self
+            .queue_model
+            .on_best_ask_update(prev_best_tick, new_best_tick)?;
         for mut order in filled_orders {
             let price_tick = order.price_tick;
             self.fill(&mut order, timestamp, true, price_tick)?;
@@ -260,11 +205,7 @@ where
     }
 
     fn ack_new(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
-        if self
-            .queue_model
-            .orders
-            .contains_key(&L3OrderId::Backtest(order.order_id))
-        {
+        if self.queue_model.contains_backtest_order(order.order_id) {
             return Err(BacktestError::OrderIdExist);
         }
 
@@ -289,7 +230,7 @@ where
                 order.exch_timestamp = timestamp;
 
                 self.queue_model
-                    .add_order(L3OrderId::Backtest(order.order_id), order.clone())?;
+                    .add_backtest_order(order.clone(), &self.depth)?;
 
                 let local_recv_timestamp =
                     timestamp + self.order_latency.response(timestamp, &order);
@@ -317,7 +258,7 @@ where
                 order.exch_timestamp = timestamp;
 
                 self.queue_model
-                    .add_order(L3OrderId::Backtest(order.order_id), order.clone())?;
+                    .add_backtest_order(order.clone(), &self.depth)?;
 
                 let local_recv_timestamp =
                     timestamp + self.order_latency.response(timestamp, &order);
@@ -330,7 +271,7 @@ where
     fn ack_cancel(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
         match self
             .queue_model
-            .cancel_order(L3OrderId::Backtest(order.order_id))
+            .cancel_backtest_order(order.order_id, &self.depth)
         {
             Ok(mut exch_order) => {
                 // Makes the response.
@@ -348,7 +289,7 @@ where
                 let local_recv_timestamp =
                     timestamp + self.order_latency.response(timestamp, &order);
                 self.orders_to.append(order, local_recv_timestamp);
-                return Ok(());
+                Ok(())
             }
             Err(e) => Err(e),
         }
@@ -359,10 +300,11 @@ where
     }
 }
 
-impl<AT, LM, MD, FM> Processor for L3NoPartialFillExchange<AT, LM, MD, FM>
+impl<AT, LM, QM, MD, FM> Processor for L3NoPartialFillExchange<AT, LM, QM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
+    QM: L3QueueModel<MD>,
     MD: L3MarketDepth,
     FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
@@ -381,11 +323,23 @@ where
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
         let row_num = self.row_num;
         if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::Buy);
+            self.depth.clear_orders(Side::Buy);
+            let expired_orders = self.queue_model.clear_orders(Side::Buy);
+            for expired_order in expired_orders {
+                self.expired(expired_order, self.data[row_num].exch_ts)?;
+            }
         } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::Sell);
+            self.depth.clear_orders(Side::Sell);
+            let expired_orders = self.queue_model.clear_orders(Side::Sell);
+            for expired_order in expired_orders {
+                self.expired(expired_order, self.data[row_num].exch_ts)?;
+            }
         } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::None);
+            self.depth.clear_orders(Side::None);
+            let expired_orders = self.queue_model.clear_orders(Side::None);
+            for expired_order in expired_orders {
+                self.expired(expired_order, self.data[row_num].exch_ts)?;
+            }
         } else if self.data[row_num].is(EXCH_BID_ADD_ORDER_EVENT) {
             let (prev_best_bid_tick, best_bid_tick) = self.depth.add_buy_order(
                 self.data[row_num].order_id,
@@ -393,6 +347,8 @@ where
                 self.data[row_num].qty,
                 self.data[row_num].exch_ts,
             )?;
+            self.queue_model
+                .add_market_feed_order(&self.data[row_num], &self.depth)?;
             if best_bid_tick > prev_best_bid_tick {
                 self.on_best_bid_update(
                     prev_best_bid_tick,
@@ -407,6 +363,8 @@ where
                 self.data[row_num].qty,
                 self.data[row_num].exch_ts,
             )?;
+            self.queue_model
+                .add_market_feed_order(&self.data[row_num], &self.depth)?;
             if best_ask_tick < prev_best_ask_tick {
                 self.on_best_ask_update(
                     prev_best_ask_tick,
@@ -421,25 +379,30 @@ where
                 self.data[row_num].qty,
                 self.data[row_num].exch_ts,
             )?;
+            self.queue_model.modify_market_feed_order(
+                self.data[row_num].order_id,
+                &self.data[row_num],
+                &self.depth,
+            )?;
             if side == Side::Buy {
                 if best_tick > prev_best_tick {
                     self.on_best_bid_update(prev_best_tick, best_tick, self.data[row_num].exch_ts)?;
                 }
-            } else {
-                if best_tick < prev_best_tick {
-                    self.on_best_ask_update(prev_best_tick, best_tick, self.data[row_num].exch_ts)?;
-                }
+            } else if best_tick < prev_best_tick {
+                self.on_best_ask_update(prev_best_tick, best_tick, self.data[row_num].exch_ts)?;
             }
         } else if self.data[row_num].is(EXCH_CANCEL_ORDER_EVENT) {
             let _ = self
                 .depth
                 .delete_order(self.data[row_num].order_id, self.data[row_num].exch_ts)?;
             self.queue_model
-                .cancel_order(L3OrderId::Market(self.data[row_num].order_id))?;
+                .cancel_market_feed_order(self.data[row_num].order_id, &self.depth)?;
         } else if self.data[row_num].is(EXCH_FILL_EVENT) {
-            let filled_orders = self
-                .queue_model
-                .fill(L3OrderId::Market(self.data[row_num].order_id), false)?;
+            let filled_orders = self.queue_model.fill_market_feed_order(
+                self.data[row_num].order_id,
+                false,
+                &self.depth,
+            )?;
             let timestamp = self.data[row_num].exch_ts;
             for mut order in filled_orders {
                 let price_tick = order.price_tick;
@@ -474,7 +437,7 @@ where
         _wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
-        while self.orders_from.len() > 0 {
+        while !self.orders_from.is_empty() {
             let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
             if timestamp == recv_timestamp {
                 let (order, _) = self.orders_from.pop_front().unwrap();

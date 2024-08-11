@@ -17,7 +17,7 @@ pub use fee::{
 };
 pub use latency::{ConstantLatency, IntpOrderLatency, LatencyModel, OrderLatencyRow};
 #[cfg(any(feature = "unstable_l3", doc))]
-pub use queue::{L3FIFOQueueModel, L3OrderId, L3OrderSource, L3QueueModel};
+pub use queue::{L3FIFOQueueModel, L3OrderSource, L3QueueModel};
 pub use queue::{
     LogProbQueueFunc,
     LogProbQueueFunc2,
