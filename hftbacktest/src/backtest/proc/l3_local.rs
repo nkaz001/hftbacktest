@@ -30,7 +30,6 @@ use crate::{
         LOCAL_CANCEL_ORDER_EVENT,
         LOCAL_DEPTH_CLEAR_EVENT,
         LOCAL_EVENT,
-        LOCAL_FILL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
         LOCAL_TRADE_EVENT,
     },
@@ -283,11 +282,6 @@ where
                 .modify_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;
         } else if ev.is(LOCAL_CANCEL_ORDER_EVENT) {
             self.depth.delete_order(ev.order_id, ev.local_ts)?;
-        } else if ev.is(LOCAL_FILL_EVENT) {
-            // todo: based on Databento's data, CME sends a separate cancel message for filled
-            //       orders, so the fill event doesn't need to remove the order. However, it needs
-            //       to be checked if the same applies to other exchanges.
-            // self.depth.delete_order(ev.order_id, ev.local_ts)?;
         }
         // Processes a trade event
         else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {

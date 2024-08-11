@@ -178,10 +178,10 @@ where
         new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        let filled_orders = self
+        let filled = self
             .queue_model
             .on_best_bid_update(prev_best_tick, new_best_tick)?;
-        for mut order in filled_orders {
+        for mut order in filled {
             let price_tick = order.price_tick;
             self.fill(&mut order, timestamp, true, price_tick)?;
         }
@@ -194,10 +194,10 @@ where
         new_best_tick: i64,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
-        let filled_orders = self
+        let filled = self
             .queue_model
             .on_best_ask_update(prev_best_tick, new_best_tick)?;
-        for mut order in filled_orders {
+        for mut order in filled {
             let price_tick = order.price_tick;
             self.fill(&mut order, timestamp, true, price_tick)?;
         }
@@ -324,21 +324,21 @@ where
         let row_num = self.row_num;
         if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
             self.depth.clear_orders(Side::Buy);
-            let expired_orders = self.queue_model.clear_orders(Side::Buy);
-            for expired_order in expired_orders {
-                self.expired(expired_order, self.data[row_num].exch_ts)?;
+            let expired = self.queue_model.clear_orders(Side::Buy);
+            for order in expired {
+                self.expired(order, self.data[row_num].exch_ts)?;
             }
         } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
             self.depth.clear_orders(Side::Sell);
-            let expired_orders = self.queue_model.clear_orders(Side::Sell);
-            for expired_order in expired_orders {
-                self.expired(expired_order, self.data[row_num].exch_ts)?;
+            let expired = self.queue_model.clear_orders(Side::Sell);
+            for order in expired {
+                self.expired(order, self.data[row_num].exch_ts)?;
             }
         } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
             self.depth.clear_orders(Side::None);
-            let expired_orders = self.queue_model.clear_orders(Side::None);
-            for expired_order in expired_orders {
-                self.expired(expired_order, self.data[row_num].exch_ts)?;
+            let expired = self.queue_model.clear_orders(Side::None);
+            for order in expired {
+                self.expired(order, self.data[row_num].exch_ts)?;
             }
         } else if self.data[row_num].is(EXCH_BID_ADD_ORDER_EVENT) {
             let (prev_best_bid_tick, best_bid_tick) = self.depth.add_buy_order(
@@ -398,13 +398,11 @@ where
             self.queue_model
                 .cancel_market_feed_order(self.data[row_num].order_id, &self.depth)?;
         } else if self.data[row_num].is(EXCH_FILL_EVENT) {
-            let filled_orders = self.queue_model.fill_market_feed_order(
-                self.data[row_num].order_id,
-                false,
-                &self.depth,
-            )?;
+            let filled = self
+                .queue_model
+                .fill_market_feed_order::<false>(self.data[row_num].order_id, &self.depth)?;
             let timestamp = self.data[row_num].exch_ts;
-            for mut order in filled_orders {
+            for mut order in filled {
                 let price_tick = order.price_tick;
                 self.fill(&mut order, timestamp, true, price_tick)?;
             }

@@ -328,7 +328,7 @@ impl Probability for PowerProbQueueFunc3 {
 /// Represents the order source for the Level 3 Market-By-Order queue model, which is stored in
 /// [`order.q`](crate::types::Order::q)
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub enum L3OrderSource {
+enum L3OrderSource {
     /// Represents an order originating from the market feed.
     MarketFeed,
     /// Represents an order originating from the backtest.
@@ -345,7 +345,7 @@ impl AnyClone for L3OrderSource {
     }
 }
 
-trait L3OrderId {
+trait L3Order {
     fn order_source(&self) -> L3OrderSource;
 
     fn is_backtest_order(&self) -> bool;
@@ -353,65 +353,72 @@ trait L3OrderId {
     fn is_market_feed_order(&self) -> bool;
 }
 
-impl L3OrderId for Order {
+impl L3Order for Order {
     fn order_source(&self) -> L3OrderSource {
         *self.q.as_any().downcast_ref::<L3OrderSource>().unwrap()
     }
 
     fn is_backtest_order(&self) -> bool {
-        let order_source = self.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
-        match order_source {
+        match self.order_source() {
             L3OrderSource::MarketFeed => false,
             L3OrderSource::Backtest => true,
         }
     }
 
     fn is_market_feed_order(&self) -> bool {
-        let order_source = self.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
-        match order_source {
+        match self.order_source() {
             L3OrderSource::MarketFeed => true,
             L3OrderSource::Backtest => false,
         }
     }
 }
 
-/// Provides an estimation of the order's queue position for Level 3 Market-By-Order feed.
+/// Provides a model to determine whether the backtest order is filled, accounting for the queue
+/// position based on L3 Market-By-Order data.
 pub trait L3QueueModel<MD> {
+    /// Returns `true` if the queue contains a backtest order for the order ID.
     fn contains_backtest_order(&self, order_id: OrderId) -> bool;
 
+    /// Invoked when the best bid is updated.
+    /// Returns the ask backtest orders that are filled by crossing the best bid.
     fn on_best_bid_update(
         &mut self,
         prev_best_tick: i64,
         new_best_tick: i64,
     ) -> Result<Vec<Order>, BacktestError>;
 
+    /// Invoked when the best ask is updated.
+    /// Returns the bid backtest orders that are filled by crossing the best ask.
     fn on_best_ask_update(
         &mut self,
         prev_best_tick: i64,
         new_best_tick: i64,
     ) -> Result<Vec<Order>, BacktestError>;
 
-    /// This function is called when an order is added.
+    /// Invoked when a backtest order is added.
     fn add_backtest_order(&mut self, order: Order, depth: &MD) -> Result<(), BacktestError>;
 
+    /// Invoked when an order is added from the market feed.
     fn add_market_feed_order(&mut self, order: &Event, depth: &MD) -> Result<(), BacktestError>;
 
-    /// This function is called when an order is canceled.
-    /// It does not necessarily mean that the order is canceled by the person who submitted it. It
-    /// may simply mean that the order has been deleted in the market.
+    /// Invoked when a backtest order is canceled.
     fn cancel_backtest_order(
         &mut self,
         order_id: OrderId,
         depth: &MD,
     ) -> Result<Order, BacktestError>;
 
+    /// Invoked when an order is canceled from the market feed.
+    ///
+    /// It does not necessarily mean that the order is canceled by the one who submitted it. It may
+    /// simply mean that the order has been deleted in the market.
     fn cancel_market_feed_order(
         &mut self,
         order_id: OrderId,
         depth: &MD,
     ) -> Result<(), BacktestError>;
 
-    /// This function is called when an order is modified.
+    /// Invoked when a backtest order is modified.
     fn modify_backtest_order(
         &mut self,
         order_id: OrderId,
@@ -419,6 +426,7 @@ pub trait L3QueueModel<MD> {
         depth: &MD,
     ) -> Result<(), BacktestError>;
 
+    /// Invoked when an order is modified from the market feed.
     fn modify_market_feed_order(
         &mut self,
         order_id: OrderId,
@@ -426,19 +434,34 @@ pub trait L3QueueModel<MD> {
         depth: &MD,
     ) -> Result<(), BacktestError>;
 
-    /// This function is called when an order is filled.
+    /// Invoked when an order is filled from the market feed.
+    ///
     /// According to the exchange, the market feed may send fill and delete order events separately.
     /// This means that after a fill event is received, a delete order event can be received
-    /// subsequently. The `delete` argument is used to indicate whether the order should be deleted
-    /// immediately or if it should be deleted upon receiving a delete order event, which is handled
-    /// by [`cancel_order`](L3QueueModel::cancel_backtest_order).
-    fn fill_market_feed_order(
+    /// subsequently. The `DELETE` constant generic is used to indicate whether the order should be
+    /// deleted immediately or if it should be deleted upon receiving a delete order event, which is
+    /// handled by [`cancel_market_feed_order`](L3QueueModel::cancel_market_feed_order).
+    fn fill_market_feed_order<const DELETE: bool>(
         &mut self,
         order_id: OrderId,
-        delete: bool,
         depth: &MD,
     ) -> Result<Vec<Order>, BacktestError>;
 
+    /// Invoked when a clear order message is received. Returns the expired orders due to the clear
+    /// message.
+    ///
+    /// Such messages can occur in two scenarios:
+    ///
+    /// 1. The exchange clears orders for reasons such as session close.
+    ///    In this case, backtest orders must also be cleared.
+    /// 2. The exchange sends a clear message before sending a snapshot to properly maintain market
+    ///    depth. Here, clearing backtest orders is not always necessary. However, estimating the
+    ///    order queue position becomes difficult because clearing the market feed orders leads to
+    ///    the loss of queue position information. Additionally, there's no guarantee that all
+    ///    orders preceding the clear message will persist.
+    ///
+    /// Due to these challenges, HftBacktest opts to clear all backtest orders upon receiving a
+    /// clear message, even though this may differ from the exchange's actual behavior.
     fn clear_orders(&mut self, side: Side) -> Vec<Order>;
 }
 
@@ -934,13 +957,12 @@ where
         Ok(())
     }
 
-    fn fill_market_feed_order(
+    fn fill_market_feed_order<const DELETE: bool>(
         &mut self,
         order_id: OrderId,
-        delete: bool,
         _depth: &MD,
     ) -> Result<Vec<Order>, BacktestError> {
-        let (side, order_price_tick) = if delete {
+        let (side, order_price_tick) = if DELETE {
             self.mkt_feed_orders
                 .remove(&order_id)
                 .ok_or(BacktestError::OrderNotFound)?
@@ -975,7 +997,7 @@ where
                     }
                 }
                 let pos = pos.ok_or(BacktestError::OrderNotFound)?;
-                if delete {
+                if DELETE {
                     queue.remove(pos);
                     // if queue.len() == 0 {
                     //     self.ask_queue.remove(&order_price_tick);
@@ -1009,7 +1031,7 @@ where
                     }
                 }
                 let pos = pos.ok_or(BacktestError::OrderNotFound)?;
-                if delete {
+                if DELETE {
                     queue.remove(pos);
                     // if queue.len() == 0 {
                     //     self.ask_queue.remove(&order_price_tick);

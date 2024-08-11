@@ -400,6 +400,20 @@ pub struct L3AssetBuilder<LM, AT, QM, MD, FM> {
     last_trades_cap: usize,
 }
 
+impl<LM, AT, QM, MD, FM> Default for L3AssetBuilder<LM, AT, QM, MD, FM>
+where
+    AT: AssetType + Clone + 'static,
+    MD: MarketDepth + L3MarketDepth + 'static,
+    QM: L3QueueModel<MD> + 'static,
+    LM: LatencyModel + Clone + 'static,
+    FM: FeeModel + Clone + 'static,
+    BacktestError: From<<MD as L3MarketDepth>::Error>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<LM, AT, QM, MD, FM> L3AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
