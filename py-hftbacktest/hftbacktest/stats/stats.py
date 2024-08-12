@@ -1,8 +1,7 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, List, Type, Mapping
+from typing import Any, List, Type, Mapping, Literal
 
-import holoviews as hv
 import numpy as np
 import polars as pl
 from numpy.typing import NDArray
@@ -81,17 +80,24 @@ class Stats:
         df = pl.DataFrame(self.splits)
         return df
 
-    def plot(self, price_as_ret: bool = False, extension: str = 'bokeh'):
+    def plot(self, price_as_ret: bool = False, backend: Literal['matplotlib', 'holoviews'] = 'matplotlib'):
         """
         Plots the equity curves and positions over time along with the price chart.
 
         Args:
             price_as_ret: Plots the price chart in cumulative returns if set to `True`; otherwise, it plots the price
                           chart in raw price terms.
-            extension: Sets `Holoviews` extension.
+            backend: Specifies which plotting library is used to plot the charts. The default is 'matplotlib'.
         """
-        if extension is not None:
-            hv.extension(extension)
+        if backend == 'matplotlib':
+            self.plot_matplotlib(price_as_ret)
+        elif backend == 'holoviews':
+            return self.plot_holoviews(price_as_ret)
+        else:
+            raise ValueError(f'{backend} is unsupported')
+
+    def plot_holoviews(self, price_as_ret: bool = False):
+        import holoviews as hv
 
         entire_df = self.entire
         kwargs = self.kwargs
@@ -106,17 +112,17 @@ class Stats:
                     hv.Curve(
                         (entire_df['timestamp'], equity / book_size * 100),
                         label='Equity',
-                        vdims=['Cumulative Return (%)']
+                        vdims=['Cumulative Returns (%)']
                     ),
                     hv.Curve(
                         (entire_df['timestamp'], equity_wo_fee / book_size * 100),
                         label='Equity w/o fee',
-                        vdims=['Cumulative Return (%)']
+                        vdims=['Cumulative Returns (%)']
                     ),
                     hv.Curve(
                         (entire_df['timestamp'], (entire_df['price'] / entire_df['price'][0] - 1.0) * 100),
                         label='Price',
-                        vdims=['Cumulative Return (%)']
+                        vdims=['Cumulative Returns (%)']
                     ).opts(alpha=0.2, color='black')
                 ])
             else:
@@ -124,12 +130,12 @@ class Stats:
                     hv.Curve(
                         (entire_df['timestamp'], equity / book_size * 100),
                         label='Equity',
-                        vdims=['Cumulative Return (%)']
+                        vdims=['Cumulative Returns (%)']
                     ),
                     hv.Curve(
                         (entire_df['timestamp'], equity_wo_fee / book_size * 100),
                         label='Equity w/o fee',
-                        vdims=['Cumulative Return (%)']
+                        vdims=['Cumulative Returns (%)']
                     )
                 ]) * hv.Curve(
                     (entire_df['timestamp'], entire_df['price']),
@@ -173,6 +179,60 @@ class Stats:
 
         return (plt1.relabel('Equity') + plt2.relabel('Position')).cols(1)
 
+    def plot_matplotlib(self, price_as_ret: bool = False):
+        from matplotlib import pyplot as plt
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        fig.subplots_adjust(hspace=0)
+        fig.set_size_inches(10, 6)
+
+        entire_df = self.entire
+        kwargs = self.kwargs
+
+        equity = entire_df['equity_wo_fee'] - entire_df['fee']
+        equity_wo_fee = entire_df['equity_wo_fee']
+
+        book_size = kwargs.get('book_size')
+        if book_size is not None:
+            if price_as_ret:
+                ax1.plot(entire_df['timestamp'], equity / book_size * 100)
+                ax1.plot(entire_df['timestamp'], equity_wo_fee / book_size * 100)
+                ax1.plot(entire_df['timestamp'], (entire_df['price'] / entire_df['price'][0] - 1.0) * 100, 'black', alpha=0.2)
+
+                ax1.set_ylabel('Cumulative Returns (%)')
+                ax1.legend(['Equity', 'Equity w/o fee', 'Price'])
+            else:
+                ax1.plot(entire_df['timestamp'], equity / book_size * 100)
+                ax1.plot(entire_df['timestamp'], equity_wo_fee / book_size * 100)
+                ax1_ = ax1.twinx()
+                ax1_.plot(entire_df['timestamp'], entire_df['price'], 'black', alpha=0.2)
+
+                ax1.set_ylabel('Cumulative Returns (%)')
+                ax1_.set_ylabel('Price')
+                ax1.legend(['Equity', 'Equity w/o fee'])
+                ax1_.legend(['Price'])
+        else:
+            ax1.plot(entire_df['timestamp'], equity)
+            ax1.plot(entire_df['timestamp'], equity_wo_fee)
+            ax1_ = ax1.twinx()
+            ax1_.plot(entire_df['timestamp'], entire_df['price'], 'black', alpha=0.2)
+
+            ax1.set_ylabel('Equity')
+            ax1_.set_ylabel('Price')
+            ax1.legend(['Equity', 'Equity w/o fee', 'Price'])
+            ax1_.legend(['Price'])
+
+        ax1.grid()
+
+        ax2.plot(entire_df['timestamp'], entire_df['position'])
+        ax2_ = ax2.twinx()
+        ax2_.plot(entire_df['timestamp'], entire_df['price'], 'black', alpha=0.2)
+
+        ax2.set_ylabel('Position (Qty)')
+        ax2_.set_ylabel('Price')
+        ax2.legend(['Position'])
+        ax2_.legend(['Price'])
+        ax2.grid()
 
 class Record(ABC):
     DEFAULT_METRICS = (

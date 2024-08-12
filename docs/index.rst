@@ -61,7 +61,7 @@ Or you can clone the latest development version from the Git repository with:
 Data Source & Format
 --------------------
 
-Please see `Data <https://hftbacktest.readthedocs.io/en/latest/data.html>`_ or `Data Preparation <https://hftbacktest.readthedocs.io/en/latest/tutorials/Data%20Preparation.html>`_.
+Please see :doc:`Data <data>`_ or :doc:`Data Preparation <tutorials/Data Preparation>`.
 
 A Quick Example
 ---------------
@@ -152,22 +152,26 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
 
 Tutorials
 =========
-* `Data Preparation <https://hftbacktest.readthedocs.io/en/latest/tutorials/Data%20Preparation.html>`_
-* `Getting Started <https://hftbacktest.readthedocs.io/en/latest/tutorials/Getting%20Started.html>`_
-* `Working with Market Depth and Trades <https://hftbacktest.readthedocs.io/en/latest/tutorials/Working%20with%20Market%20Depth%20and%20Trades.html>`_
-* `Integrating Custom Data <https://hftbacktest.readthedocs.io/en/latest/tutorials/Integrating%20Custom%20Data.html>`_
-* `Making Multiple Markets - Introduction <https://hftbacktest.readthedocs.io/en/latest/tutorials/Making%20Multiple%20Markets%20-%20Introduction.html>`_
-* `High-Frequency Grid Trading <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading.html>`_
-* `Impact of Order Latency <https://hftbacktest.readthedocs.io/en/latest/tutorials/Impact%20of%20Order%20Latency.html>`_
-* `Order Latency Data <https://hftbacktest.readthedocs.io/en/latest/tutorials/Order%20Latency%20Data.html>`_
-* `Guéant–Lehalle–Fernandez-Tapia Market Making Model and Grid Trading <https://hftbacktest.readthedocs.io/en/latest/tutorials/GLFT%20Market%20Making%20Model%20and%20Grid%20Trading.html>`_
-* `Making Multiple Markets <https://hftbacktest.readthedocs.io/en/latest/tutorials/Making%20Multiple%20Markets.html>`_
-* `Risk Mitigation through Price Protection in Extreme Market Conditions <https://hftbacktest.readthedocs.io/en/latest/tutorials/Risk%20Mitigation%20through%20Price%20Protection%20in%20Extreme%20Market%20Conditions.html>`_
+* :doc:`Data Preparation <tutorials/Data Preparation>`
+* :doc:`Getting Started <tutorials/Getting Started>`
+* :doc:`Working with Market Depth and Trades <tutorials/Working with Market Depth and Trades>`
+* :doc:`Integrating Custom Data <tutorials/Integrating Custom Data>`
+* :doc:`Making Multiple Markets - Introduction <tutorials/Making Multiple Markets - Introduction>`
+* :doc:`High-Frequency Grid Trading <tutorials/High-Frequency Grid Trading>`
+* :doc:`Impact of Order Latency <tutorials/Impact of Order Latency>`
+* :doc:`Order Latency Data <tutorials/Order Latency Data>`
+* :doc:`Guéant–Lehalle–Fernandez-Tapia Market Making Model and Grid Trading <tutorials/GLFT Market Making Model and Grid Trading>`
+* :doc:`Making Multiple Markets <tutorials/Making Multiple Markets>`
+* :doc:`Risk Mitigation through Price Protection in Extreme Market Conditions <tutorials/Risk Mitigation through Price Protection in Extreme Market Conditions>`
 
 Examples
 ========
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/tree/master/rust/examples>`_.
+
+Migration to V2
+===============
+Please see the :doc:`migration guide <migration2>`.
 
 Roadmap
 =======
@@ -253,6 +257,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    :caption: User Guide
    :hidden:
 
+   Migration To v2 <migration2>
    Data <data>
    Latency Models <latency_models>
    Order Fill <order_fill>

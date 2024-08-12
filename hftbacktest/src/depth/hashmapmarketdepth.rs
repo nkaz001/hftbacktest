@@ -194,38 +194,58 @@ impl L2MarketDepth for HashMapMarketDepth {
     }
 
     fn clear_depth(&mut self, side: Side, clear_upto_price: f64) {
-        let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
-        if side == Side::Buy {
-            if self.best_bid_tick != INVALID_MIN {
-                for t in clear_upto..(self.best_bid_tick + 1) {
-                    if self.bid_depth.contains_key(&t) {
-                        self.bid_depth.remove(&t);
+        match side {
+            Side::Buy => {
+                if clear_upto_price.is_finite() {
+                    let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
+                    if self.best_bid_tick != INVALID_MIN {
+                        for t in clear_upto..(self.best_bid_tick + 1) {
+                            if self.bid_depth.contains_key(&t) {
+                                self.bid_depth.remove(&t);
+                            }
+                        }
                     }
+                    self.best_bid_tick =
+                        depth_below(&self.bid_depth, clear_upto - 1, self.low_bid_tick);
+                } else {
+                    self.bid_depth.clear();
+                    self.best_bid_tick = INVALID_MIN;
+                }
+                if self.best_bid_tick == INVALID_MIN {
+                    self.low_bid_tick = INVALID_MAX;
                 }
             }
-            self.best_bid_tick = depth_below(&self.bid_depth, clear_upto - 1, self.low_bid_tick);
-            if self.best_bid_tick == INVALID_MIN {
+            Side::Sell => {
+                if clear_upto_price.is_finite() {
+                    let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
+                    if self.best_ask_tick != INVALID_MAX {
+                        for t in self.best_ask_tick..(clear_upto + 1) {
+                            if self.ask_depth.contains_key(&t) {
+                                self.ask_depth.remove(&t);
+                            }
+                        }
+                    }
+                    self.best_ask_tick =
+                        depth_above(&self.ask_depth, clear_upto + 1, self.high_ask_tick);
+                } else {
+                    self.ask_depth.clear();
+                    self.best_ask_tick = INVALID_MAX;
+                }
+                if self.best_ask_tick == INVALID_MAX {
+                    self.high_ask_tick = INVALID_MIN;
+                }
+            }
+            Side::None => {
+                self.bid_depth.clear();
+                self.ask_depth.clear();
+                self.best_bid_tick = INVALID_MIN;
+                self.best_ask_tick = INVALID_MAX;
                 self.low_bid_tick = INVALID_MAX;
-            }
-        } else if side == Side::Sell {
-            if self.best_ask_tick != INVALID_MAX {
-                for t in self.best_ask_tick..(clear_upto + 1) {
-                    if self.ask_depth.contains_key(&t) {
-                        self.ask_depth.remove(&t);
-                    }
-                }
-            }
-            self.best_ask_tick = depth_above(&self.ask_depth, clear_upto + 1, self.high_ask_tick);
-            if self.best_ask_tick == INVALID_MAX {
                 self.high_ask_tick = INVALID_MIN;
             }
-        } else {
-            self.bid_depth.clear();
-            self.ask_depth.clear();
-            self.best_bid_tick = INVALID_MIN;
-            self.best_ask_tick = INVALID_MAX;
-            self.low_bid_tick = INVALID_MAX;
-            self.high_ask_tick = INVALID_MIN;
+            Side::Unsupported => {
+                unreachable!();
+            }
         }
     }
 }
@@ -574,14 +594,39 @@ impl L3MarketDepth for HashMapMarketDepth {
         }
     }
 
-    fn clear_depth(&mut self, side: Side) {
-        if side == Side::Buy {
-            self.bid_depth.clear();
-        } else if side == Side::Sell {
-            self.ask_depth.clear();
-        } else {
-            self.bid_depth.clear();
-            self.ask_depth.clear();
+    fn clear_orders(&mut self, side: Side) {
+        match side {
+            Side::Buy => {
+                L2MarketDepth::clear_depth(self, side, f64::NEG_INFINITY);
+                let order_ids: Vec<_> = self
+                    .orders
+                    .iter()
+                    .filter(|(_, order)| order.side == Side::Buy)
+                    .map(|(order_id, _)| *order_id)
+                    .collect();
+                order_ids
+                    .iter()
+                    .for_each(|order_id| _ = self.orders.remove(order_id).unwrap());
+            }
+            Side::Sell => {
+                L2MarketDepth::clear_depth(self, side, f64::INFINITY);
+                let order_ids: Vec<_> = self
+                    .orders
+                    .iter()
+                    .filter(|(_, order)| order.side == Side::Sell)
+                    .map(|(order_id, _)| *order_id)
+                    .collect();
+                order_ids
+                    .iter()
+                    .for_each(|order_id| _ = self.orders.remove(order_id).unwrap());
+            }
+            Side::None => {
+                L2MarketDepth::clear_depth(self, side, f64::NAN);
+                self.orders.clear();
+            }
+            Side::Unsupported => {
+                unreachable!();
+            }
         }
     }
 

@@ -146,7 +146,7 @@ class ReturnOverMDD(Metric):
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
         ret = Ret().compute(df, context)['Return']
         mdd = MaxDrawdown().compute(df, context)['MaxDrawdown']
-        return {self.name: ret / mdd}
+        return {self.name: np.divide(ret, mdd)}
 
 
 class ReturnOverTrade(Metric):
@@ -164,7 +164,7 @@ class ReturnOverTrade(Metric):
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
         ret = Ret().compute(df, context)['Return']
         trade_volume = TradingValue().compute(df, context)['TradingValue']
-        return {self.name: ret / trade_volume}
+        return {self.name: np.divide(ret, trade_volume)}
 
 
 class MaxDrawdown(Metric):

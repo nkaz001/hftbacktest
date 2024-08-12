@@ -84,7 +84,7 @@ def correct_event_order(
                 and sorted_exch.local_ts == sorted_local.local_ts
         ):
             assert sorted_exch.ev == sorted_local.ev
-            assert sorted_exch.px == sorted_local.px
+            assert (sorted_exch.px == sorted_local.px) or (np.isnan(sorted_exch.px) and np.isnan(sorted_local.px))
             assert sorted_exch.qty == sorted_local.qty
 
             sorted_final[out_rn] = sorted_exch

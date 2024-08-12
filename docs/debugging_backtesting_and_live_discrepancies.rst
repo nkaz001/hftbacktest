@@ -25,9 +25,9 @@ infrastructure provides a competitive advantage is beneficial.
 
 2. Queue Model:
 Selecting an appropriate queue model that accurately reflects live trading results is essential. You can either develop
-your own queue model or utilize existing ones. Hftbacktest offers three primary queue models such as PowerProbQueueModel
-series, allowing for adjustments to align with your results. For further information, refer to
-`ProbQueueModel <https://hftbacktest.readthedocs.io/en/latest/order_fill.html#probqueuemodel>`_.
+your own queue model or utilize existing ones. Hftbacktest offers three primary queue models such as
+``PowerProbQueueModel`` series, allowing for adjustments to align with your results. For further information, refer to
+:ref:`ProbQueueModel <order_fill_prob_queue_model>`.
 
 One crucial point to bear in mind is the backtesting conducted under the assumption of no market impact. A market order,
 or a limit order that take liquidity, can introduce discrepancies, as it may cause market impact and consequently make

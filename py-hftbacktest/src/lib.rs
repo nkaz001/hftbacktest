@@ -135,11 +135,11 @@ impl BacktestAsset {
         slf
     }
 
-    /// Sets the lower bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
+    /// Sets the upper bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.
     /// Only valid if `ROIVectorMarketDepthBacktest` is built.
     ///
     /// Args:
-    ///     roi_lb: the lower bound price of the range of interest.
+    ///     roi_ub: the upper bound price of the range of interest.
     pub fn roi_ub(mut slf: PyRefMut<Self>, roi_ub: f64) -> PyRefMut<Self> {
         slf.roi_ub = roi_ub;
         slf
@@ -228,6 +228,8 @@ impl BacktestAsset {
 
     /// Uses the `RiskAdverseQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.RiskAdverseQueueModel.html>`_
     /// for the queue position model.
+    ///
+    /// * `Order Fill - RiskAdverseQueueModel <https://hftbacktest.readthedocs.io/en/latest/order_fill.html#riskaversequeuemodel>`_
     pub fn risk_adverse_queue_model(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
         slf.queue_model = QueueModel::RiskAdverseQueueModel {};
         slf
@@ -237,6 +239,7 @@ impl BacktestAsset {
     ///
     /// Please find the details below.
     ///
+    /// * `Order Fill - ProbQueueModel <https://hftbacktest.readthedocs.io/en/latest/order_fill.html#probqueuemodel>`_
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `LogProbQueueFunc <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc.html>`_
     pub fn log_prob_queue_model(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
@@ -248,6 +251,7 @@ impl BacktestAsset {
     ///
     /// Please find the details below.
     ///
+    /// * `Order Fill - ProbQueueModel <https://hftbacktest.readthedocs.io/en/latest/order_fill.html#probqueuemodel>`_
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `LogProbQueueFunc2 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.LogProbQueueFunc2.html>`_
     pub fn log_prob_queue_model2(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
@@ -259,6 +263,7 @@ impl BacktestAsset {
     ///
     /// Please find the details below.
     ///
+    /// * `Order Fill - ProbQueueModel <https://hftbacktest.readthedocs.io/en/latest/order_fill.html#probqueuemodel>`_
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `PowerProbQueueFunc <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc.html>`_
     pub fn power_prob_queue_model(mut slf: PyRefMut<Self>, n: f64) -> PyRefMut<Self> {
@@ -270,6 +275,7 @@ impl BacktestAsset {
     ///
     /// Please find the details below.
     ///
+    /// * `Order Fill - ProbQueueModel <https://hftbacktest.readthedocs.io/en/latest/order_fill.html#probqueuemodel>`_
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `PowerProbQueueFunc2 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc2.html>`_
     pub fn power_prob_queue_model2(mut slf: PyRefMut<Self>, n: f64) -> PyRefMut<Self> {
@@ -281,6 +287,7 @@ impl BacktestAsset {
     ///
     /// Please find the details below.
     ///
+    /// * `Order Fill - ProbQueueModel <https://hftbacktest.readthedocs.io/en/latest/order_fill.html#probqueuemodel>`_
     /// * `ProbQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ProbQueueModel.html>`_
     /// * `PowerProbQueueFunc3 <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.PowerProbQueueFunc3.html>`_
     pub fn power_prob_queue_model3(mut slf: PyRefMut<Self>, n: f64) -> PyRefMut<Self> {

@@ -41,13 +41,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          python3 -m ensurepip
+          sudo apt-get update
+          sudo apt-get install -y pkg-config openssl libssl-dev
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
-          sccache: 'true'
-          manylinux: auto
+          # sccache: 'true'
+          manylinux: 2_24
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -72,6 +77,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config openssl libssl-dev
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -100,6 +109,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.platform.target }}
+      - name: Install dependencies
+        run: |
+          choco install openssl
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -128,6 +140,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install dependencies
+        run: |
+          brew install openssl
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -150,7 +165,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist
+          args: --manifest-path=py-hftbacktest/Cargo.toml --out dist
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
@@ -160,12 +175,12 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: inputs.dry-run == false
     needs: [linux, musllinux, windows, macos, sdist]
+    environment: release-python
     steps:
       - uses: actions/download-artifact@v4
       - name: Publish to PyPI
-        if: inputs.dry-run == false
         uses: PyO3/maturin-action@v1
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
