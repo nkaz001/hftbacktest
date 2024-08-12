@@ -5,21 +5,18 @@ use data::{Cache, Reader};
 use models::FeeModel;
 use thiserror::Error;
 
+#[cfg(feature = "unstable_l3")]
+pub use crate::backtest::{
+    models::L3QueueModel,
+    proc::{L3Local, L3NoPartialFillExchange},
+};
 use crate::{
     backtest::{
         assettype::AssetType,
         evs::{EventIntentKind, EventSet},
-        models::{L3QueueModel, LatencyModel, QueueModel},
+        models::{LatencyModel, QueueModel},
         order::OrderBus,
-        proc::{
-            L3Local,
-            L3NoPartialFillExchange,
-            Local,
-            LocalProcessor,
-            NoPartialFillExchange,
-            PartialFillExchange,
-            Processor,
-        },
+        proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         state::State,
     },
     depth::{HashMapMarketDepth, L2MarketDepth, L3MarketDepth, MarketDepth},
@@ -389,6 +386,7 @@ where
 }
 
 /// A builder for `Asset`.
+#[cfg(feature = "unstable_l3")]
 pub struct L3AssetBuilder<LM, AT, QM, MD, FM> {
     latency_model: Option<LM>,
     asset_type: Option<AT>,
@@ -400,6 +398,7 @@ pub struct L3AssetBuilder<LM, AT, QM, MD, FM> {
     last_trades_cap: usize,
 }
 
+#[cfg(feature = "unstable_l3")]
 impl<LM, AT, QM, MD, FM> Default for L3AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
@@ -414,6 +413,7 @@ where
     }
 }
 
+#[cfg(feature = "unstable_l3")]
 impl<LM, AT, QM, MD, FM> L3AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
