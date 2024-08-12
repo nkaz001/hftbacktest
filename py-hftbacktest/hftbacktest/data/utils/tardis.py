@@ -56,7 +56,7 @@ def convert(
 
     Args:
         input_files: Input filenames for both incremental book and trades files,
-                     e.g. ['incremental_book.csv', 'trades.csv'].
+                     e.g. ['incremental_book.csv.gz', 'trades.csv.gz'].
         output_filename: If provided, the converted data will be saved to the specified filename in ``npz`` format.
         buffer_size: Sets a preallocated row size for the buffer.
         ss_buffer_size: Sets a preallocated row size for the snapshot.
