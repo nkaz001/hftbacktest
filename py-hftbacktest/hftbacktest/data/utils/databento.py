@@ -29,6 +29,12 @@ def convert(
     r"""
     Converts a DataBento L3 Market-By-Order data file into a format compatible with HftBacktest.
 
+    DataBento's historical data includes a Start-of-Day (SOD) snapshot for CME data. In the snapshot, the exchange
+    timestamp represents the original time when the order was submitted, and the data is sorted in chronological order.
+    This ensures that orders are built with the correct price-time priority. However, since these timestamps are in the
+    past (before the clear message), the exchange timestamp is artificially set to the local timestamp to indicate the
+    snapshot. This adjustment maintains the chronological order of exchange timestamps during multi-day backtesting.
+
     Args:
         input_file: DataBento's DBN file. e.g. *.mbo.dbn.zst
         symbol: Specify the symbol to process in the given file. If the file contains multiple symbols, the symbol
@@ -93,12 +99,7 @@ def convert(
         else:
             raise ValueError(side)
 
-        # DataBento's historical data includes a Start-of-Day (SOD) snapshot for CME data. In this snapshot, the
-        # exchange timestamp represents the original time when the order was submitted, and the data is sorted in
-        # chronological order. This ensures that orders are built with the correct price-time priority.
-        # However, since these timestamps are in the past, the exchange timestamp is artificially set to the local
-        # timestamp to indicate the snapshot.
-        # This adjustment maintains the chronological order of exchange timestamps during multi-day backtesting.
+        # Adjusts the timestamps for the snapshot.
         if DEPTH_CLEAR_EVENT == DEPTH_CLEAR_EVENT:
             snapshot_ts = local_ts
         if local_ts != snapshot_ts:
