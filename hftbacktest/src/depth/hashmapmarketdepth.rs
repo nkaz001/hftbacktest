@@ -298,37 +298,6 @@ impl MarketDepth for HashMapMarketDepth {
     fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
         *self.ask_depth.get(&price_tick).unwrap_or(&0.0)
     }
-    
-    #[inline(always)]
-    fn bid_depth_level(&self, level: usize) -> Vec<(f64, f64)> {
-        let mut bid_depth = self
-            .bid_depth
-            .iter()
-            .map(|(&price_tick, &qty)| (price_tick, qty))
-            .collect::<Vec<_>>();
-        bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
-        bid_depth
-            .into_iter()
-            .take(level)
-            .map(|(price_tick, qty)| (price_tick as f64 * self.tick_size, qty))
-            .collect::<Vec<(f64, f64)>>()
-    }
-    
-    #[inline(always)]
-    fn ask_depth_level(&self, level: usize) -> Vec<(f64, f64)> {
-        let mut ask_depth = self
-            .ask_depth
-            .iter()
-            .map(|(&price_tick, &qty)| (price_tick, qty))
-            .collect::<Vec<_>>();
-        ask_depth.sort_by(|a, b| a.0.cmp(&b.0));
-        ask_depth
-            .into_iter()
-            .take(level)
-            .map(|(price_tick, qty)| (price_tick as f64 * self.tick_size, qty))
-            .collect::<Vec<(f64, f64)>>()
-    }
-    
 }
 
 impl ApplySnapshot for HashMapMarketDepth {

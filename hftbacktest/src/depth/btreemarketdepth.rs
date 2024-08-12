@@ -209,25 +209,6 @@ impl MarketDepth for BTreeMarketDepth {
     fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
         *self.ask_depth.get(&price_tick).unwrap_or(&0.0)
     }
-
-    #[inline(always)]
-    fn bid_depth_level(&self, level: usize) -> Vec<(f64, f64)> {
-        self.bid_depth.iter()
-            .rev()
-            .take(level)
-            .map(|(&price_tick, &qty)| (price_tick as f64 * self.tick_size, qty))
-            .collect::<Vec<(f64, f64)>>()
-    }
-    
-    #[inline(always)]
-    fn ask_depth_level(&self, level: usize) -> Vec<(f64, f64)> {
-        self.ask_depth.iter()
-            .take(level)
-            .map(|(&price_tick, &qty)| (price_tick as f64 * self.tick_size, qty))
-            .collect::<Vec<(f64, f64)>>()
-    }
-    
-    
 }
 
 impl ApplySnapshot for BTreeMarketDepth {

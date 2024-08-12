@@ -384,17 +384,6 @@ impl MarketDepth for ROIVectorMarketDepth {
             }
         }
     }
-
-    #[inline(always)] 
-    fn bid_depth_level(&self, level: usize) -> Vec<(f64, f64)> {
-        unimplemented!()
-    }
-    
-    #[inline(always)] 
-    fn ask_depth_level(&self, level: usize) -> Vec<(f64, f64)> {
-        unimplemented!()
-    }
-    
 }
 
 impl ApplySnapshot for ROIVectorMarketDepth {

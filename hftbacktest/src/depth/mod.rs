@@ -56,12 +56,6 @@ pub trait MarketDepth {
 
     /// Returns the quantity at the ask market depth for a given price in ticks.
     fn ask_qty_at_tick(&self, price_tick: i64) -> f64;
-
-    /// Returns the bid depth at a specific level.
-    fn bid_depth_level(&self, level: usize) -> Vec<(f64, f64)>;
-
-    /// Returns the ask depth at a specific level.
-    fn ask_depth_level(&self, level: usize) -> Vec<(f64, f64)>;
 }
 
 /// Provides Level2-specific market depth functions.
