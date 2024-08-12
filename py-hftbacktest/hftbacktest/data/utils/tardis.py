@@ -81,7 +81,12 @@ def convert(
 
     for file in input_files:
         print('Reading %s' % file)
-        df = pl.read_csv(file)
+        if file.endswith('.csv'):
+            df = pl.read_csv(file)
+        elif file.endswith('.parquet'):
+            df = pl.read_parquet(file, pyarrow_options={'use_threads': True})
+        else:
+            raise ValueError('Unsupported file format: %s' % file)
         if df.columns == trade_cols:
             arr = (
                 df.with_columns(
