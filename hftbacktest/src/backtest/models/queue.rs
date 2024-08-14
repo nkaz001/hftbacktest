@@ -960,7 +960,7 @@ where
     fn fill_market_feed_order<const DELETE: bool>(
         &mut self,
         order_id: OrderId,
-        _depth: &MD,
+        depth: &MD,
     ) -> Result<Vec<Order>, BacktestError> {
         let (side, order_price_tick) = if DELETE {
             self.mkt_feed_orders
@@ -975,8 +975,47 @@ where
 
         match side {
             Side::Buy => {
-                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
                 let mut filled = Vec::new();
+
+                // The backtest bid orders above the price of the filled market-feed bid order are
+                // filled.
+
+                // Finds the shortest iteration.
+                // The fill event should occur before the cancel event which may update the best
+                // price.
+                if depth.best_bid_tick() == INVALID_MIN
+                    || (self.bid_queue.len() as i64) < depth.best_bid_tick() - order_price_tick
+                {
+                    for (t, queue) in self.bid_queue.iter_mut() {
+                        if *t > order_price_tick {
+                            queue.retain(|order| {
+                                if order.is_backtest_order() {
+                                    filled.push(order.clone());
+                                    false
+                                } else {
+                                    true
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    for t in (order_price_tick + 1)..(depth.best_bid_tick() + 1) {
+                        if let Some(queue) = self.bid_queue.get_mut(&t) {
+                            queue.retain(|order| {
+                                if order.is_backtest_order() {
+                                    filled.push(order.clone());
+                                    false
+                                } else {
+                                    true
+                                }
+                            });
+                        }
+                    }
+                }
+
+                // The backtest bid orders in the queue, placed before the filled market-feed bid
+                // order, are filled.
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
 
                 let mut pos = None;
                 let mut i = 0;
@@ -1009,8 +1048,47 @@ where
                 Ok(filled)
             }
             Side::Sell => {
-                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
                 let mut filled = Vec::new();
+
+                // The backtest ask orders below the price of the filled market-feed ask order are
+                // filled.
+
+                // Finds the shortest iteration.
+                // The fill event should occur before the cancel event which may update the best
+                // price.
+                if depth.best_ask_tick() == INVALID_MAX
+                    || (self.ask_queue.len() as i64) < order_price_tick - depth.best_ask_tick()
+                {
+                    for (t, queue) in self.ask_queue.iter_mut() {
+                        if *t < order_price_tick {
+                            queue.retain(|order| {
+                                if order.is_backtest_order() {
+                                    filled.push(order.clone());
+                                    false
+                                } else {
+                                    true
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    for t in depth.best_ask_tick()..order_price_tick {
+                        if let Some(queue) = self.ask_queue.get_mut(&t) {
+                            queue.retain(|order| {
+                                if order.is_backtest_order() {
+                                    filled.push(order.clone());
+                                    false
+                                } else {
+                                    true
+                                }
+                            });
+                        }
+                    }
+                }
+
+                // The backtest ask orders in the queue, placed before the filled market-feed ask
+                // order, are filled.
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
 
                 let mut pos = None;
                 let mut i = 0;
