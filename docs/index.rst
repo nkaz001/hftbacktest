@@ -175,7 +175,7 @@ Tutorials
 Examples
 ========
 
-You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/tree/master/rust/examples>`_.
+You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/>`_.
 
 The complete process of backtesting Binance Futures
 ---------------------------------------------------
