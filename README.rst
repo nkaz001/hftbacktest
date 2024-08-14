@@ -180,7 +180,7 @@ The complete process of backtesting Binance Futures
 
 Migration to V2
 ===============
-Please see the `migration guide <https://hftbacktest.readthedocs.io/en/latest/Migration%20To%20v2.html>`_.
+Please see the `migration guide <https://hftbacktest.readthedocs.io/en/latest/migration2.html>`_.
 
 Roadmap
 =======
