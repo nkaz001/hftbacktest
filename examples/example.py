@@ -28,11 +28,12 @@ def market_making_algo(hbt):
         c = 1
         hs = 1
 
-        # alpha, it can be a combination of several indicators.
+        # Alpha, it can be a combination of several indicators.
         forecast = 0
-        # in hft, it could be a measurement of short-term market movement such as high - low of the last x-min.
+        # In HFT, it can be various measurements of short-term market movements,
+        # such as the high-low range in the last X minutes.
         volatility = 0
-        # delta risk, it also can be a combination of several risks.
+        # Delta risk, it can be a combination of several risks.
         position = hbt.position(asset_no)
         risk = (c + volatility) * position
         half_spread = (c + volatility) * hs
@@ -47,14 +48,13 @@ def market_making_algo(hbt):
         # fair value pricing = mid_price + a * forecast
         #                      or underlying(correlated asset) + adjustment(basis + cost + etc) + a * forecast
         # risk skewing = -b * risk
-        new_bid = mid_price + a * forecast - b * risk - half_spread
-        new_ask = mid_price + a * forecast - b * risk + half_spread
+        reservation_price = mid_price + a * forecast - b * risk
+        new_bid = reservation_price - half_spread
+        new_ask = reservation_price + half_spread
 
-        new_bid_tick = np.round(new_bid / tick_size)
-        new_ask_tick = np.round(new_ask / tick_size)
+        new_bid_tick = min(np.round(new_bid / tick_size), depth.best_bid_tick)
+        new_ask_tick = max(np.round(new_ask / tick_size), depth.best_ask_tick)
 
-        new_bid = new_bid_tick * hbt.tick_size
-        new_ask = new_ask_tick * hbt.tick_size
         order_qty = np.round(notional_qty / mid_price / lot_size) * lot_size
 
         # Elapses a process time.
@@ -64,20 +64,22 @@ def market_making_algo(hbt):
         last_order_id = -1
         update_bid = True
         update_ask = True
+        buy_limit_exceeded = position * mid_price > max_notional_position
+        sell_limit_exceeded = position * mid_price < -max_notional_position
         orders = hbt.orders(asset_no)
         order_values = orders.values()
         while order_values.has_next():
             order = order_values.get()
             if order.side == BUY:
-                if order.price_tick == new_bid_tick or position * mid_price > max_notional_position:
+                if order.price_tick == new_bid_tick or buy_limit_exceeded:
                     update_bid = False
-                elif order.cancellable or position * mid_price > max_notional_position:
+                if order.cancellable and (update_bid or buy_limit_exceeded):
                     hbt.cancel(asset_no, order.order_id, False)
                     last_order_id = order.order_id
-            if order.side == SELL:
-                if order.price_tick == new_ask_tick or position * mid_price < -max_notional_position:
+            elif order.side == SELL:
+                if order.price_tick == new_ask_tick or sell_limit_exceeded:
                     update_ask = False
-                if order.cancellable or position * mid_price < -max_notional_position:
+                if order.cancellable and (update_ask or sell_limit_exceeded):
                     hbt.cancel(asset_no, order.order_id, False)
                     last_order_id = order.order_id
 
@@ -87,12 +89,12 @@ def market_making_algo(hbt):
         if update_bid:
             # There is only one order at a given price, with new_bid_tick used as the order ID.
             order_id = new_bid_tick
-            hbt.submit_buy_order(asset_no, order_id, new_bid, order_qty, GTX, LIMIT, False)
+            hbt.submit_buy_order(asset_no, order_id, new_bid_tick * tick_size, order_qty, GTX, LIMIT, False)
             last_order_id = order_id
         if update_ask:
             # There is only one order at a given price, with new_ask_tick used as the order ID.
             order_id = new_ask_tick
-            hbt.submit_sell_order(asset_no, order_id, new_ask, order_qty, GTX, LIMIT, False)
+            hbt.submit_sell_order(asset_no, order_id, new_ask_tick * tick_size, order_qty, GTX, LIMIT, False)
             last_order_id = order_id
 
         # All order requests are considered to be requested at the same time.
