@@ -172,7 +172,7 @@ where
         Ok(())
     }
 
-    fn on_best_bid_update(
+    fn fill_ask_orders_by_crossing(
         &mut self,
         prev_best_tick: i64,
         new_best_tick: i64,
@@ -188,7 +188,7 @@ where
         Ok(())
     }
 
-    fn on_best_ask_update(
+    fn fill_bid_orders_by_crossing(
         &mut self,
         prev_best_tick: i64,
         new_best_tick: i64,
@@ -350,7 +350,7 @@ where
             self.queue_model
                 .add_market_feed_order(&self.data[row_num], &self.depth)?;
             if best_bid_tick > prev_best_bid_tick {
-                self.on_best_bid_update(
+                self.fill_ask_orders_by_crossing(
                     prev_best_bid_tick,
                     best_bid_tick,
                     self.data[row_num].exch_ts,
@@ -366,7 +366,7 @@ where
             self.queue_model
                 .add_market_feed_order(&self.data[row_num], &self.depth)?;
             if best_ask_tick < prev_best_ask_tick {
-                self.on_best_ask_update(
+                self.fill_bid_orders_by_crossing(
                     prev_best_ask_tick,
                     best_ask_tick,
                     self.data[row_num].exch_ts,
@@ -386,10 +386,18 @@ where
             )?;
             if side == Side::Buy {
                 if best_tick > prev_best_tick {
-                    self.on_best_bid_update(prev_best_tick, best_tick, self.data[row_num].exch_ts)?;
+                    self.fill_ask_orders_by_crossing(
+                        prev_best_tick,
+                        best_tick,
+                        self.data[row_num].exch_ts,
+                    )?;
                 }
             } else if best_tick < prev_best_tick {
-                self.on_best_ask_update(prev_best_tick, best_tick, self.data[row_num].exch_ts)?;
+                self.fill_bid_orders_by_crossing(
+                    prev_best_tick,
+                    best_tick,
+                    self.data[row_num].exch_ts,
+                )?;
             }
         } else if self.data[row_num].is(EXCH_CANCEL_ORDER_EVENT) {
             let _ = self

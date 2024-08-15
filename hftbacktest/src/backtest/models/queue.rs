@@ -1,6 +1,6 @@
 use std::{
     any::Any,
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
     marker::PhantomData,
 };
 
@@ -488,6 +488,96 @@ impl L3FIFOQueueModel {
     pub fn new() -> Self {
         Default::default()
     }
+
+    fn fill_bid_between<const INVALID_FROM: bool>(
+        &mut self,
+        from_tick: i64,
+        to_tick: i64,
+    ) -> Vec<Order> {
+        // Finds the shortest iteration.
+        let mut filled = Vec::new();
+        if INVALID_FROM || (self.backtest_orders.len() as i64) < to_tick - from_tick {
+            let mut filled_tick = HashSet::new();
+            self.backtest_orders.retain(|_, (side, order_price_tick)| {
+                if *side == Side::Buy && *order_price_tick >= to_tick {
+                    filled_tick.insert(*order_price_tick);
+                    false
+                } else {
+                    true
+                }
+            });
+            for order_price_tick in filled_tick {
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
+                queue.retain(|order| {
+                    if order.is_backtest_order() {
+                        filled.push(order.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        } else {
+            for t in to_tick..(from_tick + 1) {
+                if let Some(queue) = self.bid_queue.get_mut(&t) {
+                    queue.retain(|order| {
+                        if order.is_backtest_order() {
+                            filled.push(order.clone());
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            }
+        }
+        filled
+    }
+
+    fn fill_ask_between<const INVALID_FROM: bool>(
+        &mut self,
+        from_tick: i64,
+        to_tick: i64,
+    ) -> Vec<Order> {
+        // Finds the shortest iteration.
+        let mut filled = Vec::new();
+        if INVALID_FROM || (self.backtest_orders.len() as i64) < from_tick - to_tick {
+            let mut filled_tick = HashSet::new();
+            self.backtest_orders.retain(|_, (side, order_price_tick)| {
+                if *side == Side::Sell && *order_price_tick <= to_tick {
+                    filled_tick.insert(*order_price_tick);
+                    false
+                } else {
+                    true
+                }
+            });
+            for order_price_tick in filled_tick {
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
+                queue.retain(|order| {
+                    if order.is_backtest_order() {
+                        filled.push(order.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        } else {
+            for t in from_tick..(to_tick + 1) {
+                if let Some(queue) = self.ask_queue.get_mut(&t) {
+                    queue.retain(|order| {
+                        if order.is_backtest_order() {
+                            filled.push(order.clone());
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            }
+        }
+        filled
+    }
 }
 
 impl<MD> L3QueueModel<MD> for L3FIFOQueueModel
@@ -503,46 +593,11 @@ where
         prev_best_tick: i64,
         new_best_tick: i64,
     ) -> Result<Vec<Order>, BacktestError> {
-        let mut filled = Vec::new();
-        // If the best has been significantly updated compared to the previous best, it would be
-        // better to iterate orders dict instead of order price ladder.
-        if prev_best_tick == INVALID_MIN
-            || (self.backtest_orders.len() as i64) < new_best_tick - prev_best_tick
-        {
-            for (order_id, &mut (side, price_tick)) in self.backtest_orders.iter_mut() {
-                if side == Side::Sell && price_tick <= new_best_tick {
-                    let queue = self.ask_queue.get_mut(&price_tick).unwrap();
-                    let mut i = 0;
-                    while i < queue.len() {
-                        let order = queue.get(i).unwrap();
-                        if order.is_backtest_order() && order.order_id == *order_id {
-                            filled.push(queue.remove(i));
-                            break;
-                        } else {
-                            i += 1;
-                        }
-                    }
-                }
-            }
+        if prev_best_tick == INVALID_MIN {
+            Ok(self.fill_ask_between::<true>(prev_best_tick + 1, new_best_tick))
         } else {
-            for t in (prev_best_tick + 1)..=new_best_tick {
-                if let Some(orders) = self.ask_queue.get_mut(&t) {
-                    let mut i = 0;
-                    while i < orders.len() {
-                        let order = orders.get(i).unwrap();
-                        if order.is_backtest_order() {
-                            filled.push(orders.remove(i));
-                        } else {
-                            i += 1;
-                        }
-                    }
-                }
-            }
+            Ok(self.fill_ask_between::<false>(prev_best_tick + 1, new_best_tick))
         }
-        for order in filled.iter() {
-            self.backtest_orders.remove(&order.order_id);
-        }
-        Ok(filled)
     }
 
     fn on_best_ask_update(
@@ -550,46 +605,11 @@ where
         prev_best_tick: i64,
         new_best_tick: i64,
     ) -> Result<Vec<Order>, BacktestError> {
-        let mut filled = Vec::new();
-        // If the best has been significantly updated compared to the previous best, it would be
-        // better to iterate orders dict instead of order price ladder.
-        if prev_best_tick == INVALID_MAX
-            || (self.backtest_orders.len() as i64) < prev_best_tick - new_best_tick
-        {
-            for (order_id, &mut (side, price_tick)) in self.backtest_orders.iter_mut() {
-                if side == Side::Buy && price_tick >= new_best_tick {
-                    let queue = self.bid_queue.get_mut(&price_tick).unwrap();
-                    let mut i = 0;
-                    while i < queue.len() {
-                        let order = queue.get(i).unwrap();
-                        if order.is_backtest_order() && order.order_id == *order_id {
-                            filled.push(queue.remove(i));
-                            break;
-                        } else {
-                            i += 1;
-                        }
-                    }
-                }
-            }
+        if prev_best_tick == INVALID_MAX {
+            Ok(self.fill_bid_between::<true>(prev_best_tick - 1, new_best_tick))
         } else {
-            for t in new_best_tick..prev_best_tick {
-                if let Some(orders) = self.bid_queue.get_mut(&t) {
-                    let mut i = 0;
-                    while i < orders.len() {
-                        let order = orders.get(i).unwrap();
-                        if order.is_backtest_order() {
-                            filled.push(orders.remove(i));
-                        } else {
-                            i += 1;
-                        }
-                    }
-                }
-            }
+            Ok(self.fill_bid_between::<false>(prev_best_tick - 1, new_best_tick))
         }
-        for order in filled.iter() {
-            self.backtest_orders.remove(&order.order_id);
-        }
-        Ok(filled)
     }
 
     fn add_backtest_order(&mut self, mut order: Order, _depth: &MD) -> Result<(), BacktestError> {
@@ -979,38 +999,12 @@ where
 
                 // The backtest bid orders above the price of the filled market-feed bid order are
                 // filled.
-
-                // Finds the shortest iteration.
                 // The fill event should occur before the cancel event which may update the best
                 // price.
-                if depth.best_bid_tick() == INVALID_MIN
-                    || (self.bid_queue.len() as i64) < depth.best_bid_tick() - order_price_tick
-                {
-                    for (t, queue) in self.bid_queue.iter_mut() {
-                        if *t > order_price_tick {
-                            queue.retain(|order| {
-                                if order.is_backtest_order() {
-                                    filled.push(order.clone());
-                                    false
-                                } else {
-                                    true
-                                }
-                            });
-                        }
-                    }
-                } else {
-                    for t in (order_price_tick + 1)..(depth.best_bid_tick() + 1) {
-                        if let Some(queue) = self.bid_queue.get_mut(&t) {
-                            queue.retain(|order| {
-                                if order.is_backtest_order() {
-                                    filled.push(order.clone());
-                                    false
-                                } else {
-                                    true
-                                }
-                            });
-                        }
-                    }
+                if order_price_tick < depth.best_bid_tick() {
+                    let mut f =
+                        self.fill_bid_between::<false>(depth.best_bid_tick(), order_price_tick + 1);
+                    filled.append(&mut f);
                 }
 
                 // The backtest bid orders in the queue, placed before the filled market-feed bid
@@ -1052,38 +1046,12 @@ where
 
                 // The backtest ask orders below the price of the filled market-feed ask order are
                 // filled.
-
-                // Finds the shortest iteration.
                 // The fill event should occur before the cancel event which may update the best
                 // price.
-                if depth.best_ask_tick() == INVALID_MAX
-                    || (self.ask_queue.len() as i64) < order_price_tick - depth.best_ask_tick()
-                {
-                    for (t, queue) in self.ask_queue.iter_mut() {
-                        if *t < order_price_tick {
-                            queue.retain(|order| {
-                                if order.is_backtest_order() {
-                                    filled.push(order.clone());
-                                    false
-                                } else {
-                                    true
-                                }
-                            });
-                        }
-                    }
-                } else {
-                    for t in depth.best_ask_tick()..order_price_tick {
-                        if let Some(queue) = self.ask_queue.get_mut(&t) {
-                            queue.retain(|order| {
-                                if order.is_backtest_order() {
-                                    filled.push(order.clone());
-                                    false
-                                } else {
-                                    true
-                                }
-                            });
-                        }
-                    }
+                if order_price_tick > depth.best_ask_tick() {
+                    let mut f =
+                        self.fill_ask_between::<false>(depth.best_ask_tick(), order_price_tick - 1);
+                    filled.append(&mut f);
                 }
 
                 // The backtest ask orders in the queue, placed before the filled market-feed ask
