@@ -10,7 +10,7 @@ use std::{
     slice::SliceIndex,
 };
 
-pub use npy::{read_npy_file, read_npz_file, write_npy, Field, NpyDTyped, NpyHeader};
+pub use npy::{read_npy_file, read_npz_file, write_npy, write_npz, Field, NpyDTyped, NpyHeader};
 pub use reader::{Cache, DataSource, Reader};
 
 use crate::utils::{AlignedArray, CACHE_LINE_SIZE};

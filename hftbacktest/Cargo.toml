@@ -54,6 +54,11 @@ hftbacktest-derive = { path = "../hftbacktest-derive", optional = true, version 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.18", features = [] }
 clap = { version = "4.5.4", features = ["derive"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "formats"
+harness = false
 
 [package.metadata.docs.rs]
 all-features = true

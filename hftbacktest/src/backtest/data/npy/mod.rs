@@ -1,7 +1,9 @@
 use std::{
     fs::File,
-    io::{Error, ErrorKind, Read, Write},
+    io::{Error, ErrorKind, Read, Seek, Write},
 };
+
+use zip::{write::FileOptions, ZipWriter};
 
 use crate::backtest::data::{npy::parser::Value, Data, DataPtr, POD};
 
@@ -252,6 +254,16 @@ pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &[T]) -> std::io::
     write.write_all(&len.to_le_bytes())?;
     write.write_all(header_str.as_bytes())?;
     write.write_all(vec_as_bytes(data))?;
+    Ok(())
+}
+
+pub fn write_npz<W: Write + Seek, T: NpyDTyped>(write: &mut W, data: &[T]) -> std::io::Result<()> {
+    let mut archive = ZipWriter::new(write);
+
+    archive.start_file::<_, (), _>("data.npy", FileOptions::default())?;
+    write_npy(&mut archive, data)?;
+    archive.finish()?;
+
     Ok(())
 }
 
