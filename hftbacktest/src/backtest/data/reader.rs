@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     io::{Error as IoError, ErrorKind},
     rc::Rc,
+    sync::Arc,
 };
 
 use uuid::Uuid;
@@ -60,7 +61,7 @@ where
 /// Provides a data cache that allows both the local processor and exchange processor to access the
 /// same or different data based on their timestamps without the need for reloading.
 #[derive(Clone, Debug)]
-pub struct Cache<D>(Rc<RefCell<HashMap<String, CachedData<D>>>>)
+pub struct Cache<D>(Arc<RefCell<HashMap<String, CachedData<D>>>>)
 where
     D: POD + Clone;
 

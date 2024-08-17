@@ -9,7 +9,7 @@ use crate::{
         data::{Data, Reader},
         models::{FeeModel, LatencyModel},
         order::OrderBus,
-        proc::{LocalProcessor, Processor},
+        proc::{LocalProcessor, OrderConsumer, Processor},
         state::State,
         BacktestError,
     },
@@ -312,7 +312,16 @@ where
 
         Ok((next_ts, i64::MAX))
     }
+}
 
+impl<AT, LM, MD, FM> OrderConsumer for L3Local<AT, LM, MD, FM>
+where
+    AT: AssetType,
+    LM: LatencyModel,
+    MD: L3MarketDepth,
+    FM: FeeModel,
+    BacktestError: From<<MD as L3MarketDepth>::Error>,
+{
     fn process_recv_order(
         &mut self,
         timestamp: i64,
@@ -347,11 +356,9 @@ where
         }
         Ok(wait_resp_order_received)
     }
-
     fn earliest_recv_order_timestamp(&self) -> i64 {
         self.orders_from.earliest_timestamp().unwrap_or(i64::MAX)
     }
-
     fn earliest_send_order_timestamp(&self) -> i64 {
         self.orders_to.earliest_timestamp().unwrap_or(i64::MAX)
     }

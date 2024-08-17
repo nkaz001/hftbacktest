@@ -49,6 +49,7 @@ hmac = { version = "0.13.0-pre.3", optional = true }
 rand = { version = "0.8.5", optional = true }
 uuid = { version = "1.8.0", features = ["v4"], optional = true }
 nom = { version = "7.1.3", optional = true }
+bus = { version = "2.4" }
 hftbacktest-derive = { path = "../hftbacktest-derive", optional = true, version = "0.1.0" }
 
 [dev-dependencies]

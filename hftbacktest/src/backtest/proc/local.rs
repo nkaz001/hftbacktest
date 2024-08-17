@@ -1,15 +1,18 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     mem,
+    sync::mpsc::Receiver,
 };
+
+use bus::BusReader;
 
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::{Data, Reader},
+        data::{Data, EventBusMessage, EventConsumer, Reader, TimestampedEventQueue},
         models::{FeeModel, LatencyModel},
         order::OrderBus,
-        proc::{LocalProcessor, Processor},
+        proc::{LocalProcessor, OrderConsumer, Processor},
         state::State,
         BacktestError,
     },
@@ -34,6 +37,7 @@ use crate::{
         LOCAL_TRADE_EVENT,
     },
 };
+use crate::backtest::data::EventBusReader;
 
 /// The local model.
 pub struct Local<AT, LM, MD, FM>
@@ -43,8 +47,8 @@ where
     MD: MarketDepth,
     FM: FeeModel,
 {
-    reader: Reader<Event>,
-    data: Data<Event>,
+    reader: EventBusReader<Event>,
+    next: Option<Event>,
     row_num: usize,
     orders: HashMap<OrderId, Order>,
     orders_to: OrderBus,
@@ -66,7 +70,7 @@ where
 {
     /// Constructs an instance of `Local`.
     pub fn new(
-        reader: Reader<Event>,
+        receiver: EventBusReader<Event>,
         depth: MD,
         state: State<AT, FM>,
         order_latency: LM,
@@ -75,8 +79,8 @@ where
         orders_from: OrderBus,
     ) -> Self {
         Self {
-            reader,
-            data: Data::empty(),
+            reader: receiver,
+            next: None,
             row_num: 0,
             orders: Default::default(),
             orders_to,
@@ -241,27 +245,38 @@ where
     }
 }
 
-impl<AT, LM, MD, FM> Processor for Local<AT, LM, MD, FM>
+impl<AT, LM, MD, FM> TimestampedEventQueue<Event> for Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
     MD: MarketDepth + L2MarketDepth,
     FM: FeeModel,
 {
-    fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next_data()?;
-        for rn in 0..self.data.len() {
-            if self.data[rn].is(LOCAL_EVENT) {
-                self.row_num = rn;
-                let tmp = self.data[rn].local_ts;
-                return Ok(tmp);
-            }
-        }
-        Err(BacktestError::EndOfData)
+    fn next_event(&mut self) -> Option<Event> {
+        self.reader.next()
     }
 
-    fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
-        let ev = &self.data[self.row_num];
+    fn peek_event(&mut self) -> Option<&Event> {
+        self.reader.peek()
+    }
+
+    fn event_time(value: &Event) -> i64 {
+        value.local_ts
+    }
+}
+
+impl<AT, LM, MD, FM> EventConsumer<Event> for Local<AT, LM, MD, FM>
+where
+    AT: AssetType,
+    LM: LatencyModel,
+    MD: MarketDepth + L2MarketDepth,
+    FM: FeeModel,
+{
+    fn is_event_relevant(event: &Event) -> bool {
+        event.is(LOCAL_EVENT)
+    }
+
+    fn process_event(&mut self, ev: Event) -> Result<(), BacktestError> {
         // Processes a depth event
         if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::Buy, ev.px);
@@ -282,28 +297,17 @@ where
         // Stores the current feed latency
         self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
 
-        // Checks
-        let mut next_ts = 0;
-        for rn in (self.row_num + 1)..self.data.len() {
-            if self.data[rn].is(LOCAL_EVENT) {
-                self.row_num = rn;
-                next_ts = self.data[rn].local_ts;
-                break;
-            }
-        }
-
-        if next_ts <= 0 {
-            let next_data = self.reader.next_data()?;
-            let next_row = &next_data[0];
-            next_ts = next_row.local_ts;
-            let data = mem::replace(&mut self.data, next_data);
-            self.reader.release(data);
-            self.row_num = 0;
-        }
-
-        Ok((next_ts, i64::MAX))
+        Ok(())
     }
+}
 
+impl<AT, LM, MD, FM> OrderConsumer for Local<AT, LM, MD, FM>
+where
+    AT: AssetType,
+    LM: LatencyModel,
+    MD: MarketDepth + L2MarketDepth,
+    FM: FeeModel,
+{
     fn process_recv_order(
         &mut self,
         timestamp: i64,
@@ -338,11 +342,9 @@ where
         }
         Ok(wait_resp_order_received)
     }
-
     fn earliest_recv_order_timestamp(&self) -> i64 {
         self.orders_from.earliest_timestamp().unwrap_or(i64::MAX)
     }
-
     fn earliest_send_order_timestamp(&self) -> i64 {
         self.orders_to.earliest_timestamp().unwrap_or(i64::MAX)
     }

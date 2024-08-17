@@ -6,13 +6,15 @@ use std::{
     rc::Rc,
 };
 
+use bus::BusReader;
+
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::{Data, Reader},
+        data::{Data, EventBusMessage, EventConsumer, Reader, TimestampedEventQueue},
         models::{FeeModel, LatencyModel, QueueModel},
         order::OrderBus,
-        proc::Processor,
+        proc::{OrderConsumer, Processor},
         state::State,
         BacktestError,
     },
@@ -36,6 +38,7 @@ use crate::{
         EXCH_SELL_TRADE_EVENT,
     },
 };
+use crate::backtest::data::EventBusReader;
 
 /// The exchange model with partial fills.
 ///
@@ -84,8 +87,8 @@ where
     MD: MarketDepth,
     FM: FeeModel,
 {
-    reader: Reader<Event>,
-    data: Data<Event>,
+    reader: EventBusReader<Event>,
+    next: Option<Event>,
     row_num: usize,
 
     // key: order_id, value: Order
@@ -115,7 +118,7 @@ where
 {
     /// Constructs an instance of `PartialFillExchange`.
     pub fn new(
-        reader: Reader<Event>,
+        reader: EventBusReader<Event>,
         depth: MD,
         state: State<AT, FM>,
         order_latency: LM,
@@ -125,7 +128,7 @@ where
     ) -> Self {
         Self {
             reader,
-            data: Data::empty(),
+            next: None,
             row_num: 0,
             orders: Default::default(),
             buy_orders: Default::default(),
@@ -779,7 +782,7 @@ where
     }
 }
 
-impl<AT, LM, QM, MD, FM> Processor for PartialFillExchange<AT, LM, QM, MD, FM>
+impl<AT, LM, QM, MD, FM> TimestampedEventQueue<Event> for PartialFillExchange<AT, LM, QM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
@@ -787,54 +790,57 @@ where
     MD: MarketDepth + L2MarketDepth,
     FM: FeeModel,
 {
-    fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next_data()?;
-        for rn in 0..self.data.len() {
-            if self.data[rn].is(EXCH_EVENT) {
-                self.row_num = rn;
-                return Ok(self.data[rn].exch_ts);
-            }
-        }
-        Err(BacktestError::EndOfData)
+    fn next_event(&mut self) -> Option<Event> {
+        self.reader.next()
     }
 
-    fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
-        let row_num = self.row_num;
-        if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::Buy, self.data[row_num].px);
-        } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::Sell, self.data[row_num].px);
-        } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
+    fn peek_event(&mut self) -> Option<&Event> {
+        self.reader.peek()
+    }
+
+    fn event_time(value: &Event) -> i64 {
+        value.exch_ts
+    }
+}
+
+impl<AT, LM, QM, MD, FM> EventConsumer<Event> for PartialFillExchange<AT, LM, QM, MD, FM>
+where
+    AT: AssetType,
+    LM: LatencyModel,
+    QM: QueueModel<MD>,
+    MD: MarketDepth + L2MarketDepth,
+    FM: FeeModel,
+{
+    fn is_event_relevant(event: &Event) -> bool {
+        event.is(EXCH_EVENT)
+    }
+
+    fn process_event(&mut self, event: Event) -> Result<(), BacktestError> {
+        if event.is(EXCH_BID_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(Side::Buy, event.px);
+        } else if event.is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(Side::Sell, event.px);
+        } else if event.is(EXCH_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::None, 0.0);
-        } else if self.data[row_num].is(EXCH_BID_DEPTH_EVENT)
-            || self.data[row_num].is(EXCH_BID_DEPTH_SNAPSHOT_EVENT)
-        {
+        } else if event.is(EXCH_BID_DEPTH_EVENT) || event.is(EXCH_BID_DEPTH_SNAPSHOT_EVENT) {
             let (price_tick, prev_best_bid_tick, best_bid_tick, prev_qty, new_qty, timestamp) =
-                self.depth.update_bid_depth(
-                    self.data[row_num].px,
-                    self.data[row_num].qty,
-                    self.data[row_num].exch_ts,
-                );
+                self.depth
+                    .update_bid_depth(event.px, event.qty, event.exch_ts);
             self.on_bid_qty_chg(price_tick, prev_qty, new_qty);
             if best_bid_tick > prev_best_bid_tick {
                 self.on_best_bid_update(prev_best_bid_tick, best_bid_tick, timestamp)?;
             }
-        } else if self.data[row_num].is(EXCH_ASK_DEPTH_EVENT)
-            || self.data[row_num].is(EXCH_ASK_DEPTH_SNAPSHOT_EVENT)
-        {
+        } else if event.is(EXCH_ASK_DEPTH_EVENT) || event.is(EXCH_ASK_DEPTH_SNAPSHOT_EVENT) {
             let (price_tick, prev_best_ask_tick, best_ask_tick, prev_qty, new_qty, timestamp) =
-                self.depth.update_ask_depth(
-                    self.data[row_num].px,
-                    self.data[row_num].qty,
-                    self.data[row_num].exch_ts,
-                );
+                self.depth
+                    .update_ask_depth(event.px, event.qty, event.exch_ts);
             self.on_ask_qty_chg(price_tick, prev_qty, new_qty);
             if best_ask_tick < prev_best_ask_tick {
                 self.on_best_ask_update(prev_best_ask_tick, best_ask_tick, timestamp)?;
             }
-        } else if self.data[row_num].is(EXCH_BUY_TRADE_EVENT) {
-            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i64;
-            let qty = self.data[row_num].qty;
+        } else if event.is(EXCH_BUY_TRADE_EVENT) {
+            let price_tick = (event.px / self.depth.tick_size()).round() as i64;
+            let qty = event.qty;
             {
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
@@ -843,12 +849,7 @@ where
                 {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Sell {
-                            self.check_if_sell_filled(
-                                order,
-                                price_tick,
-                                qty,
-                                self.data[row_num].exch_ts,
-                            )?;
+                            self.check_if_sell_filled(order, price_tick, qty, event.exch_ts)?;
                         }
                     }
                 } else {
@@ -856,21 +857,16 @@ where
                         if let Some(order_ids) = self.sell_orders.get(&t) {
                             for order_id in order_ids.clone().iter() {
                                 let order = orders_borrowed.get_mut(order_id).unwrap();
-                                self.check_if_sell_filled(
-                                    order,
-                                    price_tick,
-                                    qty,
-                                    self.data[row_num].exch_ts,
-                                )?;
+                                self.check_if_sell_filled(order, price_tick, qty, event.exch_ts)?;
                             }
                         }
                     }
                 }
             }
             self.remove_filled_orders();
-        } else if self.data[row_num].is(EXCH_SELL_TRADE_EVENT) {
-            let price_tick = (self.data[row_num].px / self.depth.tick_size()).round() as i64;
-            let qty = self.data[row_num].qty;
+        } else if event.is(EXCH_SELL_TRADE_EVENT) {
+            let price_tick = (event.px / self.depth.tick_size()).round() as i64;
+            let qty = event.qty;
             {
                 let orders = self.orders.clone();
                 let mut orders_borrowed = orders.borrow_mut();
@@ -879,12 +875,7 @@ where
                 {
                     for (_, order) in orders_borrowed.iter_mut() {
                         if order.side == Side::Buy {
-                            self.check_if_buy_filled(
-                                order,
-                                price_tick,
-                                qty,
-                                self.data[row_num].exch_ts,
-                            )?;
+                            self.check_if_buy_filled(order, price_tick, qty, event.exch_ts)?;
                         }
                     }
                 } else {
@@ -892,12 +883,7 @@ where
                         if let Some(order_ids) = self.buy_orders.get(&t) {
                             for order_id in order_ids.clone().iter() {
                                 let order = orders_borrowed.get_mut(order_id).unwrap();
-                                self.check_if_buy_filled(
-                                    order,
-                                    price_tick,
-                                    qty,
-                                    self.data[row_num].exch_ts,
-                                )?;
+                                self.check_if_buy_filled(order, price_tick, qty, event.exch_ts)?;
                             }
                         }
                     }
@@ -906,27 +892,18 @@ where
             self.remove_filled_orders();
         }
 
-        // Checks
-        let mut next_ts = 0;
-        for rn in (self.row_num + 1)..self.data.len() {
-            if self.data[rn].is(EXCH_EVENT) {
-                self.row_num = rn;
-                next_ts = self.data[rn].exch_ts;
-                break;
-            }
-        }
-
-        if next_ts <= 0 {
-            let next_data = self.reader.next_data()?;
-            let next_row = &next_data[0];
-            next_ts = next_row.exch_ts;
-            let data = mem::replace(&mut self.data, next_data);
-            self.reader.release(data);
-            self.row_num = 0;
-        }
-        Ok((next_ts, i64::MAX))
+        Ok(())
     }
+}
 
+impl<AT, LM, QM, MD, FM> OrderConsumer for PartialFillExchange<AT, LM, QM, MD, FM>
+where
+    AT: AssetType,
+    LM: LatencyModel,
+    QM: QueueModel<MD>,
+    MD: MarketDepth + L2MarketDepth,
+    FM: FeeModel,
+{
     fn process_recv_order(
         &mut self,
         timestamp: i64,
@@ -945,11 +922,9 @@ where
         }
         Ok(false)
     }
-
     fn earliest_recv_order_timestamp(&self) -> i64 {
         self.orders_from.earliest_timestamp().unwrap_or(i64::MAX)
     }
-
     fn earliest_send_order_timestamp(&self) -> i64 {
         self.orders_to.earliest_timestamp().unwrap_or(i64::MAX)
     }

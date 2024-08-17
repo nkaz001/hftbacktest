@@ -1,5 +1,6 @@
-use std::{collections::HashMap, io::Error as IoError, marker::PhantomData};
+use std::{collections::HashMap, io::Error as IoError, marker::PhantomData, sync::mpsc::Receiver};
 
+use bus::Bus;
 pub use data::DataSource;
 use data::{Cache, Reader};
 use models::FeeModel;
@@ -13,10 +14,18 @@ pub use crate::backtest::{
 use crate::{
     backtest::{
         assettype::AssetType,
+        data::replay_events_to_bus,
         evs::{EventIntentKind, EventSet},
         models::{LatencyModel, QueueModel},
         order::OrderBus,
-        proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
+        proc::{
+            Local,
+            LocalProcessor,
+            NoPartialFillExchange,
+            OrderConsumer,
+            PartialFillExchange,
+            Processor,
+        },
         state::State,
     },
     depth::{HashMapMarketDepth, L2MarketDepth, L3MarketDepth, MarketDepth},
@@ -34,6 +43,7 @@ use crate::{
     },
     types::{BuildError, Event},
 };
+use crate::backtest::data::EventBusReader;
 
 /// Provides asset types.
 pub mod assettype;
@@ -113,11 +123,11 @@ pub enum ExchangeKind {
 
 /// A builder for `Asset`.
 pub struct AssetBuilder<LM, AT, QM, MD, FM> {
+    data_sources: Vec<String>,
     latency_model: Option<LM>,
     asset_type: Option<AT>,
     queue_model: Option<QM>,
     depth_builder: Option<Box<dyn Fn() -> MD>>,
-    reader: Reader<Event>,
     fee_model: Option<FM>,
     exch_kind: ExchangeKind,
     last_trades_cap: usize,
@@ -133,18 +143,15 @@ where
 {
     /// Constructs an instance of `AssetBuilder`.
     pub fn new() -> Self {
-        let cache = Cache::new();
-        let reader = Reader::new(cache);
-
         Self {
             latency_model: None,
             asset_type: None,
             queue_model: None,
             depth_builder: None,
-            reader,
             fee_model: None,
             exch_kind: ExchangeKind::NoPartialFillExchange,
             last_trades_cap: 0,
+            data_sources: vec![],
         }
     }
 
@@ -153,10 +160,10 @@ where
         for item in data {
             match item {
                 DataSource::File(filename) => {
-                    self.reader.add_file(filename);
+                    self.data_sources.push(filename);
                 }
-                DataSource::Data(data) => {
-                    self.reader.add_data(data);
+                DataSource::Data(_) => {
+                    todo!("involves a copy");
                 }
             }
         }
@@ -242,8 +249,16 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
+        let mut bus = Bus::new(10_000);
+        let exch_bus = bus.add_rx();
+        let local_bus = bus.add_rx();
+
+        std::thread::spawn(move || {
+            replay_events_to_bus(bus, self.data_sources);
+        });
+
         let local = Local::new(
-            self.reader.clone(),
+            EventBusReader::new(local_bus),
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,
@@ -271,7 +286,7 @@ where
         match self.exch_kind {
             ExchangeKind::NoPartialFillExchange => {
                 let exch = NoPartialFillExchange::new(
-                    self.reader.clone(),
+                    EventBusReader::new(exch_bus),
                     create_depth(),
                     State::new(asset_type, fee_model),
                     order_latency,
@@ -287,7 +302,7 @@ where
             }
             ExchangeKind::PartialFillExchange => {
                 let exch = PartialFillExchange::new(
-                    self.reader.clone(),
+                    EventBusReader::new(exch_bus),
                     create_depth(),
                     State::new(asset_type, fee_model),
                     order_latency,
@@ -330,8 +345,12 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
+        let mut bus = Bus::new(1000);
+        let local_reader = EventBusReader::new(bus.add_rx());
+        let exch_reader = EventBusReader::new(bus.add_rx());
+
         let local = Local::new(
-            self.reader.clone(),
+            local_reader,
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,
@@ -356,7 +375,7 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
         let exch = NoPartialFillExchange::new(
-            self.reader.clone(),
+            exch_reader,
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,

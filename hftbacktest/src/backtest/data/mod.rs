@@ -1,3 +1,4 @@
+mod bus;
 mod npy;
 mod reader;
 
@@ -10,6 +11,7 @@ use std::{
     slice::SliceIndex,
 };
 
+pub use bus::{replay_events_to_bus, EventBusMessage, EventBusReader, EventConsumer, TimestampedEventQueue};
 pub use npy::{read_npy_file, read_npz_file, write_npy, Field, NpyDTyped, NpyHeader};
 pub use reader::{Cache, DataSource, Reader};
 
@@ -106,6 +108,8 @@ where
         unsafe { &*(self.ptr.at(i) as *const D) }
     }
 }
+
+unsafe impl Send for DataPtr {}
 
 #[derive(Debug)]
 pub struct DataPtr {

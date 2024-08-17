@@ -91,7 +91,7 @@ where
 }
 
 /// Processes the historical feed data and the order interaction.
-pub trait Processor {
+pub trait Processor: OrderConsumer {
     /// Prepares to process the data. This is invoked when the backtesting is initiated.
     /// If successful, returns the timestamp of the first event.
     fn initialize_data(&mut self) -> Result<i64, BacktestError>;
@@ -100,7 +100,9 @@ pub trait Processor {
     /// event to be processed in the data.
     /// If successful, returns the timestamp of the next event.
     fn process_data(&mut self) -> Result<(i64, i64), BacktestError>;
+}
 
+pub trait OrderConsumer {
     /// Processes an order upon receipt. This is invoked when the backtesting time reaches the order
     /// receipt timestamp.
     /// Returns Ok(true) if the order with `wait_resp_order_id` is received and processed.
@@ -109,10 +111,8 @@ pub trait Processor {
         timestamp: i64,
         wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError>;
-
     /// Returns the foremost timestamp at which an order is to be received by this processor.
     fn earliest_recv_order_timestamp(&self) -> i64;
-
     /// Returns the foremost timestamp at which an order sent by this processor is to be received by
     /// the corresponding processor.
     fn earliest_send_order_timestamp(&self) -> i64;
