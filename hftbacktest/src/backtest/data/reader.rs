@@ -7,13 +7,16 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::backtest::{
-    data::{
-        npy::{read_npy_file, read_npz_file, NpyDTyped},
-        Data,
-        POD,
+use crate::{
+    backtest::{
+        data::{
+            npy::{read_npy_file, read_npz_file, NpyDTyped},
+            Data,
+            POD,
+        },
+        BacktestError,
     },
-    BacktestError,
+    types::Event,
 };
 
 /// Data source for the [`Reader`].
@@ -117,26 +120,30 @@ where
 }
 
 /// Provides `Data` reading based on the given sequence of data through `Cache`.
-#[derive(Clone, Debug)]
-pub struct Reader<D>
+#[derive(Clone)]
+pub struct Reader<D, Preprocessor = NullPreprocessor>
 where
     D: NpyDTyped + Clone,
+    Preprocessor: DataPreprocess<D> + Clone,
 {
     file_list: Vec<String>,
     cache: Cache<D>,
     data_num: usize,
+    preprocessor: Preprocessor,
 }
 
-impl<D> Reader<D>
+impl<D, Preprocessor> Reader<D, Preprocessor>
 where
     D: NpyDTyped + Clone,
+    Preprocessor: DataPreprocess<D> + Clone,
 {
     /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
-    pub fn new(cache: Cache<D>) -> Self {
+    pub fn new(cache: Cache<D>, preprocessor: Preprocessor) -> Self {
         Self {
             file_list: Vec::new(),
             cache,
             data_num: 0,
+            preprocessor,
         }
     }
 
@@ -147,10 +154,12 @@ where
     }
 
     /// Adds a `Data`. Additions should be made in the same order as the order you want to read.
-    pub fn add_data(&mut self, data: Data<D>) {
+    pub fn add_data(&mut self, mut data: Data<D>) {
         // todo: Data should not be removed from the cache.
         let id = Uuid::new_v4().to_string();
         self.file_list.push(id.clone());
+        // fixme: error handling.
+        self.preprocessor.preprocess(&mut data).unwrap();
         self.cache.insert(id, data);
     }
 
@@ -166,10 +175,12 @@ where
             let filepath = self.file_list.get(self.data_num).unwrap();
             if !self.cache.contains(filepath) {
                 if filepath.ends_with(".npy") {
-                    let data = read_npy_file(filepath)?;
+                    let mut data = read_npy_file(filepath)?;
+                    self.preprocessor.preprocess(&mut data)?;
                     self.cache.insert(filepath.to_string(), data);
                 } else if filepath.ends_with(".npz") {
-                    let data = read_npz_file(filepath, "data")?;
+                    let mut data = read_npz_file(filepath, "data")?;
+                    self.preprocessor.preprocess(&mut data)?;
                     self.cache.insert(filepath.to_string(), data);
                 } else {
                     return Err(BacktestError::DataError(IoError::new(
@@ -184,5 +195,61 @@ where
         } else {
             Err(BacktestError::EndOfData)
         }
+    }
+}
+
+/// DataPreprocess offers a function to preprocess data before it is fed into the backtesting. This
+/// feature is primarily introduced to adjust timestamps, making it particularly useful when
+/// backtesting the market from a location different from where your order latency was originally
+/// collected.
+///
+/// For example, if you're backtesting an arbitrage strategy between Binance Futures and ByBit,
+/// and your order latency data was collected in a colocated AWS region, you may need to adjust
+/// for the geographical difference. If your strategy is running with a base in Tokyo
+/// (where Binance Futures is located), you would need to account for the latency between
+/// Singapore (where ByBit is located) and Tokyo by applying an appropriate offset.
+pub trait DataPreprocess<D>
+where
+    D: POD + Clone,
+{
+    fn preprocess(&mut self, data: &mut Data<D>) -> Result<(), IoError>;
+}
+
+#[derive(Clone, Default)]
+pub struct NullPreprocessor;
+
+impl<D> DataPreprocess<D> for NullPreprocessor
+where
+    D: POD + Clone,
+{
+    fn preprocess(&mut self, _data: &mut Data<D>) -> Result<(), IoError> {
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct FeedLatencyAdjustment {
+    latency_offset: i64,
+}
+
+impl FeedLatencyAdjustment {
+    pub fn new(latency_offset: i64) -> Self {
+        Self { latency_offset }
+    }
+}
+
+impl DataPreprocess<Event> for FeedLatencyAdjustment {
+    fn preprocess(&mut self, data: &mut Data<Event>) -> Result<(), IoError> {
+        for i in 0..data.len() {
+            data[i].local_ts += self.latency_offset;
+            if data[i].local_ts <= data[i].exch_ts {
+                return Err(IoError::new(
+                    ErrorKind::InvalidData,
+                    "`local_ts` became less than or \
+                    equal to `exch_ts` after applying the latency offset",
+                ));
+            }
+        }
+        Ok(())
     }
 }

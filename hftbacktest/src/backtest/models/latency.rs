@@ -1,10 +1,10 @@
-use std::mem;
+use std::{io::Error, mem};
 
 use hftbacktest_derive::NpyDTyped;
 
 use crate::{
     backtest::{
-        data::{Cache, Data, DataSource, Reader, POD},
+        data::{Cache, Data, DataPreprocess, DataSource, Reader, POD},
         BacktestError,
     },
     types::Order,
@@ -105,7 +105,7 @@ pub struct IntpOrderLatency {
 impl IntpOrderLatency {
     /// Constructs an instance of `IntpOrderLatency`.
     pub fn build(data: Vec<DataSource<OrderLatencyRow>>) -> Result<Self, BacktestError> {
-        let mut reader = Reader::new(Cache::new());
+        let mut reader = Reader::new(Cache::new(), Default::default());
         for file in data {
             match file {
                 DataSource::File(file) => {
@@ -264,5 +264,26 @@ impl LatencyModel for IntpOrderLatency {
                 self.resp_rn += 1;
             }
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct OrderLatencyAdjustment {
+    latency_offset: i64,
+}
+
+impl OrderLatencyAdjustment {
+    pub fn new(latency_offset: i64) -> Self {
+        Self { latency_offset }
+    }
+}
+
+impl DataPreprocess<OrderLatencyRow> for OrderLatencyAdjustment {
+    fn preprocess(&mut self, data: &mut Data<OrderLatencyRow>) -> Result<(), Error> {
+        for i in 0..data.len() {
+            data[i].exch_ts += self.latency_offset;
+            data[i].resp_ts += self.latency_offset + self.latency_offset;
+        }
+        Ok(())
     }
 }

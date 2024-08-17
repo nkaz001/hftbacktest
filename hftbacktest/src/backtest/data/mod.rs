@@ -11,7 +11,7 @@ use std::{
 };
 
 pub use npy::{read_npy_file, read_npz_file, write_npy, Field, NpyDTyped, NpyHeader};
-pub use reader::{Cache, DataSource, Reader};
+pub use reader::{Cache, DataPreprocess, DataSource, NullPreprocessor, Reader};
 
 use crate::utils::{AlignedArray, CACHE_LINE_SIZE};
 
@@ -104,6 +104,20 @@ where
             panic!("Out of the size.");
         }
         unsafe { &*(self.ptr.at(i) as *const D) }
+    }
+}
+
+impl<D> IndexMut<usize> for Data<D>
+where
+    D: POD + Clone,
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        let size = size_of::<D>();
+        let i = self.offset + index * size;
+        if i + size > self.ptr.len() {
+            panic!("Out of the size.");
+        }
+        unsafe { &mut *(self.ptr.at(i) as *mut D) }
     }
 }
 
