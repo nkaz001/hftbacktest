@@ -11,6 +11,7 @@ mod binancefuturesum;
 mod bybit;
 mod error;
 mod file;
+mod throttler;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

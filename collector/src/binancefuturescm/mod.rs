@@ -7,13 +7,14 @@ pub use http::{fetch_depth_snapshot, fetch_symbol_list, keep_connection};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tracing::{error, warn};
 
-use crate::error::ConnectorError;
+use crate::{error::ConnectorError, throttler::Throttler};
 
 fn handle(
     prev_u_map: &mut HashMap<String, i64>,
     writer_tx: &UnboundedSender<(DateTime<Utc>, String, String)>,
     recv_time: DateTime<Utc>,
     data: String,
+    throttler: &Throttler,
 ) -> Result<(), ConnectorError> {
     let j: serde_json::Value = serde_json::from_str(&data)?;
     if let Some(j_data) = j.get("data") {
@@ -42,23 +43,27 @@ fn handle(
                 let prev_u = prev_u_map.get(symbol);
                 if prev_u.is_none() || pu != *prev_u.unwrap() {
                     warn!(%symbol, "missing depth feed has been detected.");
-                    // todo: to circumvent API limits when repeated occurrences of missing depth
-                    //       feed happen within a short timeframe, implementing a backoff mechanism
-                    //       may be necessary.
                     let symbol_ = symbol.to_string();
                     let writer_tx_ = writer_tx.clone();
+                    let mut throttler_ = throttler.clone();
                     tokio::spawn(async move {
-                        match fetch_depth_snapshot(&symbol_).await {
-                            Ok(data) => {
+                        match throttler_.execute(fetch_depth_snapshot(&symbol_)).await {
+                            Some(Ok(data)) => {
                                 let recv_time = Utc::now();
                                 let _ = writer_tx_.send((recv_time, symbol_, data));
                             }
-                            Err(error) => {
+                            Some(Err(error)) => {
                                 error!(
                                     symbol = symbol_,
                                     ?error,
                                     "couldn't fetch the depth snapshot."
                                 );
+                            }
+                            None => {
+                                warn!(
+                                    symbol = symbol_,
+                                    "Fetching the depth snapshot is rate-limited."
+                                )
                             }
                         }
                     });
@@ -79,10 +84,16 @@ pub async fn run_collection(
     let mut prev_u_map = HashMap::new();
     let (ws_tx, mut ws_rx) = unbounded_channel();
     let h = tokio::spawn(keep_connection(streams, symbols, ws_tx.clone()));
+    // https://www.binance.com/en/support/faq/rate-limits-on-binance-futures-281596e222414cdd9051664ea621cdc3
+    // The default rate limit per IP is 2,400/min and the weight is 20 at a depth of 1000.
+    // The maximum request rate for fetching snapshots is 120 per minute.
+    // Sets the rate limit with a margin to account for connection requests.
+    let throttler = Throttler::new(100);
     loop {
         match ws_rx.recv().await {
             Some((recv_time, data)) => {
-                if let Err(error) = handle(&mut prev_u_map, &writer_tx, recv_time, data) {
+                if let Err(error) = handle(&mut prev_u_map, &writer_tx, recv_time, data, &throttler)
+                {
                     error!(?error, "couldn't handle the received data.");
                 }
             }
