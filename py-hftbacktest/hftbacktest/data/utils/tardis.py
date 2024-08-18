@@ -54,6 +54,9 @@ def convert(
     than the 'T' transaction time, indicating when the matching occurs. So the latency is slightly less than it actually
     is.
 
+    If you encounter an ``IndexError`` due to an out-of-bounds, try increasing the ``buffer_size`` and
+    ``ss_buffer_size``.
+
     Args:
         input_files: Input filenames for both incremental book and trades files,
                      e.g. ['incremental_book.csv.gz', 'trades.csv.gz'].
