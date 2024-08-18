@@ -27,6 +27,7 @@ def convert(
 ) -> NDArray:
     r"""
     Converts raw Binance Futures feed stream file into a format compatible with HftBacktest.
+    If you encounter an ``IndexError`` due to an out-of-bounds, try increasing the ``buffer_size``.
 
     **File Format:**
 
@@ -70,7 +71,7 @@ def convert(
                              {"stream":"solusdt@bookTicker","data":{"e":"bookTicker","u":4456408609867,"s":"SOLUSDT","b":"142.4440","B":"50","a":"142.4450","A":"3","T":1713571200009,"E":1713571200010}}
                              regular stream:
                              {"e":"bookTicker","u":4456408609867,"s":"SOLUSDT","b":"142.4440","B":"50","a":"142.4450","A":"3","T":1713571200009,"E":1713571200010}
-
+        buffer_size: Sets a preallocated row size for the buffer.
 
     Returns:
         Converted data compatible with HftBacktest.
@@ -212,66 +213,69 @@ def convert(
                     )
                     row_num += 1
             else:
-                # snapshot
-                # event_time = msg['E']
-                transaction_time = message['T']
-                bids = message['bids']
-                asks = message['asks']
-                exch_timestamp = int(transaction_time) * timestamp_mul
-                if len(bids) > 0:
-                    bid_clear_upto = float(bids[-1][0])
-                    # clears the existing market depth upto the prices in the snapshot.
-                    tmp[row_num] = (
-                        DEPTH_CLEAR_EVENT | BUY_EVENT,
-                        exch_timestamp,
-                        local_timestamp,
-                        bid_clear_upto,
-                        0,
-                        0,
-                        0,
-                        0
-                    )
-                    row_num += 1
-                    # inserts the snapshot.
-                    for px, qty in bids:
+                if 'code' in message:
+                    print(message['code'], message['msg'])
+                else:
+                    # snapshot
+                    # event_time = msg['E']
+                    transaction_time = message['T']
+                    bids = message['bids']
+                    asks = message['asks']
+                    exch_timestamp = int(transaction_time) * timestamp_mul
+                    if len(bids) > 0:
+                        bid_clear_upto = float(bids[-1][0])
+                        # clears the existing market depth upto the prices in the snapshot.
                         tmp[row_num] = (
-                            DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
+                            DEPTH_CLEAR_EVENT | BUY_EVENT,
                             exch_timestamp,
                             local_timestamp,
-                            float(px),
-                            float(qty),
+                            bid_clear_upto,
+                            0,
                             0,
                             0,
                             0
                         )
                         row_num += 1
-                if len(asks) > 0:
-                    ask_clear_upto = float(asks[-1][0])
-                    # clears the existing market depth upto the prices in the snapshot.
-                    tmp[row_num] = (
-                        DEPTH_CLEAR_EVENT | SELL_EVENT,
-                        exch_timestamp,
-                        local_timestamp,
-                        ask_clear_upto,
-                        0,
-                        0,
-                        0,
-                        0
-                    )
-                    row_num += 1
-                    # inserts the snapshot.
-                    for px, qty in asks:
+                        # inserts the snapshot.
+                        for px, qty in bids:
+                            tmp[row_num] = (
+                                DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
+                                exch_timestamp,
+                                local_timestamp,
+                                float(px),
+                                float(qty),
+                                0,
+                                0,
+                                0
+                            )
+                            row_num += 1
+                    if len(asks) > 0:
+                        ask_clear_upto = float(asks[-1][0])
+                        # clears the existing market depth upto the prices in the snapshot.
                         tmp[row_num] = (
-                            DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
+                            DEPTH_CLEAR_EVENT | SELL_EVENT,
                             exch_timestamp,
                             local_timestamp,
-                            float(px),
-                            float(qty),
+                            ask_clear_upto,
+                            0,
                             0,
                             0,
                             0
                         )
                         row_num += 1
+                        # inserts the snapshot.
+                        for px, qty in asks:
+                            tmp[row_num] = (
+                                DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
+                                exch_timestamp,
+                                local_timestamp,
+                                float(px),
+                                float(qty),
+                                0,
+                                0,
+                                0
+                            )
+                            row_num += 1
     tmp = tmp[:row_num]
 
     print('Correcting the latency')
