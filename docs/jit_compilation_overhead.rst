@@ -40,9 +40,7 @@ backtesting for multiple days, it can still be bothersome. To minimize this over
             .power_prob_queue_model3(3.0)
             .tick_size(0.01)
             .lot_size(0.001)
-            .maker_fee(-0.00005),
-            .taker_fee(0.0007),
-            .trade_len(0)
+            .trading_value_fee_model(0.0002, 0.0007)
     )
 
     hbt = HashMapMarketDepthBacktest([asset])

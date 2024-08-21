@@ -5,7 +5,9 @@ use tracing::{error, info};
 
 use crate::file::Writer;
 
-mod binancefutures;
+mod binance;
+mod binancefuturescm;
+mod binancefuturesum;
 mod bybit;
 mod error;
 mod file;
@@ -32,10 +34,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let (writer_tx, mut writer_rx) = unbounded_channel();
 
     let handle = match args.exchange.as_str() {
-        "binancefutures" => {
+        "binancefutures" | "binancefuturesum" => {
             let streams = vec![
                 "$symbol@trade",
-                // "$symbol@aggTrade",
                 "$symbol@bookTicker",
                 "$symbol@depth@0ms",
                 // "$symbol@@markPrice@1s"
@@ -44,11 +45,36 @@ async fn main() -> Result<(), anyhow::Error> {
             .map(|stream| stream.to_string())
             .collect();
 
-            tokio::spawn(binancefutures::run_collection(
+            tokio::spawn(binancefuturesum::run_collection(
                 streams,
                 args.symbols,
                 writer_tx,
             ))
+        }
+        "binancefuturescm" => {
+            let streams = vec![
+                "$symbol@trade",
+                "$symbol@bookTicker",
+                "$symbol@depth@0ms",
+                // "$symbol@@markPrice@1s"
+            ]
+            .iter()
+            .map(|stream| stream.to_string())
+            .collect();
+
+            tokio::spawn(binancefuturescm::run_collection(
+                streams,
+                args.symbols,
+                writer_tx,
+            ))
+        }
+        "binance" | "binancespot" => {
+            let streams = vec!["$symbol@trade", "$symbol@bookTicker", "$symbol@depth@100ms"]
+                .iter()
+                .map(|stream| stream.to_string())
+                .collect();
+
+            tokio::spawn(binance::run_collection(streams, args.symbols, writer_tx))
         }
         "bybit" => {
             let topics = vec![

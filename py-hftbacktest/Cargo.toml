@@ -3,11 +3,11 @@ name = "py-hftbacktest"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "hftbacktest"
+crate-type = ["cdylib"]
+
 [dependencies]
 pyo3 = { version = "0.22.1", features = ["extension-module"] }
 hftbacktest = { path = "../hftbacktest", features = ["backtest"] }
 hftbacktest-derive = { path = "../hftbacktest-derive" }
-
-[lib]
-name = "hftbacktest"
-crate-type = ["cdylib"]

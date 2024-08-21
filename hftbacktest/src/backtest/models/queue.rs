@@ -1,13 +1,24 @@
 use std::{
     any::Any,
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
     marker::PhantomData,
 };
 
 use crate::{
     backtest::BacktestError,
-    depth::MarketDepth,
-    types::{AnyClone, Order, Side},
+    depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
+    types::{
+        AnyClone,
+        Event,
+        OrdType,
+        Order,
+        OrderId,
+        Side,
+        Status,
+        TimeInForce,
+        BUY_EVENT,
+        SELL_EVENT,
+    },
 };
 
 /// Provides an estimation of the order's queue position.
@@ -317,9 +328,9 @@ impl Probability for PowerProbQueueFunc3 {
 /// Represents the order source for the Level 3 Market-By-Order queue model, which is stored in
 /// [`order.q`](crate::types::Order::q)
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub enum L3OrderSource {
+enum L3OrderSource {
     /// Represents an order originating from the market feed.
-    Market,
+    MarketFeed,
     /// Represents an order originating from the backtest.
     Backtest,
 }
@@ -334,51 +345,124 @@ impl AnyClone for L3OrderSource {
     }
 }
 
-/// Order ID with the order source for Level 3 Market-By-Order.
-#[derive(Hash, Eq, PartialEq)]
-pub enum L3OrderId {
-    /// Represents an order ID originating from the market feed.
-    Market(u64),
-    /// Represents an order ID originating from the backtest.
-    Backtest(u64),
+trait L3Order {
+    fn order_source(&self) -> L3OrderSource;
+
+    fn is_backtest_order(&self) -> bool;
+
+    fn is_market_feed_order(&self) -> bool;
 }
 
-impl L3OrderId {
-    pub fn is(&self, order: &Order) -> bool {
-        let order_source = order.q.as_any().downcast_ref::<L3OrderSource>().unwrap();
-        match self {
-            L3OrderId::Market(order_id) => {
-                order.order_id == *order_id && *order_source == L3OrderSource::Market
-            }
-            L3OrderId::Backtest(order_id) => {
-                order.order_id == *order_id && *order_source == L3OrderSource::Backtest
-            }
+impl L3Order for Order {
+    fn order_source(&self) -> L3OrderSource {
+        *self.q.as_any().downcast_ref::<L3OrderSource>().unwrap()
+    }
+
+    fn is_backtest_order(&self) -> bool {
+        match self.order_source() {
+            L3OrderSource::MarketFeed => false,
+            L3OrderSource::Backtest => true,
+        }
+    }
+
+    fn is_market_feed_order(&self) -> bool {
+        match self.order_source() {
+            L3OrderSource::MarketFeed => true,
+            L3OrderSource::Backtest => false,
         }
     }
 }
 
-/// Provides an estimation of the order's queue position for Level 3 Market-By-Order feed.
-pub trait L3QueueModel {
-    type Error;
+/// Provides a model to determine whether the backtest order is filled, accounting for the queue
+/// position based on L3 Market-By-Order data.
+pub trait L3QueueModel<MD> {
+    /// Returns `true` if the queue contains a backtest order for the order ID.
+    fn contains_backtest_order(&self, order_id: OrderId) -> bool;
 
-    /// This function is called when an order is added.
-    fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error>;
+    /// Invoked when the best bid is updated.
+    /// Returns the ask backtest orders that are filled by crossing the best bid.
+    fn on_best_bid_update(
+        &mut self,
+        prev_best_tick: i64,
+        new_best_tick: i64,
+    ) -> Result<Vec<Order>, BacktestError>;
 
-    /// This function is called when an order is canceled.
-    /// It does not necessarily mean that the order is canceled by the person who submitted it. It
-    /// may simply mean that the order has been deleted in the market.
-    fn cancel_order(&mut self, order_id: L3OrderId) -> Result<Order, Self::Error>;
+    /// Invoked when the best ask is updated.
+    /// Returns the bid backtest orders that are filled by crossing the best ask.
+    fn on_best_ask_update(
+        &mut self,
+        prev_best_tick: i64,
+        new_best_tick: i64,
+    ) -> Result<Vec<Order>, BacktestError>;
 
-    /// This function is called when an order is modified.
-    fn modify_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error>;
+    /// Invoked when a backtest order is added.
+    fn add_backtest_order(&mut self, order: Order, depth: &MD) -> Result<(), BacktestError>;
 
-    /// This function is called when an order is filled.
+    /// Invoked when an order is added from the market feed.
+    fn add_market_feed_order(&mut self, order: &Event, depth: &MD) -> Result<(), BacktestError>;
+
+    /// Invoked when a backtest order is canceled.
+    fn cancel_backtest_order(
+        &mut self,
+        order_id: OrderId,
+        depth: &MD,
+    ) -> Result<Order, BacktestError>;
+
+    /// Invoked when an order is canceled from the market feed.
+    ///
+    /// It does not necessarily mean that the order is canceled by the one who submitted it. It may
+    /// simply mean that the order has been deleted in the market.
+    fn cancel_market_feed_order(
+        &mut self,
+        order_id: OrderId,
+        depth: &MD,
+    ) -> Result<(), BacktestError>;
+
+    /// Invoked when a backtest order is modified.
+    fn modify_backtest_order(
+        &mut self,
+        order_id: OrderId,
+        order: Order,
+        depth: &MD,
+    ) -> Result<(), BacktestError>;
+
+    /// Invoked when an order is modified from the market feed.
+    fn modify_market_feed_order(
+        &mut self,
+        order_id: OrderId,
+        order: &Event,
+        depth: &MD,
+    ) -> Result<(), BacktestError>;
+
+    /// Invoked when an order is filled from the market feed.
+    ///
     /// According to the exchange, the market feed may send fill and delete order events separately.
     /// This means that after a fill event is received, a delete order event can be received
-    /// subsequently. The `delete` argument is used to indicate whether the order should be deleted
-    /// immediately or if it should be deleted upon receiving a delete order event, which is handled
-    /// by [`cancel_order`](L3QueueModel::cancel_order).
-    fn fill(&mut self, order_id: L3OrderId, delete: bool) -> Result<Vec<Order>, Self::Error>;
+    /// subsequently. The `DELETE` constant generic is used to indicate whether the order should be
+    /// deleted immediately or if it should be deleted upon receiving a delete order event, which is
+    /// handled by [`cancel_market_feed_order`](L3QueueModel::cancel_market_feed_order).
+    fn fill_market_feed_order<const DELETE: bool>(
+        &mut self,
+        order_id: OrderId,
+        depth: &MD,
+    ) -> Result<Vec<Order>, BacktestError>;
+
+    /// Invoked when a clear order message is received. Returns the expired orders due to the clear
+    /// message.
+    ///
+    /// Such messages can occur in two scenarios:
+    ///
+    /// 1. The exchange clears orders for reasons such as session close.
+    ///    In this case, backtest orders must also be cleared.
+    /// 2. The exchange sends a clear message before sending a snapshot to properly maintain market
+    ///    depth. Here, clearing backtest orders is not always necessary. However, estimating the
+    ///    order queue position becomes difficult because clearing the market feed orders leads to
+    ///    the loss of queue position information. Additionally, there's no guarantee that all
+    ///    orders preceding the clear message will persist.
+    ///
+    /// Due to these challenges, HftBacktest opts to clear all backtest orders upon receiving a
+    /// clear message, even though this may differ from the exchange's actual behavior.
+    fn clear_orders(&mut self, side: Side) -> Vec<Order>;
 }
 
 /// This provides a Level 3 Market-By-Order queue model for backtesting in a FIFO manner. This means
@@ -391,7 +475,8 @@ pub trait L3QueueModel {
 #[derive(Default)]
 pub struct L3FIFOQueueModel {
     // Stores the location of the queue that holds the order by (side, price in ticks).
-    pub orders: HashMap<L3OrderId, (Side, i64)>,
+    pub backtest_orders: HashMap<OrderId, (Side, i64)>,
+    pub mkt_feed_orders: HashMap<OrderId, (Side, i64)>,
     // Since LinkedList's cursor is still unstable, there is no efficient way to delete an item in a
     // linked list, so it is better to use a vector.
     pub bid_queue: HashMap<i64, Vec<Order>>,
@@ -403,23 +488,146 @@ impl L3FIFOQueueModel {
     pub fn new() -> Self {
         Default::default()
     }
+
+    fn fill_bid_between<const INVALID_FROM: bool>(
+        &mut self,
+        from_tick: i64,
+        to_tick: i64,
+    ) -> Vec<Order> {
+        // Finds the shortest iteration.
+        let mut filled = Vec::new();
+        if INVALID_FROM || (self.backtest_orders.len() as i64) < to_tick - from_tick {
+            let mut filled_tick = HashSet::new();
+            self.backtest_orders.retain(|_, (side, order_price_tick)| {
+                if *side == Side::Buy && *order_price_tick >= to_tick {
+                    filled_tick.insert(*order_price_tick);
+                    false
+                } else {
+                    true
+                }
+            });
+            for order_price_tick in filled_tick {
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
+                queue.retain(|order| {
+                    if order.is_backtest_order() {
+                        filled.push(order.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        } else {
+            for t in to_tick..(from_tick + 1) {
+                if let Some(queue) = self.bid_queue.get_mut(&t) {
+                    queue.retain(|order| {
+                        if order.is_backtest_order() {
+                            filled.push(order.clone());
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            }
+        }
+        filled
+    }
+
+    fn fill_ask_between<const INVALID_FROM: bool>(
+        &mut self,
+        from_tick: i64,
+        to_tick: i64,
+    ) -> Vec<Order> {
+        // Finds the shortest iteration.
+        let mut filled = Vec::new();
+        if INVALID_FROM || (self.backtest_orders.len() as i64) < from_tick - to_tick {
+            let mut filled_tick = HashSet::new();
+            self.backtest_orders.retain(|_, (side, order_price_tick)| {
+                if *side == Side::Sell && *order_price_tick <= to_tick {
+                    filled_tick.insert(*order_price_tick);
+                    false
+                } else {
+                    true
+                }
+            });
+            for order_price_tick in filled_tick {
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
+                queue.retain(|order| {
+                    if order.is_backtest_order() {
+                        filled.push(order.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        } else {
+            for t in from_tick..(to_tick + 1) {
+                if let Some(queue) = self.ask_queue.get_mut(&t) {
+                    queue.retain(|order| {
+                        if order.is_backtest_order() {
+                            filled.push(order.clone());
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            }
+        }
+        filled
+    }
 }
 
-impl L3QueueModel for L3FIFOQueueModel {
-    type Error = BacktestError;
+impl<MD> L3QueueModel<MD> for L3FIFOQueueModel
+where
+    MD: MarketDepth,
+{
+    fn contains_backtest_order(&self, order_id: OrderId) -> bool {
+        self.backtest_orders.contains_key(&order_id)
+    }
 
-    fn add_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error> {
+    fn on_best_bid_update(
+        &mut self,
+        prev_best_tick: i64,
+        new_best_tick: i64,
+    ) -> Result<Vec<Order>, BacktestError> {
+        if prev_best_tick == INVALID_MIN {
+            Ok(self.fill_ask_between::<true>(prev_best_tick + 1, new_best_tick))
+        } else {
+            Ok(self.fill_ask_between::<false>(prev_best_tick + 1, new_best_tick))
+        }
+    }
+
+    fn on_best_ask_update(
+        &mut self,
+        prev_best_tick: i64,
+        new_best_tick: i64,
+    ) -> Result<Vec<Order>, BacktestError> {
+        if prev_best_tick == INVALID_MAX {
+            Ok(self.fill_bid_between::<true>(prev_best_tick - 1, new_best_tick))
+        } else {
+            Ok(self.fill_bid_between::<false>(prev_best_tick - 1, new_best_tick))
+        }
+    }
+
+    fn add_backtest_order(&mut self, mut order: Order, _depth: &MD) -> Result<(), BacktestError> {
         let order_price_tick = order.price_tick;
         let side = order.side;
+        let order_id = order.order_id;
 
-        let priority = match side {
+        order.q = Box::new(L3OrderSource::Backtest);
+
+        let queue = match side {
             Side::Buy => self.bid_queue.entry(order_price_tick).or_default(),
             Side::Sell => self.ask_queue.entry(order_price_tick).or_default(),
             Side::None | Side::Unsupported => unreachable!(),
         };
 
-        priority.push(order);
-        match self.orders.entry(order_id) {
+        queue.push(order);
+
+        match self.backtest_orders.entry(order_id) {
             Entry::Occupied(_) => Err(BacktestError::OrderIdExist),
             Entry::Vacant(entry) => {
                 entry.insert((side, order_price_tick));
@@ -428,9 +636,58 @@ impl L3QueueModel for L3FIFOQueueModel {
         }
     }
 
-    fn cancel_order(&mut self, order_id: L3OrderId) -> Result<Order, Self::Error> {
+    fn add_market_feed_order(&mut self, order: &Event, depth: &MD) -> Result<(), BacktestError> {
+        let tick_size = depth.tick_size();
+        let order_price_tick = (order.px / tick_size).round() as i64;
+        let side;
+        let order_id = order.order_id;
+
+        let queue = if order.is(BUY_EVENT) {
+            side = Side::Buy;
+            self.bid_queue.entry(order_price_tick).or_default()
+        } else if order.is(SELL_EVENT) {
+            side = Side::Sell;
+            self.ask_queue.entry(order_price_tick).or_default()
+        } else {
+            unreachable!()
+        };
+
+        queue.push(Order {
+            qty: order.qty,
+            leaves_qty: order.qty,
+            price_tick: order_price_tick,
+            exch_timestamp: order.exch_ts,
+            q: Box::new(L3OrderSource::MarketFeed),
+            tick_size,
+            order_id,
+            side,
+            // The information below is invalid.
+            exec_qty: 0.0,
+            exec_price_tick: 0,
+            local_timestamp: 0,
+            maker: false,
+            order_type: OrdType::Limit,
+            req: Status::None,
+            status: Status::None,
+            time_in_force: TimeInForce::GTC,
+        });
+
+        match self.mkt_feed_orders.entry(order_id) {
+            Entry::Occupied(_) => Err(BacktestError::OrderIdExist),
+            Entry::Vacant(entry) => {
+                entry.insert((side, order_price_tick));
+                Ok(())
+            }
+        }
+    }
+
+    fn cancel_backtest_order(
+        &mut self,
+        order_id: OrderId,
+        _depth: &MD,
+    ) -> Result<Order, BacktestError> {
         let (side, order_price_tick) = self
-            .orders
+            .backtest_orders
             .remove(&order_id)
             .ok_or(BacktestError::OrderNotFound)?;
 
@@ -439,15 +696,15 @@ impl L3QueueModel for L3FIFOQueueModel {
                 let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
                 let mut pos = None;
                 for (i, order_in_q) in queue.iter().enumerate() {
-                    if order_id.is(order_in_q) {
+                    if order_in_q.is_backtest_order() && order_in_q.order_id == order_id {
                         pos = Some(i);
                         break;
                     }
                 }
 
                 let order = queue.remove(pos.ok_or(BacktestError::OrderNotFound)?);
-                // if priority.len() == 0 {
-                //     self.bid_priority.remove(&order_price_tick);
+                // if queue.len() == 0 {
+                //     self.bid_queue.remove(&order_price_tick);
                 // }
                 Ok(order)
             }
@@ -455,15 +712,15 @@ impl L3QueueModel for L3FIFOQueueModel {
                 let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
                 let mut pos = None;
                 for (i, order_in_q) in queue.iter().enumerate() {
-                    if order_id.is(order_in_q) {
+                    if order_in_q.is_backtest_order() && order_in_q.order_id == order_id {
                         pos = Some(i);
                         break;
                     }
                 }
 
                 let order = queue.remove(pos.ok_or(BacktestError::OrderNotFound)?);
-                // if priority.len() == 0 {
-                //     self.ask_priority.remove(&order_price_tick);
+                // if queue.len() == 0 {
+                //     self.ask_queue.remove(&order_price_tick);
                 // }
                 Ok(order)
             }
@@ -471,10 +728,64 @@ impl L3QueueModel for L3FIFOQueueModel {
         }
     }
 
-    fn modify_order(&mut self, order_id: L3OrderId, order: Order) -> Result<(), Self::Error> {
+    fn cancel_market_feed_order(
+        &mut self,
+        order_id: OrderId,
+        _depth: &MD,
+    ) -> Result<(), BacktestError> {
         let (side, order_price_tick) = self
-            .orders
-            .get(&order_id)
+            .mkt_feed_orders
+            .remove(&order_id)
+            .ok_or(BacktestError::OrderNotFound)?;
+
+        match side {
+            Side::Buy => {
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
+                let mut pos = None;
+                for (i, order_in_q) in queue.iter().enumerate() {
+                    if order_in_q.is_market_feed_order() && order_in_q.order_id == order_id {
+                        pos = Some(i);
+                        break;
+                    }
+                }
+
+                queue.remove(pos.ok_or(BacktestError::OrderNotFound)?);
+                // if queue.len() == 0 {
+                //     self.bid_queue.remove(&order_price_tick);
+                // }
+                Ok(())
+            }
+            Side::Sell => {
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
+                let mut pos = None;
+                for (i, order_in_q) in queue.iter().enumerate() {
+                    if order_in_q.is_market_feed_order() && order_in_q.order_id == order_id {
+                        pos = Some(i);
+                        break;
+                    }
+                }
+
+                queue.remove(pos.ok_or(BacktestError::OrderNotFound)?);
+                // if queue.len() == 0 {
+                //     self.ask_queue.remove(&order_price_tick);
+                // }
+                Ok(())
+            }
+            Side::None | Side::Unsupported => unreachable!(),
+        }
+    }
+
+    fn modify_backtest_order(
+        &mut self,
+        order_id: OrderId,
+        mut order: Order,
+        _depth: &MD,
+    ) -> Result<(), BacktestError> {
+        order.q = Box::new(L3OrderSource::Backtest);
+
+        let (side, order_price_tick) = self
+            .backtest_orders
+            .get_mut(&order_id)
             .ok_or(BacktestError::OrderNotFound)?;
 
         match side {
@@ -483,7 +794,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                 let mut processed = false;
                 let mut pos = None;
                 for (i, order_in_q) in queue.iter_mut().enumerate() {
-                    if order_id.is(order_in_q) {
+                    if order_in_q.is_backtest_order() && order_in_q.order_id == order_id {
                         if (order_in_q.price_tick != order.price_tick)
                             || (order_in_q.leaves_qty < order.leaves_qty)
                         {
@@ -491,6 +802,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                         } else {
                             order_in_q.leaves_qty = order.leaves_qty;
                             order_in_q.qty = order.qty;
+                            order_in_q.exch_timestamp = order.exch_timestamp;
                         }
                         processed = true;
                         break;
@@ -502,15 +814,18 @@ impl L3QueueModel for L3FIFOQueueModel {
                 }
 
                 if let Some(pos) = pos {
-                    let prev_order = queue.remove(pos);
-                    // if priority.len() == 0 {
-                    //     self.bid_priority.remove(&order_price_tick);
+                    let mut prev_order = queue.remove(pos);
+                    let prev_order_price_tick = prev_order.price_tick;
+                    prev_order.update(&order);
+                    // if queue.len() == 0 {
+                    //     self.bid_queue.remove(&order_price_tick);
                     // }
-                    if prev_order.price_tick != order.price_tick {
-                        let queue_ = self.bid_queue.get_mut(&order.price_tick).unwrap();
-                        queue_.push(order);
+                    if prev_order_price_tick != order.price_tick {
+                        *order_price_tick = order.price_tick;
+                        let queue_ = self.bid_queue.entry(prev_order.price_tick).or_default();
+                        queue_.push(prev_order);
                     } else {
-                        queue.push(order);
+                        queue.push(prev_order);
                     }
                 }
             }
@@ -519,7 +834,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                 let mut processed = false;
                 let mut pos = None;
                 for (i, order_in_q) in queue.iter_mut().enumerate() {
-                    if order_id.is(order_in_q) {
+                    if order_in_q.is_backtest_order() && order_in_q.order_id == order_id {
                         if (order_in_q.price_tick != order.price_tick)
                             || (order_in_q.leaves_qty < order.leaves_qty)
                         {
@@ -527,6 +842,7 @@ impl L3QueueModel for L3FIFOQueueModel {
                         } else {
                             order_in_q.leaves_qty = order.leaves_qty;
                             order_in_q.qty = order.qty;
+                            order_in_q.exch_timestamp = order.exch_timestamp;
                         }
                         processed = true;
                         break;
@@ -538,15 +854,18 @@ impl L3QueueModel for L3FIFOQueueModel {
                 }
 
                 if let Some(pos) = pos {
-                    let prev_order = queue.remove(pos);
-                    // if priority.len() == 0 {
-                    //     self.bid_priority.remove(&order_price_tick);
+                    let mut prev_order = queue.remove(pos);
+                    let prev_order_price_tick = prev_order.price_tick;
+                    prev_order.update(&order);
+                    // if queue.len() == 0 {
+                    //     self.bid_queue.remove(&order_price_tick);
                     // }
-                    if prev_order.price_tick != order.price_tick {
-                        let queue_ = self.ask_queue.get_mut(&order.price_tick).unwrap();
-                        queue_.push(order);
+                    if prev_order_price_tick != order.price_tick {
+                        *order_price_tick = order.price_tick;
+                        let queue_ = self.ask_queue.entry(prev_order.price_tick).or_default();
+                        queue_.push(prev_order);
                     } else {
-                        queue.push(order);
+                        queue.push(prev_order);
                     }
                 }
             }
@@ -556,78 +875,274 @@ impl L3QueueModel for L3FIFOQueueModel {
         Ok(())
     }
 
-    fn fill(&mut self, order_id: L3OrderId, delete: bool) -> Result<Vec<Order>, Self::Error> {
+    fn modify_market_feed_order(
+        &mut self,
+        order_id: OrderId,
+        order: &Event,
+        depth: &MD,
+    ) -> Result<(), BacktestError> {
         let (side, order_price_tick) = self
-            .orders
-            .remove(&order_id)
+            .mkt_feed_orders
+            .get_mut(&order_id)
             .ok_or(BacktestError::OrderNotFound)?;
 
         match side {
             Side::Buy => {
-                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
+                let queue = self.bid_queue.get_mut(order_price_tick).unwrap();
+                let mut processed = false;
+                let mut pos = None;
+                for (i, order_in_q) in queue.iter_mut().enumerate() {
+                    if order_in_q.is_market_feed_order() && order_in_q.order_id == order_id {
+                        if (order_in_q.price_tick != *order_price_tick)
+                            || (order_in_q.leaves_qty < order.qty)
+                        {
+                            pos = Some(i);
+                        } else {
+                            order_in_q.leaves_qty = order.qty;
+                            order_in_q.qty = order.qty;
+                            order_in_q.exch_timestamp = order.exch_ts;
+                        }
+                        processed = true;
+                        break;
+                    }
+                }
+
+                if !processed {
+                    return Err(BacktestError::OrderNotFound);
+                }
+
+                if let Some(pos) = pos {
+                    let mut prev_order = queue.remove(pos);
+                    let prev_order_price_tick = prev_order.price_tick;
+                    prev_order.price_tick = (order.px / depth.tick_size()).round() as i64;
+                    prev_order.leaves_qty = order.qty;
+                    prev_order.qty = order.qty;
+                    prev_order.exch_timestamp = order.exch_ts;
+                    // if queue.len() == 0 {
+                    //     self.bid_queue.remove(&order_price_tick);
+                    // }
+                    if prev_order_price_tick != *order_price_tick {
+                        let queue_ = self.bid_queue.entry(*order_price_tick).or_default();
+                        queue_.push(prev_order);
+                    } else {
+                        queue.push(prev_order);
+                    }
+                }
+            }
+            Side::Sell => {
+                let queue = self.ask_queue.get_mut(order_price_tick).unwrap();
+                let mut processed = false;
+                let mut pos = None;
+                for (i, order_in_q) in queue.iter_mut().enumerate() {
+                    if order_in_q.is_market_feed_order() && order_in_q.order_id == order_id {
+                        if (order_in_q.price_tick != *order_price_tick)
+                            || (order_in_q.leaves_qty < order.qty)
+                        {
+                            pos = Some(i);
+                        } else {
+                            order_in_q.leaves_qty = order.qty;
+                            order_in_q.qty = order.qty;
+                            order_in_q.exch_timestamp = order.exch_ts;
+                        }
+                        processed = true;
+                        break;
+                    }
+                }
+
+                if !processed {
+                    return Err(BacktestError::OrderNotFound);
+                }
+
+                if let Some(pos) = pos {
+                    let mut prev_order = queue.remove(pos);
+                    let prev_order_price_tick = prev_order.price_tick;
+                    prev_order.price_tick = (order.px / depth.tick_size()).round() as i64;
+                    prev_order.leaves_qty = order.qty;
+                    prev_order.qty = order.qty;
+                    prev_order.exch_timestamp = order.exch_ts;
+                    // if queue.len() == 0 {
+                    //     self.bid_queue.remove(&order_price_tick);
+                    // }
+                    if prev_order_price_tick != *order_price_tick {
+                        let queue_ = self.ask_queue.entry(*order_price_tick).or_default();
+                        queue_.push(prev_order);
+                    } else {
+                        queue.push(prev_order);
+                    }
+                }
+            }
+            Side::None | Side::Unsupported => unreachable!(),
+        }
+
+        Ok(())
+    }
+
+    fn fill_market_feed_order<const DELETE: bool>(
+        &mut self,
+        order_id: OrderId,
+        depth: &MD,
+    ) -> Result<Vec<Order>, BacktestError> {
+        let (side, order_price_tick) = if DELETE {
+            self.mkt_feed_orders
+                .remove(&order_id)
+                .ok_or(BacktestError::OrderNotFound)?
+        } else {
+            *self
+                .mkt_feed_orders
+                .get(&order_id)
+                .ok_or(BacktestError::OrderNotFound)?
+        };
+
+        match side {
+            Side::Buy => {
                 let mut filled = Vec::new();
+
+                // The backtest bid orders above the price of the filled market-feed bid order are
+                // filled.
+                // The fill event should occur before the cancel event which may update the best
+                // price.
+                if order_price_tick < depth.best_bid_tick() {
+                    let mut f =
+                        self.fill_bid_between::<false>(depth.best_bid_tick(), order_price_tick + 1);
+                    filled.append(&mut f);
+                }
+
+                // The backtest bid orders in the queue, placed before the filled market-feed bid
+                // order, are filled.
+                let queue = self.bid_queue.get_mut(&order_price_tick).unwrap();
 
                 let mut pos = None;
                 let mut i = 0;
                 while i < queue.len() {
                     let order_in_q = queue.get(i).unwrap();
-                    let order_source = order_in_q
-                        .q
-                        .as_any()
-                        .downcast_ref::<L3OrderSource>()
-                        .unwrap();
-                    if order_id.is(order_in_q) {
-                        pos = Some(i);
-                        break;
-                    } else if *order_source == L3OrderSource::Backtest {
-                        let order = queue.remove(i);
-                        filled.push(order);
-                    } else {
-                        i += 1;
+                    match order_in_q.order_source() {
+                        L3OrderSource::MarketFeed if order_in_q.order_id == order_id => {
+                            pos = Some(i);
+                            break;
+                        }
+                        L3OrderSource::MarketFeed => {
+                            i += 1;
+                        }
+                        L3OrderSource::Backtest => {
+                            let order = queue.remove(i);
+                            filled.push(order);
+                        }
                     }
                 }
                 let pos = pos.ok_or(BacktestError::OrderNotFound)?;
-                if delete {
+                if DELETE {
                     queue.remove(pos);
-                    // if priority.len() == 0 {
-                    //     self.ask_priority.remove(&order_price_tick);
+                    // if queue.len() == 0 {
+                    //     self.ask_queue.remove(&order_price_tick);
                     // }
+                }
+                for order in filled.iter() {
+                    self.backtest_orders.remove(&order.order_id);
                 }
                 Ok(filled)
             }
             Side::Sell => {
-                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
                 let mut filled = Vec::new();
+
+                // The backtest ask orders below the price of the filled market-feed ask order are
+                // filled.
+                // The fill event should occur before the cancel event which may update the best
+                // price.
+                if order_price_tick > depth.best_ask_tick() {
+                    let mut f =
+                        self.fill_ask_between::<false>(depth.best_ask_tick(), order_price_tick - 1);
+                    filled.append(&mut f);
+                }
+
+                // The backtest ask orders in the queue, placed before the filled market-feed ask
+                // order, are filled.
+                let queue = self.ask_queue.get_mut(&order_price_tick).unwrap();
 
                 let mut pos = None;
                 let mut i = 0;
                 while i < queue.len() {
                     let order_in_q = queue.get(i).unwrap();
-                    let order_source = order_in_q
-                        .q
-                        .as_any()
-                        .downcast_ref::<L3OrderSource>()
-                        .unwrap();
-                    if order_id.is(order_in_q) {
-                        pos = Some(i);
-                        break;
-                    } else if *order_source == L3OrderSource::Backtest {
-                        let order = queue.remove(i);
-                        filled.push(order);
-                    } else {
-                        i += 1;
+                    match order_in_q.order_source() {
+                        L3OrderSource::MarketFeed if order_in_q.order_id == order_id => {
+                            pos = Some(i);
+                            break;
+                        }
+                        L3OrderSource::MarketFeed => {
+                            i += 1;
+                        }
+                        L3OrderSource::Backtest => {
+                            let order = queue.remove(i);
+                            filled.push(order);
+                        }
                     }
                 }
                 let pos = pos.ok_or(BacktestError::OrderNotFound)?;
-                if delete {
+                if DELETE {
                     queue.remove(pos);
-                    // if priority.len() == 0 {
-                    //     self.ask_priority.remove(&order_price_tick);
+                    // if queue.len() == 0 {
+                    //     self.ask_queue.remove(&order_price_tick);
                     // }
+                }
+                for order in filled.iter() {
+                    self.backtest_orders.remove(&order.order_id);
                 }
                 Ok(filled)
             }
             Side::None | Side::Unsupported => unreachable!(),
+        }
+    }
+
+    fn clear_orders(&mut self, side: Side) -> Vec<Order> {
+        match side {
+            Side::Buy => {
+                self.mkt_feed_orders
+                    .retain(|_, (order_side, _)| *order_side != side);
+                self.backtest_orders
+                    .retain(|_, (order_side, _)| *order_side != side);
+
+                let expired = self
+                    .bid_queue
+                    .drain()
+                    .flat_map(|(_, q)| q)
+                    .filter(|order| order.is_backtest_order())
+                    .collect();
+                expired
+            }
+            Side::Sell => {
+                self.mkt_feed_orders
+                    .retain(|_, (order_side, _)| *order_side != side);
+                self.backtest_orders
+                    .retain(|_, (order_side, _)| *order_side != side);
+
+                let expired = self
+                    .ask_queue
+                    .drain()
+                    .flat_map(|(_, q)| q)
+                    .filter(|order| order.is_backtest_order())
+                    .collect();
+                expired
+            }
+            Side::None => {
+                self.mkt_feed_orders.clear();
+                self.backtest_orders.clear();
+
+                let mut expired: Vec<_> = self
+                    .bid_queue
+                    .drain()
+                    .flat_map(|(_, v)| v)
+                    .filter(|order| order.is_backtest_order())
+                    .collect();
+                expired.extend(
+                    self.ask_queue
+                        .drain()
+                        .flat_map(|(_, q)| q)
+                        .filter(|order| order.is_backtest_order()),
+                );
+                expired
+            }
+            Side::Unsupported => {
+                unreachable!()
+            }
         }
     }
 }

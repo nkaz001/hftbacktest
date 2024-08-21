@@ -4,11 +4,6 @@ HftBacktest
 
 |codeql| |python| |pypi| |downloads| |rustc| |crates| |license| |docs| |roadmap| |github|
 
-**The master branch is switched to hftbacktest-2.0.0-alpha, which uses the Rust implementation as the backend. If you want to see the current version 1.8.4, please check out the corresponding tag.**
-
-* `Browse v1.8.4 <https://github.com/nkaz001/hftbacktest/tree/20cd9470a431e90c526eca6975ef389073c9aca5>`_
-* `Docs v1.8.4 <https://hftbacktest.readthedocs.io/en/v1.8.4/>`_
-
 High-Frequency Trading Backtesting Tool
 =======================================
 
@@ -27,10 +22,6 @@ support the following features.
 * Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 * Backtesting of multi-asset and multi-exchange models
 * Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit. (Rust-only)
-
-Example: The complete process of backtesting Binance Futures
-------------------------------------------------------------
-`high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Documentation
 =============
@@ -60,6 +51,8 @@ Data Source & Format
 
 Please see `Data <https://hftbacktest.readthedocs.io/en/latest/data.html>`_ or `Data Preparation <https://hftbacktest.readthedocs.io/en/latest/tutorials/Data%20Preparation.html>`_.
 
+You can also find some data `here <https://reach.stratosphere.capital/data/usdm/>`_, hosted by the supporter.
+
 A Quick Example
 ---------------
 
@@ -68,83 +61,98 @@ Get a glimpse of what backtesting with hftbacktest looks like with these code sn
 .. code-block:: python
 
     @njit
-    def simple_two_sided_quote(hbt):
-        max_position = 5
-        half_spread = hbt.tick_size * 20
-        skew = 1
-        order_qty = 0.1
-        last_order_id = -1
-        order_id = 0
+    def market_making_algo(hbt):
         asset_no = 0
+        tick_size = hbt.depth(asset_no).tick_size
+        lot_size = hbt.depth(asset_no).lot_size
 
-        # Checks every 0.1s
-        while hbt.elapse(100_000_000) == 0:
-            # Clears cancelled, filled or expired orders.
+        # in nanoseconds
+        while hbt.elapse(10_000_000) == 0:
             hbt.clear_inactive_orders(asset_no)
 
-            # Gets the market depth.
+            a = 1
+            b = 1
+            c = 1
+            hs = 1
+
+            # Alpha, it can be a combination of several indicators.
+            forecast = 0
+            # In HFT, it can be various measurements of short-term market movements,
+            # such as the high-low range in the last X minutes.
+            volatility = 0
+            # Delta risk, it can be a combination of several risks.
+            position = hbt.position(asset_no)
+            risk = (c + volatility) * position
+            half_spread = (c + volatility) * hs
+
+            max_notional_position = 1000
+            notional_qty = 100
+
             depth = hbt.depth(asset_no)
 
-            # Obtains the current mid-price and computes the reservation price.
             mid_price = (depth.best_bid + depth.best_ask) / 2.0
-            reservation_price = mid_price - skew * hbt.position(asset_no) * depth.tick_size
 
-            buy_order_price = reservation_price - half_spread
-            sell_order_price = reservation_price + half_spread
+            # fair value pricing = mid_price + a * forecast
+            #                      or underlying(correlated asset) + adjustment(basis + cost + etc) + a * forecast
+            # risk skewing = -b * risk
+            reservation_price = mid_price + a * forecast - b * risk
+            new_bid = reservation_price - half_spread
+            new_ask = reservation_price + half_spread
+
+            new_bid_tick = min(np.round(new_bid / tick_size), depth.best_bid_tick)
+            new_ask_tick = max(np.round(new_ask / tick_size), depth.best_ask_tick)
+
+            order_qty = np.round(notional_qty / mid_price / lot_size) * lot_size
+
+            # Elapses a process time.
+            if not hbt.elapse(1_000_000) != 0:
+                return False
 
             last_order_id = -1
-            # Cancel all outstanding orders
+            update_bid = True
+            update_ask = True
+            buy_limit_exceeded = position * mid_price > max_notional_position
+            sell_limit_exceeded = position * mid_price < -max_notional_position
             orders = hbt.orders(asset_no)
-            values = orders.values()
-            while True:
-                order = values.next()
-                if order is None:
-                    break
-                if order.cancellable:
-                    hbt.cancel(asset_no, order.order_id)
-                    last_order_id = order.order_id
+            order_values = orders.values()
+            while order_values.has_next():
+                order = order_values.get()
+                if order.side == BUY:
+                    if order.price_tick == new_bid_tick or buy_limit_exceeded:
+                        update_bid = False
+                    if order.cancellable and (update_bid or buy_limit_exceeded):
+                        hbt.cancel(asset_no, order.order_id, False)
+                        last_order_id = order.order_id
+                elif order.side == SELL:
+                    if order.price_tick == new_ask_tick or sell_limit_exceeded:
+                        update_ask = False
+                    if order.cancellable and (update_ask or sell_limit_exceeded):
+                        hbt.cancel(asset_no, order.order_id, False)
+                        last_order_id = order.order_id
 
-            # All order requests are considered to be requested at the same time.
-            # Waits until one of the order cancellation responses is received.
-            if last_order_id >= 0:
-                hbt.wait_order_response(asset_no, last_order_id)
-
-            # Clears cancelled, filled or expired orders.
-            hbt.clear_inactive_orders(asset_no)
-
-	        last_order_id = -1
-            if hbt.position < max_position:
-                # Submits a new post-only limit bid order.
-                order_id += 1
-                hbt.submit_buy_order(
-                    asset_no,
-                    order_id,
-                    buy_order_price,
-                    order_qty,
-                    GTX,
-                    LIMIT,
-                    False
-                )
+            # It can be combined with a grid trading strategy by submitting multiple orders to capture better spreads and
+            # have queue position.
+            # This approach requires more sophisticated logic to efficiently manage resting orders in the order book.
+            if update_bid:
+                # There is only one order at a given price, with new_bid_tick used as the order ID.
+                order_id = new_bid_tick
+                hbt.submit_buy_order(asset_no, order_id, new_bid_tick * tick_size, order_qty, GTX, LIMIT, False)
                 last_order_id = order_id
-
-            if hbt.position > -max_position:
-                # Submits a new post-only limit ask order.
-                order_id += 1
-                hbt.submit_sell_order(
-                    asset_no,
-                    order_id,
-                    sell_order_price,
-                    order_qty,
-                    GTX,
-                    LIMIT,
-                    False
-                )
+            if update_ask:
+                # There is only one order at a given price, with new_ask_tick used as the order ID.
+                order_id = new_ask_tick
+                hbt.submit_sell_order(asset_no, order_id, new_ask_tick * tick_size, order_qty, GTX, LIMIT, False)
                 last_order_id = order_id
 
             # All order requests are considered to be requested at the same time.
             # Waits until one of the order responses is received.
             if last_order_id >= 0:
-                hbt.wait_order_response(asset_no, last_order_id)
+                # Waits for the order response for a maximum of 5 seconds.
+                timeout = 5_000_000_000
+                if not hbt.wait_order_response(asset_no, last_order_id, timeout):
+                    return False
+
+        return True
 
 
 Tutorials
@@ -164,7 +172,15 @@ Tutorials
 Examples
 ========
 
-You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/tree/master/rust/examples>`_.
+You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/>`_.
+
+The complete process of backtesting Binance Futures
+---------------------------------------------------
+`high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
+
+Migration to V2
+===============
+Please see the `migration guide <https://hftbacktest.readthedocs.io/en/latest/migration2.html>`_.
 
 Roadmap
 =======

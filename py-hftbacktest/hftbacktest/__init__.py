@@ -36,6 +36,11 @@ from .types import (
     TRADE_EVENT,
     DEPTH_CLEAR_EVENT,
     DEPTH_SNAPSHOT_EVENT,
+    DEPTH_BBO_EVENT,
+    ADD_ORDER_EVENT,
+    CANCEL_ORDER_EVENT,
+    MODIFY_ORDER_EVENT,
+    FILL_EVENT,
     EXCH_EVENT,
     LOCAL_EVENT,
     BUY_EVENT,
@@ -54,6 +59,13 @@ __all__ = (
     'TRADE_EVENT',
     'DEPTH_CLEAR_EVENT',
     'DEPTH_SNAPSHOT_EVENT',
+    'DEPTH_BBO_EVENT',
+    'ADD_ORDER_EVENT',
+    'CANCEL_ORDER_EVENT',
+    'MODIFY_ORDER_EVENT',
+    'FILL_EVENT',
+    'EXCH_EVENT',
+    'LOCAL_EVENT',
     'EXCH_EVENT',
     'LOCAL_EVENT'
     'BUY_EVENT',
@@ -80,7 +92,7 @@ __all__ = (
     'Recorder'
 )
 
-__version__ = '2.0.0-alpha'
+__version__ = '2.0.0rc1'
 
 
 class BacktestAsset(BacktestAsset_):

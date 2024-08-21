@@ -5,6 +5,11 @@ use data::{Cache, Reader};
 use models::FeeModel;
 use thiserror::Error;
 
+#[cfg(feature = "unstable_l3")]
+pub use crate::backtest::{
+    models::L3QueueModel,
+    proc::{L3Local, L3NoPartialFillExchange},
+};
 use crate::{
     backtest::{
         assettype::AssetType,
@@ -14,7 +19,7 @@ use crate::{
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         state::State,
     },
-    depth::{HashMapMarketDepth, L2MarketDepth, MarketDepth},
+    depth::{HashMapMarketDepth, L2MarketDepth, L3MarketDepth, MarketDepth},
     prelude::{
         Bot,
         OrdType,
@@ -129,7 +134,7 @@ where
     /// Constructs an instance of `AssetBuilder`.
     pub fn new() -> Self {
         let cache = Cache::new();
-        let reader = Reader::new(cache);
+        let reader = Reader::new(cache, Default::default());
 
         Self {
             latency_model: None,
@@ -377,6 +382,205 @@ where
 {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// A builder for `Asset`.
+#[cfg(feature = "unstable_l3")]
+pub struct L3AssetBuilder<LM, AT, QM, MD, FM> {
+    latency_model: Option<LM>,
+    asset_type: Option<AT>,
+    queue_model: Option<QM>,
+    depth_builder: Option<Box<dyn Fn() -> MD>>,
+    reader: Reader<Event>,
+    fee_model: Option<FM>,
+    exch_kind: ExchangeKind,
+    last_trades_cap: usize,
+}
+
+#[cfg(feature = "unstable_l3")]
+impl<LM, AT, QM, MD, FM> Default for L3AssetBuilder<LM, AT, QM, MD, FM>
+where
+    AT: AssetType + Clone + 'static,
+    MD: MarketDepth + L3MarketDepth + 'static,
+    QM: L3QueueModel<MD> + 'static,
+    LM: LatencyModel + Clone + 'static,
+    FM: FeeModel + Clone + 'static,
+    BacktestError: From<<MD as L3MarketDepth>::Error>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "unstable_l3")]
+impl<LM, AT, QM, MD, FM> L3AssetBuilder<LM, AT, QM, MD, FM>
+where
+    AT: AssetType + Clone + 'static,
+    MD: MarketDepth + L3MarketDepth + 'static,
+    QM: L3QueueModel<MD> + 'static,
+    LM: LatencyModel + Clone + 'static,
+    FM: FeeModel + Clone + 'static,
+    BacktestError: From<<MD as L3MarketDepth>::Error>,
+{
+    /// Constructs an instance of `AssetBuilder`.
+    pub fn new() -> Self {
+        let cache = Cache::new();
+        let reader = Reader::new(cache, Default::default());
+
+        Self {
+            latency_model: None,
+            asset_type: None,
+            queue_model: None,
+            depth_builder: None,
+            reader,
+            fee_model: None,
+            exch_kind: ExchangeKind::NoPartialFillExchange,
+            last_trades_cap: 0,
+        }
+    }
+
+    /// Sets the feed data.
+    pub fn data(mut self, data: Vec<DataSource<Event>>) -> Self {
+        for item in data {
+            match item {
+                DataSource::File(filename) => {
+                    self.reader.add_file(filename);
+                }
+                DataSource::Data(data) => {
+                    self.reader.add_data(data);
+                }
+            }
+        }
+        self
+    }
+
+    /// Sets a latency model.
+    pub fn latency_model(self, latency_model: LM) -> Self {
+        Self {
+            latency_model: Some(latency_model),
+            ..self
+        }
+    }
+
+    /// Sets an asset type.
+    pub fn asset_type(self, asset_type: AT) -> Self {
+        Self {
+            asset_type: Some(asset_type),
+            ..self
+        }
+    }
+
+    /// Sets a queue model.
+    pub fn queue_model(self, queue_model: QM) -> Self {
+        Self {
+            queue_model: Some(queue_model),
+            ..self
+        }
+    }
+
+    /// Sets a fee model.
+    pub fn fee_model(self, fee_model: FM) -> Self {
+        Self {
+            fee_model: Some(fee_model),
+            ..self
+        }
+    }
+
+    /// Sets a market depth builder.
+    pub fn depth<Builder>(self, builder: Builder) -> Self
+    where
+        Builder: Fn() -> MD + 'static,
+    {
+        Self {
+            depth_builder: Some(Box::new(builder)),
+            ..self
+        }
+    }
+
+    /// Sets an exchange model. The default value is [`NoPartialFillExchange`].
+    pub fn exchange(self, exch_kind: ExchangeKind) -> Self {
+        Self { exch_kind, ..self }
+    }
+
+    /// Sets the initial capacity of the vector storing the last market trades.
+    /// The default value is `0`, indicating that no last trades are stored.
+    pub fn last_trades_capacity(self, capacity: usize) -> Self {
+        Self {
+            last_trades_cap: capacity,
+            ..self
+        }
+    }
+
+    /// Builds an `Asset`.
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD, Event>, dyn Processor>, BuildError> {
+        let ob_local_to_exch = OrderBus::new();
+        let ob_exch_to_local = OrderBus::new();
+
+        let create_depth = self
+            .depth_builder
+            .as_ref()
+            .ok_or(BuildError::BuilderIncomplete("depth"))?;
+        let order_latency = self
+            .latency_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
+        let asset_type = self
+            .asset_type
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
+
+        let local = L3Local::new(
+            self.reader.clone(),
+            create_depth(),
+            State::new(asset_type, fee_model),
+            order_latency,
+            self.last_trades_cap,
+            ob_local_to_exch.clone(),
+            ob_exch_to_local.clone(),
+        );
+
+        let order_latency = self
+            .latency_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
+        let queue_model = self
+            .queue_model
+            .ok_or(BuildError::BuilderIncomplete("queue_model"))?;
+        let asset_type = self
+            .asset_type
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("asset_type"))?;
+        let fee_model = self
+            .fee_model
+            .clone()
+            .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
+
+        match self.exch_kind {
+            ExchangeKind::NoPartialFillExchange => {
+                let exch = L3NoPartialFillExchange::new(
+                    self.reader.clone(),
+                    create_depth(),
+                    State::new(asset_type, fee_model),
+                    queue_model,
+                    order_latency,
+                    ob_exch_to_local,
+                    ob_local_to_exch,
+                );
+
+                Ok(Asset {
+                    local: Box::new(local),
+                    exch: Box::new(exch),
+                })
+            }
+            ExchangeKind::PartialFillExchange => {
+                todo!()
+            }
+        }
     }
 }
 

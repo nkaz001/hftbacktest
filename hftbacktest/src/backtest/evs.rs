@@ -47,7 +47,7 @@ impl EventSet {
 
     /// Returns the next event to be processed, which has the earliest timestamp.
     pub fn next(&self) -> Option<EventIntent> {
-        if self.invalid == self.num_assets {
+        if self.invalid == self.num_assets * 2 {
             return None;
         }
         let mut evst_no = 0;

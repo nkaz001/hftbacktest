@@ -153,7 +153,7 @@ pub trait L3MarketDepth: MarketDepth {
     ) -> Result<(Side, i64, i64), Self::Error>;
 
     /// Clears the market depth. If the side is [Side::None], both sides are cleared.
-    fn clear_depth(&mut self, side: Side);
+    fn clear_orders(&mut self, side: Side);
 
     /// Returns the orders held in the order book.
     fn orders(&self) -> &HashMap<OrderId, L3Order>;

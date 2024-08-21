@@ -247,7 +247,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             FeeModel::#fm_ident { #(#fm_args),* },
                         ) => {
                             let cache = Cache::new();
-                            let mut reader = Reader::new(cache);
+                            let mut reader = Reader::new(cache, Default::default());
 
                             for data in #asset.data.iter() {
                                 match data {

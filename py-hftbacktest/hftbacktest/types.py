@@ -17,6 +17,21 @@ DEPTH_CLEAR_EVENT = 3
 #: Indicates that the market depth snapshot is received.
 DEPTH_SNAPSHOT_EVENT = 4
 
+#: Indicates that the best bid and best ask update event is received.
+DEPTH_BBO_EVENT = 5
+
+#: Indicates that an order has been added to the order book.
+ADD_ORDER_EVENT = 10
+
+#: Indicates that an order in the order book has been canceled.
+CANCEL_ORDER_EVENT = 11
+
+#: Indicates that an order in the order book has been modified.
+MODIFY_ORDER_EVENT = 12
+
+#: Indicates that an order in the order book has been filled.
+FILL_EVENT = 13
+
 # todo: fix WAIT_ORDER_RESPONSE flags.
 WAIT_ORDER_RESPONSE_NONE = -1
 WAIT_ORDER_RESPONSE_ANY = -2
