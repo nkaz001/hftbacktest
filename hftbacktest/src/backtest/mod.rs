@@ -13,6 +13,7 @@ pub use crate::backtest::{
 use crate::{
     backtest::{
         assettype::AssetType,
+        data::FeedLatencyAdjustment,
         evs::{EventIntentKind, EventSet},
         models::{LatencyModel, QueueModel},
         order::OrderBus,
@@ -117,7 +118,9 @@ pub struct AssetBuilder<LM, AT, QM, MD, FM> {
     asset_type: Option<AT>,
     queue_model: Option<QM>,
     depth_builder: Option<Box<dyn Fn() -> MD>>,
-    reader: Reader<Event>,
+    data: Vec<DataSource<Event>>,
+    preload: bool,
+    latency_offset: i64,
     fee_model: Option<FM>,
     exch_kind: ExchangeKind,
     last_trades_cap: usize,
@@ -133,15 +136,14 @@ where
 {
     /// Constructs an instance of `AssetBuilder`.
     pub fn new() -> Self {
-        let cache = Cache::new();
-        let reader = Reader::new(cache, true, Default::default());
-
         Self {
             latency_model: None,
             asset_type: None,
             queue_model: None,
             depth_builder: None,
-            reader,
+            data: Default::default(),
+            preload: true,
+            latency_offset: 0,
             fee_model: None,
             exch_kind: ExchangeKind::NoPartialFillExchange,
             last_trades_cap: 0,
@@ -149,18 +151,25 @@ where
     }
 
     /// Sets the feed data.
-    pub fn data(mut self, data: Vec<DataSource<Event>>) -> Self {
-        for item in data {
-            match item {
-                DataSource::File(filename) => {
-                    self.reader.add_file(filename);
-                }
-                DataSource::Data(data) => {
-                    self.reader.add_data(data);
-                }
-            }
+    pub fn data(self, data: Vec<DataSource<Event>>) -> Self {
+        Self { data, ..self }
+    }
+
+    /// Sets whether to preload the next data in parallel with backtesting. This can speed up the
+    /// backtest by reducing data loading time, but it also increases memory usage.
+    /// The default value is `true`.
+    pub fn preload(self, preload: bool) -> Self {
+        Self { preload, ..self }
+    }
+
+    /// Sets the latency offset to adjust the feed latency by the specified amount. This is
+    /// particularly useful in cross-exchange backtesting, where the feed data is collected from a
+    /// different site than the one where the strategy is intended to run.
+    pub fn latency_offset(self, latency_offset: i64) -> Self {
+        Self {
+            latency_offset,
+            ..self
         }
-        self
     }
 
     /// Sets a latency model.
@@ -222,6 +231,26 @@ where
 
     /// Builds an `Asset`.
     pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD, Event>, dyn Processor>, BuildError> {
+        let mut reader = if self.latency_offset == 0 {
+            Reader::new(Cache::new(), self.preload)
+        } else {
+            Reader::with(
+                Cache::new(),
+                self.preload,
+                FeedLatencyAdjustment::new(self.latency_offset),
+            )
+        };
+        for data in self.data {
+            match data {
+                DataSource::File(filepath) => {
+                    reader.add_file(filepath);
+                }
+                DataSource::Data(data) => {
+                    reader.add_data(data);
+                }
+            }
+        }
+
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 
@@ -243,7 +272,7 @@ where
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         let local = Local::new(
-            self.reader.clone(),
+            reader.clone(),
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,
@@ -271,7 +300,7 @@ where
         match self.exch_kind {
             ExchangeKind::NoPartialFillExchange => {
                 let exch = NoPartialFillExchange::new(
-                    self.reader.clone(),
+                    reader.clone(),
                     create_depth(),
                     State::new(asset_type, fee_model),
                     order_latency,
@@ -287,7 +316,7 @@ where
             }
             ExchangeKind::PartialFillExchange => {
                 let exch = PartialFillExchange::new(
-                    self.reader.clone(),
+                    reader.clone(),
                     create_depth(),
                     State::new(asset_type, fee_model),
                     order_latency,
@@ -310,6 +339,26 @@ where
         self,
     ) -> Result<Asset<Local<AT, LM, MD, FM>, NoPartialFillExchange<AT, LM, QM, MD, FM>>, BuildError>
     {
+        let mut reader = if self.latency_offset == 0 {
+            Reader::new(Cache::new(), self.preload)
+        } else {
+            Reader::with(
+                Cache::new(),
+                self.preload,
+                FeedLatencyAdjustment::new(self.latency_offset),
+            )
+        };
+        for data in self.data {
+            match data {
+                DataSource::File(filepath) => {
+                    reader.add_file(filepath);
+                }
+                DataSource::Data(data) => {
+                    reader.add_data(data);
+                }
+            }
+        }
+
         let ob_local_to_exch = OrderBus::new();
         let ob_exch_to_local = OrderBus::new();
 
@@ -331,7 +380,7 @@ where
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         let local = Local::new(
-            self.reader.clone(),
+            reader.clone(),
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,
@@ -356,7 +405,7 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
         let exch = NoPartialFillExchange::new(
-            self.reader.clone(),
+            reader.clone(),
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,

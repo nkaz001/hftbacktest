@@ -104,8 +104,20 @@ pub struct IntpOrderLatency {
 
 impl IntpOrderLatency {
     /// Constructs an instance of `IntpOrderLatency`.
-    pub fn build(data: Vec<DataSource<OrderLatencyRow>>) -> Result<Self, BacktestError> {
-        let mut reader = Reader::new(Cache::new(), true, Default::default());
+    pub fn build(
+        data: Vec<DataSource<OrderLatencyRow>>,
+        preload: bool,
+        latency_offset: i64,
+    ) -> Result<Self, BacktestError> {
+        let mut reader = if latency_offset == 0 {
+            Reader::new(Cache::new(), preload)
+        } else {
+            Reader::with(
+                Cache::new(),
+                preload,
+                OrderLatencyAdjustment::new(latency_offset),
+            )
+        };
         for file in data {
             match file {
                 DataSource::File(file) => {
@@ -137,7 +149,7 @@ impl IntpOrderLatency {
 
     /// Constructs an instance of `IntpOrderLatency`.
     pub fn new(data: Vec<DataSource<OrderLatencyRow>>) -> Self {
-        Self::build(data).unwrap()
+        Self::build(data, true, 0).unwrap()
     }
 
     fn intp(&self, x: i64, x1: i64, y1: i64, x2: i64, y2: i64) -> i64 {
@@ -279,7 +291,7 @@ impl OrderLatencyAdjustment {
 }
 
 impl DataPreprocess<OrderLatencyRow> for OrderLatencyAdjustment {
-    fn preprocess(&mut self, data: &mut Data<OrderLatencyRow>) -> Result<(), Error> {
+    fn preprocess(&self, data: &mut Data<OrderLatencyRow>) -> Result<(), Error> {
         for i in 0..data.len() {
             data[i].exch_ts += self.latency_offset;
             data[i].resp_ts += self.latency_offset + self.latency_offset;

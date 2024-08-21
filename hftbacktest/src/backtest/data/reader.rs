@@ -3,7 +3,10 @@ use std::{
     collections::HashMap,
     io::{Error as IoError, ErrorKind},
     rc::Rc,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
     thread,
 };
 
@@ -199,8 +202,8 @@ where
 }
 
 /// Provides `Data` reading based on the given sequence of data through `Cache`.
-#[derive(Clone, Debug)]
-pub struct Reader<D, Preprocessor = NullPreprocessor>
+#[derive(Clone)]
+pub struct Reader<D>
 where
     D: NpyDTyped + Clone,
 {
@@ -210,16 +213,15 @@ where
     tx: Sender<LoadDataResult<D>>,
     rx: Rc<Receiver<LoadDataResult<D>>>,
     preload: bool,
-    preprocessor: Preprocessor,
+    preprocessor: Option<Arc<Box<dyn DataPreprocess<D> + Sync + Send + 'static>>>,
 }
 
-impl<D, Preprocessor> Reader<D, Preprocessor>
+impl<D> Reader<D>
 where
     D: NpyDTyped + Clone + Send + 'static,
-    Preprocessor: DataPreprocess<D> + Send + Clone + 'static,
 {
     /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
-    pub fn new(cache: Cache<D>, preload: bool, preprocessor: Preprocessor) -> Self {
+    pub fn new(cache: Cache<D>, preload: bool) -> Self {
         let (tx, rx) = channel();
         Self {
             data_key_list: Vec::new(),
@@ -228,7 +230,25 @@ where
             tx,
             rx: Rc::new(rx),
             preload,
-            preprocessor,
+            preprocessor: None,
+        }
+    }
+
+    /// Constructs an instance of `Reader` that utilizes the provided `Cache` with
+    /// `DataPreprocessor`.
+    pub fn with<Preprocessor>(cache: Cache<D>, preload: bool, preprocessor: Preprocessor) -> Self
+    where
+        Preprocessor: DataPreprocess<D> + Sync + Send + 'static,
+    {
+        let (tx, rx) = channel();
+        Self {
+            data_key_list: Vec::new(),
+            cache,
+            data_num: 0,
+            tx,
+            rx: Rc::new(rx),
+            preload,
+            preprocessor: Some(Arc::new(Box::new(preprocessor))),
         }
     }
 
@@ -245,7 +265,9 @@ where
         self.data_key_list.push(id.clone());
         // todo: Return the error from the preprocessor. Additionally, the user should be informed
         //  that the data is modified in place, especially, if it comes from a Python binding.
-        self.preprocessor.preprocess(&mut data).unwrap();
+        if let Some(preprocessor) = &self.preprocessor {
+            preprocessor.preprocess(&mut data).unwrap();
+        }
         self.cache.insert(id, data);
     }
 
@@ -299,12 +321,14 @@ where
             if key.ends_with(".npy") {
                 let tx = self.tx.clone();
                 let filepath = key.to_string();
-                let mut preprocessor = self.preprocessor.clone();
+                let preprocessor = self.preprocessor.clone();
 
                 let _ = thread::spawn(move || {
-                    let mut load_data = |filepath: &str| {
-                        let mut data = read_npy_file::<D>(&filepath)?;
-                        preprocessor.preprocess(&mut data)?;
+                    let load_data = |filepath: &str| {
+                        let mut data = read_npy_file::<D>(filepath)?;
+                        if let Some(preprocessor) = &preprocessor {
+                            preprocessor.preprocess(&mut data)?;
+                        }
                         Ok(data)
                     };
                     match load_data(&filepath) {
@@ -319,12 +343,14 @@ where
             } else if key.ends_with(".npz") {
                 let tx = self.tx.clone();
                 let filepath = key.to_string();
-                let mut preprocessor = self.preprocessor.clone();
+                let preprocessor = self.preprocessor.clone();
 
                 let _ = thread::spawn(move || {
-                    let mut load_data = |filepath: &str| {
-                        let mut data = read_npz_file::<D>(&filepath, "data")?;
-                        preprocessor.preprocess(&mut data)?;
+                    let load_data = |filepath: &str| {
+                        let mut data = read_npz_file::<D>(filepath, "data")?;
+                        if let Some(preprocessor) = &preprocessor {
+                            preprocessor.preprocess(&mut data)?;
+                        }
                         Ok(data)
                     };
                     match load_data(&filepath) {
@@ -361,19 +387,7 @@ pub trait DataPreprocess<D>
 where
     D: POD + Clone,
 {
-    fn preprocess(&mut self, data: &mut Data<D>) -> Result<(), IoError>;
-}
-
-#[derive(Clone, Default)]
-pub struct NullPreprocessor;
-
-impl<D> DataPreprocess<D> for NullPreprocessor
-where
-    D: POD + Clone,
-{
-    fn preprocess(&mut self, _data: &mut Data<D>) -> Result<(), IoError> {
-        Ok(())
-    }
+    fn preprocess(&self, data: &mut Data<D>) -> Result<(), IoError>;
 }
 
 #[derive(Clone)]
@@ -388,7 +402,7 @@ impl FeedLatencyAdjustment {
 }
 
 impl DataPreprocess<Event> for FeedLatencyAdjustment {
-    fn preprocess(&mut self, data: &mut Data<Event>) -> Result<(), IoError> {
+    fn preprocess(&self, data: &mut Data<Event>) -> Result<(), IoError> {
         for i in 0..data.len() {
             data[i].local_ts += self.latency_offset;
             if data[i].local_ts <= data[i].exch_ts {
