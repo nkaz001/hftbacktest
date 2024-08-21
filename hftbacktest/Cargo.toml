@@ -29,6 +29,7 @@ binancefutures = ["serde", "serde_json", "tokio-tungstenite", "use_reqwest", "sh
 bybit = ["serde", "serde_json", "tokio-tungstenite", "use_reqwest", "sha2", "hmac", "rand"]
 unstable_l3 = []
 unstable_fuse = []
+unstable_parallel_load = []
 
 [dependencies]
 tracing = "0.1.40"

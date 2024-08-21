@@ -3,6 +3,8 @@ use std::{
     collections::HashMap,
     io::{Error as IoError, ErrorKind},
     rc::Rc,
+    sync::mpsc::{channel, Receiver, Sender},
+    thread,
 };
 
 use uuid::Uuid;
@@ -38,6 +40,7 @@ where
     D: POD + Clone,
 {
     count: usize,
+    ready: bool,
     data: Data<D>,
 }
 
@@ -46,7 +49,23 @@ where
     D: POD + Clone,
 {
     pub fn new(data: Data<D>) -> Self {
-        Self { count: 0, data }
+        Self {
+            count: 0,
+            ready: true,
+            data,
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            count: 0,
+            ready: false,
+            data: Data::empty(),
+        }
+    }
+
+    pub fn set(&mut self, data: Data<D>) {
+        self.data = data;
     }
 
     pub fn checkout(&mut self) -> Data<D> {
@@ -81,6 +100,12 @@ where
         self.0.borrow_mut().insert(key, CachedData::new(data));
     }
 
+    /// Prepares cached data by inserting a key-value pair with empty data into the `Cache`.
+    /// This placeholder will be replaced when the actual data is ready.
+    pub fn prepare(&mut self, key: String) {
+        self.0.borrow_mut().insert(key, CachedData::empty());
+    }
+
     /// Removes the [`Data`] if all retrieved [`Data`] are released.
     pub fn remove(&mut self, data: Data<D>) {
         let mut remove = None;
@@ -108,6 +133,17 @@ where
         let cached_data = borrowed.get_mut(key).unwrap();
         cached_data.checkout()
     }
+
+    pub fn set(&mut self, key: &str, data: Data<D>) {
+        let mut borrowed = self.0.borrow_mut();
+        let cached_data = borrowed.get_mut(key).unwrap();
+        cached_data.set(data);
+        cached_data.ready = true;
+    }
+
+    pub fn is_ready(&self, key: &str) -> bool {
+        self.0.borrow().get(key).unwrap().ready
+    }
 }
 
 impl<D> Default for Cache<D>
@@ -121,7 +157,7 @@ where
 
 /// Provides `Data` reading based on the given sequence of data through `Cache`.
 #[derive(Clone)]
-pub struct Reader<D, Preprocessor = NullPreprocessor>
+pub struct DefaultReader<D, Preprocessor = NullPreprocessor>
 where
     D: NpyDTyped + Clone,
     Preprocessor: DataPreprocess<D> + Clone,
@@ -132,7 +168,7 @@ where
     preprocessor: Preprocessor,
 }
 
-impl<D, Preprocessor> Reader<D, Preprocessor>
+impl<D, Preprocessor> DefaultReader<D, Preprocessor>
 where
     D: NpyDTyped + Clone,
     Preprocessor: DataPreprocess<D> + Clone,
@@ -198,6 +234,171 @@ where
     }
 }
 
+struct DataSend<D>(Data<D>)
+where
+    D: NpyDTyped + Clone;
+
+impl<D> DataSend<D>
+where
+    D: NpyDTyped + Clone,
+{
+    pub fn unwrap(self) -> Data<D> {
+        self.0
+    }
+}
+unsafe impl<D> Send for DataSend<D> where D: NpyDTyped + Clone {}
+
+pub struct LoadDataResult<D>
+where
+    D: NpyDTyped + Clone,
+{
+    filepath: String,
+    result: Result<DataSend<D>, IoError>,
+}
+
+impl<D> LoadDataResult<D>
+where
+    D: NpyDTyped + Clone,
+{
+    pub fn ok(filepath: String, data: Data<D>) -> Self {
+        Self {
+            filepath,
+            result: Ok(DataSend(data)),
+        }
+    }
+
+    pub fn err(filepath: String, err: IoError) -> Self {
+        Self {
+            filepath,
+            result: Err(err),
+        }
+    }
+}
+
+/// Provides `Data` reading based on the given sequence of data through `Cache`.
+#[derive(Clone, Debug)]
+pub struct ParallelReader<D>
+where
+    D: NpyDTyped + Clone,
+{
+    file_list: Vec<String>,
+    cache: Cache<D>,
+    data_num: usize,
+    tx: Sender<LoadDataResult<D>>,
+    rx: Rc<Receiver<LoadDataResult<D>>>,
+}
+
+impl<D> ParallelReader<D>
+where
+    D: NpyDTyped + Clone + Send + 'static,
+{
+    /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
+    pub fn new(cache: Cache<D>) -> Self {
+        let (tx, rx) = channel();
+        Self {
+            file_list: Vec::new(),
+            cache,
+            data_num: 0,
+            tx,
+            rx: Rc::new(rx),
+        }
+    }
+
+    /// Adds a `numpy` file to read. Additions should be made in the same order as the order you
+    /// want to read.
+    pub fn add_file(&mut self, filepath: String) {
+        self.file_list.push(filepath);
+    }
+
+    /// Adds a `Data`. Additions should be made in the same order as the order you want to read.
+    pub fn add_data(&mut self, data: Data<D>) {
+        // todo: Data should not be removed from the cache.
+        let id = Uuid::new_v4().to_string();
+        self.file_list.push(id.clone());
+        self.cache.insert(id, data);
+    }
+
+    /// Releases this `Data` from the `Cache`. The `Cache` will delete the `Data` if there are no
+    /// readers accessing it.
+    pub fn release(&mut self, data: Data<D>) {
+        self.cache.remove(data);
+    }
+
+    /// Retrieves the next `Data` based on the order of your additions.
+    pub fn next_data(&mut self) -> Result<Data<D>, BacktestError> {
+        if self.data_num < self.file_list.len() {
+            let filepath = {
+                let filepath = self.file_list.get(self.data_num).cloned().unwrap();
+                let next_filepath = self.file_list.get(self.data_num + 1).cloned();
+
+                self.load_data(&filepath)?;
+                if let Some(filepath) = next_filepath {
+                    self.load_data(&filepath)?;
+                }
+                filepath
+            };
+
+            while !self.cache.is_ready(&filepath) {
+                match self.rx.recv().unwrap() {
+                    LoadDataResult {
+                        filepath,
+                        result: Ok(data),
+                    } => {
+                        self.cache.set(&filepath, data.unwrap());
+                    }
+                    LoadDataResult {
+                        result: Err(err), ..
+                    } => {
+                        return Err(BacktestError::DataError(err));
+                    }
+                }
+            }
+
+            let data = self.cache.get(&filepath);
+            self.data_num += 1;
+            Ok(data)
+        } else {
+            Err(BacktestError::EndOfData)
+        }
+    }
+
+    fn load_data(&mut self, filepath: &str) -> Result<(), BacktestError> {
+        if !self.cache.contains(filepath) {
+            self.cache.prepare(filepath.to_string());
+
+            if filepath.ends_with(".npy") {
+                let tx = self.tx.clone();
+                let filepath_ = filepath.to_string();
+                let _ = thread::spawn(move || match read_npy_file::<D>(&filepath_) {
+                    Ok(data) => {
+                        tx.send(LoadDataResult::ok(filepath_, data)).unwrap();
+                    }
+                    Err(err) => {
+                        tx.send(LoadDataResult::err(filepath_, err)).unwrap();
+                    }
+                });
+            } else if filepath.ends_with(".npz") {
+                let tx = self.tx.clone();
+                let filepath_ = filepath.to_string();
+                let _ = thread::spawn(move || match read_npz_file::<D>(&filepath_, "data") {
+                    Ok(data) => {
+                        tx.send(LoadDataResult::ok(filepath_, data)).unwrap();
+                    }
+                    Err(err) => {
+                        tx.send(LoadDataResult::err(filepath_, err)).unwrap();
+                    }
+                });
+            } else {
+                return Err(BacktestError::DataError(IoError::new(
+                    ErrorKind::InvalidData,
+                    "unsupported data type",
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+              
 /// DataPreprocess offers a function to preprocess data before it is fed into the backtesting. This
 /// feature is primarily introduced to adjust timestamps, making it particularly useful when
 /// backtesting the market from a location different from where your order latency was originally
@@ -253,3 +454,8 @@ impl DataPreprocess<Event> for FeedLatencyAdjustment {
         Ok(())
     }
 }
+
+#[cfg(feature = "unstable_parallel_load")]
+pub type Reader<D> = ParallelReader<D>;
+#[cfg(not(feature = "unstable_parallel_load"))]
+pub type Reader<D> = DefaultReader<D>;
