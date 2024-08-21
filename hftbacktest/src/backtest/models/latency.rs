@@ -105,7 +105,7 @@ pub struct IntpOrderLatency {
 impl IntpOrderLatency {
     /// Constructs an instance of `IntpOrderLatency`.
     pub fn build(data: Vec<DataSource<OrderLatencyRow>>) -> Result<Self, BacktestError> {
-        let mut reader = Reader::new(Cache::new(), Default::default());
+        let mut reader = Reader::new(Cache::new(), true, Default::default());
         for file in data {
             match file {
                 DataSource::File(file) => {

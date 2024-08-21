@@ -134,6 +134,7 @@ where
         cached_data.checkout()
     }
 
+    /// Sets the [`Data`] for the specified key and marks it as ready.
     pub fn set(&mut self, key: &str, data: Data<D>) {
         let mut borrowed = self.0.borrow_mut();
         let cached_data = borrowed.get_mut(key).unwrap();
@@ -141,6 +142,7 @@ where
         cached_data.ready = true;
     }
 
+    /// Returns `true` if the [`Data`] for the specified key is ready.
     pub fn is_ready(&self, key: &str) -> bool {
         self.0.borrow().get(key).unwrap().ready
     }
@@ -152,85 +154,6 @@ where
 {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Provides `Data` reading based on the given sequence of data through `Cache`.
-#[derive(Clone)]
-pub struct DefaultReader<D, Preprocessor = NullPreprocessor>
-where
-    D: NpyDTyped + Clone,
-    Preprocessor: DataPreprocess<D> + Clone,
-{
-    file_list: Vec<String>,
-    cache: Cache<D>,
-    data_num: usize,
-    preprocessor: Preprocessor,
-}
-
-impl<D, Preprocessor> DefaultReader<D, Preprocessor>
-where
-    D: NpyDTyped + Clone,
-    Preprocessor: DataPreprocess<D> + Clone,
-{
-    /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
-    pub fn new(cache: Cache<D>, preprocessor: Preprocessor) -> Self {
-        Self {
-            file_list: Vec::new(),
-            cache,
-            data_num: 0,
-            preprocessor,
-        }
-    }
-
-    /// Adds a `numpy` file to read. Additions should be made in the same order as the order you
-    /// want to read.
-    pub fn add_file(&mut self, filepath: String) {
-        self.file_list.push(filepath);
-    }
-
-    /// Adds a `Data`. Additions should be made in the same order as the order you want to read.
-    pub fn add_data(&mut self, mut data: Data<D>) {
-        // todo: Data should not be removed from the cache.
-        let id = Uuid::new_v4().to_string();
-        self.file_list.push(id.clone());
-        // fixme: error handling.
-        self.preprocessor.preprocess(&mut data).unwrap();
-        self.cache.insert(id, data);
-    }
-
-    /// Releases this `Data` from the `Cache`. The `Cache` will delete the `Data` if there are no
-    /// readers accessing it.
-    pub fn release(&mut self, data: Data<D>) {
-        self.cache.remove(data);
-    }
-
-    /// Retrieves the next `Data` based on the order of your additions.
-    pub fn next_data(&mut self) -> Result<Data<D>, BacktestError> {
-        if self.data_num < self.file_list.len() {
-            let filepath = self.file_list.get(self.data_num).unwrap();
-            if !self.cache.contains(filepath) {
-                if filepath.ends_with(".npy") {
-                    let mut data = read_npy_file(filepath)?;
-                    self.preprocessor.preprocess(&mut data)?;
-                    self.cache.insert(filepath.to_string(), data);
-                } else if filepath.ends_with(".npz") {
-                    let mut data = read_npz_file(filepath, "data")?;
-                    self.preprocessor.preprocess(&mut data)?;
-                    self.cache.insert(filepath.to_string(), data);
-                } else {
-                    return Err(BacktestError::DataError(IoError::new(
-                        ErrorKind::InvalidData,
-                        "unsupported data type",
-                    )));
-                }
-            }
-            let data = self.cache.get(filepath);
-            self.data_num += 1;
-            Ok(data)
-        } else {
-            Err(BacktestError::EndOfData)
-        }
     }
 }
 
@@ -248,11 +171,11 @@ where
 }
 unsafe impl<D> Send for DataSend<D> where D: NpyDTyped + Clone {}
 
-pub struct LoadDataResult<D>
+struct LoadDataResult<D>
 where
     D: NpyDTyped + Clone,
 {
-    filepath: String,
+    key: String,
     result: Result<DataSend<D>, IoError>,
 }
 
@@ -262,14 +185,14 @@ where
 {
     pub fn ok(filepath: String, data: Data<D>) -> Self {
         Self {
-            filepath,
+            key: filepath,
             result: Ok(DataSend(data)),
         }
     }
 
     pub fn err(filepath: String, err: IoError) -> Self {
         Self {
-            filepath,
+            key: filepath,
             result: Err(err),
         }
     }
@@ -277,44 +200,52 @@ where
 
 /// Provides `Data` reading based on the given sequence of data through `Cache`.
 #[derive(Clone, Debug)]
-pub struct ParallelReader<D>
+pub struct Reader<D, Preprocessor = NullPreprocessor>
 where
     D: NpyDTyped + Clone,
 {
-    file_list: Vec<String>,
+    data_key_list: Vec<String>,
     cache: Cache<D>,
     data_num: usize,
     tx: Sender<LoadDataResult<D>>,
     rx: Rc<Receiver<LoadDataResult<D>>>,
+    preload: bool,
+    preprocessor: Preprocessor,
 }
 
-impl<D> ParallelReader<D>
+impl<D, Preprocessor> Reader<D, Preprocessor>
 where
     D: NpyDTyped + Clone + Send + 'static,
+    Preprocessor: DataPreprocess<D> + Send + Clone + 'static,
 {
     /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
-    pub fn new(cache: Cache<D>) -> Self {
+    pub fn new(cache: Cache<D>, preload: bool, preprocessor: Preprocessor) -> Self {
         let (tx, rx) = channel();
         Self {
-            file_list: Vec::new(),
+            data_key_list: Vec::new(),
             cache,
             data_num: 0,
             tx,
             rx: Rc::new(rx),
+            preload,
+            preprocessor,
         }
     }
 
     /// Adds a `numpy` file to read. Additions should be made in the same order as the order you
     /// want to read.
     pub fn add_file(&mut self, filepath: String) {
-        self.file_list.push(filepath);
+        self.data_key_list.push(filepath);
     }
 
     /// Adds a `Data`. Additions should be made in the same order as the order you want to read.
-    pub fn add_data(&mut self, data: Data<D>) {
+    pub fn add_data(&mut self, mut data: Data<D>) {
         // todo: Data should not be removed from the cache.
         let id = Uuid::new_v4().to_string();
-        self.file_list.push(id.clone());
+        self.data_key_list.push(id.clone());
+        // todo: Return the error from the preprocessor. Additionally, the user should be informed
+        //  that the data is modified in place, especially, if it comes from a Python binding.
+        self.preprocessor.preprocess(&mut data).unwrap();
         self.cache.insert(id, data);
     }
 
@@ -326,25 +257,24 @@ where
 
     /// Retrieves the next `Data` based on the order of your additions.
     pub fn next_data(&mut self) -> Result<Data<D>, BacktestError> {
-        if self.data_num < self.file_list.len() {
-            let filepath = {
-                let filepath = self.file_list.get(self.data_num).cloned().unwrap();
-                let next_filepath = self.file_list.get(self.data_num + 1).cloned();
+        if self.data_num < self.data_key_list.len() {
+            let key = self.data_key_list.get(self.data_num).cloned().unwrap();
+            self.load_data(&key)?;
 
-                self.load_data(&filepath)?;
-                if let Some(filepath) = next_filepath {
-                    self.load_data(&filepath)?;
+            if self.preload {
+                let next_key = self.data_key_list.get(self.data_num + 1).cloned();
+                if let Some(next_key) = next_key {
+                    self.load_data(&next_key)?;
                 }
-                filepath
-            };
+            }
 
-            while !self.cache.is_ready(&filepath) {
+            while !self.cache.is_ready(&key) {
                 match self.rx.recv().unwrap() {
                     LoadDataResult {
-                        filepath,
+                        key,
                         result: Ok(data),
                     } => {
-                        self.cache.set(&filepath, data.unwrap());
+                        self.cache.set(&key, data.unwrap());
                     }
                     LoadDataResult {
                         result: Err(err), ..
@@ -354,7 +284,7 @@ where
                 }
             }
 
-            let data = self.cache.get(&filepath);
+            let data = self.cache.get(&key);
             self.data_num += 1;
             Ok(data)
         } else {
@@ -362,30 +292,48 @@ where
         }
     }
 
-    fn load_data(&mut self, filepath: &str) -> Result<(), BacktestError> {
-        if !self.cache.contains(filepath) {
-            self.cache.prepare(filepath.to_string());
+    fn load_data(&mut self, key: &str) -> Result<(), BacktestError> {
+        if !self.cache.contains(key) {
+            self.cache.prepare(key.to_string());
 
-            if filepath.ends_with(".npy") {
+            if key.ends_with(".npy") {
                 let tx = self.tx.clone();
-                let filepath_ = filepath.to_string();
-                let _ = thread::spawn(move || match read_npy_file::<D>(&filepath_) {
-                    Ok(data) => {
-                        tx.send(LoadDataResult::ok(filepath_, data)).unwrap();
-                    }
-                    Err(err) => {
-                        tx.send(LoadDataResult::err(filepath_, err)).unwrap();
+                let filepath = key.to_string();
+                let mut preprocessor = self.preprocessor.clone();
+
+                let _ = thread::spawn(move || {
+                    let mut load_data = |filepath: &str| {
+                        let mut data = read_npy_file::<D>(&filepath)?;
+                        preprocessor.preprocess(&mut data)?;
+                        Ok(data)
+                    };
+                    match load_data(&filepath) {
+                        Ok(data) => {
+                            tx.send(LoadDataResult::ok(filepath, data)).unwrap();
+                        }
+                        Err(err) => {
+                            tx.send(LoadDataResult::err(filepath, err)).unwrap();
+                        }
                     }
                 });
-            } else if filepath.ends_with(".npz") {
+            } else if key.ends_with(".npz") {
                 let tx = self.tx.clone();
-                let filepath_ = filepath.to_string();
-                let _ = thread::spawn(move || match read_npz_file::<D>(&filepath_, "data") {
-                    Ok(data) => {
-                        tx.send(LoadDataResult::ok(filepath_, data)).unwrap();
-                    }
-                    Err(err) => {
-                        tx.send(LoadDataResult::err(filepath_, err)).unwrap();
+                let filepath = key.to_string();
+                let mut preprocessor = self.preprocessor.clone();
+
+                let _ = thread::spawn(move || {
+                    let mut load_data = |filepath: &str| {
+                        let mut data = read_npz_file::<D>(&filepath, "data")?;
+                        preprocessor.preprocess(&mut data)?;
+                        Ok(data)
+                    };
+                    match load_data(&filepath) {
+                        Ok(data) => {
+                            tx.send(LoadDataResult::ok(filepath, data)).unwrap();
+                        }
+                        Err(err) => {
+                            tx.send(LoadDataResult::err(filepath, err)).unwrap();
+                        }
                     }
                 });
             } else {
@@ -398,7 +346,7 @@ where
         Ok(())
     }
 }
-              
+
 /// DataPreprocess offers a function to preprocess data before it is fed into the backtesting. This
 /// feature is primarily introduced to adjust timestamps, making it particularly useful when
 /// backtesting the market from a location different from where your order latency was originally
@@ -454,8 +402,3 @@ impl DataPreprocess<Event> for FeedLatencyAdjustment {
         Ok(())
     }
 }
-
-#[cfg(feature = "unstable_parallel_load")]
-pub type Reader<D> = ParallelReader<D>;
-#[cfg(not(feature = "unstable_parallel_load"))]
-pub type Reader<D> = DefaultReader<D>;

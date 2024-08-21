@@ -134,7 +134,7 @@ where
     /// Constructs an instance of `AssetBuilder`.
     pub fn new() -> Self {
         let cache = Cache::new();
-        let reader = Reader::new(cache, Default::default());
+        let reader = Reader::new(cache, true, Default::default());
 
         Self {
             latency_model: None,
