@@ -181,6 +181,8 @@ pub struct NpyReader<R: Read, T: NpyDTyped> {
     buffer_capacity: usize,
 
     phantom_data: PhantomData<T>,
+
+    layout: Layout,
 }
 
 impl<R: Read, T: NpyDTyped> Drop for NpyReader<R, T> {
@@ -188,7 +190,7 @@ impl<R: Read, T: NpyDTyped> Drop for NpyReader<R, T> {
         unsafe {
             dealloc(
                 self.buffer,
-                Layout::from_size_align_unchecked(self.buffer_capacity, align_of::<T>()),
+                self.layout,
             )
         }
     }
@@ -209,19 +211,20 @@ impl<R: Read, T: NpyDTyped> NpyReader<R, T> {
             }
         }
 
+        let layout = Layout::array::<T>(buffer_size.get()).map_err(|_| Error::other("Buffer size is too large"))?;
         let buffer_capacity = buffer_size.get() * size_of::<T>();
-        let buffer = unsafe {
-            alloc(Layout::from_size_align_unchecked(
-                buffer_capacity,
-                align_of::<T>(),
-            ))
-        };
+        let buffer = unsafe { alloc(layout) };
 
+        if buffer.is_null() {
+            return Err(std::io::Error::new(ErrorKind::OutOfMemory, "unable to allocate buffer"))
+        }
+        
         Ok(Self {
             buffer,
             buffer_pos: 0,
             buffer_filled: 0,
             buffer_capacity,
+            layout,
             reader,
             phantom_data: Default::default(),
         })
@@ -259,9 +262,7 @@ impl<R: Read, T: NpyDTyped> NpyReader<R, T> {
     }
 }
 
-pub fn read_npy_header<R: Read, D: NpyDTyped>(
-    reader: &mut R,
-) -> std::io::Result<NpyHeader> {
+pub fn read_npy_header<R: Read, D: NpyDTyped>(reader: &mut R) -> std::io::Result<NpyHeader> {
     let mut buf = Vec::with_capacity(10);
     let mut magic = reader.take(10);
     magic.read_to_end(&mut buf)?;
