@@ -1,11 +1,15 @@
-use std::{io, io::ErrorKind};
-use std::iter::Peekable;
+use std::{fs::File, io, io::ErrorKind, iter::Peekable, num::NonZeroUsize};
+
 use bus::{Bus, BusIntoIter, BusReader};
 use tracing::{error, info, info_span};
+use zip::ZipArchive;
 
-use crate::backtest::{
-    data::{read_npy_file, read_npz_file, Data, NpyDTyped},
-    BacktestError,
+use crate::{
+    backtest::{
+        data::{npy::NpyReader, read_npy_file, read_npz_file, Data, NpyDTyped},
+        BacktestError,
+    },
+    types::Event,
 };
 
 #[derive(Copy, Clone)]
@@ -21,7 +25,7 @@ pub struct EventBusReader<EventT: Clone + Send + Sync> {
 impl<EventT: Clone + Send + Sync> EventBusReader<EventT> {
     pub fn new(reader: BusReader<EventBusMessage<EventT>>) -> Self {
         Self {
-            reader: reader.into_iter().peekable()
+            reader: reader.into_iter().peekable(),
         }
     }
 
@@ -71,6 +75,35 @@ fn load_data<EventT: NpyDTyped + Clone + Send>(
     Ok(data)
 }
 
+#[tracing::instrument(skip(bus))]
+pub fn replay_event_file<EventT: NpyDTyped + Clone + Send + 'static>(
+    path: String,
+    bus: &mut Bus<EventBusMessage<EventT>>,
+) -> std::io::Result<()> {
+    if !path.ends_with(".npz") {
+        todo!("Only .npz is supported in this branch")
+    }
+
+    let mut archive = ZipArchive::new(File::open(path)?)?;
+    let mut reader = NpyReader::<_, EventT>::new(
+        archive.by_name("data.npy")?,
+        NonZeroUsize::new(512).unwrap(),
+    )?;
+
+    loop {
+        let read = reader.read(|event| {
+            bus.broadcast(EventBusMessage::Item(event.clone()));
+        })?;
+
+        // EOF
+        if read == 0 {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 #[tracing::instrument(skip_all)]
 pub fn replay_events_to_bus<EventT: NpyDTyped + Clone + Send + 'static>(
     mut bus: Bus<EventBusMessage<EventT>>,
@@ -80,26 +113,7 @@ pub fn replay_events_to_bus<EventT: NpyDTyped + Clone + Send + 'static>(
         let source_load_span = info_span!("load_data", source = &source);
         let _source_load_span = source_load_span.entered();
 
-        let data = load_data::<EventT>(source);
-
-        match data {
-            Ok(data) => {
-                info!(
-                    records = data.len(),
-                    "found {} events in data source",
-                    data.len()
-                );
-
-                for row in 0..data.len() {
-                    bus.broadcast(EventBusMessage::Item(data[row].clone()));
-                }
-            }
-            Err(e) => {
-                error!("encountered error loading data source: {}", e);
-                // TODO: handle as an error.
-                break;
-            }
-        }
+        replay_event_file(source, &mut bus).unwrap();
     }
 
     bus.broadcast(EventBusMessage::EndOfData);

@@ -1,6 +1,9 @@
 use std::{
+    alloc::{alloc, dealloc, Layout},
     fs::File,
     io::{Error, ErrorKind, Read, Write},
+    marker::PhantomData,
+    num::NonZeroUsize,
 };
 
 use crate::backtest::data::{npy::parser::Value, Data, DataPtr, POD};
@@ -160,6 +163,143 @@ fn check_field_consistency(
         }
     }
     Ok(discrepancies)
+}
+
+pub struct NpyReader<R: Read, T: NpyDTyped> {
+    reader: R,
+
+    /// Input buffer aligned to [T].
+    buffer: *mut u8,
+
+    /// Current buffer position in bytes.
+    buffer_pos: usize,
+
+    /// Number of bytes available in the buffer for reading.
+    buffer_filled: usize,
+
+    /// Maximum number of bytes the buffer of this reader can hold.
+    buffer_capacity: usize,
+
+    phantom_data: PhantomData<T>,
+}
+
+impl<R: Read, T: NpyDTyped> Drop for NpyReader<R, T> {
+    fn drop(&mut self) {
+        unsafe {
+            dealloc(
+                self.buffer,
+                Layout::from_size_align_unchecked(self.buffer_capacity, align_of::<T>()),
+            )
+        }
+    }
+}
+
+impl<R: Read, T: NpyDTyped> NpyReader<R, T> {
+    pub fn new(mut reader: R, buffer_size: NonZeroUsize) -> std::io::Result<Self> {
+        let header = read_npy_header::<R, T>(&mut reader)?;
+
+        if T::descr() != header.descr {
+            match check_field_consistency(&T::descr(), &header.descr) {
+                Ok(diff) => {
+                    println!("Warning: Field name mismatch - {:?}", diff);
+                }
+                Err(err) => {
+                    return Err(Error::new(ErrorKind::InvalidData, err));
+                }
+            }
+        }
+
+        let buffer_capacity = buffer_size.get() * size_of::<T>();
+        let buffer = unsafe {
+            alloc(Layout::from_size_align_unchecked(
+                buffer_capacity,
+                align_of::<T>(),
+            ))
+        };
+
+        Ok(Self {
+            buffer,
+            buffer_pos: 0,
+            buffer_filled: 0,
+            buffer_capacity,
+            reader,
+            phantom_data: Default::default(),
+        })
+    }
+
+    pub fn read(&mut self, mut collector: impl FnMut(&T)) -> std::io::Result<usize> {
+        if self.buffer_pos == self.buffer_capacity {
+            self.buffer_pos = 0;
+            self.buffer_filled = 0;
+        }
+
+        let io_buf = unsafe { std::slice::from_raw_parts_mut(self.buffer, self.buffer_capacity) };
+        let io_buf_cursor = &mut io_buf[self.buffer_pos..];
+
+        let io_buf_unconsumed = self.buffer_filled - self.buffer_pos;
+        let bytes_read = self.reader.read(&mut io_buf_cursor[io_buf_unconsumed..])?;
+        let items_read = (io_buf_unconsumed + bytes_read) / size_of::<T>();
+        let io_buf_consumed = items_read * size_of::<T>();
+
+        let item_buf: &[T] = unsafe {
+            std::slice::from_raw_parts(
+                self.buffer.offset(self.buffer_pos as isize).cast(),
+                items_read,
+            )
+        };
+
+        for item in item_buf {
+            collector(item);
+        }
+
+        self.buffer_filled += bytes_read;
+        self.buffer_pos += io_buf_consumed;
+
+        Ok(items_read)
+    }
+}
+
+pub fn read_npy_header<R: Read, D: NpyDTyped>(
+    reader: &mut R,
+) -> std::io::Result<NpyHeader> {
+    let mut buf = Vec::with_capacity(10);
+    let mut magic = reader.take(10);
+    magic.read_to_end(&mut buf)?;
+
+    if buf[0..6].to_vec() != b"\x93NUMPY" {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "must start with \\x93NUMPY",
+        ));
+    }
+    if buf[6..8].to_vec() != b"\x01\x00" {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "support only version 1.0",
+        ));
+    }
+
+    let header_len = u16::from_le_bytes(buf[8..10].try_into().unwrap()) as usize;
+    let reader = magic.into_inner();
+
+    reader.take(header_len as u64).read_to_end(&mut buf)?;
+
+    let header = String::from_utf8(buf[10..(10 + header_len)].to_vec())
+        .map_err(|err| Error::new(ErrorKind::InvalidData, err.to_string()))?;
+    let header = NpyHeader::from_header(&header)?;
+
+    if header.fortran_order {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "fortran order is unsupported",
+        ));
+    }
+
+    if header.shape.len() != 1 {
+        return Err(Error::new(ErrorKind::InvalidData, "only 1-d is supported"));
+    }
+
+    Ok(header)
 }
 
 pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
