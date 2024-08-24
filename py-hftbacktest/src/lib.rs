@@ -5,7 +5,7 @@ pub use depth::*;
 use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
-        data::{read_npz_file, Cache, Data, DataPtr, Reader},
+        data::{read_npz_file, Data, DataPtr, FeedLatencyAdjustment, Reader},
         models::{
             CommonFees,
             ConstantLatency,
@@ -94,6 +94,8 @@ pub struct BacktestAsset {
     roi_ub: f64,
     initial_snapshot: Option<DataSource<Event>>,
     fee_model: FeeModel,
+    latency_offset: i64,
+    parallel_load: bool,
 }
 
 unsafe impl Send for BacktestAsset {}
@@ -122,7 +124,32 @@ impl BacktestAsset {
             fee_model: FeeModel::TradingValueFeeModel {
                 fees: CommonFees::new(0.0, 0.0),
             },
+            latency_offset: 0,
+            parallel_load: true,
         }
+    }
+
+    /// Sets whether to load the next data in parallel with backtesting. This can speed up the
+    /// backtest by reducing data loading time, but it also increases memory usage.
+    ///
+    /// Args:
+    ///     preload: whether to preload the next data in parallel with backtesting.
+    ///              The default value is `True`.
+    pub fn parallel_load(mut slf: PyRefMut<Self>, parallel_load: bool) -> PyRefMut<Self> {
+        slf.parallel_load = parallel_load;
+        slf
+    }
+
+    /// Sets the latency offset to adjust the feed latency by the specified amount. This is
+    /// particularly useful in cross-exchange backtesting, where the feed data is collected from a
+    /// different site than the one where the strategy is intended to run.
+    ///
+    /// Args:
+    ///     latency_offset: offset to adjust the feed latency by the specified amount.
+    ///                     The default value is `0`.
+    pub fn latency_offset(mut slf: PyRefMut<Self>, latency_offset: i64) -> PyRefMut<Self> {
+        slf.latency_offset = latency_offset;
+        slf
     }
 
     /// Sets the lower bound price of the `ROIVectorMarketDepth <https://docs.rs/hftbacktest/latest/hftbacktest/depth/struct.ROIVectorMarketDepth.html>`_.

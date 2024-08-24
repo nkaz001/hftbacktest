@@ -3,7 +3,10 @@ use std::{
     io::{Error, ErrorKind, Read, Write},
 };
 
-use crate::backtest::data::{npy::parser::Value, Data, DataPtr, POD};
+use crate::{
+    backtest::data::{npy::parser::Value, Data, DataPtr, POD},
+    utils::CACHE_LINE_SIZE,
+};
 
 mod parser;
 
@@ -200,7 +203,7 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
     if D::descr() != header.descr {
         match check_field_consistency(&D::descr(), &header.descr) {
             Ok(diff) => {
-                println!("Warning: Field name mismatch - {:?}", diff);
+                println!("Warning: Field name mismatch - {diff:?}");
             }
             Err(err) => {
                 return Err(Error::new(ErrorKind::InvalidData, err));
@@ -210,6 +213,13 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
 
     if header.shape.len() != 1 {
         return Err(Error::new(ErrorKind::InvalidData, "only 1-d is supported"));
+    }
+
+    if (10 + header_len) % CACHE_LINE_SIZE != 0 {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            format!("Not aligned with cache line size ({CACHE_LINE_SIZE} bytes)."),
+        ));
     }
 
     let data = unsafe { Data::from_data_ptr(buf, 10 + header_len) };

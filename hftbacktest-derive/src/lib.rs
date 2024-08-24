@@ -246,19 +246,20 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             ExchangeKind::#em_ident { #(#em_args),* },
                             FeeModel::#fm_ident { #(#fm_args),* },
                         ) => {
-                            let cache = Cache::new();
-                            let mut reader = Reader::new(cache);
-
-                            for data in #asset.data.iter() {
-                                match data {
-                                    DataSource::File(file) => {
-                                        reader.add_file(file.to_string());
-                                    }
-                                    DataSource::Data(data) => {
-                                        reader.add_data(data.clone());
-                                    }
-                                }
-                            }
+                            let reader = if #asset.latency_offset == 0 {
+                                Reader::builder()
+                                    .parallel_load(#asset.parallel_load)
+                                    .data(#asset.data.clone())
+                                    .build()
+                                    .unwrap()
+                            } else {
+                                Reader::builder()
+                                    .parallel_load(#asset.parallel_load)
+                                    .data(#asset.data.clone())
+                                    .preprocessor(FeedLatencyAdjustment::new(#asset.latency_offset))
+                                    .build()
+                                    .unwrap()
+                            };
 
                             let ob_local_to_exch = OrderBus::new();
                             let ob_exch_to_local = OrderBus::new();

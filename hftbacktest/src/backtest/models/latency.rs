@@ -1,10 +1,10 @@
-use std::mem;
+use std::{io::Error as IoError, mem};
 
 use hftbacktest_derive::NpyDTyped;
 
 use crate::{
     backtest::{
-        data::{Cache, Data, DataSource, Reader, POD},
+        data::{Data, DataPreprocess, DataSource, Reader, POD},
         BacktestError,
     },
     types::Order,
@@ -103,19 +103,24 @@ pub struct IntpOrderLatency {
 }
 
 impl IntpOrderLatency {
-    /// Constructs an instance of `IntpOrderLatency`.
-    pub fn build(data: Vec<DataSource<OrderLatencyRow>>) -> Result<Self, BacktestError> {
-        let mut reader = Reader::new(Cache::new());
-        for file in data {
-            match file {
-                DataSource::File(file) => {
-                    reader.add_file(file);
-                }
-                DataSource::Data(data) => {
-                    reader.add_data(data);
-                }
-            }
-        }
+    /// Constructs an `IntpOrderLatency` with options.
+    pub fn build(
+        data: Vec<DataSource<OrderLatencyRow>>,
+        parallel_load: bool,
+        latency_offset: i64,
+    ) -> Result<Self, BacktestError> {
+        let mut reader = if latency_offset == 0 {
+            Reader::builder()
+                .parallel_load(parallel_load)
+                .data(data)
+                .build()?
+        } else {
+            Reader::builder()
+                .parallel_load(parallel_load)
+                .data(data)
+                .preprocessor(OrderLatencyAdjustment::new(latency_offset))
+                .build()?
+        };
         let data = match reader.next_data() {
             Ok(data) => data,
             Err(BacktestError::EndOfData) => Data::empty(),
@@ -135,9 +140,9 @@ impl IntpOrderLatency {
         })
     }
 
-    /// Constructs an instance of `IntpOrderLatency`.
+    /// Constructs an `IntpOrderLatency` with default options.
     pub fn new(data: Vec<DataSource<OrderLatencyRow>>) -> Self {
-        Self::build(data).unwrap()
+        Self::build(data, true, 0).unwrap()
     }
 
     fn intp(&self, x: i64, x1: i64, y1: i64, x2: i64, y2: i64) -> i64 {
@@ -264,5 +269,26 @@ impl LatencyModel for IntpOrderLatency {
                 self.resp_rn += 1;
             }
         }
+    }
+}
+
+#[derive(Clone)]
+struct OrderLatencyAdjustment {
+    latency_offset: i64,
+}
+
+impl OrderLatencyAdjustment {
+    pub fn new(latency_offset: i64) -> Self {
+        Self { latency_offset }
+    }
+}
+
+impl DataPreprocess<OrderLatencyRow> for OrderLatencyAdjustment {
+    fn preprocess(&self, data: &mut Data<OrderLatencyRow>) -> Result<(), IoError> {
+        for i in 0..data.len() {
+            data[i].exch_ts += self.latency_offset;
+            data[i].resp_ts += self.latency_offset + self.latency_offset;
+        }
+        Ok(())
     }
 }
