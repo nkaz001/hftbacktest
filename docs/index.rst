@@ -241,7 +241,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
     :target: https://github.com/nkaz001/hftbacktest
     :alt: Github
 
-.. |rustc| image:: https://shields.io/badge/rustc-1.79-blue
+.. |rustc| image:: https://shields.io/badge/rustc-1.80.1-blue
     :alt: Rust Version
     :target: https://www.rust-lang.org/
 

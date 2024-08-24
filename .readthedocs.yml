@@ -10,10 +10,10 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-#    rust: "1.79"
+#    rust: "1.80.1"
   commands:
-    - asdf install rust 1.79
-    - asdf global rust 1.79
+    - asdf install rust 1.80.1
+    - asdf global rust 1.80.1
     - python -mvirtualenv $READTHEDOCS_VIRTUALENV_PATH
     - python -m pip install --upgrade --no-cache-dir pip setuptools
     - python -m pip install --upgrade --no-cache-dir sphinx readthedocs-sphinx-ext
