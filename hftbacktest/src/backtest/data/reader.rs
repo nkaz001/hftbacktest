@@ -30,7 +30,9 @@ pub enum DataSource<D>
 where
     D: POD + Clone,
 {
-    /// Data needs to be loaded from the specified file. It will be loaded when needed and released
+    /// Data needs to be loaded from the specified file. This should be a `numpy` file.
+    ///
+    /// It will be loaded when needed and released
     /// when no [Processor](`crate::backtest::proc::Processor`) is reading the data.
     File(String),
     /// Data is loaded and set by the user.
@@ -160,6 +162,9 @@ where
     }
 }
 
+/// Directly implementing `Send` for `Data` may lead to unsafe sharing between threads. To mitigate
+/// this risk, `DataSend` is used to wrap `Data`, which implements the `Send` marker trait. This
+/// transfer ownership between threads while requiring careful consideration.
 struct DataSend<D>(Data<D>)
 where
     D: NpyDTyped + Clone;
@@ -186,18 +191,125 @@ impl<D> LoadDataResult<D>
 where
     D: NpyDTyped + Clone,
 {
-    pub fn ok(filepath: String, data: Data<D>) -> Self {
+    pub fn ok(key: String, data: Data<D>) -> Self {
         Self {
-            key: filepath,
+            key,
             result: Ok(DataSend(data)),
         }
     }
 
-    pub fn err(filepath: String, err: IoError) -> Self {
+    pub fn err(key: String, error: IoError) -> Self {
         Self {
-            key: filepath,
-            result: Err(err),
+            key,
+            result: Err(error),
         }
+    }
+}
+
+/// A builder for constructing [`Reader`].
+pub struct ReaderBuilder<D>
+where
+    D: NpyDTyped + POD + Clone,
+{
+    data_key_list: Vec<String>,
+    cache: Cache<D>,
+    temporary_data: HashMap<String, Data<D>>,
+    parallel_load: bool,
+    preprocessor: Option<Arc<Box<dyn DataPreprocess<D> + Sync + Send + 'static>>>,
+}
+
+impl<D> Default for ReaderBuilder<D>
+where
+    D: NpyDTyped + POD + Clone,
+{
+    fn default() -> Self {
+        Self {
+            data_key_list: Default::default(),
+            cache: Default::default(),
+            temporary_data: Default::default(),
+            parallel_load: false,
+            preprocessor: None,
+        }
+    }
+}
+
+impl<D> ReaderBuilder<D>
+where
+    D: NpyDTyped + POD + Clone,
+{
+    /// Constructs a `ReaderBuilder`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets whether to load the next data in parallel. This allows [`Reader`] to not only load the
+    /// next data but also preload subsequent data, ensuring it is ready in advance.
+    ///
+    /// Loading is performed by spawning a separate thread.
+    ///
+    /// The default value is `true`.
+    pub fn parallel_load(self, parallel_load: bool) -> Self {
+        Self {
+            parallel_load,
+            ..self
+        }
+    }
+
+    /// Sets a [`DataPreprocessor`].
+    pub fn preprocessor<Preprocessor>(self, preprocessor: Preprocessor) -> Self
+    where
+        Preprocessor: DataPreprocess<D> + Sync + Send + 'static,
+    {
+        Self {
+            preprocessor: Some(Arc::new(Box::new(preprocessor))),
+            ..self
+        }
+    }
+
+    /// Sets the data to be read by [`Reader`]. The items in the `data` vector should be arranged in
+    /// the chronological order.
+    pub fn data(self, data: Vec<DataSource<D>>) -> Self {
+        let mut data_key_list = self.data_key_list;
+        let mut temporary_data = self.temporary_data;
+        for item in data {
+            match item {
+                DataSource::File(filepath) => {
+                    data_key_list.push(filepath);
+                }
+                DataSource::Data(data) => {
+                    let key = Uuid::new_v4().to_string();
+                    data_key_list.push(key.clone());
+                    temporary_data.insert(key, data);
+                }
+            }
+        }
+        Self {
+            data_key_list,
+            temporary_data,
+            ..self
+        }
+    }
+
+    /// Builds a [`Reader`].
+    pub fn build(self) -> Result<Reader<D>, IoError> {
+        let mut cache = self.cache.clone();
+        for (key, mut data) in self.temporary_data {
+            if let Some(p) = &self.preprocessor {
+                p.preprocess(&mut data)?;
+            }
+            cache.insert(key, data)
+        }
+
+        let (tx, rx) = channel();
+        Ok(Reader {
+            data_key_list: self.data_key_list.clone(),
+            cache,
+            data_num: 0,
+            tx,
+            rx: Rc::new(rx),
+            parallel_load: self.parallel_load,
+            preprocessor: self.preprocessor.clone(),
+        })
     }
 }
 
@@ -212,78 +324,32 @@ where
     data_num: usize,
     tx: Sender<LoadDataResult<D>>,
     rx: Rc<Receiver<LoadDataResult<D>>>,
-    preload: bool,
+    parallel_load: bool,
     preprocessor: Option<Arc<Box<dyn DataPreprocess<D> + Sync + Send + 'static>>>,
 }
 
 impl<D> Reader<D>
 where
-    D: NpyDTyped + Clone + Send + 'static,
+    D: NpyDTyped + Clone + 'static,
 {
-    /// Constructs an instance of `Reader` that utilizes the provided `Cache`.
-    pub fn new(cache: Cache<D>, preload: bool) -> Self {
-        let (tx, rx) = channel();
-        Self {
-            data_key_list: Vec::new(),
-            cache,
-            data_num: 0,
-            tx,
-            rx: Rc::new(rx),
-            preload,
-            preprocessor: None,
-        }
+    /// Returns a [`ReaderBuilder`].
+    pub fn builder() -> ReaderBuilder<D> {
+        ReaderBuilder::default()
     }
 
-    /// Constructs an instance of `Reader` that utilizes the provided `Cache` with
-    /// `DataPreprocessor`.
-    pub fn with<Preprocessor>(cache: Cache<D>, preload: bool, preprocessor: Preprocessor) -> Self
-    where
-        Preprocessor: DataPreprocess<D> + Sync + Send + 'static,
-    {
-        let (tx, rx) = channel();
-        Self {
-            data_key_list: Vec::new(),
-            cache,
-            data_num: 0,
-            tx,
-            rx: Rc::new(rx),
-            preload,
-            preprocessor: Some(Arc::new(Box::new(preprocessor))),
-        }
-    }
-
-    /// Adds a `numpy` file to read. Additions should be made in the same order as the order you
-    /// want to read.
-    pub fn add_file(&mut self, filepath: String) {
-        self.data_key_list.push(filepath);
-    }
-
-    /// Adds a `Data`. Additions should be made in the same order as the order you want to read.
-    pub fn add_data(&mut self, mut data: Data<D>) {
-        // todo: Data should not be removed from the cache.
-        let id = Uuid::new_v4().to_string();
-        self.data_key_list.push(id.clone());
-        // todo: Return the error from the preprocessor. Additionally, the user should be informed
-        //  that the data is modified in place, especially, if it comes from a Python binding.
-        if let Some(preprocessor) = &self.preprocessor {
-            preprocessor.preprocess(&mut data).unwrap();
-        }
-        self.cache.insert(id, data);
-    }
-
-    /// Releases this `Data` from the `Cache`. The `Cache` will delete the `Data` if there are no
-    /// readers accessing it.
+    /// Releases this [`Data`] from the `Cache`. The `Cache` will delete the [`Data`] if there are
+    /// no readers accessing it.
     pub fn release(&mut self, data: Data<D>) {
         self.cache.remove(data);
     }
 
-    /// Retrieves the next `Data` based on the order of your additions.
+    /// Retrieves the next [`Data`] based on the order of your additions.
     pub fn next_data(&mut self) -> Result<Data<D>, BacktestError> {
         if self.data_num < self.data_key_list.len() {
             let key = self.data_key_list.get(self.data_num).cloned().unwrap();
             self.load_data(&key)?;
 
-            if self.preload {
+            if self.parallel_load {
                 let next_key = self.data_key_list.get(self.data_num + 1).cloned();
                 if let Some(next_key) = next_key {
                     self.load_data(&next_key)?;
@@ -331,12 +397,14 @@ where
                         }
                         Ok(data)
                     };
+                    // SendError occurs only if Reader is already destroyed. Since no data is needed
+                    // once the Reader is destroyed, SendError is safely suppressed.
                     match load_data(&filepath) {
                         Ok(data) => {
-                            tx.send(LoadDataResult::ok(filepath, data)).unwrap();
+                            let _ = tx.send(LoadDataResult::ok(filepath, data));
                         }
                         Err(err) => {
-                            tx.send(LoadDataResult::err(filepath, err)).unwrap();
+                            let _ = tx.send(LoadDataResult::err(filepath, err));
                         }
                     }
                 });
@@ -353,12 +421,14 @@ where
                         }
                         Ok(data)
                     };
+                    // SendError occurs only if Reader is already destroyed. Since no data is needed
+                    // once the Reader is destroyed, SendError is safely suppressed.
                     match load_data(&filepath) {
                         Ok(data) => {
-                            tx.send(LoadDataResult::ok(filepath, data)).unwrap();
+                            let _ = tx.send(LoadDataResult::ok(filepath, data));
                         }
                         Err(err) => {
-                            tx.send(LoadDataResult::err(filepath, err)).unwrap();
+                            let _ = tx.send(LoadDataResult::err(filepath, err));
                         }
                     }
                 });
@@ -373,8 +443,8 @@ where
     }
 }
 
-/// DataPreprocess offers a function to preprocess data before it is fed into the backtesting. This
-/// feature is primarily introduced to adjust timestamps, making it particularly useful when
+/// `DataPreprocess` offers a function to preprocess data before it is fed into the backtesting.
+/// This feature is primarily introduced to adjust timestamps, making it particularly useful when
 /// backtesting the market from a location different from where your order latency was originally
 /// collected.
 ///
@@ -390,12 +460,15 @@ where
     fn preprocess(&self, data: &mut Data<D>) -> Result<(), IoError>;
 }
 
+/// Pre-processes the feed data to adjust for latency. `local_ts` is offset by the specified latency
+/// offset.
 #[derive(Clone)]
 pub struct FeedLatencyAdjustment {
     latency_offset: i64,
 }
 
 impl FeedLatencyAdjustment {
+    /// Constructs a `FeedLatencyAdjustment`.
     pub fn new(latency_offset: i64) -> Self {
         Self { latency_offset }
     }
