@@ -55,10 +55,10 @@ def generate_order_latency(feed_file, output_file=None, mul_entry=1, offset_entr
     order_latency = np.zeros(
         len(data),
         dtype=[
-            ('req_timestamp', '<i8'),
-            ('exch_timestamp', '<i8'),
-            ('resp_timestamp', '<i8'),
-            ('_reserved', '<i8')
+            ('req_ts', '<i8'),
+            ('exch_ts', '<i8'),
+            ('resp_ts', '<i8'),
+            ('_padding', '<i8')
         ]
     )
     generate_order_latency_nb(data, order_latency, mul_entry, offset_entry, mul_resp, offset_resp)
