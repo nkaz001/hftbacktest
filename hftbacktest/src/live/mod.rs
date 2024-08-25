@@ -1,4 +1,5 @@
 mod bot;
+mod bot2;
 mod recorder;
 
 pub use bot::{BotError, LiveBot, LiveBotBuilder};

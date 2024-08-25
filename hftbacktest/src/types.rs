@@ -302,7 +302,7 @@ pub const UNTIL_END_OF_DATA: i64 = i64::MAX;
 
 pub type OrderId = u64;
 
-#[derive(PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum WaitOrderResponse {
     None,
     Any,
@@ -702,7 +702,7 @@ impl Encode for Order {
 }
 
 /// An asynchronous request to [`Connector`](`crate::connector::Connector`).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub enum Request {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
     Order { asset_no: usize, order: Order },
