@@ -53,6 +53,7 @@ pub enum LatencyModel {
     },
     IntpOrderLatency {
         data: Vec<DataSource<OrderLatencyRow>>,
+        latency_offset: i64,
     },
 }
 
@@ -230,12 +231,17 @@ impl BacktestAsset {
     ///
     /// Args:
     ///     data: a list of file paths for the historical order latency data in `npz`.
-    pub fn intp_order_latency(mut slf: PyRefMut<Self>, data: Vec<String>) -> PyRefMut<Self> {
+    pub fn intp_order_latency(
+        mut slf: PyRefMut<Self>,
+        data: Vec<String>,
+        latency_offset: i64,
+    ) -> PyRefMut<Self> {
         slf.latency_model = LatencyModel::IntpOrderLatency {
             data: data
                 .iter()
                 .map(|file| DataSource::File(file.to_string()))
                 .collect(),
+            latency_offset,
         };
         slf
     }
@@ -244,11 +250,13 @@ impl BacktestAsset {
         mut slf: PyRefMut<Self>,
         data: usize,
         len: usize,
+        latency_offset: i64,
     ) -> PyRefMut<Self> {
         let arr = slice_from_raw_parts_mut(data as *mut u8, len * size_of::<OrderLatencyRow>());
         let data = unsafe { Data::<OrderLatencyRow>::from_data_ptr(DataPtr::from_ptr(arr), 0) };
         slf.latency_model = LatencyModel::IntpOrderLatency {
             data: vec![DataSource::Data(data)],
+            latency_offset,
         };
         slf
     }
@@ -443,7 +451,10 @@ pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<
                     entry_latency,
                     resp_latency
                 },
-                IntpOrderLatency { data }
+                IntpOrderLatency {
+                    data,
+                    latency_offset
+                }
             ],
             [
                 RiskAdverseQueueModel {},
@@ -485,7 +496,10 @@ pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<u
                     entry_latency,
                     resp_latency
                 },
-                IntpOrderLatency { data }
+                IntpOrderLatency {
+                    data,
+                    latency_offset
+                }
             ],
             [
                 RiskAdverseQueueModel {},
