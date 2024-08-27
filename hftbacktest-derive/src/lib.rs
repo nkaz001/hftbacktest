@@ -280,7 +280,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 None => {}
                             }
 
-                            let local: Box<dyn LocalProcessor<#marketdepth, Event>> = Box::new(Local::new(
+                            let local: Box<dyn LocalProcessor<#marketdepth>> = Box::new(Local::new(
                                 reader.clone(),
                                 market_depth,
                                 State::new(asset_type.clone(), fee_model.clone()),

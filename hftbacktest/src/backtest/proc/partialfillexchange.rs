@@ -475,9 +475,7 @@ where
                                 let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
                                 self.fill(&mut order, timestamp, false, price_tick, leaves_qty)
                             }
-                            TimeInForce::Unsupported => {
-                                return Err(BacktestError::InvalidOrderRequest);
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
                     } else {
                         match order.time_in_force {
@@ -508,9 +506,7 @@ where
                                 self.orders_to.append(order.clone(), local_recv_timestamp);
                                 Ok(())
                             }
-                            TimeInForce::Unsupported => {
-                                return Err(BacktestError::InvalidOrderRequest);
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
                     }
                 }
@@ -534,9 +530,7 @@ where
                     self.orders_to.append(order.clone(), local_recv_timestamp);
                     Ok(())
                 }
-                OrdType::Unsupported => {
-                    return Err(BacktestError::InvalidOrderRequest);
-                }
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         } else {
             match order.order_type {
@@ -663,9 +657,7 @@ where
                                 self.orders_to.append(order.clone(), local_recv_timestamp);
                                 Ok(())
                             }
-                            TimeInForce::Unsupported => {
-                                return Err(BacktestError::InvalidOrderRequest);
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
                     }
                 }
@@ -690,9 +682,7 @@ where
                     self.orders_to.append(order.clone(), local_recv_timestamp);
                     Ok(())
                 }
-                OrdType::Unsupported => {
-                    return Err(BacktestError::InvalidOrderRequest);
-                }
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         }
     }

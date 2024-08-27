@@ -231,9 +231,7 @@ where
                                 // Takes the market.
                                 self.fill(&mut order, timestamp, false, self.depth.best_ask_tick())
                             }
-                            TimeInForce::Unsupported => {
-                                return Err(BacktestError::InvalidOrderRequest);
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
                     } else {
                         match order.time_in_force {
@@ -259,9 +257,7 @@ where
                                 self.orders_to.append(order.clone(), local_recv_timestamp);
                                 Ok(())
                             }
-                            TimeInForce::Unsupported => {
-                                return Err(BacktestError::InvalidOrderRequest);
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
                     }
                 }
@@ -269,9 +265,7 @@ where
                     // Takes the market.
                     self.fill(&mut order, timestamp, false, self.depth.best_ask_tick())
                 }
-                OrdType::Unsupported => {
-                    return Err(BacktestError::InvalidOrderRequest);
-                }
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         } else {
             match order.order_type {
@@ -294,9 +288,7 @@ where
                                 // Takes the market.
                                 self.fill(&mut order, timestamp, false, self.depth.best_bid_tick())
                             }
-                            TimeInForce::Unsupported => {
-                                return Err(BacktestError::InvalidOrderRequest);
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
                     } else {
                         match order.time_in_force {
@@ -322,9 +314,7 @@ where
                                 self.orders_to.append(order.clone(), local_recv_timestamp);
                                 Ok(())
                             }
-                            TimeInForce::Unsupported => {
-                                return Err(BacktestError::InvalidOrderRequest);
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
                     }
                 }
@@ -332,9 +322,7 @@ where
                     // Takes the market.
                     self.fill(&mut order, timestamp, false, self.depth.best_bid_tick())
                 }
-                OrdType::Unsupported => {
-                    return Err(BacktestError::InvalidOrderRequest);
-                }
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         }
     }
