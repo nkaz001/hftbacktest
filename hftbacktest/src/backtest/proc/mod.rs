@@ -26,7 +26,7 @@ use crate::{
 };
 
 /// Provides local-specific interaction.
-pub trait LocalProcessor<MD, EventT>: Processor
+pub trait LocalProcessor<MD>: Processor
 where
     MD: MarketDepth,
 {

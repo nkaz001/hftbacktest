@@ -17,6 +17,7 @@ use crate::{
         BacktestError,
     },
     depth::{L2MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
+    prelude::OrdType,
     types::{
         Event,
         Order,
@@ -351,68 +352,126 @@ where
         }
 
         if order.side == Side::Buy {
-            // Checks if the buy order price is greater than or equal to the current best ask.
-            if order.price_tick >= self.depth.best_ask_tick() {
-                if order.time_in_force == TimeInForce::GTX {
-                    order.status = Status::Expired;
+            match order.order_type {
+                OrdType::Limit => {
+                    // Checks if the buy order price is greater than or equal to the current best ask.
+                    if order.price_tick >= self.depth.best_ask_tick() {
+                        match order.time_in_force {
+                            TimeInForce::GTX => {
+                                order.status = Status::Expired;
 
-                    order.exch_timestamp = timestamp;
-                    let local_recv_timestamp =
-                        timestamp + self.order_latency.response(timestamp, &order);
-                    self.orders_to.append(order.clone(), local_recv_timestamp);
-                    Ok(())
-                } else {
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
+                            }
+                            TimeInForce::GTC | TimeInForce::FOK | TimeInForce::IOC => {
+                                // Since this always fills the full quantity, both FOK and IOC
+                                // orders are also fully filled at the best price.
+                                // Takes the market.
+                                self.fill(&mut order, timestamp, false, self.depth.best_ask_tick())
+                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
+                        }
+                    } else {
+                        match order.time_in_force {
+                            TimeInForce::GTC | TimeInForce::GTX => {
+                                // Initializes the order's queue position.
+                                self.queue_model.new_order(&mut order, &self.depth);
+                                order.status = Status::New;
+                                // The exchange accepts this order.
+                                self.buy_orders
+                                    .entry(order.price_tick)
+                                    .or_default()
+                                    .insert(order.order_id);
+
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                self.orders.borrow_mut().insert(order.order_id, order);
+                                Ok(())
+                            }
+                            TimeInForce::FOK | TimeInForce::IOC => {
+                                order.status = Status::Expired;
+
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
+                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
+                        }
+                    }
+                }
+                OrdType::Market => {
                     // Takes the market.
                     self.fill(&mut order, timestamp, false, self.depth.best_ask_tick())
                 }
-            } else {
-                // Initializes the order's queue position.
-                self.queue_model.new_order(&mut order, &self.depth);
-                order.status = Status::New;
-                // The exchange accepts this order.
-                self.buy_orders
-                    .entry(order.price_tick)
-                    .or_default()
-                    .insert(order.order_id);
-
-                order.exch_timestamp = timestamp;
-                let local_recv_timestamp =
-                    timestamp + self.order_latency.response(timestamp, &order);
-                self.orders_to.append(order.clone(), local_recv_timestamp);
-                self.orders.borrow_mut().insert(order.order_id, order);
-                Ok(())
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         } else {
-            // Checks if the sell order price is less than or equal to the current best bid.
-            if order.price_tick <= self.depth.best_bid_tick() {
-                if order.time_in_force == TimeInForce::GTX {
-                    order.status = Status::Expired;
+            match order.order_type {
+                OrdType::Limit => {
+                    // Checks if the sell order price is less than or equal to the current best bid.
+                    if order.price_tick <= self.depth.best_bid_tick() {
+                        match order.time_in_force {
+                            TimeInForce::GTX => {
+                                order.status = Status::Expired;
 
-                    order.exch_timestamp = timestamp;
-                    let local_recv_timestamp =
-                        timestamp + self.order_latency.response(timestamp, &order);
-                    self.orders_to.append(order.clone(), local_recv_timestamp);
-                    Ok(())
-                } else {
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
+                            }
+                            TimeInForce::GTC | TimeInForce::FOK | TimeInForce::IOC => {
+                                // Since this always fills the full quantity, both FOK and IOC
+                                // orders are also fully filled at the best price.
+                                // Takes the market.
+                                self.fill(&mut order, timestamp, false, self.depth.best_bid_tick())
+                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
+                        }
+                    } else {
+                        match order.time_in_force {
+                            TimeInForce::GTC | TimeInForce::GTX => {
+                                // Initializes the order's queue position.
+                                self.queue_model.new_order(&mut order, &self.depth);
+                                order.status = Status::New;
+                                // The exchange accepts this order.
+                                self.sell_orders
+                                    .entry(order.price_tick)
+                                    .or_default()
+                                    .insert(order.order_id);
+
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                self.orders.borrow_mut().insert(order.order_id, order);
+                                Ok(())
+                            }
+                            TimeInForce::FOK | TimeInForce::IOC => {
+                                order.status = Status::Expired;
+
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
+                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
+                        }
+                    }
+                }
+                OrdType::Market => {
                     // Takes the market.
                     self.fill(&mut order, timestamp, false, self.depth.best_bid_tick())
                 }
-            } else {
-                // Initializes the order's queue position.
-                self.queue_model.new_order(&mut order, &self.depth);
-                order.status = Status::New;
-                // The exchange accepts this order.
-                self.sell_orders
-                    .entry(order.price_tick)
-                    .or_default()
-                    .insert(order.order_id);
-
-                order.exch_timestamp = timestamp;
-                let local_recv_timestamp =
-                    timestamp + self.order_latency.response(timestamp, &order);
-                self.orders_to.append(order.clone(), local_recv_timestamp);
-                self.orders.borrow_mut().insert(order.order_id, order);
-                Ok(())
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         }
     }

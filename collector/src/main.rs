@@ -36,7 +36,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let handle = match args.exchange.as_str() {
         "binancefutures" | "binancefuturesum" => {
-            let streams = vec![
+            let streams = [
                 "$symbol@trade",
                 "$symbol@bookTicker",
                 "$symbol@depth@0ms",
@@ -53,7 +53,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ))
         }
         "binancefuturescm" => {
-            let streams = vec![
+            let streams = [
                 "$symbol@trade",
                 "$symbol@bookTicker",
                 "$symbol@depth@0ms",
@@ -70,7 +70,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ))
         }
         "binance" | "binancespot" => {
-            let streams = vec!["$symbol@trade", "$symbol@bookTicker", "$symbol@depth@100ms"]
+            let streams = ["$symbol@trade", "$symbol@bookTicker", "$symbol@depth@100ms"]
                 .iter()
                 .map(|stream| stream.to_string())
                 .collect();
@@ -78,7 +78,7 @@ async fn main() -> Result<(), anyhow::Error> {
             tokio::spawn(binance::run_collection(streams, args.symbols, writer_tx))
         }
         "bybit" => {
-            let topics = vec![
+            let topics = [
                 "orderbook.1.$symbol",
                 "orderbook.50.$symbol",
                 "orderbook.500.$symbol",

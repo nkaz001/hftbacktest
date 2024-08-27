@@ -7,8 +7,6 @@ use std::{
 use anyhow::Error;
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
-use reqwest;
-use serde_json;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_tungstenite::{
     connect_async,
@@ -42,7 +40,7 @@ pub async fn fetch_symbol_list() -> Result<Vec<String>, reqwest::Error> {
 }
 
 pub async fn fetch_depth_snapshot(symbol: &str) -> Result<String, reqwest::Error> {
-    Ok(reqwest::Client::new()
+    reqwest::Client::new()
         .get(format!(
             "https://fapi.binance.com/fapi/v1/depth?symbol={symbol}&limit=1000"
         ))
@@ -50,7 +48,7 @@ pub async fn fetch_depth_snapshot(symbol: &str) -> Result<String, reqwest::Error
         .send()
         .await?
         .text()
-        .await?)
+        .await
 }
 
 pub async fn connect(
@@ -63,16 +61,9 @@ pub async fn connect(
     let (tx, mut rx) = unbounded_channel::<()>();
 
     tokio::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Some(_) => {
-                    if let Err(_) = write.send(Message::Pong(Vec::new())).await {
-                        return;
-                    }
-                }
-                None => {
-                    break;
-                }
+        while rx.recv().await.is_some() {
+            if write.send(Message::Pong(Vec::new())).await.is_err() {
+                return;
             }
         }
     });
@@ -81,7 +72,7 @@ pub async fn connect(
         match read.next().await {
             Some(Ok(Message::Text(text))) => {
                 let recv_time = Utc::now();
-                if let Err(_) = ws_tx.send((recv_time, text)) {
+                if ws_tx.send((recv_time, text)).is_err() {
                     break;
                 }
             }
@@ -119,7 +110,7 @@ pub async fn keep_connection(
         let connect_time = Instant::now();
         let streams_str = symbol_list
             .iter()
-            .map(|pair| {
+            .flat_map(|pair| {
                 streams
                     .iter()
                     .cloned()
@@ -130,7 +121,6 @@ pub async fn keep_connection(
                     })
                     .collect::<Vec<_>>()
             })
-            .flatten()
             .collect::<Vec<_>>()
             .join("/");
         if let Err(error) = connect(

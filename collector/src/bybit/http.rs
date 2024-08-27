@@ -45,7 +45,7 @@ pub async fn connect(
                 result = rx.recv() => {
                     match result {
                         Some(_) => {
-                            if let Err(_) = write.send(Message::Pong(Vec::new())).await {
+                            if write.send(Message::Pong(Vec::new())).await.is_err() {
                                 return;
                             }
                         }
@@ -55,9 +55,9 @@ pub async fn connect(
                     }
                 }
                 _ = ping_interval.tick() => {
-                    if let Err(_) = write.send(
+                    if write.send(
                         Message::Text(r#"{"req_id": "ping", "op": "ping"}"#.to_string())
-                    ).await {
+                    ).await.is_err() {
                         return;
                     }
                 }
@@ -69,7 +69,7 @@ pub async fn connect(
         match read.next().await {
             Some(Ok(Message::Text(text))) => {
                 let recv_time = Utc::now();
-                if let Err(_) = ws_tx.send((recv_time, text)) {
+                if ws_tx.send((recv_time, text)).is_err() {
                     break;
                 }
             }
@@ -107,7 +107,7 @@ pub async fn keep_connection(
         let connect_time = Instant::now();
         let topics_ = symbol_list
             .iter()
-            .map(|pair| {
+            .flat_map(|pair| {
                 topics
                     .iter()
                     .cloned()
@@ -118,7 +118,6 @@ pub async fn keep_connection(
                     })
                     .collect::<Vec<_>>()
             })
-            .flatten()
             .collect::<Vec<_>>();
         if let Err(error) = connect(
             "wss://stream.bybit.com/v5/public/linear",

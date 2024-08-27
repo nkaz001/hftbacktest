@@ -233,7 +233,7 @@ where
     }
 
     /// Builds an `Asset`.
-    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD, Event>, dyn Processor>, BuildError> {
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor>, BuildError> {
         let reader = if self.latency_offset == 0 {
             Reader::builder()
                 .parallel_load(self.parallel_load)
@@ -481,7 +481,7 @@ where
     }
 
     /// Builds an `Asset`.
-    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD, Event>, dyn Processor>, BuildError> {
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor>, BuildError> {
         let reader = if self.latency_offset == 0 {
             Reader::builder()
                 .parallel_load(self.preload)
@@ -569,13 +569,13 @@ where
 
 /// [`Backtest`] builder.
 pub struct BacktestBuilder<MD> {
-    local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
+    local: Vec<Box<dyn LocalProcessor<MD>>>,
     exch: Vec<Box<dyn Processor>>,
 }
 
 impl<MD> BacktestBuilder<MD> {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add_asset(self, asset: Asset<dyn LocalProcessor<MD, Event>, dyn Processor>) -> Self {
+    pub fn add_asset(self, asset: Asset<dyn LocalProcessor<MD>, dyn Processor>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(asset.local);
         self_.exch.push(asset.exch);
@@ -603,7 +603,7 @@ impl<MD> BacktestBuilder<MD> {
 pub struct Backtest<MD> {
     cur_ts: i64,
     evs: EventSet,
-    local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
+    local: Vec<Box<dyn LocalProcessor<MD>>>,
     exch: Vec<Box<dyn Processor>>,
 }
 
@@ -618,10 +618,7 @@ where
         }
     }
 
-    pub fn new(
-        local: Vec<Box<dyn LocalProcessor<MD, Event>>>,
-        exch: Vec<Box<dyn Processor>>,
-    ) -> Self {
+    pub fn new(local: Vec<Box<dyn LocalProcessor<MD>>>, exch: Vec<Box<dyn Processor>>) -> Self {
         let num_assets = local.len();
         if local.len() != num_assets || exch.len() != num_assets {
             panic!();
@@ -1030,7 +1027,7 @@ pub struct MultiAssetSingleExchangeBacktestBuilder<Local, Exchange> {
 
 impl<Local, Exchange> MultiAssetSingleExchangeBacktestBuilder<Local, Exchange>
 where
-    Local: LocalProcessor<HashMapMarketDepth, Event> + 'static,
+    Local: LocalProcessor<HashMapMarketDepth> + 'static,
     Exchange: Processor + 'static,
 {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
@@ -1075,7 +1072,7 @@ pub struct MultiAssetSingleExchangeBacktest<MD, Local, Exchange> {
 impl<MD, Local, Exchange> MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
-    Local: LocalProcessor<MD, Event>,
+    Local: LocalProcessor<MD>,
     Exchange: Processor,
 {
     pub fn builder() -> MultiAssetSingleExchangeBacktestBuilder<Local, Exchange> {
@@ -1220,7 +1217,7 @@ where
 impl<MD, Local, Exchange> Bot<MD> for MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
-    Local: LocalProcessor<MD, Event>,
+    Local: LocalProcessor<MD>,
     Exchange: Processor,
 {
     type Error = BacktestError;

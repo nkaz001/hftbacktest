@@ -17,6 +17,7 @@ use crate::{
         BacktestError,
     },
     depth::{L2MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
+    prelude::OrdType,
     types::{
         Event,
         Order,
@@ -384,228 +385,304 @@ where
         }
 
         if order.side == Side::Buy {
-            // Checks if the buy order price is greater than or equal to the current best ask.
-            if order.price_tick >= self.depth.best_ask_tick() {
-                match order.time_in_force {
-                    TimeInForce::GTX => {
-                        order.status = Status::Expired;
+            match order.order_type {
+                OrdType::Limit => {
+                    // Checks if the buy order price is greater than or equal to the current best ask.
+                    if order.price_tick >= self.depth.best_ask_tick() {
+                        match order.time_in_force {
+                            TimeInForce::GTX => {
+                                order.status = Status::Expired;
 
-                        order.exch_timestamp = timestamp;
-                        let local_recv_timestamp =
-                            timestamp + self.order_latency.response(timestamp, &order);
-                        self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(())
-                    }
-                    TimeInForce::FOK => {
-                        // The order must be executed immediately in its entirety; otherwise, the
-                        // entire order will be cancelled.
-                        let mut execute = false;
-                        let mut cum_qty = 0f64;
-                        for t in self.depth.best_ask_tick()..=order.price_tick {
-                            cum_qty += self.depth.ask_qty_at_tick(t);
-                            if (cum_qty / self.depth.lot_size()).round()
-                                >= (order.qty / self.depth.lot_size()).round()
-                            {
-                                execute = true;
-                                break;
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
                             }
-                        }
-                        if execute {
-                            for t in self.depth.best_ask_tick()..=order.price_tick {
-                                let qty = self.depth.ask_qty_at_tick(t);
-                                if qty > 0.0 {
-                                    let exec_qty = qty.min(order.leaves_qty);
-                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                            TimeInForce::FOK => {
+                                // The order must be executed immediately in its entirety; otherwise, the
+                                // entire order will be cancelled.
+                                let mut execute = false;
+                                let mut cum_qty = 0f64;
+                                for t in self.depth.best_ask_tick()..=order.price_tick {
+                                    cum_qty += self.depth.ask_qty_at_tick(t);
+                                    if (cum_qty / self.depth.lot_size()).round()
+                                        >= (order.qty / self.depth.lot_size()).round()
+                                    {
+                                        execute = true;
+                                        break;
+                                    }
+                                }
+                                if execute {
+                                    for t in self.depth.best_ask_tick()..=order.price_tick {
+                                        let qty = self.depth.ask_qty_at_tick(t);
+                                        if qty > 0.0 {
+                                            let exec_qty = qty.min(order.leaves_qty);
+                                            self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                            if order.status == Status::Filled {
+                                                return Ok(());
+                                            }
+                                        }
+                                    }
+                                    unreachable!();
+                                } else {
+                                    order.status = Status::Expired;
+
+                                    order.exch_timestamp = timestamp;
+                                    let local_recv_timestamp =
+                                        timestamp + self.order_latency.response(timestamp, &order);
+                                    self.orders_to.append(order.clone(), local_recv_timestamp);
+                                    Ok(())
+                                }
+                            }
+                            TimeInForce::IOC => {
+                                // The order must be executed immediately.
+                                for t in self.depth.best_ask_tick()..=order.price_tick {
+                                    let qty = self.depth.ask_qty_at_tick(t);
+                                    if qty > 0.0 {
+                                        let exec_qty = qty.min(order.leaves_qty);
+                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                    }
                                     if order.status == Status::Filled {
                                         return Ok(());
                                     }
                                 }
-                            }
-                            unreachable!();
-                        } else {
-                            order.status = Status::Expired;
+                                order.status = Status::Expired;
 
-                            order.exch_timestamp = timestamp;
-                            let local_recv_timestamp =
-                                timestamp + self.order_latency.response(timestamp, &order);
-                            self.orders_to.append(order.clone(), local_recv_timestamp);
-                            Ok(())
-                        }
-                    }
-                    TimeInForce::IOC => {
-                        // The order must be executed immediately.
-                        for t in self.depth.best_ask_tick()..=order.price_tick {
-                            let qty = self.depth.ask_qty_at_tick(t);
-                            if qty > 0.0 {
-                                let exec_qty = qty.min(order.leaves_qty);
-                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
                             }
-                            if order.status == Status::Filled {
-                                return Ok(());
-                            }
-                        }
-                        order.status = Status::Expired;
+                            TimeInForce::GTC => {
+                                // Takes the market.
+                                for t in self.depth.best_ask_tick()..order.price_tick {
+                                    let qty = self.depth.ask_qty_at_tick(t);
+                                    if qty > 0.0 {
+                                        let exec_qty = qty.min(order.leaves_qty);
+                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                    }
+                                    if order.status == Status::Filled {
+                                        return Ok(());
+                                    }
+                                }
 
-                        order.exch_timestamp = timestamp;
-                        let local_recv_timestamp =
-                            timestamp + self.order_latency.response(timestamp, &order);
-                        self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(())
-                    }
-                    TimeInForce::GTC => {
-                        // Takes the market.
-                        for t in self.depth.best_ask_tick()..order.price_tick {
-                            let qty = self.depth.ask_qty_at_tick(t);
-                            if qty > 0.0 {
-                                let exec_qty = qty.min(order.leaves_qty);
-                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                // The buy order cannot remain in the ask book, as it cannot affect the
+                                // market depth during backtesting based on market-data replay. So, even
+                                // though it simulates partial fill, if the order size is not small enough,
+                                // it introduces unreality.
+                                let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
+                                self.fill(&mut order, timestamp, false, price_tick, leaves_qty)
                             }
-                            if order.status == Status::Filled {
-                                return Ok(());
-                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
                         }
+                    } else {
+                        match order.time_in_force {
+                            TimeInForce::GTC | TimeInForce::GTX => {
+                                // Initializes the order's queue position.
+                                self.queue_model.new_order(&mut order, &self.depth);
+                                order.status = Status::New;
+                                // The exchange accepts this order.
+                                self.buy_orders
+                                    .entry(order.price_tick)
+                                    .or_default()
+                                    .insert(order.order_id);
 
-                        // The buy order cannot remain in the ask book, as it cannot affect the
-                        // market depth during backtesting based on market-data replay. So, even
-                        // though it simulates partial fill, if the order size is not small enough,
-                        // it introduces unreality.
-                        let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
-                        self.fill(&mut order, timestamp, false, price_tick, leaves_qty)
-                    }
-                    _ => {
-                        unreachable!();
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+
+                                self.orders.borrow_mut().insert(order.order_id, order);
+                                Ok(())
+                            }
+                            TimeInForce::FOK | TimeInForce::IOC => {
+                                order.status = Status::Expired;
+
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
+                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
+                        }
                     }
                 }
-            } else {
-                // Initializes the order's queue position.
-                self.queue_model.new_order(&mut order, &self.depth);
-                order.status = Status::New;
-                // The exchange accepts this order.
-                self.buy_orders
-                    .entry(order.price_tick)
-                    .or_default()
-                    .insert(order.order_id);
+                OrdType::Market => {
+                    // todo: set the proper upper bound.
+                    for t in self.depth.best_ask_tick()..(self.depth.best_ask_tick() + 100) {
+                        let qty = self.depth.ask_qty_at_tick(t);
+                        if qty > 0.0 {
+                            let exec_qty = qty.min(order.leaves_qty);
+                            self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                        }
+                        if order.status == Status::Filled {
+                            return Ok(());
+                        }
+                    }
+                    order.status = Status::Expired;
 
-                order.exch_timestamp = timestamp;
-                let local_recv_timestamp =
-                    timestamp + self.order_latency.response(timestamp, &order);
-                self.orders_to.append(order.clone(), local_recv_timestamp);
-
-                self.orders.borrow_mut().insert(order.order_id, order);
-
-                Ok(())
+                    order.exch_timestamp = timestamp;
+                    let local_recv_timestamp =
+                        timestamp + self.order_latency.response(timestamp, &order);
+                    self.orders_to.append(order.clone(), local_recv_timestamp);
+                    Ok(())
+                }
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         } else {
-            // Checks if the sell order price is less than or equal to the current best bid.
-            if order.price_tick <= self.depth.best_bid_tick() {
-                match order.time_in_force {
-                    TimeInForce::GTX => {
-                        order.status = Status::Expired;
+            match order.order_type {
+                OrdType::Limit => {
+                    // Checks if the sell order price is less than or equal to the current best bid.
+                    if order.price_tick <= self.depth.best_bid_tick() {
+                        match order.time_in_force {
+                            TimeInForce::GTX => {
+                                order.status = Status::Expired;
 
-                        order.exch_timestamp = timestamp;
-                        let local_recv_timestamp =
-                            timestamp + self.order_latency.response(timestamp, &order);
-                        self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(())
-                    }
-                    TimeInForce::FOK => {
-                        // The order must be executed immediately in its entirety; otherwise, the
-                        // entire order will be cancelled.
-                        let mut execute = false;
-                        let mut cum_qty = 0f64;
-                        for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                            cum_qty += self.depth.bid_qty_at_tick(t);
-                            if (cum_qty / self.depth.lot_size()).round()
-                                >= (order.qty / self.depth.lot_size()).round()
-                            {
-                                execute = true;
-                                break;
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
                             }
-                        }
-                        if execute {
-                            for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                                let qty = self.depth.bid_qty_at_tick(t);
-                                if qty > 0.0 {
-                                    let exec_qty = qty.min(order.leaves_qty);
-                                    self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                            TimeInForce::FOK => {
+                                // The order must be executed immediately in its entirety; otherwise, the
+                                // entire order will be cancelled.
+                                let mut execute = false;
+                                let mut cum_qty = 0f64;
+                                for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
+                                    cum_qty += self.depth.bid_qty_at_tick(t);
+                                    if (cum_qty / self.depth.lot_size()).round()
+                                        >= (order.qty / self.depth.lot_size()).round()
+                                    {
+                                        execute = true;
+                                        break;
+                                    }
+                                }
+                                if execute {
+                                    for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
+                                        let qty = self.depth.bid_qty_at_tick(t);
+                                        if qty > 0.0 {
+                                            let exec_qty = qty.min(order.leaves_qty);
+                                            self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                            if order.status == Status::Filled {
+                                                return Ok(());
+                                            }
+                                        }
+                                    }
+                                    unreachable!();
+                                } else {
+                                    order.status = Status::Expired;
+
+                                    order.exch_timestamp = timestamp;
+                                    let local_recv_timestamp =
+                                        timestamp + self.order_latency.response(timestamp, &order);
+                                    self.orders_to.append(order.clone(), local_recv_timestamp);
+                                    Ok(())
+                                }
+                            }
+                            TimeInForce::IOC => {
+                                // The order must be executed immediately.
+                                for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
+                                    let qty = self.depth.bid_qty_at_tick(t);
+                                    if qty > 0.0 {
+                                        let exec_qty = qty.min(order.leaves_qty);
+                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                    }
                                     if order.status == Status::Filled {
                                         return Ok(());
                                     }
                                 }
-                            }
-                            unreachable!();
-                        } else {
-                            order.status = Status::Expired;
+                                order.status = Status::Expired;
 
-                            order.exch_timestamp = timestamp;
-                            let local_recv_timestamp =
-                                timestamp + self.order_latency.response(timestamp, &order);
-                            self.orders_to.append(order.clone(), local_recv_timestamp);
-                            Ok(())
-                        }
-                    }
-                    TimeInForce::IOC => {
-                        // The order must be executed immediately.
-                        for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                            let qty = self.depth.bid_qty_at_tick(t);
-                            if qty > 0.0 {
-                                let exec_qty = qty.min(order.leaves_qty);
-                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
                             }
-                            if order.status == Status::Filled {
-                                return Ok(());
-                            }
-                        }
-                        order.status = Status::Expired;
+                            TimeInForce::GTC => {
+                                // Takes the market.
+                                for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
+                                    let qty = self.depth.bid_qty_at_tick(t);
+                                    if qty > 0.0 {
+                                        let exec_qty = qty.min(order.leaves_qty);
+                                        self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                    }
+                                    if order.status == Status::Filled {
+                                        return Ok(());
+                                    }
+                                }
 
-                        order.exch_timestamp = timestamp;
-                        let local_recv_timestamp =
-                            timestamp + self.order_latency.response(timestamp, &order);
-                        self.orders_to.append(order.clone(), local_recv_timestamp);
-                        Ok(())
-                    }
-                    TimeInForce::GTC => {
-                        // Takes the market.
-                        for t in (order.price_tick..=self.depth.best_bid_tick()).rev() {
-                            let qty = self.depth.bid_qty_at_tick(t);
-                            if qty > 0.0 {
-                                let exec_qty = qty.min(order.leaves_qty);
-                                self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                                // The sell order cannot remain in the bid book, as it cannot affect the
+                                // market depth during backtesting based on market-data replay. So, even
+                                // though it simulates partial fill, if the order size is not small enough,
+                                // it introduces unreality.
+                                let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
+                                self.fill(&mut order, timestamp, false, price_tick, leaves_qty)
                             }
-                            if order.status == Status::Filled {
-                                return Ok(());
+                            _ => {
+                                unreachable!();
                             }
                         }
+                    } else {
+                        match order.time_in_force {
+                            TimeInForce::GTC | TimeInForce::GTX => {
+                                // Initializes the order's queue position.
+                                self.queue_model.new_order(&mut order, &self.depth);
+                                order.status = Status::New;
+                                // The exchange accepts this order.
+                                self.sell_orders
+                                    .entry(order.price_tick)
+                                    .or_default()
+                                    .insert(order.order_id);
 
-                        // The sell order cannot remain in the bid book, as it cannot affect the
-                        // market depth during backtesting based on market-data replay. So, even
-                        // though it simulates partial fill, if the order size is not small enough,
-                        // it introduces unreality.
-                        let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
-                        self.fill(&mut order, timestamp, false, price_tick, leaves_qty)
-                    }
-                    _ => {
-                        unreachable!();
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+
+                                self.orders.borrow_mut().insert(order.order_id, order);
+
+                                Ok(())
+                            }
+                            TimeInForce::FOK | TimeInForce::IOC => {
+                                order.status = Status::Expired;
+
+                                order.exch_timestamp = timestamp;
+                                let local_recv_timestamp =
+                                    timestamp + self.order_latency.response(timestamp, &order);
+                                self.orders_to.append(order.clone(), local_recv_timestamp);
+                                Ok(())
+                            }
+                            TimeInForce::Unsupported => Err(BacktestError::InvalidOrderRequest),
+                        }
                     }
                 }
-            } else {
-                // Initializes the order's queue position.
-                self.queue_model.new_order(&mut order, &self.depth);
-                order.status = Status::New;
-                // The exchange accepts this order.
-                self.sell_orders
-                    .entry(order.price_tick)
-                    .or_default()
-                    .insert(order.order_id);
+                OrdType::Market => {
+                    // todo: set the proper lower bound.
+                    for t in ((self.depth.best_bid_tick() - 100)..=self.depth.best_bid_tick()).rev()
+                    {
+                        let qty = self.depth.bid_qty_at_tick(t);
+                        if qty > 0.0 {
+                            let exec_qty = qty.min(order.leaves_qty);
+                            self.fill(&mut order, timestamp, false, t, exec_qty)?;
+                        }
+                        if order.status == Status::Filled {
+                            return Ok(());
+                        }
+                    }
+                    order.status = Status::Expired;
 
-                order.exch_timestamp = timestamp;
-                let local_recv_timestamp =
-                    timestamp + self.order_latency.response(timestamp, &order);
-                self.orders_to.append(order.clone(), local_recv_timestamp);
-
-                self.orders.borrow_mut().insert(order.order_id, order);
-
-                Ok(())
+                    order.exch_timestamp = timestamp;
+                    let local_recv_timestamp =
+                        timestamp + self.order_latency.response(timestamp, &order);
+                    self.orders_to.append(order.clone(), local_recv_timestamp);
+                    Ok(())
+                }
+                OrdType::Unsupported => Err(BacktestError::InvalidOrderRequest),
             }
         }
     }

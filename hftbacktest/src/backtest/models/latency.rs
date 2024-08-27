@@ -90,7 +90,8 @@ unsafe impl POD for OrderLatencyRow {}
 /// use hftbacktest::backtest::{DataSource, models::IntpOrderLatency};
 ///
 /// let latency_model = IntpOrderLatency::new(
-///     vec![DataSource::File("latency_20240215.npz".to_string())]
+///     vec![DataSource::File("latency_20240215.npz".to_string())],
+///     0
 /// );
 /// ```
 #[derive(Clone)]
@@ -141,8 +142,8 @@ impl IntpOrderLatency {
     }
 
     /// Constructs an `IntpOrderLatency` with default options.
-    pub fn new(data: Vec<DataSource<OrderLatencyRow>>) -> Self {
-        Self::build(data, true, 0).unwrap()
+    pub fn new(data: Vec<DataSource<OrderLatencyRow>>, latency_offset: i64) -> Self {
+        Self::build(data, true, latency_offset).unwrap()
     }
 
     fn intp(&self, x: i64, x1: i64, y1: i64, x2: i64, y2: i64) -> i64 {
