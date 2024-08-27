@@ -91,8 +91,8 @@ where
 }
 
 impl<P: Processor + ?Sized> Processor for Box<P> {
-    fn time_of(&self, event: &Event) -> Option<i64> {
-        P::time_of(self, event)
+    fn time_seen(&self, event: &Event) -> Option<i64> {
+        P::time_seen(self, event)
     }
 
     fn process(&mut self, event: &Event) -> Result<(), BacktestError> {
@@ -122,7 +122,7 @@ pub trait Processor {
     /// be the timestamp an event was generated at on the exchange.
     ///
     /// `None` should be returned if this processor wouldn't have seen this event (i.e. it only occurred remotely).
-    fn time_of(&self, event: &Event) -> Option<i64>;
+    fn time_seen(&self, event: &Event) -> Option<i64>;
 
     /// Process an event and advance the state of this processor.
     fn process(&mut self, event: &Event) -> Result<(), BacktestError>;

@@ -856,7 +856,7 @@ where
     MD: MarketDepth + L2MarketDepth,
     FM: FeeModel,
 {
-    fn time_of(&self, event: &Event) -> Option<i64> {
+    fn time_seen(&self, event: &Event) -> Option<i64> {
         event.is(EXCH_EVENT).then(|| event.exch_ts)
     }
 

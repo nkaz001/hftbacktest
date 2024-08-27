@@ -669,7 +669,7 @@ impl<P: Processor> BacktestProcessorState<P> {
             let start = self.row.map(|rn| rn + 1).unwrap_or(0);
 
             for rn in start..self.data.len() {
-                if let Some(ts) = self.processor.time_of(&self.data[rn]) {
+                if let Some(ts) = self.processor.time_seen(&self.data[rn]) {
                     self.row = Some(rn);
                     return Ok(ts);
                 }
