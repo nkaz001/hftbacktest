@@ -1,4 +1,9 @@
-use std::{collections::HashMap, io::Error as IoError, marker::PhantomData};
+use std::{
+    collections::HashMap,
+    io::Error as IoError,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 pub use data::DataSource;
 use data::Reader;
@@ -13,7 +18,7 @@ pub use crate::backtest::{
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::FeedLatencyAdjustment,
+        data::{Data, FeedLatencyAdjustment, NpyDTyped},
         evs::{EventIntentKind, EventSet},
         models::{LatencyModel, QueueModel},
         order::OrderBus,
@@ -76,18 +81,20 @@ pub enum BacktestError {
 }
 
 /// Backtesting Asset
-pub struct Asset<L: ?Sized, E: ?Sized> {
+pub struct Asset<L: ?Sized, E: ?Sized, D: NpyDTyped + Clone /* todo: ugly bounds */> {
     pub local: Box<L>,
     pub exch: Box<E>,
+    pub reader: Reader<D>,
 }
 
-impl<L, E> Asset<L, E> {
+impl<L, E, D: NpyDTyped + Clone> Asset<L, E, D> {
     /// Constructs an instance of `Asset`. Use this method if a custom local processor or an
     /// exchange processor is needed.
-    pub fn new(local: L, exch: E) -> Self {
+    pub fn new(local: L, exch: E, reader: Reader<D>) -> Self {
         Self {
             local: Box::new(local),
             exch: Box::new(exch),
+            reader,
         }
     }
 
@@ -270,7 +277,6 @@ where
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         let local = Local::new(
-            reader.clone(),
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,
@@ -298,7 +304,6 @@ where
         match self.exch_kind {
             ExchangeKind::NoPartialFillExchange => {
                 let exch = NoPartialFillExchange::new(
-                    reader.clone(),
                     create_depth(),
                     State::new(asset_type, fee_model),
                     order_latency,
@@ -310,11 +315,11 @@ where
                 Ok(Asset {
                     local: Box::new(local),
                     exch: Box::new(exch),
+                    reader,
                 })
             }
             ExchangeKind::PartialFillExchange => {
                 let exch = PartialFillExchange::new(
-                    reader.clone(),
                     create_depth(),
                     State::new(asset_type, fee_model),
                     order_latency,
@@ -326,6 +331,7 @@ where
                 Ok(Asset {
                     local: Box::new(local),
                     exch: Box::new(exch),
+                    reader,
                 })
             }
         }
@@ -558,6 +564,7 @@ where
                 Ok(Asset {
                     local: Box::new(local),
                     exch: Box::new(exch),
+                    reader,
                 })
             }
             ExchangeKind::PartialFillExchange => {
@@ -569,16 +576,24 @@ where
 
 /// [`Backtest`] builder.
 pub struct BacktestBuilder<MD> {
-    local: Vec<Box<dyn LocalProcessor<MD>>>,
-    exch: Vec<Box<dyn Processor>>,
+    local: Vec<BacktestProcessorState<Box<dyn LocalProcessor<MD>>>>,
+    exch: Vec<BacktestProcessorState<Box<dyn Processor>>>,
 }
 
 impl<MD> BacktestBuilder<MD> {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add_asset(self, asset: Asset<dyn LocalProcessor<MD>, dyn Processor>) -> Self {
+    pub fn add_asset(
+        self,
+        asset: Asset<dyn LocalProcessor<MD>, dyn Processor, Event>,
+    ) -> Self {
         let mut self_ = Self { ..self };
-        self_.local.push(asset.local);
-        self_.exch.push(asset.exch);
+        self_.local.push(BacktestProcessorState::new(
+            asset.local,
+            asset.reader.clone(),
+        ));
+        self_
+            .exch
+            .push(BacktestProcessorState::new(asset.exch, asset.reader));
         self_
     }
 
@@ -603,8 +618,69 @@ impl<MD> BacktestBuilder<MD> {
 pub struct Backtest<MD> {
     cur_ts: i64,
     evs: EventSet,
-    local: Vec<Box<dyn LocalProcessor<MD>>>,
-    exch: Vec<Box<dyn Processor>>,
+    local: Vec<BacktestProcessorState<Box<dyn LocalProcessor<MD>>>>,
+    exch: Vec<BacktestProcessorState<Box<dyn Processor>>>,
+}
+
+impl<P: Processor> Deref for BacktestProcessorState<P> {
+    type Target = P;
+
+    fn deref(&self) -> &Self::Target {
+        &self.processor
+    }
+}
+
+impl<P: Processor> DerefMut for BacktestProcessorState<P> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.processor
+    }
+}
+
+/// Per asset backtesting state used internally to advance event buffers.
+pub struct BacktestProcessorState<P: Processor> {
+    data: Data<Event>,
+    processor: P,
+    reader: Reader<Event>,
+    row: Option<usize>,
+}
+
+impl<P: Processor> BacktestProcessorState<P> {
+    fn new(processor: P, reader: Reader<Event>) -> BacktestProcessorState<P> {
+        Self {
+            data: Data::empty(),
+            processor,
+            reader,
+            row: None,
+        }
+    }
+
+    fn next(&mut self) -> Result<usize, BacktestError> {
+        if self.row.is_none() {
+            let _ = self.advance()?;
+        }
+
+        self.row.ok_or(BacktestError::EndOfData)
+    }
+
+    /// Advance the state of this processor to the next available event and return the
+    /// timestamp it occurred at, if any.
+    fn advance(&mut self) -> Result<i64, BacktestError> {
+        loop {
+            let start = self.row.map(|rn| rn + 1).unwrap_or(0);
+
+            for rn in start..self.data.len() {
+                if let Some(ts) = self.processor.time_of(&self.data[rn]) {
+                    self.row = Some(rn);
+                    return Ok(ts);
+                }
+            }
+
+            let next = self.reader.next_data()?;
+
+            self.reader.release(std::mem::replace(&mut self.data, next));
+            self.row = None;
+        }
+    }
 }
 
 impl<MD> Backtest<MD>
@@ -623,17 +699,12 @@ where
         if local.len() != num_assets || exch.len() != num_assets {
             panic!();
         }
-        Self {
-            cur_ts: i64::MAX,
-            evs: EventSet::new(num_assets),
-            local,
-            exch,
-        }
+        todo!()
     }
 
     fn initialize_evs(&mut self) -> Result<(), BacktestError> {
         for (asset_no, local) in self.local.iter_mut().enumerate() {
-            match local.initialize_data() {
+            match local.advance() {
                 Ok(ts) => self.evs.update_local_data(asset_no, ts),
                 Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_local_data(asset_no);
@@ -644,7 +715,7 @@ where
             }
         }
         for (asset_no, exch) in self.exch.iter_mut().enumerate() {
-            match exch.initialize_data() {
+            match exch.advance() {
                 Ok(ts) => self.evs.update_exch_data(asset_no, ts),
                 Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_exch_data(asset_no);
@@ -693,9 +764,14 @@ where
                     }
                     match ev.kind {
                         EventIntentKind::LocalData => {
-                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            match local.process_data() {
-                                Ok((next_ts, _)) => {
+                            let proc = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            let next = proc.next().and_then(|row| {
+                                proc.processor.process(&proc.data[row])?;
+                                proc.advance()
+                            });
+
+                            match next {
+                                Ok(next_ts) => {
                                     self.evs.update_local_data(ev.asset_no, next_ts);
                                 }
                                 Err(BacktestError::EndOfData) => {
@@ -729,9 +805,14 @@ where
                             );
                         }
                         EventIntentKind::ExchData => {
-                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            match exch.process_data() {
-                                Ok((next_ts, _)) => {
+                            let proc = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            let next = proc.next().and_then(|row| {
+                                proc.processor.process(&proc.data[row])?;
+                                proc.advance()
+                            });
+
+                            match next {
+                                Ok(next_ts) => {
                                     self.evs.update_exch_data(ev.asset_no, next_ts);
                                 }
                                 Err(BacktestError::EndOfData) => {
@@ -743,7 +824,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                exch.earliest_send_order_timestamp(),
+                                proc.earliest_send_order_timestamp(),
                             );
                         }
                         EventIntentKind::ExchOrder => {
@@ -1020,9 +1101,9 @@ where
 }
 
 /// `MultiAssetSingleExchangeBacktest` builder.
-pub struct MultiAssetSingleExchangeBacktestBuilder<Local, Exchange> {
-    local: Vec<Local>,
-    exch: Vec<Exchange>,
+pub struct MultiAssetSingleExchangeBacktestBuilder<Local: Processor, Exchange: Processor> {
+    local: Vec<BacktestProcessorState<Local>>,
+    exch: Vec<BacktestProcessorState<Exchange>>,
 }
 
 impl<Local, Exchange> MultiAssetSingleExchangeBacktestBuilder<Local, Exchange>
@@ -1031,10 +1112,16 @@ where
     Exchange: Processor + 'static,
 {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add_asset(self, asset: Asset<Local, Exchange>) -> Self {
+    pub fn add_asset(self, asset: Asset<Local, Exchange, Event>) -> Self {
         let mut self_ = Self { ..self };
-        self_.local.push(*asset.local);
-        self_.exch.push(*asset.exch);
+        self_.local.push(BacktestProcessorState::new(
+            *asset.local,
+            asset.reader.clone(),
+        ));
+        self_.exch.push(BacktestProcessorState::new(
+            *asset.exch,
+            asset.reader.clone(),
+        ));
         self_
     }
 
@@ -1061,11 +1148,16 @@ where
 /// have the same setups for models such as asset type or queue model. However, this can be slightly
 /// faster than [`Backtest`]. If you need to configure different models for each asset, use
 /// [`Backtest`].
-pub struct MultiAssetSingleExchangeBacktest<MD, Local, Exchange> {
+pub struct MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
+where
+    MD: MarketDepth,
+    Local: LocalProcessor<MD, Event>,
+    Exchange: Processor,
+{
     cur_ts: i64,
     evs: EventSet,
-    local: Vec<Local>,
-    exch: Vec<Exchange>,
+    local: Vec<BacktestProcessorState<Local>>,
+    exch: Vec<BacktestProcessorState<Exchange>>,
     _md_marker: PhantomData<MD>,
 }
 
@@ -1087,18 +1179,12 @@ where
         if local.len() != num_assets || exch.len() != num_assets {
             panic!();
         }
-        Self {
-            cur_ts: i64::MAX,
-            evs: EventSet::new(num_assets),
-            local,
-            exch,
-            _md_marker: Default::default(),
-        }
+        todo!()
     }
 
     fn initialize_evs(&mut self) -> Result<(), BacktestError> {
         for (asset_no, local) in self.local.iter_mut().enumerate() {
-            match local.initialize_data() {
+            match local.advance() {
                 Ok(ts) => self.evs.update_local_data(asset_no, ts),
                 Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_local_data(asset_no);
@@ -1109,7 +1195,7 @@ where
             }
         }
         for (asset_no, exch) in self.exch.iter_mut().enumerate() {
-            match exch.initialize_data() {
+            match exch.advance() {
                 Ok(ts) => self.evs.update_exch_data(asset_no, ts),
                 Err(BacktestError::EndOfData) => {
                     self.evs.invalidate_exch_data(asset_no);
@@ -1143,9 +1229,14 @@ where
                     }
                     match ev.kind {
                         EventIntentKind::LocalData => {
-                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            match local.process_data() {
-                                Ok((next_ts, _)) => {
+                            let proc = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            let next = proc.next().and_then(|row| {
+                                proc.processor.process(&proc.data[row])?;
+                                proc.advance()
+                            });
+
+                            match next {
+                                Ok(next_ts) => {
                                     self.evs.update_local_data(ev.asset_no, next_ts);
                                 }
                                 Err(BacktestError::EndOfData) => {
@@ -1179,9 +1270,14 @@ where
                             );
                         }
                         EventIntentKind::ExchData => {
-                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            match exch.process_data() {
-                                Ok((next_ts, _)) => {
+                            let proc = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            let next = proc.next().and_then(|row| {
+                                proc.processor.process(&proc.data[row])?;
+                                proc.advance()
+                            });
+
+                            match next {
+                                Ok(next_ts) => {
                                     self.evs.update_exch_data(ev.asset_no, next_ts);
                                 }
                                 Err(BacktestError::EndOfData) => {
@@ -1193,7 +1289,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                exch.earliest_send_order_timestamp(),
+                                proc.earliest_send_order_timestamp(),
                             );
                         }
                         EventIntentKind::ExchOrder => {
