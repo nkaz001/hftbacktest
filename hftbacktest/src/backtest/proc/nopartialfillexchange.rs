@@ -367,6 +367,8 @@ where
                                 Ok(())
                             }
                             TimeInForce::GTC | TimeInForce::FOK | TimeInForce::IOC => {
+                                // Since this always fills the full quantity, both FOK and IOC
+                                // orders are also fully filled at the best price.
                                 // Takes the market.
                                 self.fill(&mut order, timestamp, false, self.depth.best_ask_tick())
                             }
@@ -432,6 +434,8 @@ where
                                 Ok(())
                             }
                             TimeInForce::GTC | TimeInForce::FOK | TimeInForce::IOC => {
+                                // Since this always fills the full quantity, both FOK and IOC
+                                // orders are also fully filled at the best price.
                                 // Takes the market.
                                 self.fill(&mut order, timestamp, false, self.depth.best_bid_tick())
                             }
