@@ -34,16 +34,9 @@ pub async fn run_collection(
 ) -> Result<(), anyhow::Error> {
     let (ws_tx, mut ws_rx) = unbounded_channel();
     let h = tokio::spawn(keep_connection(topics, symbols, ws_tx.clone()));
-    loop {
-        match ws_rx.recv().await {
-            Some((recv_time, data)) => {
-                if let Err(error) = handle(&writer_tx, recv_time, data) {
-                    error!(?error, "couldn't handle the received data.");
-                }
-            }
-            None => {
-                break;
-            }
+    while let Some((recv_time, data)) = ws_rx.recv().await {
+        if let Err(error) = handle(&writer_tx, recv_time, data) {
+            error!(?error, "couldn't handle the received data.");
         }
     }
     let _ = h.await;

@@ -3,7 +3,7 @@ mod http;
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-pub use http::{fetch_depth_snapshot, fetch_symbol_list, keep_connection};
+pub use http::{fetch_depth_snapshot, keep_connection};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tracing::{error, warn};
 
@@ -32,6 +32,7 @@ fn handle(
                         .ok_or(ConnectorError::FormatError)?
                         .as_i64()
                         .ok_or(ConnectorError::FormatError)?;
+                    #[allow(non_snake_case)]
                     let U = j_data
                         .get("U")
                         .ok_or(ConnectorError::FormatError)?
@@ -88,17 +89,9 @@ pub async fn run_collection(
     // The maximum request rate for fetching snapshots is 120 per minute.
     // Sets the rate limit with a margin to account for connection requests.
     let throttler = Throttler::new(100);
-    loop {
-        match ws_rx.recv().await {
-            Some((recv_time, data)) => {
-                if let Err(error) = handle(&mut prev_u_map, &writer_tx, recv_time, data, &throttler)
-                {
-                    error!(?error, "couldn't handle the received data.");
-                }
-            }
-            None => {
-                break;
-            }
+    while let Some((recv_time, data)) = ws_rx.recv().await {
+        if let Err(error) = handle(&mut prev_u_map, &writer_tx, recv_time, data, &throttler) {
+            error!(?error, "couldn't handle the received data.");
         }
     }
     let _ = h.await;
