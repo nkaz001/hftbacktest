@@ -654,7 +654,9 @@ impl<P: Processor> BacktestProcessorState<P> {
         }
     }
 
-    fn next(&mut self) -> Result<usize, BacktestError> {
+    /// Get the index of the next available row, only advancing the reader if there's no
+    /// row currently available.
+    fn next_row(&mut self) -> Result<usize, BacktestError> {
         if self.row.is_none() {
             let _ = self.advance()?;
         }
@@ -765,7 +767,7 @@ where
                     match ev.kind {
                         EventIntentKind::LocalData => {
                             let proc = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next().and_then(|row| {
+                            let next = proc.next_row().and_then(|row| {
                                 proc.processor.process(&proc.data[row])?;
                                 proc.advance()
                             });
@@ -806,7 +808,7 @@ where
                         }
                         EventIntentKind::ExchData => {
                             let proc = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next().and_then(|row| {
+                            let next = proc.next_row().and_then(|row| {
                                 proc.processor.process(&proc.data[row])?;
                                 proc.advance()
                             });
@@ -1230,7 +1232,7 @@ where
                     match ev.kind {
                         EventIntentKind::LocalData => {
                             let proc = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next().and_then(|row| {
+                            let next = proc.next_row().and_then(|row| {
                                 proc.processor.process(&proc.data[row])?;
                                 proc.advance()
                             });
@@ -1271,7 +1273,7 @@ where
                         }
                         EventIntentKind::ExchData => {
                             let proc = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next().and_then(|row| {
+                            let next = proc.next_row().and_then(|row| {
                                 proc.processor.process(&proc.data[row])?;
                                 proc.advance()
                             });
