@@ -240,7 +240,7 @@ where
     }
 
     /// Builds an `Asset`.
-    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor>, BuildError> {
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor, Event>, BuildError> {
         let reader = if self.latency_offset == 0 {
             Reader::builder()
                 .parallel_load(self.parallel_load)
@@ -582,10 +582,7 @@ pub struct BacktestBuilder<MD> {
 
 impl<MD> BacktestBuilder<MD> {
     /// Adds [`Asset`], which will undergo simulation within the backtester.
-    pub fn add_asset(
-        self,
-        asset: Asset<dyn LocalProcessor<MD>, dyn Processor, Event>,
-    ) -> Self {
+    pub fn add_asset(self, asset: Asset<dyn LocalProcessor<MD>, dyn Processor, Event>) -> Self {
         let mut self_ = Self { ..self };
         self_.local.push(BacktestProcessorState::new(
             asset.local,
@@ -696,12 +693,33 @@ where
         }
     }
 
-    pub fn new(local: Vec<Box<dyn LocalProcessor<MD>>>, exch: Vec<Box<dyn Processor>>) -> Self {
+    pub fn new(
+        local: Vec<Box<dyn LocalProcessor<MD>>>,
+        exch: Vec<Box<dyn Processor>>,
+        reader: Vec<Reader<Event>>,
+    ) -> Self {
         let num_assets = local.len();
-        if local.len() != num_assets || exch.len() != num_assets {
+        if local.len() != num_assets || exch.len() != num_assets || reader.len() != num_assets {
             panic!();
         }
-        todo!()
+
+        let local = local
+            .into_iter()
+            .zip(reader.iter())
+            .map(|(proc, reader)| BacktestProcessorState::new(proc, reader.clone()))
+            .collect();
+        let exch = exch
+            .into_iter()
+            .zip(reader.iter())
+            .map(|(proc, reader)| BacktestProcessorState::new(proc, reader.clone()))
+            .collect();
+
+        Self {
+            local,
+            exch,
+            cur_ts: i64::MAX,
+            evs: EventSet::new(num_assets),
+        }
     }
 
     fn initialize_evs(&mut self) -> Result<(), BacktestError> {
@@ -1153,7 +1171,7 @@ where
 pub struct MultiAssetSingleExchangeBacktest<MD, Local, Exchange>
 where
     MD: MarketDepth,
-    Local: LocalProcessor<MD, Event>,
+    Local: LocalProcessor<MD>,
     Exchange: Processor,
 {
     cur_ts: i64,
@@ -1176,12 +1194,30 @@ where
         }
     }
 
-    pub fn new(local: Vec<Local>, exch: Vec<Exchange>) -> Self {
+    pub fn new(local: Vec<Local>, exch: Vec<Exchange>, reader: Vec<Reader<Event>>) -> Self {
         let num_assets = local.len();
-        if local.len() != num_assets || exch.len() != num_assets {
+        if local.len() != num_assets || exch.len() != num_assets || reader.len() != num_assets {
             panic!();
         }
-        todo!()
+
+        let local = local
+            .into_iter()
+            .zip(reader.iter())
+            .map(|(proc, reader)| BacktestProcessorState::new(proc, reader.clone()))
+            .collect();
+        let exch = exch
+            .into_iter()
+            .zip(reader.iter())
+            .map(|(proc, reader)| BacktestProcessorState::new(proc, reader.clone()))
+            .collect();
+
+        Self {
+            local,
+            exch,
+            cur_ts: i64::MAX,
+            evs: EventSet::new(num_assets),
+            _md_marker: Default::default(),
+        }
     }
 
     fn initialize_evs(&mut self) -> Result<(), BacktestError> {
@@ -1565,5 +1601,106 @@ where
     #[inline]
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
         self.local.get(asset_no).unwrap().order_latency()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::error::Error;
+
+    use crate::{
+        backtest::{
+            assettype::LinearAsset,
+            data::Data,
+            models::{
+                CommonFees,
+                ConstantLatency,
+                PowerProbQueueFunc3,
+                ProbQueueModel,
+                TradingValueFeeModel,
+            },
+            AssetBuilder,
+            Backtest,
+            DataSource,
+            ExchangeKind::NoPartialFillExchange,
+        },
+        depth::HashMapMarketDepth,
+        prelude::{Bot, Event},
+        types::{EXCH_EVENT, LOCAL_EVENT},
+    };
+
+    #[test]
+    fn skips_unseen_events() -> Result<(), Box<dyn Error>> {
+        let data = Data::from_data(&[
+            Event {
+                ev: EXCH_EVENT | LOCAL_EVENT,
+                exch_ts: 0,
+                local_ts: 0,
+                px: 0.0,
+                qty: 0.0,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            },
+            Event {
+                ev: LOCAL_EVENT | EXCH_EVENT,
+                exch_ts: 1,
+                local_ts: 1,
+                px: 0.0,
+                qty: 0.0,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            },
+            Event {
+                ev: EXCH_EVENT,
+                exch_ts: 3,
+                local_ts: 4,
+                px: 0.0,
+                qty: 0.0,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            },
+            Event {
+                ev: LOCAL_EVENT,
+                exch_ts: 3,
+                local_ts: 4,
+                px: 0.0,
+                qty: 0.0,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            },
+        ]);
+
+        let mut backtester = Backtest::builder()
+            .add_asset(
+                AssetBuilder::default()
+                    .data(vec![DataSource::Data(data)])
+                    .latency_model(ConstantLatency::new(50, 50))
+                    .asset_type(LinearAsset::new(1.0))
+                    .fee_model(TradingValueFeeModel::new(CommonFees::new(0.0, 0.0)))
+                    .queue_model(ProbQueueModel::new(PowerProbQueueFunc3::new(3.0)))
+                    .exchange(NoPartialFillExchange)
+                    .depth(|| HashMapMarketDepth::new(0.01, 1.0))
+                    .build()?,
+            )
+            .build()?;
+
+        // Process first events and advance a single timestep
+        backtester.elapse_bt(1)?;
+        assert_eq!(1, backtester.cur_ts);
+
+        // Check that we correctly skip past events that aren't seen by a given processor
+        backtester.elapse_bt(1)?;
+        assert_eq!(2, backtester.cur_ts);
+        assert_eq!(Some(3), backtester.local[0].row);
+        assert_eq!(Some(2), backtester.exch[0].row);
+
+        backtester.elapse_bt(1)?;
+        assert_eq!(3, backtester.cur_ts);
+
+        Ok(())
     }
 }
