@@ -522,6 +522,7 @@ pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<u
         );
         local.push(asst.local);
         exch.push(asst.exch);
+        readers.push(asst.reader);
     }
 
     let hbt = Backtest::new(local, exch, readers);
