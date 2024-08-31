@@ -1,7 +1,7 @@
 use chrono::Utc;
 use serde::Deserialize;
 
-use crate::connector::{
+use crate::{
     bybit::msg::{Position, RestResponse},
     util::sign_hmac_sha256,
 };

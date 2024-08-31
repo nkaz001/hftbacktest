@@ -4,20 +4,17 @@ use std::{
 };
 
 use chrono::Utc;
+use hftbacktest::types::{Order, OrderId, Status};
 use tracing::{debug, error};
 
 use crate::{
-    connector::{
-        binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
-        util::gen_random_string,
-    },
-    prelude::OrderId,
-    types::{Order, Status},
+    binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
+    util::gen_random_string,
 };
 
 #[derive(Debug)]
 struct OrderWrapper {
-    asset_no: usize,
+    symbol: String,
     order: Order,
     removed_by_ws: bool,
     removed_by_rest: bool,
@@ -47,7 +44,7 @@ impl OrderManager {
 
     pub fn update_from_ws(
         &mut self,
-        asset_no: usize,
+        symbol: String,
         client_order_id: String,
         order: Order,
     ) -> Option<Order> {
@@ -87,7 +84,7 @@ impl OrderManager {
                     "BinanceFutures OrderManager received an unmanaged order from WS."
                 );
                 let wrapper = entry.insert(OrderWrapper {
-                    asset_no,
+                    symbol,
                     order: order.clone(),
                     removed_by_ws: order.status != Status::New
                         && order.status != Status::PartiallyFilled,
@@ -103,7 +100,7 @@ impl OrderManager {
 
     pub fn update_submit_success(
         &mut self,
-        asset_no: usize,
+        symbol: String,
         order: Order,
         resp: OrderResponse,
     ) -> Option<Order> {
@@ -126,12 +123,12 @@ impl OrderManager {
             q: Box::new(()),
             maker: false,
         };
-        self.update_from_rest(asset_no, resp.client_order_id, order)
+        self.update_from_rest(symbol, resp.client_order_id, order)
     }
 
     pub fn update_submit_fail(
         &mut self,
-        asset_no: usize,
+        symbol: String,
         mut order: Order,
         error: &BinanceFuturesError,
         client_order_id: String,
@@ -159,12 +156,12 @@ impl OrderManager {
 
         order.req = Status::None;
         order.status = Status::Expired;
-        self.update_from_rest(asset_no, client_order_id, order)
+        self.update_from_rest(symbol, client_order_id, order)
     }
 
     pub fn update_cancel_success(
         &mut self,
-        asset_no: usize,
+        symbol: String,
         mut order: Order,
         resp: OrderResponse,
     ) -> Option<Order> {
@@ -187,12 +184,12 @@ impl OrderManager {
             q: Box::new(()),
             maker: false,
         };
-        self.update_from_rest(asset_no, resp.client_order_id, order)
+        self.update_from_rest(symbol, resp.client_order_id, order)
     }
 
     pub fn update_cancel_fail(
         &mut self,
-        asset_no: usize,
+        symbol: String,
         mut order: Order,
         error: &BinanceFuturesError,
         client_order_id: String,
@@ -210,12 +207,12 @@ impl OrderManager {
             }
         }
         order.req = Status::None;
-        self.update_from_rest(asset_no, client_order_id, order)
+        self.update_from_rest(symbol, client_order_id, order)
     }
 
     fn update_from_rest(
         &mut self,
-        asset_no: usize,
+        symbol: String,
         client_order_id: String,
         order: Order,
     ) -> Option<Order> {
@@ -255,7 +252,7 @@ impl OrderManager {
                     "BinanceFutures OrderManager received an unmanaged order from REST."
                 );
                 let wrapper = entry.insert(OrderWrapper {
-                    asset_no,
+                    symbol,
                     order: order.clone(),
                     removed_by_ws: false,
                     removed_by_rest: order.status != Status::New
@@ -269,7 +266,7 @@ impl OrderManager {
         }
     }
 
-    pub fn prepare_client_order_id(&mut self, asset_no: usize, order: Order) -> Option<String> {
+    pub fn prepare_client_order_id(&mut self, symbol: String, order: Order) -> Option<String> {
         if self.order_id_map.contains_key(&order.order_id) {
             return None;
         }
@@ -286,7 +283,7 @@ impl OrderManager {
         self.orders.insert(
             client_order_id.clone(),
             OrderWrapper {
-                asset_no,
+                symbol,
                 order,
                 removed_by_ws: false,
                 removed_by_rest: false,
@@ -334,11 +331,11 @@ impl OrderManager {
         }
     }
 
-    pub fn clear_orders(&mut self) -> Vec<(usize, Order)> {
-        let mut values: Vec<(usize, Order)> = Vec::new();
+    pub fn clear_orders(&mut self) -> Vec<(String, Order)> {
+        let mut values: Vec<(String, Order)> = Vec::new();
         values.extend(self.orders.drain().map(|(_, mut order)| {
             order.order.status = Status::Canceled;
-            (order.asset_no, order.order)
+            (order.symbol, order.order)
         }));
         values
     }

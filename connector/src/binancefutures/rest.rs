@@ -3,23 +3,23 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
+use hftbacktest::{
+    live::Asset,
+    types::{OrdType, Order, Side, Status, TimeInForce},
+};
 use serde::Deserialize;
 
 use super::msg::{rest, rest::PositionInformationV2};
 use crate::{
-    connector::{
-        binancefutures::{
-            msg::{
-                rest::{OrderResponse, OrderResponseResult},
-                stream::ListenKey,
-            },
-            ordermanager::OrderManager,
-            BinanceFuturesError,
+    binancefutures::{
+        msg::{
+            rest::{OrderResponse, OrderResponseResult},
+            stream::ListenKey,
         },
-        util::sign_hmac_sha256,
+        ordermanager::OrderManager,
+        BinanceFuturesError,
     },
-    live::Asset,
-    types::{OrdType, Order, Side, Status, TimeInForce},
+    util::sign_hmac_sha256,
 };
 
 #[derive(Clone)]

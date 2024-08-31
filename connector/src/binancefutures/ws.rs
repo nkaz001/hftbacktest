@@ -1,28 +1,11 @@
 /// Binance Futures Websocket module
 /// https://binance-docs.github.io/apidocs/futures/en/
-use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Error;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
-use tokio::{select, sync::mpsc::unbounded_channel, time};
-use tokio_tungstenite::{
-    connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
-};
-use tracing::{error, info};
-
-use super::{
-    msg::stream::{Data, Stream},
-    rest::BinanceFuturesClient,
-    BinanceFuturesError,
-    OrderManagerWrapper,
-};
-use crate::{
-    connector::binancefutures::{
-        msg::{rest, stream},
-        ordermanager::OrderManager,
-    },
+use hftbacktest::{
     live::Asset,
     types::{
         Event,
@@ -34,6 +17,26 @@ use crate::{
         LOCAL_BUY_TRADE_EVENT,
         LOCAL_SELL_TRADE_EVENT,
     },
+};
+use tokio::{
+    select,
+    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    time,
+};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, Message},
+};
+use tracing::{error, info};
+
+use super::{
+    msg::stream::{Data, Stream},
+    rest::BinanceFuturesClient,
+    OrderManagerWrapper,
+};
+use crate::binancefutures::{
+    msg::{rest, stream},
+    ordermanager::OrderManager,
 };
 
 fn parse_depth(
@@ -63,7 +66,8 @@ pub enum DepthManageMode {
 
 pub async fn connect(
     url: &str,
-    ev_tx: Sender<LiveEvent>,
+    symbol_rx: UnboundedReceiver<Asset>,
+    ev_tx: UnboundedSender<LiveEvent>,
     assets: HashMap<String, Asset>,
     prefix: &str,
     orders: OrderManagerWrapper,
@@ -94,9 +98,6 @@ pub async fn connect(
                 // Processes the REST depth.
                 match parse_depth(data.bids, data.asks) {
                     Ok((bids, asks)) => {
-                        let asset = assets
-                            .get(&symbol)
-                            .ok_or(BinanceFuturesError::AssetNotFound)?;
                         let mut bid_events: Vec<_> = bids
                             .iter()
                             .map(|&(px, qty)| Event {
@@ -128,7 +129,7 @@ pub async fn connect(
                         events.append(&mut ask_events);
                         ev_tx.send(
                             LiveEvent::FeedBatch {
-                                asset_no: asset.asset_no,
+                                symbol,
                                 events
                             }
                         ).unwrap();
@@ -218,9 +219,6 @@ pub async fn connect(
 
                                 match parse_depth(data.bids, data.asks) {
                                     Ok((bids, asks)) => {
-                                        let asset_info = assets
-                                            .get(&data.symbol)
-                                            .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         let mut bid_events: Vec<_> = bids
                                             .iter()
                                             .map(|&(px, qty)| Event {
@@ -252,7 +250,7 @@ pub async fn connect(
                                         events.append(&mut ask_events);
                                         ev_tx.send(
                                             LiveEvent::FeedBatch {
-                                                asset_no: asset_info.asset_no,
+                                                symbol: data.symbol,
                                                 events
                                             }
                                         ).unwrap();
@@ -265,12 +263,9 @@ pub async fn connect(
                             Data::Trade(data) => {
                                 match parse_px_qty_tup(data.price, data.qty) {
                                     Ok((px, qty)) => {
-                                        let asset_info = assets
-                                            .get(&data.symbol)
-                                        .ok_or(BinanceFuturesError::AssetNotFound)?;
                                         ev_tx.send(
                                             LiveEvent::FeedBatch {
-                                                asset_no: asset_info.asset_no,
+                                                symbol: data.symbol,
                                                 events: vec![Event {
                                                     ev: {
                                                         if data.is_the_buyer_the_market_maker {
@@ -302,14 +297,12 @@ pub async fn connect(
                             }
                             Data::AccountUpdate(data) => {
                                 for position in data.account.position {
-                                    if let Some(asset_info) = assets.get(&position.symbol) {
-                                        ev_tx.send(
-                                            LiveEvent::Position {
-                                                asset_no: asset_info.asset_no,
-                                                qty: position.position_amount
-                                            }
-                                        ).unwrap();
-                                    }
+                                    ev_tx.send(
+                                        LiveEvent::Position {
+                                            symbol: position.symbol,
+                                            qty: position.position_amount
+                                        }
+                                    ).unwrap();
                                 }
                             }
                             Data::OrderTradeUpdate(data) => {
@@ -339,14 +332,14 @@ pub async fn connect(
                                             .lock()
                                             .unwrap()
                                             .update_from_ws(
-                                                asset_info.asset_no,
+                                                asset_info.symbol.clone(),
                                                 data.order.client_order_id,
                                                 order
                                             );
                                         if let Some(order) = order {
                                             ev_tx.send(
                                                 LiveEvent::Order {
-                                                    asset_no: asset_info.asset_no,
+                                                    symbol: data.order.symbol,
                                                     order
                                                 }
                                             ).unwrap();

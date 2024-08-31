@@ -19,12 +19,10 @@
 //!
 //! ## Feature flags
 //!
-//! Currently, `default` enables `backtest`, `live`, `binancefutures`, `bybit` features.
+//! Currently, `default` enables `backtest`, `live` features.
 //!
 //! - `backtest`: Enables backtesting features.
 //! - `live`: Enables a live trading bot.
-//! - `binancefutures`: Enables Binance Futures USDM connector for a live trading bot.
-//! - `bybit`: Enables Bybit linear USDM futures connector for a live trading bot.
 //! - `unstable_l3`: Enables Level3 Market-By-Order backtesting.
 //! - `unstable_fuse`: Enables the market depth fusion feature, which aggregates different market
 //!                    depth streams to provide the finest granularity and the most frequent,
@@ -34,10 +32,6 @@
 /// Provides backtesting features.
 #[cfg(any(feature = "backtest", doc))]
 pub mod backtest;
-
-/// Provides exchange connectors.
-#[cfg(feature = "live")]
-pub mod connector;
 
 /// Provides market depth implementations.
 pub mod depth;

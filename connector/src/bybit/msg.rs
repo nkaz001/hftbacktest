@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt, fmt::Debug};
 
+use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
     de,
     de::{Error, Unexpected, Visitor},
@@ -8,10 +9,7 @@ use serde::{
     Serialize,
 };
 
-use crate::{
-    connector::util::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64},
-    types::{OrdType, Side, Status, TimeInForce},
-};
+use crate::util::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64};
 
 struct SideVisitor;
 

@@ -9,21 +9,22 @@ use std::{
     time::Duration,
 };
 
+use hftbacktest::{
+    live::Asset,
+    prelude::get_precision,
+    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status, Value},
+};
 use thiserror::Error;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tracing::{debug, error, warn};
 
 use crate::{
-    connector::{
-        binancefutures::{
-            ordermanager::{OrderManager, OrderManagerWrapper},
-            rest::BinanceFuturesClient,
-            ws::connect,
-        },
-        Connector,
+    binancefutures::{
+        ordermanager::{OrderManager, OrderManagerWrapper},
+        rest::BinanceFuturesClient,
+        ws::connect,
     },
-    live::Asset,
-    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status, Value},
-    utils::get_precision,
+    connector::Connector,
 };
 
 #[derive(Clone)]
@@ -243,25 +244,18 @@ impl BinanceFutures {
 }
 
 impl Connector for BinanceFutures {
-    fn add(
-        &mut self,
-        asset_no: usize,
-        symbol: String,
-        tick_size: f64,
-        lot_size: f64,
-    ) -> Result<(), anyhow::Error> {
+    fn add(&mut self, symbol: String, tick_size: f64, lot_size: f64) -> Result<(), anyhow::Error> {
         let asset_info = Asset {
-            asset_no,
+            asset_no: 0, // todo!
             symbol: symbol.clone(),
             tick_size,
             lot_size,
         };
         self.assets.insert(symbol, asset_info.clone());
-        self.inv_assets.insert(asset_no, asset_info);
         Ok(())
     }
 
-    fn run(&mut self, ev_tx: Sender<LiveEvent>) -> Result<(), anyhow::Error> {
+    fn run(&mut self, ev_tx: UnboundedSender<LiveEvent>) -> Result<(), anyhow::Error> {
         let assets = self.assets.clone();
         let base_url = self.url.clone();
         let prefix = self.prefix.clone();
@@ -294,8 +288,8 @@ impl Connector for BinanceFutures {
                 {
                     let mut order_manager_ = order_manager.lock().unwrap();
                     let orders = order_manager_.clear_orders();
-                    for (asset_no, order) in orders {
-                        ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                    for (symbol, order) in orders {
+                        ev_tx.send(LiveEvent::Order { symbol, order }).unwrap();
                     }
                 }
 
@@ -305,14 +299,12 @@ impl Connector for BinanceFutures {
                         // todo: check if there is no position info when there is no holding
                         //       position. In that case, it needs to send zero-position to the bot.
                         positions.into_iter().for_each(|position| {
-                            assets.get(&position.symbol).map(|asset_info| {
-                                ev_tx
-                                    .send(LiveEvent::Position {
-                                        asset_no: asset_info.asset_no,
-                                        qty: position.position_amount,
-                                    })
-                                    .unwrap();
-                            });
+                            ev_tx
+                                .send(LiveEvent::Position {
+                                    symbol: position.symbol,
+                                    qty: position.position_amount,
+                                })
+                                .unwrap();
                         });
                     }
                     Err(error) => {
@@ -356,10 +348,13 @@ impl Connector for BinanceFutures {
                     streams.join("/")
                 );
 
+                // todo!
+                let (symbol_tx, symbol_rx) = unbounded_channel();
                 if let Err(error) = connect(
                     &url,
+                    symbol_rx,
                     ev_tx.clone(),
-                    assets.clone(),
+                    Default::default(), // todo!
                     &prefix,
                     order_manager.clone(),
                     client.clone(),
@@ -388,22 +383,17 @@ impl Connector for BinanceFutures {
 
     fn submit(
         &self,
-        asset_no: usize,
+        symbol: String,
         mut order: Order,
-        tx: Sender<LiveEvent>,
+        tx: UnboundedSender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
-        let asset_info = self
-            .inv_assets
-            .get(&asset_no)
-            .ok_or(BinanceFuturesError::AssetNotFound)?;
-        let symbol = asset_info.symbol.clone();
         let client = self.client.clone();
         let orders = self.order_manager.clone();
         tokio::spawn(async move {
             let client_order_id = orders
                 .lock()
                 .unwrap()
-                .prepare_client_order_id(asset_no, order.clone());
+                .prepare_client_order_id(symbol.clone(), order.clone());
 
             match client_order_id {
                 Some(client_order_id) => {
@@ -421,23 +411,24 @@ impl Connector for BinanceFutures {
                         .await
                     {
                         Ok(resp) => {
-                            let order = orders
-                                .lock()
-                                .unwrap()
-                                .update_submit_success(asset_no, order, resp);
+                            let order = orders.lock().unwrap().update_submit_success(
+                                symbol.clone(),
+                                order,
+                                resp,
+                            );
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
                         }
                         Err(error) => {
                             let order = orders.lock().unwrap().update_submit_fail(
-                                asset_no,
+                                symbol.clone(),
                                 order,
                                 &error,
                                 client_order_id,
                             );
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
 
                             tx.send(LiveEvent::Error(LiveError::with(
@@ -456,7 +447,7 @@ impl Connector for BinanceFutures {
                     );
                     order.req = Status::None;
                     order.status = Status::Expired;
-                    tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                    tx.send(LiveEvent::Order { symbol, order }).unwrap();
                 }
             }
         });
@@ -465,15 +456,10 @@ impl Connector for BinanceFutures {
 
     fn cancel(
         &self,
-        asset_no: usize,
+        symbol: String,
         mut order: Order,
-        tx: Sender<LiveEvent>,
+        tx: UnboundedSender<LiveEvent>,
     ) -> Result<(), anyhow::Error> {
-        let asset_info = self
-            .inv_assets
-            .get(&asset_no)
-            .ok_or(BinanceFuturesError::AssetNotFound)?;
-        let symbol = asset_info.symbol.clone();
         let client = self.client.clone();
         let orders = self.order_manager.clone();
         tokio::spawn(async move {
@@ -483,23 +469,24 @@ impl Connector for BinanceFutures {
                 Some(client_order_id) => {
                     match client.cancel_order(&client_order_id, &symbol).await {
                         Ok(resp) => {
-                            let order = orders
-                                .lock()
-                                .unwrap()
-                                .update_cancel_success(asset_no, order, resp);
+                            let order = orders.lock().unwrap().update_cancel_success(
+                                symbol.clone(),
+                                order,
+                                resp,
+                            );
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
                         }
                         Err(error) => {
                             let order = orders.lock().unwrap().update_cancel_fail(
-                                asset_no,
+                                symbol.clone(),
                                 order,
                                 &error,
                                 client_order_id,
                             );
                             if let Some(order) = order {
-                                tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
 
                             tx.send(LiveEvent::Error(LiveError::with(
@@ -518,7 +505,7 @@ impl Connector for BinanceFutures {
                     );
                     // order.req = Status::None;
                     // order.status = Status::Expired;
-                    // tx.send(Event::Order(OrderResponse { asset_no, order }))
+                    // tx.send(Event::Order(OrderResponse { symbol, order }))
                     //     .unwrap();
                 }
             }

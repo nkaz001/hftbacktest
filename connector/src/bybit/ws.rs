@@ -1,8 +1,26 @@
-use std::{collections::HashMap, sync::mpsc::Sender, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use chrono::Utc;
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use tokio::{net::TcpStream, select, sync::mpsc::UnboundedReceiver, time};
+use hftbacktest::types::{
+    ErrorKind,
+    Event,
+    LiveError,
+    LiveEvent,
+    Side,
+    LOCAL_ASK_DEPTH_BBO_EVENT,
+    LOCAL_ASK_DEPTH_EVENT,
+    LOCAL_BID_DEPTH_BBO_EVENT,
+    LOCAL_BID_DEPTH_EVENT,
+    LOCAL_BUY_TRADE_EVENT,
+    LOCAL_SELL_TRADE_EVENT,
+};
+use tokio::{
+    net::TcpStream,
+    select,
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    time,
+};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message},
@@ -12,44 +30,28 @@ use tokio_tungstenite::{
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    connector::{
-        bybit::{
-            msg,
-            msg::{
-                Op,
-                Order as BybitOrder,
-                OrderBook,
-                PrivateStreamMsg,
-                PrivateStreamTopicMsg,
-                PublicStreamMsg,
-                TradeOp,
-                TradeStreamMsg,
-            },
-            ordermanager::{HandleError, OrderManagerWrapper},
-            BybitError,
+    bybit::{
+        msg,
+        msg::{
+            Op,
+            Order as BybitOrder,
+            OrderBook,
+            PrivateStreamMsg,
+            PrivateStreamTopicMsg,
+            PublicStreamMsg,
+            TradeOp,
+            TradeStreamMsg,
         },
-        util::{gen_random_string, sign_hmac_sha256},
+        ordermanager::{HandleError, OrderInfo, OrderManagerWrapper},
+        BybitError,
     },
-    live::Asset,
-    types::{
-        ErrorKind,
-        Event,
-        LiveError,
-        LiveEvent,
-        Side,
-        LOCAL_ASK_DEPTH_BBO_EVENT,
-        LOCAL_ASK_DEPTH_EVENT,
-        LOCAL_BID_DEPTH_BBO_EVENT,
-        LOCAL_BID_DEPTH_EVENT,
-        LOCAL_BUY_TRADE_EVENT,
-        LOCAL_SELL_TRADE_EVENT,
-    },
+    util::{gen_random_string, sign_hmac_sha256},
 };
 
 pub struct OrderOp {
     pub op: String,
     pub bybit_order: BybitOrder,
-    pub tx: Sender<LiveEvent>,
+    pub tx: UnboundedSender<LiveEvent>,
 }
 
 fn parse_depth(
@@ -73,8 +75,7 @@ fn parse_px_qty_tup(px: String, qty: String) -> Result<(f64, f64), HandleError> 
 
 async fn handle_public_stream(
     text: &str,
-    ev_tx: &Sender<LiveEvent>,
-    assets: &HashMap<String, Asset>,
+    ev_tx: &UnboundedSender<LiveEvent>,
 ) -> Result<(), HandleError> {
     let stream = serde_json::from_str::<PublicStreamMsg>(&text)?;
     match stream {
@@ -85,7 +86,6 @@ async fn handle_public_stream(
             if stream.topic.starts_with("orderbook.1") {
                 let data: OrderBook = serde_json::from_value(stream.data)?;
                 let (bids, asks) = parse_depth(data.bids, data.asks)?;
-                let asset = assets.get(&data.symbol).ok_or(HandleError::AssetNotFound)?;
                 assert_eq!(bids.len(), 1);
                 let mut bid_events: Vec<_> = bids
                     .iter()
@@ -119,14 +119,13 @@ async fn handle_public_stream(
                 events.append(&mut ask_events);
                 ev_tx
                     .send(LiveEvent::FeedBatch {
-                        asset_no: asset.asset_no,
+                        symbol: data.symbol,
                         events,
                     })
                     .unwrap();
             } else if stream.topic.starts_with("orderbook") {
                 let data: OrderBook = serde_json::from_value(stream.data)?;
                 let (bids, asks) = parse_depth(data.bids, data.asks)?;
-                let asset = assets.get(&data.symbol).ok_or(HandleError::AssetNotFound)?;
                 let mut bid_events: Vec<_> = bids
                     .iter()
                     .map(|&(px, qty)| Event {
@@ -158,17 +157,16 @@ async fn handle_public_stream(
                 events.append(&mut ask_events);
                 ev_tx
                     .send(LiveEvent::FeedBatch {
-                        asset_no: asset.asset_no,
+                        symbol: data.symbol,
                         events,
                     })
                     .unwrap();
             } else if stream.topic.starts_with("publicTrade") {
                 let data: Vec<msg::Trade> = serde_json::from_value(stream.data)?;
                 for item in data {
-                    let asset_info = assets.get(&item.symbol).ok_or(HandleError::AssetNotFound)?;
                     ev_tx
                         .send(LiveEvent::FeedBatch {
-                            asset_no: asset_info.asset_no,
+                            symbol: item.symbol,
                             events: vec![Event {
                                 ev: {
                                     if item.side == Side::Sell {
@@ -196,9 +194,7 @@ async fn handle_public_stream(
 
 pub async fn connect_public(
     url: &str,
-    ev_tx: Sender<LiveEvent>,
-    assets: HashMap<String, Asset>,
-    topics: Vec<String>,
+    ev_tx: UnboundedSender<LiveEvent>,
 ) -> Result<(), HandleError> {
     let mut request = url.into_client_request()?;
     let _ = request.headers_mut();
@@ -208,13 +204,13 @@ pub async fn connect_public(
     let mut interval = time::interval(Duration::from_secs(15));
 
     let mut args = Vec::new();
-    for topic in topics {
-        let mut topics_ = assets
-            .keys()
-            .map(|symbol| format!("{topic}.{symbol}"))
-            .collect();
-        args.append(&mut topics_);
-    }
+    // for topic in topics {
+    //     let mut topics_ = assets
+    //         .keys()
+    //         .map(|symbol| format!("{topic}.{symbol}"))
+    //         .collect();
+    //     args.append(&mut topics_);
+    // }
 
     let op = Op {
         req_id: "subscribe".to_string(),
@@ -238,7 +234,7 @@ pub async fn connect_public(
             message = read.next() => {
                 match message {
                     Some(Ok(Message::Text(text))) => {
-                        if let Err(error) = handle_public_stream(&text, &ev_tx, &assets).await {
+                        if let Err(error) = handle_public_stream(&text, &ev_tx).await {
                             error!(?error, %text, "Couldn't handle PublicStreamMsg.");
                         }
                     }
@@ -268,8 +264,7 @@ pub async fn connect_public(
 async fn handle_private_stream(
     text: &str,
     write: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-    assets: &HashMap<String, Asset>,
-    ev_tx: &Sender<LiveEvent>,
+    ev_tx: &UnboundedSender<LiveEvent>,
     order_man: &OrderManagerWrapper,
 ) -> Result<(), HandleError> {
     let stream = serde_json::from_str::<PrivateStreamMsg>(&text)?;
@@ -300,10 +295,9 @@ async fn handle_private_stream(
         PrivateStreamMsg::Topic(PrivateStreamTopicMsg::Position(data)) => {
             debug!(?data, "Position");
             for item in data.data {
-                let asset = assets.get(&item.symbol).ok_or(HandleError::AssetNotFound)?;
                 ev_tx
                     .send(LiveEvent::Position {
-                        asset_no: asset.asset_no,
+                        symbol: item.symbol,
                         qty: item.size,
                     })
                     .unwrap();
@@ -314,8 +308,17 @@ async fn handle_private_stream(
             let mut order_man_ = order_man.lock().unwrap();
             for item in &data.data {
                 match order_man_.update_execution(&item) {
-                    Ok((asset_no, order)) => {
-                        ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                    Ok(OrderInfo {
+                        asset,
+                        order_link_id: _,
+                        order,
+                    }) => {
+                        ev_tx
+                            .send(LiveEvent::Order {
+                                symbol: asset,
+                                order,
+                            })
+                            .unwrap();
                     }
                     Err(error) => {
                         error!(?error, ?data, "Couldn't update the execution data");
@@ -328,8 +331,17 @@ async fn handle_private_stream(
             let mut order_man_ = order_man.lock().unwrap();
             for item in &data.data {
                 match order_man_.update_fast_execution(&item) {
-                    Ok((asset_no, order)) => {
-                        ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                    Ok(OrderInfo {
+                        asset,
+                        order_link_id: _,
+                        order,
+                    }) => {
+                        ev_tx
+                            .send(LiveEvent::Order {
+                                symbol: asset,
+                                order,
+                            })
+                            .unwrap();
                     }
                     Err(error) => {
                         error!(?error, ?data, "Couldn't update the fast execution data");
@@ -342,8 +354,17 @@ async fn handle_private_stream(
             for item in &data.data {
                 let mut order_man_ = order_man.lock().unwrap();
                 match order_man_.update_order(&item) {
-                    Ok((asset_no, order)) => {
-                        ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+                    Ok(OrderInfo {
+                        asset,
+                        order_link_id: _,
+                        order,
+                    }) => {
+                        ev_tx
+                            .send(LiveEvent::Order {
+                                symbol: asset,
+                                order,
+                            })
+                            .unwrap();
                     }
                     Err(error) => {
                         error!(?error, ?data, "Couldn't update the order data");
@@ -359,8 +380,7 @@ pub async fn connect_private(
     url: &str,
     api_key: &str,
     secret: &str,
-    ev_tx: Sender<LiveEvent>,
-    assets: HashMap<String, Asset>,
+    ev_tx: UnboundedSender<LiveEvent>,
     order_man: OrderManagerWrapper,
 ) -> Result<(), HandleError> {
     let mut request = url.into_client_request()?;
@@ -398,7 +418,6 @@ pub async fn connect_private(
                         match handle_private_stream(
                             &text,
                             &mut write,
-                            &assets,
                             &ev_tx,
                             &order_man
                         ).await {
@@ -438,7 +457,7 @@ pub async fn connect_trade(
     url: &str,
     api_key: &str,
     secret: &str,
-    ev_tx: Sender<LiveEvent>,
+    ev_tx: UnboundedSender<LiveEvent>,
     order_rx: &mut UnboundedReceiver<OrderOp>,
     order_man: OrderManagerWrapper,
 ) -> Result<(), HandleError> {
@@ -547,7 +566,7 @@ pub async fn connect_trade(
 
 async fn handle_trade_stream(
     text: &str,
-    ev_tx: &Sender<LiveEvent>,
+    ev_tx: &UnboundedSender<LiveEvent>,
     order_man: &OrderManagerWrapper,
 ) -> Result<(), anyhow::Error> {
     let stream = serde_json::from_str::<TradeStreamMsg>(text)?;
@@ -577,8 +596,17 @@ async fn handle_trade_stream(
              */
             let mut order_man_ = order_man.lock().unwrap();
             let order_link_id = req_id.split('/').next().ok_or(HandleError::InvalidReqId)?;
-            let (asset_no, order) = order_man_.update_submit_fail(order_link_id)?;
-            ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+            let OrderInfo {
+                asset,
+                order_link_id: _,
+                order,
+            } = order_man_.update_submit_fail(order_link_id)?;
+            ev_tx
+                .send(LiveEvent::Order {
+                    symbol: asset,
+                    order,
+                })
+                .unwrap();
             ev_tx
                 .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::OrderError,
@@ -602,8 +630,17 @@ async fn handle_trade_stream(
              */
             let mut order_man_ = order_man.lock().unwrap();
             let order_link_id = req_id.split('/').next().ok_or(HandleError::InvalidReqId)?;
-            let (asset_no, order) = order_man_.update_cancel_fail(order_link_id)?;
-            ev_tx.send(LiveEvent::Order { asset_no, order }).unwrap();
+            let OrderInfo {
+                asset,
+                order_link_id: _,
+                order,
+            } = order_man_.update_cancel_fail(order_link_id)?;
+            ev_tx
+                .send(LiveEvent::Order {
+                    symbol: asset,
+                    order,
+                })
+                .unwrap();
             ev_tx
                 .send(LiveEvent::Error(LiveError::with(
                     ErrorKind::OrderError,

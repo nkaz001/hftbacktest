@@ -4,21 +4,22 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use hftbacktest::{
+    prelude::get_precision,
+    types::{OrdType, Order, OrderId, Side, Status, TimeInForce},
+};
+use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    connector::{
-        bybit::msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
-        util::gen_random_string,
-    },
-    prelude::{get_precision, OrdType, OrderId, Side, TimeInForce},
-    types::{Order, Status, Value},
+    bybit::msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
+    util::gen_random_string,
 };
 
 pub type OrderManagerWrapper = Arc<Mutex<OrderManager>>;
 
 #[derive(Error, Debug)]
-pub(super) enum HandleError {
+pub enum HandleError {
     #[error("px qty parse error: {0}")]
     InvalidPxQty(#[from] ParseFloatError),
     #[error("order id parse error: {0}")]
@@ -48,9 +49,16 @@ impl Into<Value> for HandleError {
     }
 }
 
+#[derive(Clone)]
+pub struct OrderInfo {
+    pub asset: String,
+    pub order_link_id: String,
+    pub order: Order,
+}
+
 pub struct OrderManager {
     prefix: String,
-    orders: HashMap<OrderId, (usize, String, Order)>,
+    orders: HashMap<OrderId, OrderInfo>,
 }
 
 impl OrderManager {
@@ -70,57 +78,57 @@ impl OrderManager {
             .map_err(|e| HandleError::InvalidOrderId(e))
     }
 
-    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<(usize, Order), HandleError> {
+    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<OrderInfo, HandleError> {
         let order_id = self.parse_order_id(&data.order_link_id)?;
-        let (asset_no, _order_link_id, order) = self
+        let order_info = self
             .orders
             .get_mut(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.req = Status::None;
-        order.status = data.order_status;
-        order.exch_timestamp = data.updated_time * 1_000_000;
-        let is_active = order.active();
+        order_info.order.req = Status::None;
+        order_info.order.status = data.order_status;
+        order_info.order.exch_timestamp = data.updated_time * 1_000_000;
+        let is_active = order_info.order.active();
         if !is_active {
-            let (asset_no, _order_link_id, order) = self.orders.remove(&order_id).unwrap();
-            Ok((asset_no, order))
+            Ok(self.orders.remove(&order_id).unwrap())
         } else {
-            Ok((*asset_no, order.clone()))
+            Ok(order_info.clone())
         }
     }
 
-    pub fn update_execution(&mut self, data: &Execution) -> Result<(usize, Order), HandleError> {
+    pub fn update_execution(&mut self, data: &Execution) -> Result<OrderInfo, HandleError> {
         let order_id = self.parse_order_id(&data.order_link_id)?;
-        let (asset_no, _order_link_id, order) = self
+        let order_info = self
             .orders
             .get_mut(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.exec_price_tick = (data.exec_price / order.price_tick as f64).round() as i64;
-        order.exec_qty = data.exec_qty;
-        order.exch_timestamp = data.exec_time * 1_000_000;
-        Ok((*asset_no, order.clone()))
+        order_info.order.exec_price_tick =
+            (data.exec_price / order_info.order.price_tick as f64).round() as i64;
+        order_info.order.exec_qty = data.exec_qty;
+        order_info.order.exch_timestamp = data.exec_time * 1_000_000;
+        Ok(order_info.clone())
     }
 
     pub fn update_fast_execution(
         &mut self,
         data: &FastExecution,
-    ) -> Result<(usize, Order), HandleError> {
+    ) -> Result<OrderInfo, HandleError> {
         // fixme: there is no valid order_link_id.
         let order_id = self.parse_order_id(&data.order_link_id)?;
-        let (asset_no, _order_link_id, order) = self
+        let order_info = self
             .orders
             .get_mut(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.exec_price_tick = (data.exec_price / order.price_tick as f64).round() as i64;
-        order.exec_qty = data.exec_qty;
-        order.exch_timestamp = data.exec_time * 1_000_000;
-        Ok((*asset_no, order.clone()))
+        order_info.order.exec_price_tick =
+            (data.exec_price / order_info.order.price_tick as f64).round() as i64;
+        order_info.order.exec_qty = data.exec_qty;
+        order_info.order.exch_timestamp = data.exec_time * 1_000_000;
+        Ok(order_info.clone())
     }
 
     pub fn new_order(
         &mut self,
         symbol: &str,
         category: &str,
-        asset_no: usize,
         order: Order,
     ) -> Result<BybitOrder, HandleError> {
         let price_prec = get_precision(order.tick_size);
@@ -166,7 +174,11 @@ impl OrderManager {
                 return Err(HandleError::OrderAlreadyExist);
             }
             Entry::Vacant(entry) => {
-                entry.insert((asset_no, bybit_order.order_link_id.clone(), order));
+                entry.insert(OrderInfo {
+                    asset: symbol.to_string(),
+                    order_link_id: bybit_order.order_link_id.clone(),
+                    order,
+                });
             }
         }
         Ok(bybit_order)
@@ -178,7 +190,7 @@ impl OrderManager {
         category: &str,
         order_id: OrderId,
     ) -> Result<BybitOrder, HandleError> {
-        let (_, order_link_id, order) = self
+        let order_info = self
             .orders
             .get(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
@@ -190,44 +202,38 @@ impl OrderManager {
             price: None,
             category: category.to_string(),
             time_in_force: None,
-            order_link_id: order_link_id.clone(),
+            order_link_id: order_info.order_link_id.clone(),
         };
         Ok(bybit_order)
     }
 
-    pub fn update_submit_fail(
-        &mut self,
-        order_link_id: &str,
-    ) -> Result<(usize, Order), HandleError> {
+    pub fn update_submit_fail(&mut self, order_link_id: &str) -> Result<OrderInfo, HandleError> {
         let order_id = self.parse_order_id(order_link_id)?;
-        let (asset_no, _order_link_id, mut order) = self
+        let mut order_info = self
             .orders
             .remove(&order_id)
             .ok_or(HandleError::OrderNotFound)?;
-        order.req = Status::None;
-        order.status = Status::Expired;
-        Ok((asset_no, order))
+        order_info.order.req = Status::None;
+        order_info.order.status = Status::Expired;
+        Ok(order_info)
     }
 
-    pub fn update_cancel_fail(
-        &mut self,
-        order_link_id: &str,
-    ) -> Result<(usize, Order), HandleError> {
+    pub fn update_cancel_fail(&mut self, order_link_id: &str) -> Result<OrderInfo, HandleError> {
         let order_id = self.parse_order_id(order_link_id)?;
-        let (asset_no, _order_link_id, mut order) = self
+        let mut order_info = self
             .orders
             .get_mut(&order_id)
             .cloned()
             .ok_or(HandleError::OrderNotFound)?;
-        order.req = Status::None;
-        Ok((asset_no, order))
+        order_info.order.req = Status::None;
+        Ok(order_info)
     }
 
-    pub fn clear_orders(&mut self) -> Vec<(usize, Order)> {
-        let mut values: Vec<(usize, Order)> = Vec::new();
-        values.extend(self.orders.drain().map(|(_, (asset_no, _, mut order))| {
-            order.status = Status::Canceled;
-            (asset_no, order)
+    pub fn clear_orders(&mut self) -> Vec<OrderInfo> {
+        let mut values: Vec<OrderInfo> = Vec::new();
+        values.extend(self.orders.drain().map(|(_, mut order_info)| {
+            order_info.order.status = Status::Canceled;
+            order_info
         }));
         values
     }

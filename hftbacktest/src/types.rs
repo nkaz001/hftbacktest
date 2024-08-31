@@ -138,10 +138,10 @@ pub enum ErrorKind {
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug, Decode, Encode)]
 pub enum LiveEvent {
-    FeedBatch { asset_no: usize, events: Vec<Event> },
-    Feed { asset_no: usize, event: Event },
-    Order { asset_no: usize, order: Order },
-    Position { asset_no: usize, qty: f64 },
+    FeedBatch { symbol: String, events: Vec<Event> },
+    Feed { symbol: String, event: Event },
+    Order { symbol: String, order: Order },
+    Position { symbol: String, qty: f64 },
     Error(LiveError),
 }
 
@@ -705,7 +705,7 @@ impl Encode for Order {
 #[derive(Clone, Debug, Encode, Decode)]
 pub enum Request {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
-    Order { asset_no: usize, order: Order },
+    Order { asset: String, order: Order },
 }
 
 /// Provides state values.

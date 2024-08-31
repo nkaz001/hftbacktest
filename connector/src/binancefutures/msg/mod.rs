@@ -1,10 +1,9 @@
+use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
     de::{Error, Unexpected},
     Deserialize,
     Deserializer,
 };
-
-use crate::types::{OrdType, Side, Status, TimeInForce};
 
 pub mod rest;
 pub mod stream;
