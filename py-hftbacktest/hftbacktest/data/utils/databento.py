@@ -70,8 +70,7 @@ def convert(
 
     snapshot_ts = False
 
-    rn = 0
-    for (ts_event, action, side, price, size, order_id, flags, ts_recv) in df.iter_rows():
+    for rn, (ts_event, action, side, price, size, order_id, flags, ts_recv) in enumerate(df.iter_rows()):
         exch_ts = int(ts_event.timestamp() * 1_000_000_000)
         local_ts = int(ts_recv.timestamp() * 1_000_000_000)
 
@@ -100,7 +99,7 @@ def convert(
             raise ValueError(side)
 
         # Adjusts the timestamps for the snapshot.
-        if DEPTH_CLEAR_EVENT == DEPTH_CLEAR_EVENT:
+        if ev == DEPTH_CLEAR_EVENT:
             snapshot_ts = local_ts
         if local_ts != snapshot_ts:
             snapshot_ts = None
@@ -108,8 +107,6 @@ def convert(
             exch_ts = local_ts = snapshot_ts
 
         tmp[rn] = (ev, exch_ts, local_ts, price, size, order_id, flags, 0)
-
-        rn += 1
 
     print('Correcting the latency')
     tmp = correct_local_timestamp(tmp, base_latency)
