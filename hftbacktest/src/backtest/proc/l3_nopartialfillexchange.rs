@@ -90,8 +90,8 @@ where
         reader: Reader<Event>,
         depth: MD,
         state: State<AT, FM>,
-        queue_model: QM,
         order_latency: LM,
+        queue_model: QM,
         orders_to: OrderBus,
         orders_from: OrderBus,
     ) -> Self {

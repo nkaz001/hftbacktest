@@ -73,6 +73,7 @@ fn prepare_backtest(
             .iter()
             .map(|file| DataSource::File(file.clone()))
             .collect(),
+        0,
     );
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
@@ -89,6 +90,8 @@ fn prepare_backtest(
                 .latency_model(latency_model)
                 .asset_type(asset_type)
                 .fee_model(TradingValueFeeModel::new(CommonFees::new(-0.00005, 0.0007)))
+                .exchange(ExchangeKind::NoPartialFillExchange)
+                .l2()
                 .queue_model(queue_model)
                 .depth(move || {
                     let mut depth = HashMapMarketDepth::new(tick_size, lot_size);
@@ -97,7 +100,6 @@ fn prepare_backtest(
                     }
                     depth
                 })
-                .exchange(ExchangeKind::NoPartialFillExchange)
                 .build()
                 .unwrap(),
         )
