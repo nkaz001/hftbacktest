@@ -462,8 +462,7 @@ where
             }
         } else if self.data[row_num].is(EXCH_CANCEL_ORDER_EVENT) {
             let order_id = self.data[row_num].order_id;
-            let x = self
-                .depth
+            self.depth
                 .delete_order(order_id, self.data[row_num].exch_ts)?;
             self.queue_model
                 .cancel_market_feed_order(self.data[row_num].order_id, &self.depth)?;

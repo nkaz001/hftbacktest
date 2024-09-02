@@ -12,10 +12,10 @@ use hftbacktest::{
             TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
-        AssetBuilder,
         Backtest,
         DataSource,
         ExchangeKind,
+        L2AssetBuilder,
     },
     prelude::{ApplySnapshot, Bot, HashMapMarketDepth},
 };
@@ -80,7 +80,7 @@ fn prepare_backtest(
 
     let hbt = Backtest::builder()
         .add_asset(
-            AssetBuilder::new()
+            L2AssetBuilder::new()
                 .data(
                     data_files
                         .iter()
@@ -91,7 +91,6 @@ fn prepare_backtest(
                 .asset_type(asset_type)
                 .fee_model(TradingValueFeeModel::new(CommonFees::new(-0.00005, 0.0007)))
                 .exchange(ExchangeKind::NoPartialFillExchange)
-                .l2()
                 .queue_model(queue_model)
                 .depth(move || {
                     let mut depth = HashMapMarketDepth::new(tick_size, lot_size);
