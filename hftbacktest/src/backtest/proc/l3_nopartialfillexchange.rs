@@ -19,6 +19,7 @@ use crate::{
         Side,
         Status,
         TimeInForce,
+        BUY_EVENT,
         EXCH_ASK_ADD_ORDER_EVENT,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
         EXCH_BID_ADD_ORDER_EVENT,
@@ -28,6 +29,7 @@ use crate::{
         EXCH_EVENT,
         EXCH_FILL_EVENT,
         EXCH_MODIFY_ORDER_EVENT,
+        SELL_EVENT,
     },
 };
 
@@ -459,19 +461,25 @@ where
                 )?;
             }
         } else if self.data[row_num].is(EXCH_CANCEL_ORDER_EVENT) {
-            let _ = self
+            let order_id = self.data[row_num].order_id;
+            let x = self
                 .depth
-                .delete_order(self.data[row_num].order_id, self.data[row_num].exch_ts)?;
+                .delete_order(order_id, self.data[row_num].exch_ts)?;
             self.queue_model
                 .cancel_market_feed_order(self.data[row_num].order_id, &self.depth)?;
         } else if self.data[row_num].is(EXCH_FILL_EVENT) {
-            let filled = self
-                .queue_model
-                .fill_market_feed_order::<false>(self.data[row_num].order_id, &self.depth)?;
-            let timestamp = self.data[row_num].exch_ts;
-            for mut order in filled {
-                let price_tick = order.price_tick;
-                self.fill(&mut order, timestamp, true, price_tick)?;
+            // todo: handle properly if no side is provided.
+            if self.data[row_num].is(BUY_EVENT) || self.data[row_num].is(SELL_EVENT) {
+                let filled = self.queue_model.fill_market_feed_order::<false>(
+                    self.data[row_num].order_id,
+                    &self.data[row_num],
+                    &self.depth,
+                )?;
+                let timestamp = self.data[row_num].exch_ts;
+                for mut order in filled {
+                    let price_tick = order.price_tick;
+                    self.fill(&mut order, timestamp, true, price_tick)?;
+                }
             }
         }
 
