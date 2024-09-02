@@ -12,7 +12,7 @@ Currently, the Rust implementation is being more actively developed especially f
 ## Rust
 
 ### Backtesting
-* [X] Level 3 Market-By-Order backtesting. ``feature: unstable_l3``
+* [X] Level 3 Market-By-Order backtesting.
 * [X] Data fusion to provide the most frequent and granular data using different streams with different update frequencies and market depth ranges. ``feature: unstable_fuse``
 * [X] Adjust feed and order latency for exchanges located in different regions if the original feed and order latency data was collected at a different site.
 * [ ] Additional queue position model or exchange model.
@@ -22,7 +22,7 @@ Currently, the Rust implementation is being more actively developed especially f
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
-* [ ] Support external connectors through IPC for multiple bots via a unified connection.  
+* [X] Support external connectors through IPC for multiple bots via a unified connection. (WIP: ``branch: ipc (PR-129)``)
   [<img src="https://raw.githubusercontent.com/nkaz001/hftbacktest/master/docs/images/arch.png">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
   * https://github.com/eclipse-iceoryx/iceoryx2
 
