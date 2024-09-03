@@ -255,7 +255,7 @@ where
         }
     }
 
-    /// Sets a [`DataPreprocessor`].
+    /// Sets a [`DataPreprocess`].
     pub fn preprocessor<Preprocessor>(self, preprocessor: Preprocessor) -> Self
     where
         Preprocessor: DataPreprocess<D> + Sync + Send + 'static,

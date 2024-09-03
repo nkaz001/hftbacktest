@@ -7,3 +7,4 @@ numba~=0.59
 polars
 holoviews
 matplotlib
+databento
