@@ -243,6 +243,10 @@ impl BacktestAsset {
     ///
     /// Args:
     ///     data: a list of file paths for the historical order latency data in `npz`.
+    ///     latency_offset: the latency offset to adjust the order entry and response latency by the
+    ///                     specified amount. This is particularly useful in cross-exchange
+    ///                     backtesting, where the feed data is collected from a different site than
+    ///                     the one where the strategy is intended to run.
     pub fn intp_order_latency(
         mut slf: PyRefMut<Self>,
         data: Vec<String>,
