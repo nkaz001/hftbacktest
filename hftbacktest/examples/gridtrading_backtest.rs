@@ -4,7 +4,6 @@ use hftbacktest::{
         assettype::LinearAsset,
         data::{read_npz_file, DataSource},
         models::{
-            fee::{CommonFees, TradingValueFeeModel},
             CommonFees,
             IntpOrderLatency,
             PowerProbQueueFunc3,
