@@ -66,9 +66,6 @@ where
     MD: L3MarketDepth,
     FM: FeeModel,
 {
-    reader: Reader<Event>,
-    data: Data<Event>,
-    row_num: usize,
     orders_to: OrderBus,
     orders_from: OrderBus,
 
@@ -89,7 +86,6 @@ where
 {
     /// Constructs an instance of `NoPartialFillExchange`.
     pub fn new(
-        reader: Reader<Event>,
         depth: MD,
         state: State<AT, FM>,
         order_latency: LM,
@@ -98,9 +94,6 @@ where
         orders_from: OrderBus,
     ) -> Self {
         Self {
-            reader,
-            data: Data::empty(),
-            row_num: 0,
             orders_to,
             orders_from,
             depth,
@@ -370,111 +363,74 @@ where
     FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
-    fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next_data()?;
-        for rn in 0..self.data.len() {
-            if self.data[rn].is(EXCH_EVENT) {
-                self.row_num = rn;
-                return Ok(self.data[rn].exch_ts);
-            }
-        }
-        Err(BacktestError::EndOfData)
+    fn time_seen(&self, event: &Event) -> Option<i64> {
+        event.is(EXCH_EVENT).then(|| event.exch_ts)
     }
 
-    fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
-        let row_num = self.row_num;
-        if self.data[row_num].is(EXCH_BID_DEPTH_CLEAR_EVENT) {
+    fn process(&mut self, event: &Event) -> Result<(), BacktestError> {
+        if event.is(EXCH_BID_DEPTH_CLEAR_EVENT) {
             self.depth.clear_orders(Side::Buy);
             let expired = self.queue_model.clear_orders(Side::Buy);
             for order in expired {
-                self.expired(order, self.data[row_num].exch_ts)?;
+                self.expired(order, event.exch_ts)?;
             }
-        } else if self.data[row_num].is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
+        } else if event.is(EXCH_ASK_DEPTH_CLEAR_EVENT) {
             self.depth.clear_orders(Side::Sell);
             let expired = self.queue_model.clear_orders(Side::Sell);
             for order in expired {
-                self.expired(order, self.data[row_num].exch_ts)?;
+                self.expired(order, event.exch_ts)?;
             }
-        } else if self.data[row_num].is(EXCH_DEPTH_CLEAR_EVENT) {
+        } else if event.is(EXCH_DEPTH_CLEAR_EVENT) {
             self.depth.clear_orders(Side::None);
             let expired = self.queue_model.clear_orders(Side::None);
             for order in expired {
-                self.expired(order, self.data[row_num].exch_ts)?;
+                self.expired(order, event.exch_ts)?;
             }
-        } else if self.data[row_num].is(EXCH_BID_ADD_ORDER_EVENT) {
-            let (prev_best_bid_tick, best_bid_tick) = self.depth.add_buy_order(
-                self.data[row_num].order_id,
-                self.data[row_num].px,
-                self.data[row_num].qty,
-                self.data[row_num].exch_ts,
-            )?;
+        } else if event.is(EXCH_BID_ADD_ORDER_EVENT) {
+            let (prev_best_bid_tick, best_bid_tick) =
+                self.depth
+                    .add_buy_order(event.order_id, event.px, event.qty, event.exch_ts)?;
             self.queue_model
-                .add_market_feed_order(&self.data[row_num], &self.depth)?;
+                .add_market_feed_order(&event, &self.depth)?;
             if best_bid_tick > prev_best_bid_tick {
-                self.fill_ask_orders_by_crossing(
-                    prev_best_bid_tick,
-                    best_bid_tick,
-                    self.data[row_num].exch_ts,
-                )?;
+                self.fill_ask_orders_by_crossing(prev_best_bid_tick, best_bid_tick, event.exch_ts)?;
             }
-        } else if self.data[row_num].is(EXCH_ASK_ADD_ORDER_EVENT) {
-            let (prev_best_ask_tick, best_ask_tick) = self.depth.add_sell_order(
-                self.data[row_num].order_id,
-                self.data[row_num].px,
-                self.data[row_num].qty,
-                self.data[row_num].exch_ts,
-            )?;
+        } else if event.is(EXCH_ASK_ADD_ORDER_EVENT) {
+            let (prev_best_ask_tick, best_ask_tick) =
+                self.depth
+                    .add_sell_order(event.order_id, event.px, event.qty, event.exch_ts)?;
             self.queue_model
-                .add_market_feed_order(&self.data[row_num], &self.depth)?;
+                .add_market_feed_order(&event, &self.depth)?;
             if best_ask_tick < prev_best_ask_tick {
-                self.fill_bid_orders_by_crossing(
-                    prev_best_ask_tick,
-                    best_ask_tick,
-                    self.data[row_num].exch_ts,
-                )?;
+                self.fill_bid_orders_by_crossing(prev_best_ask_tick, best_ask_tick, event.exch_ts)?;
             }
-        } else if self.data[row_num].is(EXCH_MODIFY_ORDER_EVENT) {
-            let (side, prev_best_tick, best_tick) = self.depth.modify_order(
-                self.data[row_num].order_id,
-                self.data[row_num].px,
-                self.data[row_num].qty,
-                self.data[row_num].exch_ts,
-            )?;
-            self.queue_model.modify_market_feed_order(
-                self.data[row_num].order_id,
-                &self.data[row_num],
-                &self.depth,
-            )?;
+        } else if event.is(EXCH_MODIFY_ORDER_EVENT) {
+            let (side, prev_best_tick, best_tick) =
+                self.depth
+                    .modify_order(event.order_id, event.px, event.qty, event.exch_ts)?;
+            self.queue_model
+                .modify_market_feed_order(event.order_id, &event, &self.depth)?;
             if side == Side::Buy {
                 if best_tick > prev_best_tick {
-                    self.fill_ask_orders_by_crossing(
-                        prev_best_tick,
-                        best_tick,
-                        self.data[row_num].exch_ts,
-                    )?;
+                    self.fill_ask_orders_by_crossing(prev_best_tick, best_tick, event.exch_ts)?;
                 }
             } else if best_tick < prev_best_tick {
-                self.fill_bid_orders_by_crossing(
-                    prev_best_tick,
-                    best_tick,
-                    self.data[row_num].exch_ts,
-                )?;
+                self.fill_bid_orders_by_crossing(prev_best_tick, best_tick, event.exch_ts)?;
             }
-        } else if self.data[row_num].is(EXCH_CANCEL_ORDER_EVENT) {
-            let order_id = self.data[row_num].order_id;
-            self.depth
-                .delete_order(order_id, self.data[row_num].exch_ts)?;
+        } else if event.is(EXCH_CANCEL_ORDER_EVENT) {
+            let order_id = event.order_id;
+            self.depth.delete_order(order_id, event.exch_ts)?;
             self.queue_model
-                .cancel_market_feed_order(self.data[row_num].order_id, &self.depth)?;
-        } else if self.data[row_num].is(EXCH_FILL_EVENT) {
+                .cancel_market_feed_order(event.order_id, &self.depth)?;
+        } else if event.is(EXCH_FILL_EVENT) {
             // todo: handle properly if no side is provided.
-            if self.data[row_num].is(BUY_EVENT) || self.data[row_num].is(SELL_EVENT) {
+            if event.is(BUY_EVENT) || event.is(SELL_EVENT) {
                 let filled = self.queue_model.fill_market_feed_order::<false>(
-                    self.data[row_num].order_id,
-                    &self.data[row_num],
+                    event.order_id,
+                    &event,
                     &self.depth,
                 )?;
-                let timestamp = self.data[row_num].exch_ts;
+                let timestamp = event.exch_ts;
                 for mut order in filled {
                     let price_tick = order.price_tick;
                     self.fill(&mut order, timestamp, true, price_tick)?;
@@ -482,25 +438,7 @@ where
             }
         }
 
-        // Checks
-        let mut next_ts = 0;
-        for rn in (self.row_num + 1)..self.data.len() {
-            if self.data[rn].is(EXCH_EVENT) {
-                self.row_num = rn;
-                next_ts = self.data[rn].exch_ts;
-                break;
-            }
-        }
-
-        if next_ts <= 0 {
-            let next_data = self.reader.next_data()?;
-            let next_row = &next_data[0];
-            next_ts = next_row.exch_ts;
-            let data = mem::replace(&mut self.data, next_data);
-            self.reader.release(data);
-            self.row_num = 0;
-        }
-        Ok((next_ts, i64::MAX))
+        Ok(())
     }
 
     fn process_recv_order(

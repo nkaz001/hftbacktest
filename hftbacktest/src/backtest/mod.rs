@@ -485,7 +485,7 @@ where
     }
 
     /// Builds an `Asset`.
-    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor>, BuildError> {
+    pub fn build(self) -> Result<Asset<dyn LocalProcessor<MD>, dyn Processor, Event>, BuildError> {
         let reader = if self.latency_offset == 0 {
             Reader::builder()
                 .parallel_load(self.parallel_load)
@@ -522,7 +522,6 @@ where
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
         let local = L3Local::new(
-            reader.clone(),
             create_depth(),
             State::new(asset_type, fee_model),
             order_latency,
@@ -550,7 +549,6 @@ where
         match self.exch_kind {
             ExchangeKind::NoPartialFillExchange => {
                 let exch = L3NoPartialFillExchange::new(
-                    reader.clone(),
                     create_depth(),
                     State::new(asset_type, fee_model),
                     order_latency,

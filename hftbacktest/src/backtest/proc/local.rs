@@ -1,12 +1,8 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    mem,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::{Data, Reader},
         models::{FeeModel, LatencyModel},
         order::OrderBus,
         proc::{LocalProcessor, Processor},
