@@ -11,9 +11,9 @@ use hftbacktest::{
             TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
-        AssetBuilder,
         Backtest,
         ExchangeKind,
+        L2AssetBuilder,
     },
     prelude::{ApplySnapshot, Bot, HashMapMarketDepth},
 };
@@ -25,7 +25,7 @@ fn prepare_backtest() -> Backtest<HashMapMarketDepth> {
         .map(|date| DataSource::File(format!("latency_{date}.npz")))
         .collect();
 
-    let latency_model = IntpOrderLatency::new(latency_data);
+    let latency_model = IntpOrderLatency::new(latency_data, 0);
     let asset_type = LinearAsset::new(1.0);
     let queue_model = ProbQueueModel::new(PowerProbQueueFunc3::new(3.0));
 
@@ -35,11 +35,12 @@ fn prepare_backtest() -> Backtest<HashMapMarketDepth> {
 
     let hbt = Backtest::builder()
         .add_asset(
-            AssetBuilder::new()
+            L2AssetBuilder::new()
                 .data(data)
                 .latency_model(latency_model)
                 .asset_type(asset_type)
                 .fee_model(TradingValueFeeModel::new(CommonFees::new(-0.00005, 0.0007)))
+                .exchange(ExchangeKind::NoPartialFillExchange)
                 .queue_model(queue_model)
                 .depth(|| {
                     let mut depth = HashMapMarketDepth::new(0.000001, 1.0);
@@ -48,7 +49,6 @@ fn prepare_backtest() -> Backtest<HashMapMarketDepth> {
                     );
                     depth
                 })
-                .exchange(ExchangeKind::NoPartialFillExchange)
                 .build()
                 .unwrap(),
         )

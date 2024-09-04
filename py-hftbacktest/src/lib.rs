@@ -11,6 +11,7 @@ use hftbacktest::{
             ConstantLatency,
             FlatPerTradeFeeModel,
             IntpOrderLatency,
+            L3FIFOQueueModel,
             LogProbQueueFunc,
             LogProbQueueFunc2,
             OrderLatencyRow,
@@ -23,7 +24,15 @@ use hftbacktest::{
             TradingValueFeeModel,
         },
         order::OrderBus,
-        proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
+        proc::{
+            L3Local,
+            L3NoPartialFillExchange,
+            Local,
+            LocalProcessor,
+            NoPartialFillExchange,
+            PartialFillExchange,
+            Processor,
+        },
         state::State,
         Asset,
         Backtest,
@@ -33,7 +42,7 @@ use hftbacktest::{
 };
 use hftbacktest_derive::build_asset;
 pub use order::*;
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyValueError, prelude::*};
 
 mod backtest;
 mod depth;
@@ -65,6 +74,7 @@ pub enum QueueModel {
     LogProbQueueModel2 {},
     PowerProbQueueModel2 { n: f64 },
     PowerProbQueueModel3 { n: f64 },
+    L3FIFOQueueModel {},
 }
 
 #[derive(Clone)]
@@ -97,6 +107,7 @@ pub struct BacktestAsset {
     fee_model: FeeModel,
     latency_offset: i64,
     parallel_load: bool,
+    l3: bool,
 }
 
 unsafe impl Send for BacktestAsset {}
@@ -127,6 +138,7 @@ impl BacktestAsset {
             },
             latency_offset: 0,
             parallel_load: true,
+            l3: false,
         }
     }
 
@@ -231,6 +243,10 @@ impl BacktestAsset {
     ///
     /// Args:
     ///     data: a list of file paths for the historical order latency data in `npz`.
+    ///     latency_offset: the latency offset to adjust the order entry and response latency by the
+    ///                     specified amount. This is particularly useful in cross-exchange
+    ///                     backtesting, where the feed data is collected from a different site than
+    ///                     the one where the strategy is intended to run.
     pub fn intp_order_latency(
         mut slf: PyRefMut<Self>,
         data: Vec<String>,
@@ -330,6 +346,17 @@ impl BacktestAsset {
         slf
     }
 
+    /// Uses the `L3FIFOQueueModel` for the queue position model.
+    ///
+    /// Please find the details below.
+    ///
+    /// * `Order Fill <https://hftbacktest.readthedocs.io/en/latest/order_fill.html>`_
+    /// * `L3FIFOQueueModel <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.L3FIFOQueueModel.html>`_
+    pub fn l3_fifo_queue_model(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
+        slf.queue_model = QueueModel::L3FIFOQueueModel {};
+        slf
+    }
+
     /// Sets the initial snapshot.
     pub fn initial_snapshot(mut slf: PyRefMut<Self>, file: String) -> PyRefMut<Self> {
         slf.initial_snapshot = Some(DataSource::File(file));
@@ -418,6 +445,18 @@ impl BacktestAsset {
         };
         slf
     }
+
+    /// Sets this asset to Level2.
+    pub fn l2(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
+        slf.l3 = false;
+        slf
+    }
+
+    /// Sets this asset to Level3.
+    pub fn l3(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
+        slf.l3 = true;
+        slf
+    }
 }
 
 #[pymodule]
@@ -439,6 +478,14 @@ pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<
     let mut local = Vec::new();
     let mut exch = Vec::new();
     for asset in assets {
+        if let (QueueModel::L3FIFOQueueModel {}, ExchangeKind::PartialFillExchange {}) =
+            (&asset.queue_model, &asset.exch_kind)
+        {
+            return PyResult::Err(PyErr::new::<PyValueError, _>(
+                "L3PartialFillExchange is unsupported.",
+            ));
+        }
+
         let asst = build_asset!(
             asset,
             HashMapMarketDepth,
@@ -462,7 +509,8 @@ pub fn build_hashmap_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<
                 LogProbQueueModel2 {},
                 PowerProbQueueModel { n },
                 PowerProbQueueModel2 { n },
-                PowerProbQueueModel3 { n }
+                PowerProbQueueModel3 { n },
+                L3FIFOQueueModel {}
             ],
             [NoPartialFillExchange {}, PartialFillExchange {}],
             [
@@ -484,6 +532,14 @@ pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<u
     let mut local = Vec::new();
     let mut exch = Vec::new();
     for asset in assets {
+        if let (QueueModel::L3FIFOQueueModel {}, ExchangeKind::PartialFillExchange {}) =
+            (&asset.queue_model, &asset.exch_kind)
+        {
+            return PyResult::Err(PyErr::new::<PyValueError, _>(
+                "L3PartialFillExchange is unsupported.",
+            ));
+        }
+
         let asst = build_asset!(
             asset,
             ROIVectorMarketDepth,
@@ -507,7 +563,8 @@ pub fn build_roivec_backtest(assets: Vec<PyRefMut<BacktestAsset>>) -> PyResult<u
                 LogProbQueueModel2 {},
                 PowerProbQueueModel { n },
                 PowerProbQueueModel2 { n },
-                PowerProbQueueModel3 { n }
+                PowerProbQueueModel3 { n },
+                L3FIFOQueueModel {}
             ],
             [NoPartialFillExchange {}, PartialFillExchange {}],
             [

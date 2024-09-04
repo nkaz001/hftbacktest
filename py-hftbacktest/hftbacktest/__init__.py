@@ -92,7 +92,7 @@ __all__ = (
     'Recorder'
 )
 
-__version__ = '2.0.0rc1'
+__version__ = '2.1.0'
 
 
 class BacktestAsset(BacktestAsset_):
@@ -124,7 +124,7 @@ class BacktestAsset(BacktestAsset_):
             raise ValueError
         return self
 
-    def intp_order_latency(self, data: str | NDArray | List[str]):
+    def intp_order_latency(self, data: str | NDArray | List[str], latency_offset: int = 0):
         """
         Uses `IntpOrderLatency <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.IntpOrderLatency.html>`_
         for the order latency model.
@@ -135,13 +135,17 @@ class BacktestAsset(BacktestAsset_):
         Args:
             data: A list of file paths for the historical order latency data in `npz`, or a NumPy array of the
                   historical order latency data.
+            latency_offset: the latency offset to adjust the order entry and response latency by the
+                            specified amount. This is particularly useful in cross-exchange
+                            backtesting, where the feed data is collected from a different site than
+                            the one where the strategy is intended to run.
         """
         if isinstance(data, str):
-            super().intp_order_latency([data])
+            super().intp_order_latency([data], latency_offset)
         elif isinstance(data, np.ndarray):
-            self._intp_order_latency_ndarray(data.ctypes.data, len(data))
+            self._intp_order_latency_ndarray(data.ctypes.data, len(data), latency_offset)
         elif isinstance(data, list):
-            super().intp_order_latency(data)
+            super().intp_order_latency(data, latency_offset)
         else:
             raise ValueError
         return self
