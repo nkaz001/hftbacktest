@@ -6,6 +6,7 @@
   * https://github.com/ranaroussi/quantstats
   * https://www.prestolabs.io/research/optimizing-risk-adjusted-return-in-constructing-portfolios-of-alphas
 * [ ] Add more performance metrics and visualization features to the reporting tool.
+* [ ] Add live trading support.
 
 ## Rust
 
@@ -59,5 +60,5 @@
 * [ ] Example demonstrating the volume clock/event clock using `wait_next_feed`.
 * [ ] Example demonstrating the cross-market market-making.
 * [ ] Fair value pricing from the perspectives of statistical arbitrage and optimal execution.
-* [ ] Queue-position-based market making for large-tick assets.
+* [X] Queue-position-based market making for large-tick assets.
 * [X] Update the existing examples to align with version 2.0.0.
