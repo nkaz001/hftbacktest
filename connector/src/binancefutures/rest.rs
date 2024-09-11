@@ -1,12 +1,5 @@
-/// Binance Futures REST API module
-/// https://binance-docs.github.io/apidocs/futures/en/
-use std::collections::HashMap;
-
 use chrono::Utc;
-use hftbacktest::{
-    live::Asset,
-    types::{OrdType, Order, Side, Status, TimeInForce},
-};
+use hftbacktest::types::{OrdType, Side, TimeInForce};
 use serde::Deserialize;
 
 use super::msg::{rest, rest::PositionInformationV2};
@@ -16,10 +9,9 @@ use crate::{
             rest::{OrderResponse, OrderResponseResult},
             stream::ListenKey,
         },
-        ordermanager::OrderManager,
         BinanceFuturesError,
     },
-    util::sign_hmac_sha256,
+    utils::sign_hmac_sha256,
 };
 
 #[derive(Clone)]
@@ -49,7 +41,7 @@ impl BinanceFuturesClient {
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
         if !query.is_empty() {
-            query.push_str("&");
+            query.push('&');
         }
         query.push_str("recvWindow=5000&timestamp=");
         query.push_str(&time.to_string());
@@ -171,6 +163,7 @@ impl BinanceFuturesClient {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn submit_order(
         &self,
         client_order_id: &str,
@@ -184,9 +177,9 @@ impl BinanceFuturesClient {
     ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");
-        body.push_str(&client_order_id);
+        body.push_str(client_order_id);
         body.push_str("&symbol=");
-        body.push_str(&symbol);
+        body.push_str(symbol);
         body.push_str("&side=");
         body.push_str(side.as_ref());
         body.push_str("&price=");
@@ -221,7 +214,7 @@ impl BinanceFuturesClient {
         body.push_str("{\"batchOrders\":[");
         for (i, order) in orders.iter().enumerate() {
             if i > 0 {
-                body.push_str(",");
+                body.push(',');
             }
             body.push_str("{\"newClientOrderId\":\"");
             body.push_str(&order.0);
@@ -267,9 +260,9 @@ impl BinanceFuturesClient {
     ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
-        body.push_str(&symbol);
+        body.push_str(symbol);
         body.push_str("&origClientOrderId=");
-        body.push_str(&client_order_id);
+        body.push_str(client_order_id);
         body.push_str("&side=");
         body.push_str(side.as_ref());
         body.push_str("&price=");
@@ -296,7 +289,7 @@ impl BinanceFuturesClient {
     ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
-        body.push_str(&symbol);
+        body.push_str(symbol);
         body.push_str("&origClientOrderId=");
         body.push_str(client_order_id);
 
@@ -326,11 +319,11 @@ impl BinanceFuturesClient {
         body.push_str("\",\"origClientOrderIdList\":[");
         for (i, client_order_id) in client_order_ids.iter().enumerate() {
             if i > 0 {
-                body.push_str(",");
+                body.push(',');
             }
-            body.push_str("\"");
+            body.push('\"');
             body.push_str(client_order_id);
-            body.push_str("\"");
+            body.push('\"');
         }
         body.push_str("]}");
         let resp: Vec<OrderResponseResult> = self
@@ -372,51 +365,6 @@ impl BinanceFuturesClient {
             )
             .await?;
         Ok(resp)
-    }
-
-    pub async fn get_current_all_open_orders(
-        &self,
-        assets: &HashMap<String, Asset>,
-    ) -> Result<Vec<Order>, reqwest::Error> {
-        let resp: Vec<OrderResponse> = self
-            .get(
-                "/fapi/v1/openOrders",
-                String::new(),
-                &self.api_key,
-                &self.secret,
-            )
-            .await?;
-        Ok(resp
-            .iter()
-            .map(|data| {
-                assets.get(&data.symbol).and_then(|asset_info| {
-                    // fixme
-                    OrderManager::parse_client_order_id(&data.client_order_id, "prefix").map(
-                        |order_id| Order {
-                            qty: data.orig_qty,
-                            leaves_qty: data.orig_qty - data.cum_qty,
-                            price_tick: (data.price / asset_info.tick_size).round() as i64,
-                            tick_size: asset_info.tick_size,
-                            side: data.side,
-                            time_in_force: data.time_in_force,
-                            exch_timestamp: data.update_time * 1_000_000,
-                            status: data.status,
-                            local_timestamp: 0,
-                            req: Status::None,
-                            exec_price_tick: 0,
-                            exec_qty: data.executed_qty,
-                            order_id,
-                            order_type: data.ty,
-                            // Invalid information
-                            q: Box::new(()),
-                            maker: false,
-                        },
-                    )
-                })
-            })
-            .filter(|order| order.is_some())
-            .map(|order| order.unwrap())
-            .collect())
     }
 
     pub async fn get_depth(&self, symbol: &str) -> Result<rest::Depth, reqwest::Error> {

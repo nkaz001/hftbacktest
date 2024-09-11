@@ -2,7 +2,7 @@ use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::Deserialize;
 
 use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type};
-use crate::util::{from_str_to_f64, from_str_to_f64_opt};
+use crate::utils::{from_str_to_f64, from_str_to_f64_opt};
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]

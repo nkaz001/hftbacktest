@@ -1,6 +1,5 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
-    num::{ParseFloatError, ParseIntError},
     sync::{Arc, Mutex},
 };
 
@@ -8,50 +7,20 @@ use hftbacktest::{
     prelude::get_precision,
     types::{OrdType, Order, OrderId, Side, Status, TimeInForce},
 };
-use serde_json::Value;
-use thiserror::Error;
 
 use crate::{
-    bybit::msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
-    util::gen_random_string,
+    bybit::{
+        msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
+        BybitError,
+    },
+    utils::gen_random_string,
 };
 
-pub type OrderManagerWrapper = Arc<Mutex<OrderManager>>;
-
-#[derive(Error, Debug)]
-pub enum HandleError {
-    #[error("px qty parse error: {0}")]
-    InvalidPxQty(#[from] ParseFloatError),
-    #[error("order id parse error: {0}")]
-    InvalidOrderId(ParseIntError),
-    #[error("prefix unmatched")]
-    PrefixUnmatched,
-    #[error("order not found")]
-    OrderNotFound,
-    #[error("req id is invalid")]
-    InvalidReqId,
-    #[error("asset not found")]
-    AssetNotFound,
-    #[error("invalid argument")]
-    InvalidArg(&'static str),
-    #[error("order already exist")]
-    OrderAlreadyExist,
-    #[error("serde: {0}")]
-    SerdeError(#[from] serde_json::Error),
-    #[error("tokio: {0}")]
-    TokioError(#[from] tokio_tungstenite::tungstenite::Error),
-}
-
-impl Into<Value> for HandleError {
-    fn into(self) -> Value {
-        // todo!: improve this to deliver detailed error information.
-        Value::String(self.to_string())
-    }
-}
+pub type SharedOrderManager = Arc<Mutex<OrderManager>>;
 
 #[derive(Clone)]
 pub struct OrderInfo {
-    pub asset: String,
+    pub symbol: String,
     pub order_link_id: String,
     pub order: Order,
 }
@@ -69,21 +38,21 @@ impl OrderManager {
         }
     }
 
-    fn parse_order_id(&self, order_link_id: &str) -> Result<OrderId, HandleError> {
+    fn parse_order_id(&self, order_link_id: &str) -> Result<OrderId, BybitError> {
         if !order_link_id.starts_with(&self.prefix) {
-            return Err(HandleError::PrefixUnmatched);
+            return Err(BybitError::PrefixUnmatched);
         }
         order_link_id[(self.prefix.len() + 8)..]
             .parse()
-            .map_err(|e| HandleError::InvalidOrderId(e))
+            .map_err(BybitError::InvalidOrderId)
     }
 
-    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<OrderInfo, HandleError> {
+    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<OrderInfo, BybitError> {
         let order_id = self.parse_order_id(&data.order_link_id)?;
         let order_info = self
             .orders
             .get_mut(&order_id)
-            .ok_or(HandleError::OrderNotFound)?;
+            .ok_or(BybitError::OrderNotFound)?;
         order_info.order.req = Status::None;
         order_info.order.status = data.order_status;
         order_info.order.exch_timestamp = data.updated_time * 1_000_000;
@@ -95,12 +64,12 @@ impl OrderManager {
         }
     }
 
-    pub fn update_execution(&mut self, data: &Execution) -> Result<OrderInfo, HandleError> {
+    pub fn update_execution(&mut self, data: &Execution) -> Result<OrderInfo, BybitError> {
         let order_id = self.parse_order_id(&data.order_link_id)?;
         let order_info = self
             .orders
             .get_mut(&order_id)
-            .ok_or(HandleError::OrderNotFound)?;
+            .ok_or(BybitError::OrderNotFound)?;
         order_info.order.exec_price_tick =
             (data.exec_price / order_info.order.price_tick as f64).round() as i64;
         order_info.order.exec_qty = data.exec_qty;
@@ -108,16 +77,13 @@ impl OrderManager {
         Ok(order_info.clone())
     }
 
-    pub fn update_fast_execution(
-        &mut self,
-        data: &FastExecution,
-    ) -> Result<OrderInfo, HandleError> {
+    pub fn update_fast_execution(&mut self, data: &FastExecution) -> Result<OrderInfo, BybitError> {
         // fixme: there is no valid order_link_id.
         let order_id = self.parse_order_id(&data.order_link_id)?;
         let order_info = self
             .orders
             .get_mut(&order_id)
-            .ok_or(HandleError::OrderNotFound)?;
+            .ok_or(BybitError::OrderNotFound)?;
         order_info.order.exec_price_tick =
             (data.exec_price / order_info.order.price_tick as f64).round() as i64;
         order_info.order.exec_qty = data.exec_qty;
@@ -130,7 +96,7 @@ impl OrderManager {
         symbol: &str,
         category: &str,
         order: Order,
-    ) -> Result<BybitOrder, HandleError> {
+    ) -> Result<BybitOrder, BybitError> {
         let price_prec = get_precision(order.tick_size);
         let rand_id = gen_random_string(8);
         let bybit_order = BybitOrder {
@@ -139,14 +105,14 @@ impl OrderManager {
                 match order.side {
                     Side::Buy => "Buy".to_string(),
                     Side::Sell => "Sell".to_string(),
-                    Side::None | Side::Unsupported => return Err(HandleError::InvalidArg("side")),
+                    Side::None | Side::Unsupported => return Err(BybitError::InvalidArg("side")),
                 }
             }),
             order_type: Some({
                 match order.order_type {
                     OrdType::Limit => "Limit".to_string(),
                     OrdType::Market => "Market".to_string(),
-                    OrdType::Unsupported => return Err(HandleError::InvalidArg("order_type")),
+                    OrdType::Unsupported => return Err(BybitError::InvalidArg("order_type")),
                 }
             }),
             qty: Some(format!("{:.5}", order.qty)),
@@ -163,7 +129,7 @@ impl OrderManager {
                     TimeInForce::FOK => "FOK".to_string(),
                     TimeInForce::IOC => "IOC".to_string(),
                     TimeInForce::Unsupported => {
-                        return Err(HandleError::InvalidArg("time_in_force"));
+                        return Err(BybitError::InvalidArg("time_in_force"));
                     }
                 }
             }),
@@ -171,11 +137,11 @@ impl OrderManager {
         };
         match self.orders.entry(order.order_id) {
             Entry::Occupied(_) => {
-                return Err(HandleError::OrderAlreadyExist);
+                return Err(BybitError::OrderAlreadyExist);
             }
             Entry::Vacant(entry) => {
                 entry.insert(OrderInfo {
-                    asset: symbol.to_string(),
+                    symbol: symbol.to_string(),
                     order_link_id: bybit_order.order_link_id.clone(),
                     order,
                 });
@@ -189,11 +155,11 @@ impl OrderManager {
         symbol: &str,
         category: &str,
         order_id: OrderId,
-    ) -> Result<BybitOrder, HandleError> {
+    ) -> Result<BybitOrder, BybitError> {
         let order_info = self
             .orders
             .get(&order_id)
-            .ok_or(HandleError::OrderNotFound)?;
+            .ok_or(BybitError::OrderNotFound)?;
         let bybit_order = BybitOrder {
             symbol: symbol.to_string(),
             side: None,
@@ -207,34 +173,41 @@ impl OrderManager {
         Ok(bybit_order)
     }
 
-    pub fn update_submit_fail(&mut self, order_link_id: &str) -> Result<OrderInfo, HandleError> {
+    pub fn update_submit_fail(&mut self, order_link_id: &str) -> Result<OrderInfo, BybitError> {
         let order_id = self.parse_order_id(order_link_id)?;
         let mut order_info = self
             .orders
             .remove(&order_id)
-            .ok_or(HandleError::OrderNotFound)?;
+            .ok_or(BybitError::OrderNotFound)?;
         order_info.order.req = Status::None;
         order_info.order.status = Status::Expired;
         Ok(order_info)
     }
 
-    pub fn update_cancel_fail(&mut self, order_link_id: &str) -> Result<OrderInfo, HandleError> {
+    pub fn update_cancel_fail(&mut self, order_link_id: &str) -> Result<OrderInfo, BybitError> {
         let order_id = self.parse_order_id(order_link_id)?;
         let mut order_info = self
             .orders
             .get_mut(&order_id)
             .cloned()
-            .ok_or(HandleError::OrderNotFound)?;
+            .ok_or(BybitError::OrderNotFound)?;
         order_info.order.req = Status::None;
         Ok(order_info)
     }
 
-    pub fn clear_orders(&mut self) -> Vec<OrderInfo> {
-        let mut values: Vec<OrderInfo> = Vec::new();
-        values.extend(self.orders.drain().map(|(_, mut order_info)| {
-            order_info.order.status = Status::Canceled;
-            order_info
-        }));
-        values
+    pub fn clear_orders(&mut self, symbol: &str) -> Vec<Order> {
+        let removed_order_ids: Vec<_> = self
+            .orders
+            .iter()
+            .filter(|(_, order)| order.symbol == symbol)
+            .map(|(id, _)| id)
+            .cloned()
+            .collect();
+
+        let mut removed_orders = Vec::new();
+        for order_id in removed_order_ids {
+            removed_orders.push(self.orders.remove(&order_id).unwrap().order);
+        }
+        removed_orders
     }
 }

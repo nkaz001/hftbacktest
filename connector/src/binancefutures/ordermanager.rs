@@ -9,7 +9,7 @@ use tracing::{debug, error};
 
 use crate::{
     binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
-    util::gen_random_string,
+    utils::gen_random_string,
 };
 
 #[derive(Debug)]
@@ -20,7 +20,7 @@ struct OrderWrapper {
     removed_by_rest: bool,
 }
 
-pub type OrderManagerWrapper = Arc<Mutex<OrderManager>>;
+pub type SharedOrderManager = Arc<Mutex<OrderManager>>;
 
 /// Binance has separated channels for REST APIs and Websocket. Order responses are delivered
 /// through these channels, with no guaranteed order of transmission. To prevent duplicate handling
@@ -331,12 +331,19 @@ impl OrderManager {
         }
     }
 
-    pub fn clear_orders(&mut self) -> Vec<(String, Order)> {
-        let mut values: Vec<(String, Order)> = Vec::new();
-        values.extend(self.orders.drain().map(|(_, mut order)| {
-            order.order.status = Status::Canceled;
-            (order.symbol, order.order)
-        }));
-        values
+    pub fn clear_orders(&mut self, symbol: &str) -> Vec<Order> {
+        let removed_order_ids: Vec<_> = self
+            .orders
+            .iter()
+            .filter(|(_, order)| order.symbol == symbol)
+            .map(|(id, _)| id)
+            .cloned()
+            .collect();
+
+        let mut removed_orders = Vec::new();
+        for order_id in removed_order_ids {
+            removed_orders.push(self.orders.remove(&order_id).unwrap().order);
+        }
+        removed_orders
     }
 }

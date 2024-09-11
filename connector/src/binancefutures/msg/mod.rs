@@ -5,7 +5,9 @@ use serde::{
     Deserializer,
 };
 
+#[allow(dead_code)]
 pub mod rest;
+#[allow(dead_code)]
 pub mod stream;
 
 fn from_str_to_side<'de, D>(deserializer: D) -> Result<Side, D::Error>

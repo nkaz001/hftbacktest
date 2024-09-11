@@ -1,77 +1,68 @@
+mod market_data_stream;
 mod msg;
 mod ordermanager;
 mod rest;
-mod ws;
+mod user_data_stream;
 
 use std::{
-    collections::{HashMap, HashSet},
-    sync::{mpsc::Sender, Arc, Mutex},
-    time::Duration,
+    collections::HashMap,
+    sync::{Arc, Mutex},
 };
 
 use hftbacktest::{
-    live::Asset,
     prelude::get_precision,
     types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status, Value},
 };
 use thiserror::Error;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::{broadcast, broadcast::Sender, mpsc::UnboundedSender};
+use tokio_tungstenite::tungstenite;
 use tracing::{debug, error, warn};
 
 use crate::{
     binancefutures::{
-        ordermanager::{OrderManager, OrderManagerWrapper},
+        ordermanager::{OrderManager, SharedOrderManager},
         rest::BinanceFuturesClient,
-        ws::connect,
     },
-    connector::Connector,
+    connector::{Connector, Instrument},
+    utils::retry,
 };
-
-#[derive(Clone)]
-pub enum Endpoint {
-    Public,
-    Private,
-    Testnet,
-    LowLatency,
-    Custom(String),
-}
-
-impl From<String> for Endpoint {
-    fn from(value: String) -> Self {
-        Endpoint::Custom(value)
-    }
-}
-
-impl From<&'static str> for Endpoint {
-    fn from(value: &'static str) -> Self {
-        Endpoint::Custom(value.to_string())
-    }
-}
 
 #[derive(Error, Debug)]
 pub enum BinanceFuturesError {
-    #[error("asset not found")]
-    AssetNotFound,
-    #[error("invalid request")]
+    #[error("InstrumentNotFound")]
+    InstrumentNotFound,
+    #[error("InvalidRequest")]
     InvalidRequest,
-    #[error("http error: {0:?}")]
+    #[error("ListenKeyExpired")]
+    ListenKeyExpired,
+    #[error("ConnectionInterrupted")]
+    ConnectionInterrupted,
+    #[error("ConnectionAbort: {0}")]
+    ConnectionAbort(String),
+    #[error("ReqError: {0:?}")]
     ReqError(#[from] reqwest::Error),
-    #[error("error({code}) at order_id({msg})")]
+    #[error("OrderError: {code} - {msg})")]
     OrderError { code: i64, msg: String },
+    #[error("Tunstenite: {0:?}")]
+    Tunstenite(#[from] tungstenite::Error),
 }
 
-impl Into<Value> for BinanceFuturesError {
-    fn into(self) -> Value {
-        match self {
-            BinanceFuturesError::AssetNotFound => Value::String(self.to_string()),
-            BinanceFuturesError::InvalidRequest => Value::String(self.to_string()),
-            BinanceFuturesError::ReqError(err) => err.into(),
+impl From<BinanceFuturesError> for Value {
+    fn from(value: BinanceFuturesError) -> Value {
+        match value {
+            BinanceFuturesError::InstrumentNotFound => Value::String(value.to_string()),
+            BinanceFuturesError::InvalidRequest => Value::String(value.to_string()),
+            BinanceFuturesError::ReqError(error) => error.into(),
             BinanceFuturesError::OrderError { code, msg } => Value::Map({
                 let mut map = HashMap::new();
                 map.insert("code".to_string(), Value::Int(code));
                 map.insert("msg".to_string(), Value::String(msg));
                 map
             }),
+            BinanceFuturesError::Tunstenite(error) => Value::String(format!("{error}")),
+            BinanceFuturesError::ListenKeyExpired => Value::String(value.to_string()),
+            BinanceFuturesError::ConnectionInterrupted => Value::String(value.to_string()),
+            BinanceFuturesError::ConnectionAbort(_) => Value::String(value.to_string()),
         }
     }
 }
@@ -83,64 +74,28 @@ pub struct BinanceFuturesBuilder {
     order_prefix: String,
     api_key: String,
     secret: String,
-    streams: HashSet<String>,
 }
 
 impl BinanceFuturesBuilder {
-    /// Sets an endpoint to connect.
-    pub fn endpoint(self, endpoint: Endpoint) -> Self {
-        if let Endpoint::Custom(_) = endpoint {
-            panic!("Use `stream_url` and `api_url` to set a custom endpoint instead");
-        }
-        self.stream_url(endpoint.clone()).api_url(endpoint)
-    }
-
     /// Sets the Websocket streams endpoint url.
-    pub fn stream_url<E: Into<Endpoint>>(self, endpoint: E) -> Self {
-        match endpoint.into() {
-            Endpoint::Public => {
-                Self {
-                    // wss://ws-fapi.binance.com/ws-fapi/v1
-                    stream_url: "wss://fstream.binance.com".to_string(),
-                    ..self
-                }
-            }
-            Endpoint::Private => Self {
-                stream_url: "wss://fstream-auth.binance.com".to_string(),
-                ..self
-            },
-            Endpoint::Testnet => Self {
-                stream_url: "wss://fstream.binancefuture.com".to_string(),
-                ..self
-            },
-            Endpoint::LowLatency => Self {
-                stream_url: "wss://fstream-mm.binance.com".to_string(),
-                ..self
-            },
-            Endpoint::Custom(stream_url) => Self { stream_url, ..self },
+    pub fn stream_url<E>(self, endpoint: E) -> Self
+    where
+        E: Into<String>,
+    {
+        Self {
+            stream_url: endpoint.into(),
+            ..self
         }
     }
 
     /// Sets the REST APIs endpoint url.
-    pub fn api_url<E: Into<Endpoint>>(self, endpoint: E) -> Self {
-        match endpoint.into() {
-            Endpoint::Public => Self {
-                api_url: "https://fapi.binance.com".to_string(),
-                ..self
-            },
-            Endpoint::Private => Self {
-                api_url: "https://fapi.binance.com".to_string(),
-                ..self
-            },
-            Endpoint::Testnet => Self {
-                api_url: "https://testnet.binancefuture.com".to_string(),
-                ..self
-            },
-            Endpoint::LowLatency => Self {
-                api_url: "https://fapi-mm.binance.com".to_string(),
-                ..self
-            },
-            Endpoint::Custom(api_url) => Self { api_url, ..self },
+    pub fn api_url<E>(self, endpoint: E) -> Self
+    where
+        E: Into<String>,
+    {
+        Self {
+            api_url: endpoint.into(),
+            ..self
         }
     }
 
@@ -169,12 +124,6 @@ impl BinanceFuturesBuilder {
         }
     }
 
-    /// Adds an additional stream to receive through the WebSocket connection.
-    pub fn add_stream(mut self, stream: &str) -> Self {
-        self.streams.insert(stream.to_string());
-        self
-    }
-
     /// Builds [`BinanceFutures`] connector.
     pub fn build(self) -> Result<BinanceFutures, BuildError> {
         if self.stream_url.is_empty() {
@@ -190,29 +139,32 @@ impl BinanceFuturesBuilder {
             return Err(BuildError::BuilderIncomplete("secret"));
         }
 
-        let order_manager: OrderManagerWrapper =
+        let order_manager: SharedOrderManager =
             Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
+
+        let (symbol_tx, _) = broadcast::channel(500);
+
         Ok(BinanceFutures {
             url: self.stream_url.to_string(),
             prefix: self.order_prefix,
-            assets: Default::default(),
-            inv_assets: Default::default(),
+            instruments: Default::default(),
             order_manager,
             client: BinanceFuturesClient::new(&self.api_url, &self.api_key, &self.secret),
-            streams: self.streams,
+            symbol_tx,
         })
     }
 }
+
+type SharedInstrumentMap = Arc<Mutex<HashMap<String, Instrument>>>;
 
 /// A connector for Binance USD-m Futures.
 pub struct BinanceFutures {
     url: String,
     prefix: String,
-    assets: HashMap<String, Asset>,
-    inv_assets: HashMap<usize, Asset>,
-    order_manager: OrderManagerWrapper,
+    instruments: SharedInstrumentMap,
+    order_manager: SharedOrderManager,
     client: BinanceFuturesClient,
-    streams: HashSet<String>,
+    symbol_tx: Sender<String>,
 }
 
 impl BinanceFutures {
@@ -224,143 +176,22 @@ impl BinanceFutures {
             order_prefix: "".to_string(),
             api_key: "".to_string(),
             secret: "".to_string(),
-            streams: Default::default(),
         }
     }
 
-    /// Constructs an instance of `BinanceFutures`.
-    pub fn new(stream_url: &str, api_url: &str, prefix: &str, api_key: &str, secret: &str) -> Self {
-        let order_manager: OrderManagerWrapper = Arc::new(Mutex::new(OrderManager::new(prefix)));
-        Self {
-            url: stream_url.to_string(),
-            prefix: prefix.to_string(),
-            assets: Default::default(),
-            inv_assets: Default::default(),
-            order_manager,
-            client: BinanceFuturesClient::new(api_url, api_key, secret),
-            streams: Default::default(),
-        }
-    }
-}
-
-impl Connector for BinanceFutures {
-    fn add(&mut self, symbol: String, tick_size: f64, lot_size: f64) -> Result<(), anyhow::Error> {
-        let asset_info = Asset {
-            asset_no: 0, // todo!
-            symbol: symbol.clone(),
-            tick_size,
-            lot_size,
-        };
-        self.assets.insert(symbol, asset_info.clone());
-        Ok(())
-    }
-
-    fn run(&mut self, ev_tx: UnboundedSender<LiveEvent>) -> Result<(), anyhow::Error> {
-        let assets = self.assets.clone();
+    pub fn connect_market_data_stream(&mut self, ev_tx: UnboundedSender<LiveEvent>) {
         let base_url = self.url.clone();
-        let prefix = self.prefix.clone();
         let client = self.client.clone();
-        let order_manager = self.order_manager.clone();
-        let add_streams = self.streams.clone();
-        let mut error_count = 0;
+        let symbol_tx = self.symbol_tx.clone();
 
-        let _ = tokio::spawn(async move {
-            'connection: loop {
-                if error_count > 0 {
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                }
-
-                // Cancel all orders before connecting to the stream in order to start with the
-                // clean state.
-                for (symbol, _) in assets.iter() {
-                    if let Err(error) = client.cancel_all_orders(symbol).await {
-                        error!(?error, %symbol, "Couldn't cancel all open orders.");
-                        ev_tx
-                            .send(LiveEvent::Error(LiveError::with(
-                                ErrorKind::OrderError,
-                                error.into(),
-                            )))
-                            .unwrap();
-                        error_count += 1;
-                        continue 'connection;
-                    }
-                }
-                {
-                    let mut order_manager_ = order_manager.lock().unwrap();
-                    let orders = order_manager_.clear_orders();
-                    for (symbol, order) in orders {
-                        ev_tx.send(LiveEvent::Order { symbol, order }).unwrap();
-                    }
-                }
-
-                // Fetches the initial states such as positions and open orders.
-                match client.get_position_information().await {
-                    Ok(positions) => {
-                        // todo: check if there is no position info when there is no holding
-                        //       position. In that case, it needs to send zero-position to the bot.
-                        positions.into_iter().for_each(|position| {
-                            ev_tx
-                                .send(LiveEvent::Position {
-                                    symbol: position.symbol,
-                                    qty: position.position_amount,
-                                })
-                                .unwrap();
-                        });
-                    }
-                    Err(error) => {
-                        error!(?error, "Couldn't get position information.");
-                        error_count += 1;
-                        continue 'connection;
-                    }
-                }
-
-                let listen_key = match client.start_user_data_stream().await {
-                    Ok(listen_key) => listen_key,
-                    Err(error) => {
-                        error!(?error, "Couldn't start user data stream.");
-                        // 1000 indicates user data stream starting error.
-                        ev_tx
-                            .send(LiveEvent::Error(LiveError::with(
-                                ErrorKind::Custom(1000),
-                                error.into(),
-                            )))
-                            .unwrap();
-                        continue 'connection;
-                    }
-                };
-
-                // Prepares a URL that connects streams
-                let mut streams: Vec<String> = assets
-                    .keys()
-                    .map(|symbol| {
-                        format!(
-                            "{}@depth@0ms/{}@trade",
-                            symbol.to_lowercase(),
-                            symbol.to_lowercase()
-                        )
-                    })
-                    .collect();
-                streams.append(&mut add_streams.iter().cloned().collect::<Vec<_>>());
-                let url = format!(
-                    "{}/stream?streams={}/{}",
-                    &base_url,
-                    listen_key,
-                    streams.join("/")
-                );
-
-                // todo!
-                let (symbol_tx, symbol_rx) = unbounded_channel();
-                if let Err(error) = connect(
-                    &url,
-                    symbol_rx,
-                    ev_tx.clone(),
-                    Default::default(), // todo!
-                    &prefix,
-                    order_manager.clone(),
+        tokio::spawn(async move {
+            let _ = retry(|| async {
+                let mut stream = market_data_stream::MarketDataStream::new(
                     client.clone(),
-                )
-                .await
-                {
+                    ev_tx.clone(),
+                    symbol_tx.subscribe(),
+                );
+                if let Err(error) = stream.connect(&base_url).await {
                     error!(?error, "A connection error occurred.");
                     ev_tx
                         .send(LiveEvent::Error(LiveError::with(
@@ -375,29 +206,92 @@ impl Connector for BinanceFutures {
                         )))
                         .unwrap();
                 }
-                error_count += 1;
-            }
+                Err::<(), BinanceFuturesError>(BinanceFuturesError::ConnectionInterrupted)
+            })
+            .await;
         });
-        Ok(())
     }
 
-    fn submit(
-        &self,
-        symbol: String,
-        mut order: Order,
-        tx: UnboundedSender<LiveEvent>,
-    ) -> Result<(), anyhow::Error> {
+    pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<LiveEvent>) {
+        let base_url = self.url.clone();
+        let prefix = self.prefix.clone();
         let client = self.client.clone();
-        let orders = self.order_manager.clone();
+        let order_manager = self.order_manager.clone();
+        let instruments = self.instruments.clone();
+
         tokio::spawn(async move {
-            let client_order_id = orders
+            let _ = retry(|| async {
+                let mut stream = user_data_stream::UserDataStream::new(
+                    client.clone(),
+                    ev_tx.clone(),
+                    order_manager.clone(),
+                    instruments.clone(),
+                    prefix.clone(),
+                );
+
+                // Cancel all orders before connecting to the stream in order to start with the
+                // clean state.
+                stream.cancel_all().await?;
+
+                // Fetches the initial states such as positions and open orders.
+                stream.get_position_information().await?;
+
+                let listen_key = stream.get_listen_key().await?;
+
+                // Prepares a URL that connects streams
+                let url = format!("{}/stream?streams={}", &base_url, listen_key,);
+
+                if let Err(error) = stream.connect(&url).await {
+                    error!(?error, "A connection error occurred.");
+                    ev_tx
+                        .send(LiveEvent::Error(LiveError::with(
+                            ErrorKind::ConnectionInterrupted,
+                            error.into(),
+                        )))
+                        .unwrap();
+                } else {
+                    ev_tx
+                        .send(LiveEvent::Error(LiveError::new(
+                            ErrorKind::ConnectionInterrupted,
+                        )))
+                        .unwrap();
+                }
+                Err::<(), BinanceFuturesError>(BinanceFuturesError::InvalidRequest)
+            })
+            .await;
+        });
+    }
+}
+
+impl Connector for BinanceFutures {
+    fn add(&mut self, symbol: String, tick_size: f64, _ev_tx: UnboundedSender<LiveEvent>) {
+        let instrument = Instrument {
+            symbol: symbol.clone(),
+            tick_size,
+        };
+        let mut instruments = self.instruments.lock().unwrap();
+        instruments.insert(symbol.clone(), instrument.clone());
+        self.symbol_tx.send(symbol).unwrap();
+    }
+
+    fn run(&mut self, ev_tx: UnboundedSender<LiveEvent>) {
+        self.connect_market_data_stream(ev_tx.clone());
+        self.connect_user_data_stream(ev_tx.clone());
+    }
+
+    fn submit(&self, symbol: String, mut order: Order, tx: UnboundedSender<LiveEvent>) {
+        let client = self.client.clone();
+        let order_manager = self.order_manager.clone();
+
+        tokio::spawn(async move {
+            let client_order_id = order_manager
                 .lock()
                 .unwrap()
                 .prepare_client_order_id(symbol.clone(), order.clone());
 
             match client_order_id {
                 Some(client_order_id) => {
-                    match client
+                    let result = client
                         .submit_order(
                             &client_order_id,
                             &symbol,
@@ -408,26 +302,24 @@ impl Connector for BinanceFutures {
                             order.order_type,
                             order.time_in_force,
                         )
-                        .await
-                    {
+                        .await;
+                    match result {
                         Ok(resp) => {
-                            let order = orders.lock().unwrap().update_submit_success(
-                                symbol.clone(),
-                                order,
-                                resp,
-                            );
-                            if let Some(order) = order {
+                            if let Some(order) = order_manager
+                                .lock()
+                                .unwrap()
+                                .update_submit_success(symbol.clone(), order, resp)
+                            {
                                 tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
                         }
                         Err(error) => {
-                            let order = orders.lock().unwrap().update_submit_fail(
+                            if let Some(order) = order_manager.lock().unwrap().update_submit_fail(
                                 symbol.clone(),
                                 order,
                                 &error,
                                 client_order_id,
-                            );
-                            if let Some(order) = order {
+                            ) {
                                 tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
 
@@ -451,41 +343,38 @@ impl Connector for BinanceFutures {
                 }
             }
         });
-        Ok(())
     }
 
-    fn cancel(
-        &self,
-        symbol: String,
-        mut order: Order,
-        tx: UnboundedSender<LiveEvent>,
-    ) -> Result<(), anyhow::Error> {
+    fn cancel(&self, symbol: String, mut order: Order, tx: UnboundedSender<LiveEvent>) {
         let client = self.client.clone();
-        let orders = self.order_manager.clone();
+        let order_manager = self.order_manager.clone();
+
         tokio::spawn(async move {
-            let client_order_id = orders.lock().unwrap().get_client_order_id(order.order_id);
+            let client_order_id = order_manager
+                .lock()
+                .unwrap()
+                .get_client_order_id(order.order_id);
 
             match client_order_id {
                 Some(client_order_id) => {
-                    match client.cancel_order(&client_order_id, &symbol).await {
+                    let result = client.cancel_order(&client_order_id, &symbol).await;
+                    match result {
                         Ok(resp) => {
-                            let order = orders.lock().unwrap().update_cancel_success(
-                                symbol.clone(),
-                                order,
-                                resp,
-                            );
-                            if let Some(order) = order {
+                            if let Some(order) = order_manager
+                                .lock()
+                                .unwrap()
+                                .update_cancel_success(symbol.clone(), order, resp)
+                            {
                                 tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
                         }
                         Err(error) => {
-                            let order = orders.lock().unwrap().update_cancel_fail(
+                            if let Some(order) = order_manager.lock().unwrap().update_cancel_fail(
                                 symbol.clone(),
                                 order,
                                 &error,
                                 client_order_id,
-                            );
-                            if let Some(order) = order {
+                            ) {
                                 tx.send(LiveEvent::Order { symbol, order }).unwrap();
                             }
 
@@ -503,13 +392,8 @@ impl Connector for BinanceFutures {
                         "client_order_id corresponding to order_id is not found; \
                         this may be due to the order already being canceled or filled."
                     );
-                    // order.req = Status::None;
-                    // order.status = Status::Expired;
-                    // tx.send(Event::Order(OrderResponse { symbol, order }))
-                    //     .unwrap();
                 }
             }
         });
-        Ok(())
     }
 }

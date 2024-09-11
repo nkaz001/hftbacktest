@@ -1,4 +1,9 @@
-use std::{fmt, fmt::Write};
+use std::{
+    fmt,
+    fmt::{Debug, Write},
+    future::Future,
+    time::Duration,
+};
 
 use hmac::{Hmac, KeyInit, Mac};
 use rand::{distributions::Alphanumeric, Rng};
@@ -8,6 +13,7 @@ use serde::{
     Deserializer,
 };
 use sha2::Sha256;
+use tracing::error;
 
 struct I64Visitor;
 
@@ -115,4 +121,24 @@ pub fn gen_random_string(len: usize) -> String {
         .take(len)
         .map(char::from)
         .collect()
+}
+
+pub async fn retry<F, Fut, O, E>(func: F) -> Result<O, E>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<O, E>>,
+    E: Debug,
+{
+    let mut backoff = 500;
+    loop {
+        match func().await {
+            Ok(o) => return Ok(o),
+            Err(error) => {
+                error!(?error, "Retrying...");
+                tokio::time::sleep(Duration::from_millis(backoff)).await;
+                backoff *= 2;
+                backoff = backoff.max(60_000);
+            }
+        }
+    }
 }

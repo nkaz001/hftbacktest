@@ -261,11 +261,8 @@ where
         wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BotError> {
         match ev {
-            LiveEvent::FeedBatch {
-                symbol: asset,
-                events,
-            } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&asset) else {
+            LiveEvent::FeedBatch { symbol, events } => {
+                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
                     return Ok(false);
                 };
                 for event in events {
@@ -288,11 +285,8 @@ where
                     return Ok(true);
                 }
             }
-            LiveEvent::Feed {
-                symbol: asset,
-                event,
-            } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&asset) else {
+            LiveEvent::Feed { symbol, event } => {
+                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
                     return Ok(false);
                 };
 
@@ -311,11 +305,8 @@ where
                     trade.push(event);
                 }
             }
-            LiveEvent::Order {
-                symbol: asset,
-                order,
-            } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&asset) else {
+            LiveEvent::Order { symbol, order } => {
+                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
                     return Ok(false);
                 };
 
@@ -363,8 +354,8 @@ where
                     return Ok(true);
                 }
             }
-            LiveEvent::Position { symbol: asset, qty } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&asset) else {
+            LiveEvent::Position { symbol, qty } => {
+                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
                     return Ok(false);
                 };
 
@@ -460,7 +451,7 @@ where
         self.pubsub.send(
             asset_no,
             Request::Order {
-                asset: symbol,
+                symbol: symbol,
                 order,
             },
         )?;
@@ -616,7 +607,7 @@ where
         self.pubsub.send(
             asset_no,
             Request::Order {
-                asset: symbol,
+                symbol: symbol,
                 order: order.clone(),
             },
         )?;

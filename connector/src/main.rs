@@ -12,7 +12,7 @@ use tokio::{
 };
 use tracing::error;
 
-use crate::{bybit::Bybit, connector::Connector};
+use crate::{binancefutures::BinanceFutures, bybit::Bybit, connector::Connector};
 
 #[cfg(feature = "binancefutures")]
 pub mod binancefutures;
@@ -20,7 +20,7 @@ pub mod binancefutures;
 pub mod bybit;
 
 mod connector;
-mod util;
+mod utils;
 
 fn sender<C: Connector>(
     name: &str,
@@ -34,17 +34,23 @@ fn sender<C: Connector>(
             Iox2Event::Tick => {
                 while let Some(ev) = subscriber.receive()? {
                     match ev {
-                        Request::Order { asset, order } => match order.req {
+                        Request::Order {
+                            symbol: asset,
+                            order,
+                        } => match order.req {
                             Status::New => {
-                                connector.submit(asset, order, tx.clone())?;
+                                connector.submit(asset, order, tx.clone());
                             }
                             Status::Canceled => {
-                                connector.cancel(asset, order, tx.clone())?;
+                                connector.cancel(asset, order, tx.clone());
                             }
                             status => {
                                 error!(?status, "");
                             }
                         },
+                        Request::AddInstrument { symbol, tick_size } => {
+                            connector.add(symbol, tick_size, tx.clone());
+                        }
                     }
                 }
             }
@@ -65,8 +71,8 @@ async fn main() {
 
     let (tx, mut rx) = unbounded_channel();
 
-    let mut connector = Bybit::builder().build().unwrap();
-    connector.run(tx.clone()).unwrap();
+    let mut connector = BinanceFutures::builder().build().unwrap();
+    connector.run(tx.clone());
 
     let local = LocalSet::new();
     let handle = local.spawn_local(async move {
