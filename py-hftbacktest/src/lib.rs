@@ -107,7 +107,6 @@ pub struct BacktestAsset {
     fee_model: FeeModel,
     latency_offset: i64,
     parallel_load: bool,
-    l3: bool,
 }
 
 unsafe impl Send for BacktestAsset {}
@@ -138,7 +137,6 @@ impl BacktestAsset {
             },
             latency_offset: 0,
             parallel_load: true,
-            l3: false,
         }
     }
 
@@ -443,18 +441,6 @@ impl BacktestAsset {
         slf.fee_model = FeeModel::FlatPerTradeFeeModel {
             fees: CommonFees::new(maker_fee, taker_fee),
         };
-        slf
-    }
-
-    /// Sets this asset to Level2.
-    pub fn l2(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
-        slf.l3 = false;
-        slf
-    }
-
-    /// Sets this asset to Level3.
-    pub fn l3(mut slf: PyRefMut<Self>) -> PyRefMut<Self> {
-        slf.l3 = true;
         slf
     }
 }
