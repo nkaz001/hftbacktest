@@ -12,12 +12,13 @@
 
 ### Backtesting
 * [X] Level 3 Market-By-Order backtesting.
-* [X] Data fusion to provide the most frequent and granular data using different streams with different update frequencies and market depth ranges. ``feature: unstable_fuse``
+* [X] Data fusion to provide the most frequent and granular data using different streams with different update frequencies and market depth ranges. (WIP: ``feature: unstable_fuse``)
 * [X] Adjust feed and order latency for exchanges located in different regions if the original feed and order latency data was collected at a different site.
 * [ ] Additional queue position model or exchange model.
 * [X] A vector-based implementation for fast L2 market depth within the specified ROI (range of interest).
 * [X] Add fee model: fee per trading value (current), fee per trading quantity, fee per trade, and different fees based on the direction. (@roykim98)
 * [X] Parallel loading: Load the next data set while backtesting is in progress.
+* [ ] Add a modify order feature.
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
@@ -59,6 +60,6 @@
 * [ ] Example demonstrating latency-aware actions.
 * [ ] Example demonstrating the volume clock/event clock using `wait_next_feed`.
 * [ ] Example demonstrating the cross-market market-making.
-* [ ] Fair value pricing from the perspectives of statistical arbitrage and optimal execution.
+* [ ] Market making with alpha from the perspectives of statistical arbitrage and optimal execution.
 * [X] Queue-position-based market making for large-tick assets.
 * [X] Update the existing examples to align with version 2.0.0.
