@@ -1,0 +1,7 @@
+numpy==2.0.0
+numba==0.60.0
+polars==1.8.0
+altair==5.4.0 
+pyarrow==17.0.0
+pandas==2.2.3
+holoviews==1.19.1
