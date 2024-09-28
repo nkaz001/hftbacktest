@@ -162,7 +162,7 @@ impl OrderManager {
     pub fn update_cancel_success(
         &mut self,
         symbol: String,
-        mut order: Order,
+        order: Order,
         resp: OrderResponse,
     ) -> Option<Order> {
         let order = Order {
@@ -345,5 +345,14 @@ impl OrderManager {
             removed_orders.push(self.orders.remove(&order_id).unwrap().order);
         }
         removed_orders
+    }
+
+    pub fn get_orders(&self, symbol: &str) -> Vec<Order> {
+        self.orders
+            .iter()
+            .filter(|(_, order)| order.symbol == symbol)
+            .map(|(_, order)| &order.order)
+            .cloned()
+            .collect()
     }
 }

@@ -9,18 +9,21 @@ use tokio_tungstenite::{
 };
 use tracing::error;
 
-use crate::binancefutures::{
-    msg::stream::{Data, Stream},
-    ordermanager::{OrderManager, SharedOrderManager},
-    rest::BinanceFuturesClient,
-    BinanceFuturesError,
-    SharedInstrumentMap,
+use crate::{
+    binancefutures::{
+        msg::stream::{Data, Stream},
+        ordermanager::{OrderManager, SharedOrderManager},
+        rest::BinanceFuturesClient,
+        BinanceFuturesError,
+        SharedInstrumentMap,
+    },
+    connector::PublishMessage,
 };
 
 pub struct UserDataStream {
     instruments: SharedInstrumentMap,
     client: BinanceFuturesClient,
-    ev_tx: UnboundedSender<LiveEvent>,
+    ev_tx: UnboundedSender<PublishMessage>,
     order_manager: SharedOrderManager,
     prefix: String,
 }
@@ -28,7 +31,7 @@ pub struct UserDataStream {
 impl UserDataStream {
     pub fn new(
         client: BinanceFuturesClient,
-        ev_tx: UnboundedSender<LiveEvent>,
+        ev_tx: UnboundedSender<PublishMessage>,
         order_manager: SharedOrderManager,
         instruments: SharedInstrumentMap,
         prefix: String,
@@ -52,10 +55,10 @@ impl UserDataStream {
             for mut order in canceled_orders {
                 order.status = Status::Canceled;
                 self.ev_tx
-                    .send(LiveEvent::Order {
+                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
                         symbol: symbol.clone(),
                         order,
-                    })
+                    }))
                     .unwrap();
             }
         }
@@ -68,15 +71,18 @@ impl UserDataStream {
         position_information.into_iter().for_each(|position| {
             symbols.remove(&position.symbol);
             self.ev_tx
-                .send(LiveEvent::Position {
+                .send(PublishMessage::LiveEvent(LiveEvent::Position {
                     symbol: position.symbol,
                     qty: position.position_amount,
-                })
+                }))
                 .unwrap();
         });
         for symbol in symbols {
             self.ev_tx
-                .send(LiveEvent::Position { symbol, qty: 0.0 })
+                .send(PublishMessage::LiveEvent(LiveEvent::Position {
+                    symbol,
+                    qty: 0.0,
+                }))
                 .unwrap();
         }
         Ok(())
@@ -95,10 +101,10 @@ impl UserDataStream {
             Data::AccountUpdate(data) => {
                 for position in data.account.position {
                     self.ev_tx
-                        .send(LiveEvent::Position {
+                        .send(PublishMessage::LiveEvent(LiveEvent::Position {
                             symbol: position.symbol,
                             qty: position.position_amount,
-                        })
+                        }))
                         .unwrap();
                 }
             }
@@ -138,10 +144,10 @@ impl UserDataStream {
                         );
                         if let Some(order) = order {
                             self.ev_tx
-                                .send(LiveEvent::Order {
+                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol: data.order.symbol,
                                     order,
-                                })
+                                }))
                                 .unwrap();
                         }
                     }

@@ -2,7 +2,8 @@ use std::{
     fmt,
     fmt::{Debug, Write},
     future::Future,
-    time::Duration,
+    marker::PhantomData,
+    time::{Duration, Instant},
 };
 
 use hmac::{Hmac, KeyInit, Mac};
@@ -13,7 +14,6 @@ use serde::{
     Deserializer,
 };
 use sha2::Sha256;
-use tracing::error;
 
 struct I64Visitor;
 
@@ -123,21 +123,108 @@ pub fn gen_random_string(len: usize) -> String {
         .collect()
 }
 
-pub async fn retry<F, Fut, O, E>(func: F) -> Result<O, E>
+pub trait BackoffStrategy {
+    fn backoff(&mut self) -> Duration;
+}
+
+pub struct ExponentialBackoff {
+    last_attempt: Instant,
+    attempts: i32,
+    factor: u32,
+    last_delay: Option<Duration>,
+    reset_interval: Option<Duration>,
+    min_delay: Duration,
+    max_delay: Option<Duration>,
+}
+
+impl Default for ExponentialBackoff {
+    fn default() -> Self {
+        Self {
+            last_attempt: Instant::now(),
+            attempts: 0,
+            factor: 2,
+            last_delay: None,
+            reset_interval: Some(Duration::from_secs(300)),
+            min_delay: Duration::from_millis(100),
+            max_delay: Some(Duration::from_secs(60)),
+        }
+    }
+}
+
+impl BackoffStrategy for ExponentialBackoff {
+    fn backoff(&mut self) -> Duration {
+        if let Some(reset_interval) = self.reset_interval {
+            if self.last_attempt.elapsed() > reset_interval {
+                self.attempts = 0;
+            }
+        }
+
+        self.last_attempt = Instant::now();
+        self.attempts += 1;
+
+        match self.last_delay {
+            None => {
+                self.last_delay = Some(self.min_delay);
+                self.min_delay
+            }
+            Some(last_delay) => {
+                let mut delay = last_delay.saturating_mul(self.factor);
+
+                if let Some(max_delay) = self.max_delay {
+                    if delay > max_delay {
+                        delay = max_delay;
+                    }
+                }
+                self.last_delay = Some(delay);
+                delay
+            }
+        }
+    }
+}
+
+pub struct Retry<O, E, Backoff, ErrorHandler> {
+    backoff: Backoff,
+    error_handler: Option<ErrorHandler>,
+    _o_marker: PhantomData<O>,
+    _e_marker: PhantomData<E>,
+}
+
+impl<O, E, Backoff, ErrorHandler> Retry<O, E, Backoff, ErrorHandler>
 where
-    F: Fn() -> Fut,
-    Fut: Future<Output = Result<O, E>>,
     E: Debug,
+    Backoff: BackoffStrategy,
+    ErrorHandler: FnMut(E) -> Result<(), E>,
 {
-    let mut backoff = 500;
-    loop {
-        match func().await {
-            Ok(o) => return Ok(o),
-            Err(error) => {
-                error!(?error, "Retrying...");
-                tokio::time::sleep(Duration::from_millis(backoff)).await;
-                backoff *= 2;
-                backoff = backoff.max(60_000);
+    pub fn new(backoff: Backoff) -> Self {
+        Self {
+            backoff,
+            error_handler: None,
+            _o_marker: Default::default(),
+            _e_marker: Default::default(),
+        }
+    }
+
+    pub fn error_handler(self, error_handler: ErrorHandler) -> Self {
+        Self {
+            error_handler: Some(error_handler),
+            ..self
+        }
+    }
+
+    pub async fn retry<F, Fut>(&mut self, func: F) -> Result<O, E>
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = Result<O, E>>,
+    {
+        loop {
+            match func().await {
+                Ok(o) => return Ok(o),
+                Err(error) => {
+                    if let Some(error_handler) = self.error_handler.as_mut() {
+                        error_handler(error)?;
+                    }
+                    tokio::time::sleep(self.backoff.backoff()).await;
+                }
             }
         }
     }

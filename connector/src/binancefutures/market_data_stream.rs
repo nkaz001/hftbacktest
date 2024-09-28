@@ -16,20 +16,23 @@ use tokio_tungstenite::{
 };
 use tracing::error;
 
-use crate::binancefutures::{
-    msg::{
-        rest,
-        stream,
-        stream::{Data, Stream},
+use crate::{
+    binancefutures::{
+        msg::{
+            rest,
+            stream,
+            stream::{Data, Stream},
+        },
+        rest::BinanceFuturesClient,
+        BinanceFuturesError,
     },
-    rest::BinanceFuturesClient,
-    BinanceFuturesError,
+    connector::PublishMessage,
 };
 
 pub struct MarketDataStream {
     symbols: HashMap<String, Asset>,
     client: BinanceFuturesClient,
-    ev_tx: UnboundedSender<LiveEvent>,
+    ev_tx: UnboundedSender<PublishMessage>,
     symbol_rx: Receiver<String>,
     pending_depth_messages: HashMap<String, Vec<stream::Depth>>,
     prev_u: HashMap<String, i64>,
@@ -40,7 +43,7 @@ pub struct MarketDataStream {
 impl MarketDataStream {
     pub fn new(
         client: BinanceFuturesClient,
-        ev_tx: UnboundedSender<LiveEvent>,
+        ev_tx: UnboundedSender<PublishMessage>,
         symbol_rx: Receiver<String>,
     ) -> Self {
         let (rest_tx, rest_rx) = unbounded_channel::<(String, rest::Depth)>();
@@ -128,10 +131,10 @@ impl MarketDataStream {
                         events.append(&mut bid_events);
                         events.append(&mut ask_events);
                         self.ev_tx
-                            .send(LiveEvent::FeedBatch {
+                            .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
                                 symbol: data.symbol,
                                 events,
-                            })
+                            }))
                             .unwrap();
                     }
                     Err(error) => {
@@ -142,7 +145,7 @@ impl MarketDataStream {
             Data::Trade(data) => match parse_px_qty_tup(data.price, data.qty) {
                 Ok((px, qty)) => {
                     self.ev_tx
-                        .send(LiveEvent::FeedBatch {
+                        .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
                             symbol: data.symbol,
                             events: vec![Event {
                                 ev: {
@@ -160,7 +163,7 @@ impl MarketDataStream {
                                 ival: 0,
                                 fval: 0.0,
                             }],
-                        })
+                        }))
                         .unwrap();
                 }
                 Err(e) => {
@@ -204,7 +207,10 @@ impl MarketDataStream {
                 events.append(&mut bid_events);
                 events.append(&mut ask_events);
                 self.ev_tx
-                    .send(LiveEvent::FeedBatch { symbol, events })
+                    .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
+                        symbol,
+                        events,
+                    }))
                     .unwrap();
             }
             Err(error) => {
@@ -304,10 +310,12 @@ impl MarketDataStream {
     }
 }
 
+pub type PxQtyDepth = Vec<(f64, f64)>;
+
 fn parse_depth(
     bids: Vec<(String, String)>,
     asks: Vec<(String, String)>,
-) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>), anyhow::Error> {
+) -> Result<(PxQtyDepth, PxQtyDepth), anyhow::Error> {
     let mut bids_ = Vec::with_capacity(bids.len());
     for (px, qty) in bids {
         bids_.push(parse_px_qty_tup(px, qty)?);

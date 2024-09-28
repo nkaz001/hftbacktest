@@ -20,13 +20,14 @@ use crate::{
         BybitError,
         SharedInstrumentMap,
     },
+    connector::PublishMessage,
     utils::sign_hmac_sha256,
 };
 
 pub struct PrivateStream {
     api_key: String,
     secret: String,
-    ev_tx: UnboundedSender<LiveEvent>,
+    ev_tx: UnboundedSender<PublishMessage>,
     order_manager: SharedOrderManager,
     instruments: SharedInstrumentMap,
     client: BybitClient,
@@ -36,7 +37,7 @@ impl PrivateStream {
     pub fn new(
         api_key: String,
         secret: String,
-        ev_tx: UnboundedSender<LiveEvent>,
+        ev_tx: UnboundedSender<PublishMessage>,
         order_manager: SharedOrderManager,
         instruments: SharedInstrumentMap,
         client: BybitClient,
@@ -62,10 +63,10 @@ impl PrivateStream {
             for mut order in orders {
                 order.status = Status::Canceled;
                 self.ev_tx
-                    .send(LiveEvent::Order {
+                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
                         symbol: symbol.clone(),
                         order,
-                    })
+                    }))
                     .unwrap();
             }
         }
@@ -82,10 +83,10 @@ impl PrivateStream {
                 .await?;
             position.into_iter().for_each(|position| {
                 self.ev_tx
-                    .send(LiveEvent::Position {
+                    .send(PublishMessage::LiveEvent(LiveEvent::Position {
                         symbol: symbol.clone(),
                         qty: position.size,
-                    })
+                    }))
                     .unwrap();
             });
         }
@@ -126,10 +127,10 @@ impl PrivateStream {
                 debug!(?data, "Position");
                 for item in data.data {
                     self.ev_tx
-                        .send(LiveEvent::Position {
+                        .send(PublishMessage::LiveEvent(LiveEvent::Position {
                             symbol: item.symbol,
                             qty: item.size,
-                        })
+                        }))
                         .unwrap();
                 }
             }
@@ -144,10 +145,10 @@ impl PrivateStream {
                             order,
                         }) => {
                             self.ev_tx
-                                .send(LiveEvent::Order {
+                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol: asset,
                                     order,
-                                })
+                                }))
                                 .unwrap();
                         }
                         Err(error) => {
@@ -167,10 +168,10 @@ impl PrivateStream {
                             order,
                         }) => {
                             self.ev_tx
-                                .send(LiveEvent::Order {
+                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol: asset,
                                     order,
-                                })
+                                }))
                                 .unwrap();
                         }
                         Err(error) => {
@@ -190,10 +191,10 @@ impl PrivateStream {
                             order,
                         }) => {
                             self.ev_tx
-                                .send(LiveEvent::Order {
+                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol: asset,
                                     order,
-                                })
+                                }))
                                 .unwrap();
                         }
                         Err(error) => {

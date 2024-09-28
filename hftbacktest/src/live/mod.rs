@@ -19,7 +19,7 @@ pub struct Asset {
 }
 
 pub trait Channel {
-    fn recv_timeout(&mut self, timeout: Duration) -> Result<LiveEvent, BotError>;
+    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError>;
 
     fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError>;
 }

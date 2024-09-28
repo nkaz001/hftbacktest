@@ -27,16 +27,21 @@ use tokio_tungstenite::{
 };
 use tracing::{error, info};
 
-use crate::bybit::{
-    msg,
-    msg::{Op, OrderBook, PublicStreamMsg},
-    BybitError,
+use crate::{
+    bybit::{
+        msg,
+        msg::{Op, OrderBook, PublicStreamMsg},
+        BybitError,
+    },
+    connector::PublishMessage,
 };
+
+pub type PxQty = (f64, f64);
 
 fn parse_depth(
     bids: Vec<(String, String)>,
     asks: Vec<(String, String)>,
-) -> Result<(Vec<(f64, f64)>, Vec<(f64, f64)>), BybitError> {
+) -> Result<(Vec<PxQty>, Vec<PxQty>), BybitError> {
     let mut bids_ = Vec::with_capacity(bids.len());
     for (px, qty) in bids {
         bids_.push(parse_px_qty_tup(px, qty)?);
@@ -48,17 +53,17 @@ fn parse_depth(
     Ok((bids_, asks_))
 }
 
-fn parse_px_qty_tup(px: String, qty: String) -> Result<(f64, f64), BybitError> {
+fn parse_px_qty_tup(px: String, qty: String) -> Result<PxQty, BybitError> {
     Ok((px.parse()?, qty.parse()?))
 }
 
 pub struct PublicStream {
-    ev_tx: UnboundedSender<LiveEvent>,
+    ev_tx: UnboundedSender<PublishMessage>,
     symbol_rx: Receiver<String>,
 }
 
 impl PublicStream {
-    pub fn new(ev_tx: UnboundedSender<LiveEvent>, symbol_rx: Receiver<String>) -> Self {
+    pub fn new(ev_tx: UnboundedSender<PublishMessage>, symbol_rx: Receiver<String>) -> Self {
         Self { ev_tx, symbol_rx }
     }
 
@@ -104,10 +109,10 @@ impl PublicStream {
                     events.append(&mut bid_events);
                     events.append(&mut ask_events);
                     self.ev_tx
-                        .send(LiveEvent::FeedBatch {
+                        .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
                             symbol: data.symbol,
                             events,
-                        })
+                        }))
                         .unwrap();
                 } else if stream.topic.starts_with("orderbook") {
                     let data: OrderBook = serde_json::from_value(stream.data)?;
@@ -142,16 +147,16 @@ impl PublicStream {
                     events.append(&mut bid_events);
                     events.append(&mut ask_events);
                     self.ev_tx
-                        .send(LiveEvent::FeedBatch {
+                        .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
                             symbol: data.symbol,
                             events,
-                        })
+                        }))
                         .unwrap();
                 } else if stream.topic.starts_with("publicTrade") {
                     let data: Vec<msg::Trade> = serde_json::from_value(stream.data)?;
                     for item in data {
                         self.ev_tx
-                            .send(LiveEvent::FeedBatch {
+                            .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
                                 symbol: item.symbol,
                                 events: vec![Event {
                                     ev: {
@@ -169,7 +174,7 @@ impl PublicStream {
                                     ival: 0,
                                     fval: 0.0,
                                 }],
-                            })
+                            }))
                             .unwrap();
                     }
                 }
@@ -199,7 +204,10 @@ impl PublicStream {
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
-                        let args = vec![format!("orderbook.50.{symbol}"), format!("publicTrade.{symbol}")];
+                        let args = vec![
+                            format!("orderbook.50.{symbol}"),
+                            format!("publicTrade.{symbol}")
+                        ];
                         let op = Op {
                             req_id: "subscribe".to_string(),
                             op: "subscribe".to_string(),
@@ -227,7 +235,9 @@ impl PublicStream {
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(
-                                close_frame.map(|f| f.to_string()).unwrap_or(String::new())
+                                close_frame
+                                    .map(|f| f.to_string())
+                                    .unwrap_or(String::new())
                             ));
                         }
                         Some(Ok(Message::Binary(_)))

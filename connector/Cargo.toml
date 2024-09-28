@@ -14,15 +14,19 @@ tracing = "0.1.40"
 anyhow = "1.0.79"
 thiserror = "1.0.57"
 bincode = "2.0.0-rc.3"
-chrono = { version = "0.4.33", optional = true }
-serde = { version = "1.0.196", features = ["derive"], optional = true }
-serde_json = { version = "1.0.113", optional = true }
-tokio = { version = "1.35.1", features = ["full"], optional = true }
-tokio-tungstenite = { version = "0.23.1", features = ["rustls-tls-native-roots"], optional = true }
-reqwest = { version = "0.12.3", default-features = false, features = ["json", "rustls-tls-native-roots"], optional = true }
-futures-util = { version = "0.3.30", optional = true }
-sha2 = { version = "0.11.0-pre.3", optional = true }
-hmac = { version = "0.13.0-pre.3", optional = true }
-rand = { version = "0.8.5", optional = true }
-uuid = { version = "1.8.0", features = ["v4"], optional = true }
-iceoryx2 = { version = "0.3.0", optional = true }
+chrono = { version = "0.4.33" }
+serde = { version = "1.0.196", features = ["derive"] }
+serde_json = { version = "1.0.113" }
+tokio = { version = "1.35.1", features = ["full"] }
+tokio-tungstenite = { version = "0.23.1", features = ["rustls-tls-native-roots"] }
+reqwest = { version = "0.12.3", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+futures-util = { version = "0.3.30" }
+sha2 = { version = "0.11.0-pre.3" }
+hmac = { version = "0.13.0-pre.3" }
+rand = { version = "0.8.5" }
+uuid = { version = "1.8.0", features = ["v4"] }
+iceoryx2 = { version = "0.3.0" }
+toml = "0.8.19"
+tracing-subscriber = "0.3.18"
+clap = { version = "4.5.15", features = ["derive"] }
+

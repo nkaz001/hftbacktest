@@ -210,4 +210,13 @@ impl OrderManager {
         }
         removed_orders
     }
+
+    pub fn get_orders(&self, symbol: &str) -> Vec<Order> {
+        self.orders
+            .iter()
+            .filter(|(_, order)| order.symbol == symbol)
+            .map(|(_, order)| &order.order)
+            .cloned()
+            .collect()
+    }
 }

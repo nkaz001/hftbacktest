@@ -1,6 +1,7 @@
 use std::{
     marker::PhantomData,
     rc::Rc,
+    string::FromUtf8Error,
     time::{Duration, Instant},
 };
 
@@ -26,12 +27,14 @@ use crate::{
     prelude::{LiveEvent, Request},
 };
 
+pub const TO_ALL: u64 = 0;
+
 #[repr(C)]
 #[derive(Debug)]
 struct BinPayload {
     data: [u8; 1024],
     len: usize,
-    id: usize,
+    id: u64,
 }
 
 impl Default for BinPayload {
@@ -46,6 +49,8 @@ impl Default for BinPayload {
 
 #[derive(Error, Debug)]
 pub enum PubSubError {
+    #[error("BuildError - {0}")]
+    BuildError(String),
     #[error("{0:?}")]
     SubscriberReceive(#[from] SubscriberReceiveError),
     #[error("{0:?}")]
@@ -56,9 +61,12 @@ pub enum PubSubError {
     Decode(#[from] DecodeError),
     #[error("{0:?}")]
     Encode(#[from] EncodeError),
+    #[error("{0:?}")]
+    FromUtf8(#[from] FromUtf8Error),
 }
 
 pub struct IceoryxSender<T> {
+    // Unfortunately, the publisher's lifetime seems to be tied to the factory.
     _pub_factory: PortFactory<zero_copy::Service, BinPayload>,
     publisher: Publisher<zero_copy::Service, BinPayload>,
     _t_marker: PhantomData<T>,
@@ -68,15 +76,20 @@ impl<T> IceoryxSender<T>
 where
     T: Encode,
 {
-    pub fn build(name: &str) -> Result<Self, anyhow::Error> {
-        let from_bot = ServiceName::new(&format!("{}/FromBot", name))?;
+    pub fn build(name: &str) -> Result<Self, PubSubError> {
+        let from_bot = ServiceName::new(&format!("{}/FromBot", name))
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
         let pub_factory = zero_copy::Service::new(&from_bot)
             .publish_subscribe()
             .max_publishers(1000)
             .max_subscribers(1)
-            .open_or_create::<BinPayload>()?;
+            .open_or_create::<BinPayload>()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
-        let publisher = pub_factory.publisher().create()?;
+        let publisher = pub_factory
+            .publisher()
+            .create()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
         Ok(Self {
             _pub_factory: pub_factory,
@@ -85,7 +98,7 @@ where
         })
     }
 
-    pub fn send(&self, data: &T) -> Result<(), PubSubError> {
+    pub fn send(&self, id: u64, data: &T) -> Result<(), PubSubError> {
         let sample = self.publisher.loan_uninit()?;
         let mut sample = unsafe { sample.assume_init() };
         let payload = sample.payload_mut();
@@ -93,12 +106,14 @@ where
         let length = bincode::encode_into_slice(data, &mut payload.data, config::standard())?;
 
         payload.len = length;
+        payload.id = id;
         sample.send()?;
         Ok(())
     }
 }
 
 pub struct IceoryxReceiver<T> {
+    // Unfortunately, the subscriber's lifetime seems to be tied to the factory.
     _sub_factory: PortFactory<zero_copy::Service, BinPayload>,
     subscriber: Subscriber<zero_copy::Service, BinPayload>,
     _t_marker: PhantomData<T>,
@@ -108,15 +123,20 @@ impl<T> IceoryxReceiver<T>
 where
     T: Decode,
 {
-    pub fn build(name: &str) -> Result<Self, anyhow::Error> {
-        let to_bot = ServiceName::new(&format!("{}/ToBot", name))?;
+    pub fn build(name: &str) -> Result<Self, PubSubError> {
+        let to_bot = ServiceName::new(&format!("{}/ToBot", name))
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
         let sub_factory = zero_copy::Service::new(&to_bot)
             .publish_subscribe()
             .max_publishers(1)
             .max_subscribers(1000)
-            .open_or_create::<BinPayload>()?;
+            .open_or_create::<BinPayload>()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
-        let subscriber = sub_factory.subscriber().create()?;
+        let subscriber = sub_factory
+            .subscriber()
+            .create()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
         Ok(Self {
             _sub_factory: sub_factory,
@@ -125,14 +145,14 @@ where
         })
     }
 
-    pub fn receive(&self) -> Result<Option<T>, PubSubError> {
+    pub fn receive(&self) -> Result<Option<(u64, T)>, PubSubError> {
         match self.subscriber.receive()? {
             None => Ok(None),
             Some(sample) => {
                 let bytes = &sample.data[0..sample.len];
                 let (decoded, _len): (T, usize) =
                     bincode::decode_from_slice(bytes, config::standard())?;
-                Ok(Some(decoded))
+                Ok(Some((sample.id, decoded)))
             }
         }
     }
@@ -158,11 +178,11 @@ where
         })
     }
 
-    pub fn send(&self, data: &S) -> Result<(), PubSubError> {
-        self.publisher.send(data)
+    pub fn send(&self, id: u64, data: &S) -> Result<(), PubSubError> {
+        self.publisher.send(id, data)
     }
 
-    pub fn receive(&self) -> Result<Option<R>, PubSubError> {
+    pub fn receive(&self) -> Result<Option<(u64, R)>, PubSubError> {
         self.subscriber.receive()
     }
 }
@@ -183,7 +203,7 @@ impl PubSubList {
 }
 
 impl Channel for PubSubList {
-    fn recv_timeout(&mut self, timeout: Duration) -> Result<LiveEvent, BotError> {
+    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError> {
         let instant = Instant::now();
         loop {
             let elapsed = instant.elapsed();
@@ -201,11 +221,13 @@ impl Channel for PubSubList {
                         self.pubsub_i = 0;
                     }
 
-                    if let Some(ev) = pubsub
+                    if let Some((dst_id, ev)) = pubsub
                         .receive()
                         .map_err(|err| BotError::Custom(err.to_string()))?
                     {
-                        return Ok(ev);
+                        if dst_id == 0 || dst_id == id {
+                            return Ok(ev);
+                        }
                     }
                 }
                 Iox2Event::TerminationRequest | Iox2Event::InterruptSignal => {
@@ -218,7 +240,7 @@ impl Channel for PubSubList {
     fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError> {
         let publisher = self.pubsub.get(asset_no).ok_or(BotError::AssetNotFound)?;
         publisher
-            .send(&request)
+            .send(TO_ALL, &request)
             .map_err(|err| BotError::Custom(err.to_string()))?;
         Ok(())
     }

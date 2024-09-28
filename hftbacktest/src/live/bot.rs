@@ -5,6 +5,7 @@ use std::{
 };
 
 use chrono::Utc;
+use rand::Rng;
 use thiserror::Error;
 use tracing::{debug, error};
 
@@ -61,6 +62,14 @@ pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
 pub type DepthBuilder<MD> = Box<dyn FnMut(&Asset) -> MD>;
+
+fn generate_random_id() -> u64 {
+    // Initialize the random number generator
+    let mut rng = rand::thread_rng();
+
+    // Generate a random u64 value
+    rng.gen::<u64>()
+}
 
 /// Live [`LiveBot`] builder.
 pub struct LiveBotBuilder<MD> {
@@ -188,14 +197,32 @@ impl<MD> LiveBotBuilder<MD> {
         let last_feed_latency = self.assets.iter().map(|_| None).collect();
         let last_order_latency = self.assets.iter().map(|_| None).collect();
 
-        let asset_name_to_no = self
+        let asset_name_to_no: HashMap<_, _> = self
             .assets
             .iter()
             .enumerate()
             .map(|(asset_no, (_, asset))| (asset.symbol.clone(), asset_no))
             .collect();
 
+        let id = generate_random_id();
+
+        // Requests to prepare a given asset for trading.
+        // The Connector will send the current orders on this asset.
+        for (symbol, asset_info) in &self.assets {
+            let asset_no = asset_name_to_no.get(symbol).unwrap();
+            let ps = pubsub.get(*asset_no).unwrap();
+            ps.send(
+                id,
+                &Request::AddInstrument {
+                    symbol: symbol.clone(),
+                    tick_size: asset_info.tick_size,
+                },
+            )
+            .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
+        }
+
         Ok(LiveBot {
+            id,
             pubsub: PubSubList::new(pubsub),
             depth,
             orders,
@@ -226,6 +253,7 @@ impl<MD> LiveBotBuilder<MD> {
 ///     .unwrap();
 /// ```
 pub struct LiveBot<MD> {
+    id: u64,
     pubsub: PubSubList,
     depth: Vec<MD>,
     orders: Vec<HashMap<OrderId, Order>>,
@@ -380,7 +408,7 @@ where
         let mut remaining_duration = duration;
 
         loop {
-            match self.pubsub.recv_timeout(remaining_duration) {
+            match self.pubsub.recv_timeout(self.id, remaining_duration) {
                 Ok(ev) => {
                     if self.process_event::<WAIT_NEXT_FEED>(ev, wait_order_response)? {
                         return Ok(true);
@@ -448,13 +476,8 @@ where
         let order_id = order.order_id;
         orders.insert(order_id, order.clone());
 
-        self.pubsub.send(
-            asset_no,
-            Request::Order {
-                symbol: symbol,
-                order,
-            },
-        )?;
+        self.pubsub
+            .send(asset_no, Request::Order { symbol, order })?;
 
         if wait {
             // fixme: timeout should be specified by the argument.
@@ -607,7 +630,7 @@ where
         self.pubsub.send(
             asset_no,
             Request::Order {
-                symbol: symbol,
+                symbol,
                 order: order.clone(),
             },
         )?;

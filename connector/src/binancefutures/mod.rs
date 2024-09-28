@@ -11,8 +11,9 @@ use std::{
 
 use hftbacktest::{
     prelude::get_precision,
-    types::{BuildError, ErrorKind, LiveError, LiveEvent, Order, Status, Value},
+    types::{ErrorKind, LiveError, LiveEvent, Order, Status, Value},
 };
+use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::{broadcast, broadcast::Sender, mpsc::UnboundedSender};
 use tokio_tungstenite::tungstenite;
@@ -23,8 +24,8 @@ use crate::{
         ordermanager::{OrderManager, SharedOrderManager},
         rest::BinanceFuturesClient,
     },
-    connector::{Connector, Instrument},
-    utils::retry,
+    connector::{Connector, ConnectorBuilder, Instrument, PublishMessage},
+    utils::{ExponentialBackoff, Retry},
 };
 
 #[derive(Error, Debug)]
@@ -45,6 +46,8 @@ pub enum BinanceFuturesError {
     OrderError { code: i64, msg: String },
     #[error("Tunstenite: {0:?}")]
     Tunstenite(#[from] tungstenite::Error),
+    #[error("Config: {0:?}")]
+    Config(#[from] toml::de::Error),
 }
 
 impl From<BinanceFuturesError> for Value {
@@ -63,12 +66,13 @@ impl From<BinanceFuturesError> for Value {
             BinanceFuturesError::ListenKeyExpired => Value::String(value.to_string()),
             BinanceFuturesError::ConnectionInterrupted => Value::String(value.to_string()),
             BinanceFuturesError::ConnectionAbort(_) => Value::String(value.to_string()),
+            BinanceFuturesError::Config(_) => Value::String(value.to_string()),
         }
     }
 }
 
-/// Binance Futures USD-M connector [`BinanceFutures`] builder.
-pub struct BinanceFuturesBuilder {
+#[derive(Deserialize)]
+pub struct Config {
     stream_url: String,
     api_url: String,
     order_prefix: String,
@@ -76,91 +80,11 @@ pub struct BinanceFuturesBuilder {
     secret: String,
 }
 
-impl BinanceFuturesBuilder {
-    /// Sets the Websocket streams endpoint url.
-    pub fn stream_url<E>(self, endpoint: E) -> Self
-    where
-        E: Into<String>,
-    {
-        Self {
-            stream_url: endpoint.into(),
-            ..self
-        }
-    }
-
-    /// Sets the REST APIs endpoint url.
-    pub fn api_url<E>(self, endpoint: E) -> Self
-    where
-        E: Into<String>,
-    {
-        Self {
-            api_url: endpoint.into(),
-            ..self
-        }
-    }
-
-    /// Sets the API key
-    pub fn api_key(self, api_key: &str) -> Self {
-        Self {
-            api_key: api_key.to_string(),
-            ..self
-        }
-    }
-
-    /// Sets the secret key
-    pub fn secret(self, secret: &str) -> Self {
-        Self {
-            secret: secret.to_string(),
-            ..self
-        }
-    }
-
-    /// Sets the order prefix, which is used to differentiate the orders submitted through this
-    /// connector.
-    pub fn order_prefix(self, order_prefix: &str) -> Self {
-        Self {
-            order_prefix: order_prefix.to_string(),
-            ..self
-        }
-    }
-
-    /// Builds [`BinanceFutures`] connector.
-    pub fn build(self) -> Result<BinanceFutures, BuildError> {
-        if self.stream_url.is_empty() {
-            return Err(BuildError::BuilderIncomplete("stream_url"));
-        }
-        if self.api_url.is_empty() {
-            return Err(BuildError::BuilderIncomplete("api_url"));
-        }
-        if self.api_key.is_empty() {
-            return Err(BuildError::BuilderIncomplete("api_key"));
-        }
-        if self.secret.is_empty() {
-            return Err(BuildError::BuilderIncomplete("secret"));
-        }
-
-        let order_manager: SharedOrderManager =
-            Arc::new(Mutex::new(OrderManager::new(&self.order_prefix)));
-
-        let (symbol_tx, _) = broadcast::channel(500);
-
-        Ok(BinanceFutures {
-            url: self.stream_url.to_string(),
-            prefix: self.order_prefix,
-            instruments: Default::default(),
-            order_manager,
-            client: BinanceFuturesClient::new(&self.api_url, &self.api_key, &self.secret),
-            symbol_tx,
-        })
-    }
-}
-
 type SharedInstrumentMap = Arc<Mutex<HashMap<String, Instrument>>>;
 
 /// A connector for Binance USD-m Futures.
 pub struct BinanceFutures {
-    url: String,
-    prefix: String,
+    config: Config,
     instruments: SharedInstrumentMap,
     order_manager: SharedOrderManager,
     client: BinanceFuturesClient,
@@ -168,118 +92,136 @@ pub struct BinanceFutures {
 }
 
 impl BinanceFutures {
-    /// Gets [`BinanceFuturesBuilder`] to build [`BinanceFutures`] connector.
-    pub fn builder() -> BinanceFuturesBuilder {
-        BinanceFuturesBuilder {
-            stream_url: "".to_string(),
-            api_url: "".to_string(),
-            order_prefix: "".to_string(),
-            api_key: "".to_string(),
-            secret: "".to_string(),
-        }
-    }
-
-    pub fn connect_market_data_stream(&mut self, ev_tx: UnboundedSender<LiveEvent>) {
-        let base_url = self.url.clone();
+    pub fn connect_market_data_stream(&mut self, ev_tx: UnboundedSender<PublishMessage>) {
+        let base_url = self.config.stream_url.clone();
         let client = self.client.clone();
         let symbol_tx = self.symbol_tx.clone();
 
         tokio::spawn(async move {
-            let _ = retry(|| async {
-                let mut stream = market_data_stream::MarketDataStream::new(
-                    client.clone(),
-                    ev_tx.clone(),
-                    symbol_tx.subscribe(),
-                );
-                if let Err(error) = stream.connect(&base_url).await {
-                    error!(?error, "A connection error occurred.");
+            let _ = Retry::new(ExponentialBackoff::default())
+                .error_handler(|error: BinanceFuturesError| {
+                    error!(?error, "Connection interuppted.");
                     ev_tx
-                        .send(LiveEvent::Error(LiveError::with(
-                            ErrorKind::ConnectionInterrupted,
-                            error.into(),
+                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                            LiveError::with(ErrorKind::ConnectionInterrupted, error.into()),
                         )))
                         .unwrap();
-                } else {
-                    ev_tx
-                        .send(LiveEvent::Error(LiveError::new(
-                            ErrorKind::ConnectionInterrupted,
-                        )))
-                        .unwrap();
-                }
-                Err::<(), BinanceFuturesError>(BinanceFuturesError::ConnectionInterrupted)
-            })
-            .await;
+                    Ok(())
+                })
+                .retry(|| async {
+                    let mut stream = market_data_stream::MarketDataStream::new(
+                        client.clone(),
+                        ev_tx.clone(),
+                        symbol_tx.subscribe(),
+                    );
+                    stream.connect(&base_url).await?;
+                    Ok(())
+                })
+                .await;
         });
     }
 
-    pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<LiveEvent>) {
-        let base_url = self.url.clone();
-        let prefix = self.prefix.clone();
+    pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<PublishMessage>) {
+        let base_url = self.config.stream_url.clone();
+        let prefix = self.config.order_prefix.clone();
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
         let instruments = self.instruments.clone();
 
         tokio::spawn(async move {
-            let _ = retry(|| async {
-                let mut stream = user_data_stream::UserDataStream::new(
-                    client.clone(),
-                    ev_tx.clone(),
-                    order_manager.clone(),
-                    instruments.clone(),
-                    prefix.clone(),
-                );
+            let _ = Retry::new(ExponentialBackoff::default())
+                .error_handler(|_: BinanceFuturesError| Ok(()))
+                .retry(|| async {
+                    let mut stream = user_data_stream::UserDataStream::new(
+                        client.clone(),
+                        ev_tx.clone(),
+                        order_manager.clone(),
+                        instruments.clone(),
+                        prefix.clone(),
+                    );
 
-                // Cancel all orders before connecting to the stream in order to start with the
-                // clean state.
-                stream.cancel_all().await?;
+                    // Cancel all orders before connecting to the stream in order to start with the
+                    // clean state.
+                    stream.cancel_all().await?;
 
-                // Fetches the initial states such as positions and open orders.
-                stream.get_position_information().await?;
+                    // Fetches the initial states such as positions and open orders.
+                    stream.get_position_information().await?;
 
-                let listen_key = stream.get_listen_key().await?;
+                    let listen_key = stream.get_listen_key().await?;
 
-                // Prepares a URL that connects streams
-                let url = format!("{}/stream?streams={}", &base_url, listen_key,);
-
-                if let Err(error) = stream.connect(&url).await {
-                    error!(?error, "A connection error occurred.");
-                    ev_tx
-                        .send(LiveEvent::Error(LiveError::with(
-                            ErrorKind::ConnectionInterrupted,
-                            error.into(),
-                        )))
-                        .unwrap();
-                } else {
-                    ev_tx
-                        .send(LiveEvent::Error(LiveError::new(
-                            ErrorKind::ConnectionInterrupted,
-                        )))
-                        .unwrap();
-                }
-                Err::<(), BinanceFuturesError>(BinanceFuturesError::InvalidRequest)
-            })
-            .await;
+                    stream
+                        .connect(&format!("{base_url}/stream?streams={listen_key}"))
+                        .await?;
+                    Ok(())
+                })
+                .await;
         });
     }
 }
 
+impl ConnectorBuilder for BinanceFutures {
+    type Error = BinanceFuturesError;
+
+    fn build_from(config: &str) -> Result<Self, Self::Error> {
+        let config: Config = toml::from_str(config)?;
+
+        let order_manager = Arc::new(Mutex::new(OrderManager::new(&config.order_prefix)));
+        let client = BinanceFuturesClient::new(&config.api_url, &config.api_key, &config.secret);
+        let (symbol_tx, _) = broadcast::channel(500);
+
+        Ok(BinanceFutures {
+            config,
+            instruments: Default::default(),
+            order_manager,
+            client,
+            symbol_tx,
+        })
+    }
+}
+
 impl Connector for BinanceFutures {
-    fn add(&mut self, symbol: String, tick_size: f64, _ev_tx: UnboundedSender<LiveEvent>) {
-        let instrument = Instrument {
-            symbol: symbol.clone(),
-            tick_size,
-        };
+    fn add(
+        &mut self,
+        symbol: String,
+        tick_size: f64,
+        id: u64,
+        ev_tx: UnboundedSender<PublishMessage>,
+    ) {
         let mut instruments = self.instruments.lock().unwrap();
-        instruments.insert(symbol.clone(), instrument.clone());
-        self.symbol_tx.send(symbol).unwrap();
+        if instruments.contains_key(&symbol) {
+            let order_manager = self.order_manager.lock().unwrap();
+            let orders = order_manager.get_orders(&symbol);
+
+            ev_tx
+                .send(PublishMessage::LiveEventsWithId {
+                    id,
+                    events: orders
+                        .into_iter()
+                        .map(|order| LiveEvent::Order {
+                            symbol: symbol.clone(),
+                            order,
+                        })
+                        .collect(),
+                })
+                .unwrap();
+        } else {
+            instruments.insert(
+                symbol.clone(),
+                Instrument {
+                    symbol: symbol.clone(),
+                    tick_size,
+                },
+            );
+            self.symbol_tx.send(symbol).unwrap();
+        }
     }
 
-    fn run(&mut self, ev_tx: UnboundedSender<LiveEvent>) {
+    fn run(&mut self, ev_tx: UnboundedSender<PublishMessage>) {
         self.connect_market_data_stream(ev_tx.clone());
         self.connect_user_data_stream(ev_tx.clone());
     }
 
-    fn submit(&self, symbol: String, mut order: Order, tx: UnboundedSender<LiveEvent>) {
+    fn submit(&self, symbol: String, mut order: Order, tx: UnboundedSender<PublishMessage>) {
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
 
@@ -310,7 +252,11 @@ impl Connector for BinanceFutures {
                                 .unwrap()
                                 .update_submit_success(symbol.clone(), order, resp)
                             {
-                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
+                                tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
+                                    symbol,
+                                    order,
+                                }))
+                                .unwrap();
                             }
                         }
                         Err(error) => {
@@ -320,12 +266,15 @@ impl Connector for BinanceFutures {
                                 &error,
                                 client_order_id,
                             ) {
-                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
+                                tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
+                                    symbol,
+                                    order,
+                                }))
+                                .unwrap();
                             }
 
-                            tx.send(LiveEvent::Error(LiveError::with(
-                                ErrorKind::OrderError,
-                                error.into(),
+                            tx.send(PublishMessage::LiveEvent(LiveEvent::Error(
+                                LiveError::with(ErrorKind::OrderError, error.into()),
                             )))
                             .unwrap();
                         }
@@ -339,13 +288,17 @@ impl Connector for BinanceFutures {
                     );
                     order.req = Status::None;
                     order.status = Status::Expired;
-                    tx.send(LiveEvent::Order { symbol, order }).unwrap();
+                    tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
+                        symbol,
+                        order,
+                    }))
+                    .unwrap();
                 }
             }
         });
     }
 
-    fn cancel(&self, symbol: String, mut order: Order, tx: UnboundedSender<LiveEvent>) {
+    fn cancel(&self, symbol: String, order: Order, tx: UnboundedSender<PublishMessage>) {
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
 
@@ -365,7 +318,11 @@ impl Connector for BinanceFutures {
                                 .unwrap()
                                 .update_cancel_success(symbol.clone(), order, resp)
                             {
-                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
+                                tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
+                                    symbol,
+                                    order,
+                                }))
+                                .unwrap();
                             }
                         }
                         Err(error) => {
@@ -375,12 +332,15 @@ impl Connector for BinanceFutures {
                                 &error,
                                 client_order_id,
                             ) {
-                                tx.send(LiveEvent::Order { symbol, order }).unwrap();
+                                tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
+                                    symbol,
+                                    order,
+                                }))
+                                .unwrap();
                             }
 
-                            tx.send(LiveEvent::Error(LiveError::with(
-                                ErrorKind::OrderError,
-                                error.into(),
+                            tx.send(PublishMessage::LiveEvent(LiveEvent::Error(
+                                LiveError::with(ErrorKind::OrderError, error.into()),
                             )))
                             .unwrap();
                         }

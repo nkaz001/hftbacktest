@@ -23,6 +23,7 @@ use crate::{
         ordermanager::{OrderInfo, SharedOrderManager},
         BybitError,
     },
+    connector::PublishMessage,
     utils::{gen_random_string, sign_hmac_sha256},
 };
 
@@ -35,7 +36,7 @@ pub struct OrderOp {
 pub struct TradeStream {
     api_key: String,
     secret: String,
-    ev_tx: UnboundedSender<LiveEvent>,
+    ev_tx: UnboundedSender<PublishMessage>,
     order_manager: SharedOrderManager,
     order_rx: Receiver<OrderOp>,
 }
@@ -44,7 +45,7 @@ impl TradeStream {
     pub fn new(
         api_key: String,
         secret: String,
-        ev_tx: UnboundedSender<LiveEvent>,
+        ev_tx: UnboundedSender<PublishMessage>,
         order_manager: SharedOrderManager,
         order_rx: Receiver<OrderOp>,
     ) -> Self {
@@ -166,9 +167,8 @@ impl TradeStream {
                     msg: stream.ret_msg.clone(),
                 };
                 self.ev_tx
-                    .send(LiveEvent::Error(LiveError::with(
-                        ErrorKind::CriticalConnectionError,
-                        error.to_value(),
+                    .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                        LiveError::with(ErrorKind::CriticalConnectionError, error.to_value()),
                     )))
                     .unwrap();
                 return Err(error);
@@ -191,19 +191,21 @@ impl TradeStream {
                     order,
                 } = order_man_.update_submit_fail(order_link_id)?;
                 self.ev_tx
-                    .send(LiveEvent::Order {
+                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
                         symbol: asset,
                         order,
-                    })
+                    }))
                     .unwrap();
                 self.ev_tx
-                    .send(LiveEvent::Error(LiveError::with(
-                        ErrorKind::OrderError,
-                        BybitError::OrderError {
-                            code: stream.ret_code,
-                            msg: stream.ret_msg.clone(),
-                        }
-                        .to_value(),
+                    .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                        LiveError::with(
+                            ErrorKind::OrderError,
+                            BybitError::OrderError {
+                                code: stream.ret_code,
+                                msg: stream.ret_msg.clone(),
+                            }
+                            .to_value(),
+                        ),
                     )))
                     .unwrap();
             }
@@ -225,19 +227,21 @@ impl TradeStream {
                     order,
                 } = order_man_.update_cancel_fail(order_link_id)?;
                 self.ev_tx
-                    .send(LiveEvent::Order {
+                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
                         symbol: asset,
                         order,
-                    })
+                    }))
                     .unwrap();
                 self.ev_tx
-                    .send(LiveEvent::Error(LiveError::with(
-                        ErrorKind::OrderError,
-                        BybitError::OrderError {
-                            code: stream.ret_code,
-                            msg: stream.ret_msg.clone(),
-                        }
-                        .to_value(),
+                    .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                        LiveError::with(
+                            ErrorKind::OrderError,
+                            BybitError::OrderError {
+                                code: stream.ret_code,
+                                msg: stream.ret_msg.clone(),
+                            }
+                            .to_value(),
+                        ),
                     )))
                     .unwrap();
             }
