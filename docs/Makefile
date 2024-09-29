@@ -7,6 +7,12 @@ SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = .
 BUILDDIR      = _build
+SRC_TUTORIALS = ../examples/*.ipynb
+
+# Target to copy tutorials
+copy-tutorials:
+	@echo "Copying tutorials..."
+	cp $(SRC_TUTORIALS) tutorials/
 
 # Put it first so that "make" without argument is like "make help".
 help:
@@ -16,5 +22,14 @@ help:
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
-%: Makefile
+# %: Makefile
+#     copy-tutorials
+# 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+# Standard Sphinx build targets
+html: copy-tutorials
+	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+
+# Other targets...
+clean: Makefile
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
