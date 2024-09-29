@@ -1,9 +1,12 @@
 use chrono::Utc;
 use serde::Deserialize;
 
-use crate::connector::{
-    bybit::msg::{Position, RestResponse},
-    util::sign_hmac_sha256,
+use crate::{
+    bybit::{
+        msg::{Position, RestResponse},
+        BybitError,
+    },
+    utils::sign_hmac_sha256,
 };
 
 #[derive(Clone)]
@@ -36,7 +39,7 @@ impl BybitClient {
         let signature = sign_hmac_sha256(secret, &sign_body);
         let resp = self
             .client
-            .get(&format!("{}{}?{}", self.url, path, query))
+            .get(format!("{}{}?{}", self.url, path, query))
             .header("Accept", "application/json")
             .header("X-BAPI-SIGN", signature)
             .header("X-BAPI-API-KEY", api_key)
@@ -61,7 +64,7 @@ impl BybitClient {
         let signature = sign_hmac_sha256(secret, &sign_body);
         let resp = self
             .client
-            .post(&format!("{}{}", self.url, path))
+            .post(format!("{}{}", self.url, path))
             .header("Accept", "application/json")
             .header("X-BAPI-SIGN", signature)
             .header("X-BAPI-API-KEY", api_key)
@@ -75,11 +78,7 @@ impl BybitClient {
         Ok(resp)
     }
 
-    pub async fn cancel_all_orders(
-        &self,
-        category: &str,
-        symbol: &str,
-    ) -> Result<(), anyhow::Error> {
+    pub async fn cancel_all_orders(&self, category: &str, symbol: &str) -> Result<(), BybitError> {
         let resp: RestResponse = self
             .post(
                 "/v5/order/cancel-all",
@@ -89,16 +88,17 @@ impl BybitClient {
             )
             .await?;
         if resp.result.success != "1" {
-            return Err(anyhow::Error::msg(resp.ret_msg));
+            Err(BybitError::OpError(resp.ret_msg))
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     pub async fn get_position_information(
         &self,
         category: &str,
         symbol: &str,
-    ) -> Result<Vec<Position>, anyhow::Error> {
+    ) -> Result<Vec<Position>, BybitError> {
         let resp: RestResponse = self
             .get(
                 "/v5/position/list",
@@ -108,7 +108,7 @@ impl BybitClient {
             )
             .await?;
         if resp.ret_code != 0 {
-            return Err(anyhow::Error::msg(resp.ret_msg));
+            Err(BybitError::OpError(resp.ret_msg))
         } else {
             let position: Vec<Position> = serde_json::from_value(resp.result.list.unwrap())?;
             Ok(position)

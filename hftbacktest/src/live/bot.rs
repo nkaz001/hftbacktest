@@ -1,23 +1,21 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
-    sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender},
-    thread,
+    rc::Rc,
     time::{Duration, Instant},
 };
 
 use chrono::Utc;
+use rand::Rng;
 use thiserror::Error;
-use tokio::{
-    select,
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::{
-    connector::Connector,
     depth::{L2MarketDepth, MarketDepth},
-    live::Asset,
-    prelude::{OrderId, OrderRequest, WaitOrderResponse},
+    live::{
+        ipc::{IceoryxPubSubBot, PubSubList},
+        Channel,
+        Instrument,
+    },
     types::{
         Bot,
         BuildError,
@@ -27,11 +25,14 @@ use crate::{
         LiveEvent,
         OrdType,
         Order,
+        OrderId,
+        OrderRequest,
         Request,
         Side,
         StateValues,
         Status,
         TimeInForce,
+        WaitOrderResponse,
         LOCAL_ASK_DEPTH_EVENT,
         LOCAL_BID_DEPTH_EVENT,
         LOCAL_BUY_TRADE_EVENT,
@@ -39,106 +40,47 @@ use crate::{
     },
 };
 
-#[derive(Error, Eq, PartialEq, Clone, Debug)]
+#[derive(Error, Debug)]
 pub enum BotError {
-    #[error("order id already exists")]
+    #[error("OrderIdExist")]
     OrderIdExist,
-    #[error("asset not found")]
+    #[error("AssetNotFound")]
     AssetNotFound,
-    #[error("order not found")]
+    #[error("OrderNotFound")]
     OrderNotFound,
-    #[error("order status is invalid")]
+    #[error("InvalidOrderStatus")]
     InvalidOrderStatus,
-    #[error("{0}")]
+    #[error("Timeout")]
+    Timeout,
+    #[error("Interrupted")]
+    Interrupted,
+    #[error("Custom: {0}")]
     Custom(String),
-}
-
-#[tokio::main]
-async fn thread_main(
-    ev_tx: Sender<LiveEvent>,
-    mut req_rx: UnboundedReceiver<Request>,
-    mut conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
-    mapping: Vec<(String, Asset)>,
-) {
-    conns
-        .iter_mut()
-        .for_each(|(_, conn)| conn.run(ev_tx.clone()).unwrap());
-    loop {
-        select! {
-            req = req_rx.recv() => {
-                match req {
-                    Some(Request::Order { asset_no, order }) => {
-                        if let Some((connector_name, _)) = mapping.get(asset_no) {
-                            let conn_ = conns.get_mut(connector_name).unwrap();
-                            let ev_tx_ = ev_tx.clone();
-                            match order.req {
-                                Status::New => {
-                                    if let Err(error) = conn_.submit(asset_no, order, ev_tx_) {
-                                        error!(
-                                            %connector_name,
-                                            ?error,
-                                            "Unable to submit a new order due to an internal error in the connector."
-                                        );
-                                    }
-                                }
-                                Status::Canceled => {
-                                    if let Err(error) = conn_.cancel(asset_no, order, ev_tx_) {
-                                        error!(
-                                            %connector_name,
-                                            ?error,
-                                            "Unable to cancel an open order due to an internal error in the connector."
-                                        );
-                                    }
-                                }
-                                req => {
-                                    error!(%connector_name, ?req, "req_rx received an invalid request.");
-                                }
-                            }
-                        }
-                    }
-                    None => {
-                        debug!("req_rx channel is closed.");
-                        break;
-                    }
-                }
-            }
-        }
-    }
 }
 
 pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
-pub type DepthBuilder<MD> = Box<dyn FnMut(&Asset) -> MD>;
+pub type DepthBuilder<MD> = Box<dyn FnMut(&Instrument) -> MD>;
+
+fn generate_random_id() -> u64 {
+    // Initialize the random number generator
+    let mut rng = rand::thread_rng();
+
+    // Generate a random u64 value
+    rng.gen::<u64>()
+}
 
 /// Live [`LiveBot`] builder.
 pub struct LiveBotBuilder<MD> {
-    conns: HashMap<String, Box<dyn Connector + Send + 'static>>,
-    assets: Vec<(String, Asset)>,
+    instruments: Vec<(String, Instrument)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
     depth_builder: Option<DepthBuilder<MD>>,
-    trade_len: usize,
+    last_trades_capacity: usize,
 }
 
 impl<MD> LiveBotBuilder<MD> {
-    /// Registers a [`Connector`] with a specified name.
-    /// The specified name for this connector is used when using [`add()`](`LiveBotBuilder::add()`)
-    /// to add an asset for trading through this connector.
-    pub fn register<C>(self, name: &str, conn: C) -> Self
-    where
-        C: Connector + Send + 'static,
-    {
-        Self {
-            conns: {
-                let mut conns = self.conns;
-                conns.insert(name.to_string(), Box::new(conn));
-                conns
-            },
-            ..self
-        }
-    }
-
     /// Adds an asset.
     ///
     /// * `name` - Name of the [`Connector`], which is registered by
@@ -150,12 +92,12 @@ impl<MD> LiveBotBuilder<MD> {
     /// * `lot_size` -  The minimum trade size.
     pub fn add(self, name: &str, symbol: &str, tick_size: f64, lot_size: f64) -> Self {
         Self {
-            assets: {
-                let asset_no = self.assets.len();
-                let mut assets = self.assets;
+            instruments: {
+                let asset_no = self.instruments.len();
+                let mut assets = self.instruments;
                 assets.push((
                     name.to_string(),
-                    Asset {
+                    Instrument {
                         asset_no,
                         symbol: symbol.to_string(),
                         tick_size,
@@ -193,7 +135,7 @@ impl<MD> LiveBotBuilder<MD> {
     /// Sets [`MarketDepth`] build function.
     pub fn depth<Builder>(self, builder: Builder) -> Self
     where
-        Builder: Fn(&Asset) -> MD + 'static,
+        Builder: Fn(&Instrument) -> MD + 'static,
     {
         Self {
             depth_builder: Some(Box::new(builder)),
@@ -203,66 +145,101 @@ impl<MD> LiveBotBuilder<MD> {
 
     /// Sets the length of market trades to be stored in the local processor. The default value is
     /// `0`.
-    pub fn trade_len(self, trade_len: usize) -> Self {
-        Self { trade_len, ..self }
+    pub fn last_trades_capacity(self, last_trades_capacity: usize) -> Self {
+        Self {
+            last_trades_capacity,
+            ..self
+        }
     }
 
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
     pub fn build(self) -> Result<LiveBot<MD>, BuildError> {
         let mut dup = HashSet::new();
-        let mut conns = self.conns;
-        for (asset_no, (name, asset_info)) in self.assets.iter().enumerate() {
+        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEvent>>> =
+            HashMap::new();
+        let mut pubsub = Vec::new();
+        for (name, asset_info) in self.instruments.iter() {
             if !dup.insert(format!("{}/{}", name, asset_info.symbol)) {
                 Err(BuildError::Duplicate(
                     name.clone(),
                     asset_info.symbol.clone(),
                 ))?;
             }
-            let conn = conns
-                .get_mut(name)
-                .ok_or(BuildError::ConnectorNotFound(name.to_string()))?;
-            conn.add(
-                asset_no,
-                asset_info.symbol.clone(),
-                asset_info.tick_size,
-                asset_info.lot_size,
-            )?;
-        }
 
-        let (ev_tx, ev_rx) = channel();
-        let (req_tx, req_rx) = unbounded_channel();
+            match tmp_pubsub.entry(name.clone()) {
+                Entry::Occupied(entry) => {
+                    let ps = entry.get().clone();
+                    pubsub.push(ps);
+                }
+                Entry::Vacant(entry) => {
+                    let ps = Rc::new(IceoryxPubSubBot::new(name)?);
+                    entry.insert(ps.clone());
+                    pubsub.push(ps);
+                }
+            }
+        }
 
         let mut depth_builder = self
             .depth_builder
             .ok_or(BuildError::BuilderIncomplete("depth"))?;
         let depth = self
-            .assets
+            .instruments
             .iter()
             .map(|(_, asset_info)| depth_builder(asset_info))
             .collect();
 
-        let orders = self.assets.iter().map(|_| HashMap::new()).collect();
-        let state = self.assets.iter().map(|_| Default::default()).collect();
-        let trade = self
-            .assets
+        let orders = self.instruments.iter().map(|_| HashMap::new()).collect();
+        let state = self
+            .instruments
             .iter()
-            .map(|_| Vec::with_capacity(self.trade_len))
+            .map(|_| Default::default())
             .collect();
-        let last_feed_latency = self.assets.iter().map(|_| None).collect();
-        let last_order_latency = self.assets.iter().map(|_| None).collect();
+        let trade = self
+            .instruments
+            .iter()
+            .map(|_| Vec::with_capacity(self.last_trades_capacity))
+            .collect();
+        let last_feed_latency = self.instruments.iter().map(|_| None).collect();
+        let last_order_latency = self.instruments.iter().map(|_| None).collect();
+
+        let asset_name_to_no: HashMap<_, _> = self
+            .instruments
+            .iter()
+            .enumerate()
+            .map(|(asset_no, (_, asset))| (asset.symbol.clone(), asset_no))
+            .collect();
+
+        let id = generate_random_id();
+
+        // Requests to prepare a given asset for trading.
+        // The Connector will send the current orders on this asset.
+        for (name, instrument) in &self.instruments {
+            info!(%name, ?instrument, "Prepares the instrument.");
+            let asset_no = asset_name_to_no.get(&instrument.symbol).unwrap();
+            let ps = pubsub.get(*asset_no).unwrap();
+            ps.send(
+                id,
+                &Request::AddInstrument {
+                    symbol: instrument.symbol.clone(),
+                    tick_size: instrument.tick_size,
+                },
+            )
+            .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
+        }
+
+        let pubsub = PubSubList::new(pubsub)
+            .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
 
         Ok(LiveBot {
-            ev_tx: Some(ev_tx),
-            ev_rx,
-            req_rx: Some(req_rx),
-            req_tx,
+            id,
+            pubsub,
             depth,
             orders,
             state,
-            conns: Some(conns),
-            assets: self.assets,
+            assets: self.instruments,
+            asset_name_to_no,
             trade,
-            trade_len: self.trade_len,
+            last_trades_capacity: self.last_trades_capacity,
             error_handler: self.error_handler,
             order_hook: self.order_hook,
             last_feed_latency,
@@ -279,23 +256,20 @@ impl<MD> LiveBotBuilder<MD> {
 /// use hftbacktest::{live::LiveBot, prelude::HashMapMarketDepth};
 ///
 /// let mut hbt = LiveBot::builder()
-///     .register("connector_name", connector)
 ///     .add("connector_name", "symbol", tick_size, lot_size)
 ///     .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
 ///     .build()
 ///     .unwrap();
 /// ```
 pub struct LiveBot<MD> {
-    req_tx: UnboundedSender<Request>,
-    req_rx: Option<UnboundedReceiver<Request>>,
-    ev_tx: Option<Sender<LiveEvent>>,
-    ev_rx: Receiver<LiveEvent>,
+    id: u64,
+    pubsub: PubSubList,
     depth: Vec<MD>,
     orders: Vec<HashMap<OrderId, Order>>,
     trade: Vec<Vec<Event>>,
-    trade_len: usize,
-    conns: Option<HashMap<String, Box<dyn Connector + Send + 'static>>>,
-    assets: Vec<(String, Asset)>,
+    last_trades_capacity: usize,
+    assets: Vec<(String, Instrument)>,
+    asset_name_to_no: HashMap<String, usize>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
     last_feed_latency: Vec<Option<(i64, i64)>>,
@@ -310,26 +284,127 @@ where
     /// Builder to construct [`LiveBot`] instances.
     pub fn builder() -> LiveBotBuilder<MD> {
         LiveBotBuilder {
-            conns: HashMap::new(),
-            assets: Vec::new(),
+            instruments: Vec::new(),
             error_handler: None,
             order_hook: None,
             depth_builder: None,
-            trade_len: 0,
+            last_trades_capacity: 0,
         }
     }
 
-    /// Runs the [`LiveBot`]. Spawns a thread to run [`Connector`]s and to handle sending [`Request`]
-    /// to [`Connector`]s without blocking.
-    pub fn run(&mut self) -> Result<(), BotError> {
-        let ev_tx = self.ev_tx.take().unwrap();
-        let req_rx = self.req_rx.take().unwrap();
-        let conns = self.conns.take().unwrap();
-        let assets = self.assets.clone();
-        let _ = thread::spawn(move || {
-            thread_main(ev_tx, req_rx, conns, assets);
-        });
-        Ok(())
+    fn process_event<const WAIT_NEXT_FEED: bool>(
+        &mut self,
+        ev: LiveEvent,
+        wait_order_response: WaitOrderResponse,
+    ) -> Result<bool, BotError> {
+        match ev {
+            // LiveEvent::FeedBatch { symbol, events } => {
+            //     let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+            //         return Ok(false);
+            //     };
+            //     for event in events {
+            //         *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
+            //             Some((event.exch_ts, event.local_ts));
+            //         if event.is(LOCAL_BID_DEPTH_EVENT) {
+            //             let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+            //             depth.update_bid_depth(event.px, event.qty, event.exch_ts);
+            //         } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
+            //             let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+            //             depth.update_ask_depth(event.px, event.qty, event.exch_ts);
+            //         } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
+            //             && self.last_trades_capacity > 0
+            //         {
+            //             let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+            //             trade.push(event);
+            //         }
+            //     }
+            //     if WAIT_NEXT_FEED {
+            //         return Ok(true);
+            //     }
+            // }
+            LiveEvent::Feed { symbol, event } => {
+                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+                    return Ok(false);
+                };
+
+                *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
+                    Some((event.exch_ts, event.local_ts));
+                if event.is(LOCAL_BID_DEPTH_EVENT) {
+                    let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                    depth.update_bid_depth(event.px, event.qty, event.exch_ts);
+                } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
+                    let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+                    depth.update_ask_depth(event.px, event.qty, event.exch_ts);
+                } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
+                    && self.last_trades_capacity > 0
+                {
+                    let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+                    trade.push(event);
+                }
+            }
+            LiveEvent::Order { symbol, order } => {
+                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+                    return Ok(false);
+                };
+
+                debug!(%asset_no, ?order, "Event::Order");
+                let received_order_resp = match wait_order_response {
+                    WaitOrderResponse::Any => true,
+                    WaitOrderResponse::Specified {
+                        asset_no: wait_order_asset_no,
+                        order_id: wait_order_id,
+                    } if wait_order_id == order.order_id && wait_order_asset_no == asset_no => true,
+                    _ => false,
+                };
+                *unsafe { self.last_order_latency.get_unchecked_mut(asset_no) } = Some((
+                    order.local_timestamp,
+                    order.exch_timestamp,
+                    Utc::now().timestamp_nanos_opt().unwrap(),
+                ));
+                match self
+                    .orders
+                    .get_mut(asset_no)
+                    .ok_or(BotError::AssetNotFound)?
+                    .entry(order.order_id)
+                {
+                    Entry::Occupied(mut entry) => {
+                        let ex_order = entry.get_mut();
+                        if let Some(hook) = self.order_hook.as_mut() {
+                            hook(ex_order, &order)?;
+                        }
+                        if order.exch_timestamp >= ex_order.exch_timestamp {
+                            if ex_order.status == Status::Canceled
+                                || ex_order.status == Status::Expired
+                                || ex_order.status == Status::Filled
+                            {
+                                // Ignores the update since the current status is the final status.
+                            } else {
+                                ex_order.update(&order);
+                            }
+                        }
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(order);
+                    }
+                }
+                if received_order_resp {
+                    return Ok(true);
+                }
+            }
+            LiveEvent::Position { symbol, qty } => {
+                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+                    return Ok(false);
+                };
+
+                unsafe { self.state.get_unchecked_mut(asset_no) }.position = qty;
+            }
+            LiveEvent::Error(error) => {
+                if let Some(handler) = self.error_handler.as_mut() {
+                    handler(error)?;
+                }
+            }
+        }
+        Ok(false)
     }
 
     fn elapse_<const WAIT_NEXT_FEED: bool>(
@@ -337,118 +412,28 @@ where
         duration: i64,
         wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BotError> {
-        let now = Instant::now();
+        let instant = Instant::now();
+        let duration = Duration::from_nanos(duration as u64);
         let mut remaining_duration = duration;
+
         loop {
-            let timeout = Duration::from_nanos(remaining_duration as u64);
-            match self.ev_rx.recv_timeout(timeout) {
-                Ok(LiveEvent::FeedBatch { asset_no, events }) => {
-                    for event in events {
-                        *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
-                            Some((event.exch_ts, event.local_ts));
-                        if event.is(LOCAL_BID_DEPTH_EVENT) {
-                            let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                            depth.update_bid_depth(event.px, event.qty, event.exch_ts);
-                        } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
-                            let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                            depth.update_ask_depth(event.px, event.qty, event.exch_ts);
-                        } else if (event.is(LOCAL_BUY_TRADE_EVENT)
-                            || event.is(LOCAL_SELL_TRADE_EVENT))
-                            && self.trade_len > 0
-                        {
-                            let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-                            trade.push(event);
-                        }
-                    }
-                    if WAIT_NEXT_FEED {
+            match self.pubsub.recv_timeout(self.id, remaining_duration) {
+                Ok(ev) => {
+                    if self.process_event::<WAIT_NEXT_FEED>(ev, wait_order_response)? {
                         return Ok(true);
                     }
                 }
-                Ok(LiveEvent::Feed { asset_no, event }) => {
-                    *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
-                        Some((event.exch_ts, event.local_ts));
-                    if event.is(LOCAL_BID_DEPTH_EVENT) {
-                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                        depth.update_bid_depth(event.px, event.qty, event.exch_ts);
-                    } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
-                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                        depth.update_ask_depth(event.px, event.qty, event.exch_ts);
-                    } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
-                        && self.trade_len > 0
-                    {
-                        let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-                        trade.push(event);
-                    }
-                }
-                Ok(LiveEvent::Order { asset_no, order }) => {
-                    debug!(%asset_no, ?order, "Event::Order");
-                    let received_order_resp = match wait_order_response {
-                        WaitOrderResponse::Any => true,
-                        WaitOrderResponse::Specified {
-                            asset_no: wait_order_asset_no,
-                            order_id: wait_order_id,
-                        } if wait_order_id == order.order_id && wait_order_asset_no == asset_no => {
-                            true
-                        }
-                        _ => false,
-                    };
-                    *unsafe { self.last_order_latency.get_unchecked_mut(asset_no) } = Some((
-                        order.local_timestamp,
-                        order.exch_timestamp,
-                        Utc::now().timestamp_nanos_opt().unwrap(),
-                    ));
-                    match self
-                        .orders
-                        .get_mut(asset_no)
-                        .ok_or(BotError::AssetNotFound)?
-                        .entry(order.order_id)
-                    {
-                        Entry::Occupied(mut entry) => {
-                            let ex_order = entry.get_mut();
-                            if let Some(hook) = self.order_hook.as_mut() {
-                                hook(ex_order, &order)?;
-                            }
-                            if order.exch_timestamp >= ex_order.exch_timestamp {
-                                if ex_order.status == Status::Canceled
-                                    || ex_order.status == Status::Expired
-                                    || ex_order.status == Status::Filled
-                                {
-                                    // Ignores the update since the current status is the final status.
-                                } else {
-                                    ex_order.update(&order);
-                                }
-                            }
-                        }
-                        Entry::Vacant(entry) => {
-                            error!(
-                                %asset_no,
-                                ?order,
-                                "Bot received an unmanaged order. \
-                                This should be handled by a Connector."
-                            );
-                            entry.insert(order);
-                        }
-                    }
-                    if received_order_resp {
-                        return Ok(true);
-                    }
-                }
-                Ok(LiveEvent::Position { asset_no, qty }) => {
-                    unsafe { self.state.get_unchecked_mut(asset_no) }.position = qty;
-                }
-                Ok(LiveEvent::Error(error)) => {
-                    if let Some(handler) = self.error_handler.as_mut() {
-                        handler(error)?;
-                    }
-                }
-                Err(RecvTimeoutError::Timeout) => {
+                Err(BotError::Timeout) => {
                     return Ok(true);
                 }
-                Err(RecvTimeoutError::Disconnected) => {
+                Err(BotError::Interrupted) => {
                     return Ok(false);
                 }
+                Err(error) => {
+                    return Err(error);
+                }
             }
-            let elapsed = now.elapsed().as_nanos() as i64;
+            let elapsed = instant.elapsed();
             if elapsed > duration {
                 return Ok(true);
             }
@@ -475,7 +460,9 @@ where
         if orders.contains_key(&order_id) {
             return Err(BotError::OrderIdExist);
         }
-        let tick_size = self.assets.get(asset_no).unwrap().1.tick_size;
+        let (_name, asset) = self.assets.get(asset_no).unwrap();
+        let symbol = asset.symbol.clone();
+        let tick_size = asset.tick_size;
         let order = Order {
             order_id,
             price_tick: (price / tick_size).round() as i64,
@@ -497,9 +484,10 @@ where
         };
         let order_id = order.order_id;
         orders.insert(order_id, order.clone());
-        self.req_tx
-            .send(Request::Order { asset_no, order })
-            .unwrap();
+
+        self.pubsub
+            .send(asset_no, Request::Order { symbol, order })?;
+
         if wait {
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
@@ -635,6 +623,8 @@ where
         order_id: OrderId,
         wait: bool,
     ) -> Result<bool, Self::Error> {
+        let (_name, asset) = self.assets.get(asset_no).ok_or(BotError::AssetNotFound)?;
+        let symbol = asset.symbol.clone();
         let orders = self
             .orders
             .get_mut(asset_no)
@@ -645,12 +635,15 @@ where
         }
         order.req = Status::Canceled;
         order.local_timestamp = Utc::now().timestamp_nanos_opt().unwrap();
-        self.req_tx
-            .send(Request::Order {
-                asset_no,
+
+        self.pubsub.send(
+            asset_no,
+            Request::Order {
+                symbol,
                 order: order.clone(),
-            })
-            .unwrap();
+            },
+        )?;
+
         if wait {
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);

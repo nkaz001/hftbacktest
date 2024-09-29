@@ -138,10 +138,10 @@ pub enum ErrorKind {
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug, Decode, Encode)]
 pub enum LiveEvent {
-    FeedBatch { asset_no: usize, events: Vec<Event> },
-    Feed { asset_no: usize, event: Event },
-    Order { asset_no: usize, order: Order },
-    Position { asset_no: usize, qty: f64 },
+    // FeedBatch { symbol: String, events: Vec<Event> },
+    Feed { symbol: String, event: Event },
+    Order { symbol: String, order: Order },
+    Position { symbol: String, qty: f64 },
     Error(LiveError),
 }
 
@@ -302,7 +302,7 @@ pub const UNTIL_END_OF_DATA: i64 = i64::MAX;
 
 pub type OrderId = u64;
 
-#[derive(PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum WaitOrderResponse {
     None,
     Any,
@@ -702,10 +702,12 @@ impl Encode for Order {
 }
 
 /// An asynchronous request to [`Connector`](`crate::connector::Connector`).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub enum Request {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
-    Order { asset_no: usize, order: Order },
+    Order { symbol: String, order: Order },
+    /// A request to add an instrument for trading.
+    AddInstrument { symbol: String, tick_size: f64 },
 }
 
 /// Provides state values.

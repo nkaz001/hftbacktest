@@ -1,6 +1,5 @@
 use algo::gridtrading;
 use hftbacktest::{
-    connector::bybit::{Bybit, Endpoint},
     live::{LiveBot, LoggingRecorder},
     prelude::{Bot, ErrorKind, HashMapMarketDepth},
 };
@@ -9,22 +8,9 @@ use tracing::error;
 mod algo;
 
 const ORDER_PREFIX: &str = "prefix";
-const API_KEY: &str = "apikey";
-const SECRET: &str = "secret";
 
 fn prepare_live() -> LiveBot<HashMapMarketDepth> {
-    // Currently only `linear` (linear futures) is supported.
-    let bybit_futures = Bybit::builder()
-        .endpoint(Endpoint::Testnet)
-        .api_key(API_KEY)
-        .secret(SECRET)
-        .order_prefix(ORDER_PREFIX)
-        .category("linear")
-        .build()
-        .unwrap();
-
     let mut hbt = LiveBot::builder()
-        .register("bybit-futures", bybit_futures)
         .add("bybit-futures", "BTCUSDT", 0.1, 0.001)
         .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
         .error_handler(|error| {

@@ -1,12 +1,13 @@
+use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
     de::{Error, Unexpected},
     Deserialize,
     Deserializer,
 };
 
-use crate::types::{OrdType, Side, Status, TimeInForce};
-
+#[allow(dead_code)]
 pub mod rest;
+#[allow(dead_code)]
 pub mod stream;
 
 fn from_str_to_side<'de, D>(deserializer: D) -> Result<Side, D::Error>

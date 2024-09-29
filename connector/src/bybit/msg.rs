@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt, fmt::Debug};
 
+use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
     de,
     de::{Error, Unexpected, Visitor},
@@ -8,10 +9,7 @@ use serde::{
     Serialize,
 };
 
-use crate::{
-    connector::util::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64},
-    types::{OrdType, Side, Status, TimeInForce},
-};
+use crate::utils::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64};
 
 struct SideVisitor;
 
@@ -551,12 +549,12 @@ where
     pub req_id: String,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub header: HashMap<String, String>,
-    pub op: String,
+    pub op: &'static str,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<T>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Order {
     pub symbol: String,
     #[serde(skip_serializing_if = "Option::is_none")]
