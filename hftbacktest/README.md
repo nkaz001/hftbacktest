@@ -40,7 +40,7 @@ part of [Data Preparation](https://hftbacktest.readthedocs.io/en/latest/tutorial
 
 ### Examples
 
-[high-frequency gridtrading](https://github.com/nkaz001/hftbacktest/blob/master/rust/examples/gridtrading.ipynb): The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
+[high-frequency gridtrading](https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/gridtrading.ipynb): The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.
 
 Please see [examples](https://github.com/nkaz001/hftbacktest/tree/master/rust/examples).
 
