@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
-use hftbacktest::{live::Asset, prelude::*};
+use hftbacktest::{live::Instrument, prelude::*};
 use tokio::{
     select,
     sync::{
@@ -18,11 +18,7 @@ use tracing::error;
 
 use crate::{
     binancefutures::{
-        msg::{
-            rest,
-            stream,
-            stream::{Data, Stream},
-        },
+        msg::{rest, stream, stream::Stream},
         rest::BinanceFuturesClient,
         BinanceFuturesError,
     },
@@ -30,7 +26,7 @@ use crate::{
 };
 
 pub struct MarketDataStream {
-    symbols: HashMap<String, Asset>,
+    symbols: HashMap<String, Instrument>,
     client: BinanceFuturesClient,
     ev_tx: UnboundedSender<PublishMessage>,
     symbol_rx: Receiver<String>,
@@ -60,15 +56,15 @@ impl MarketDataStream {
     }
 
     fn process_message(&mut self, stream: Stream) {
-        match stream.data {
-            Data::DepthUpdate(data) => {
-                let mut prev_u_val = self.prev_u.get_mut(&data.symbol);
+        match stream {
+            Stream::DepthUpdate(data) => {
+                let mut prev_u_val = self.prev_u.get_mut(&data.symbol.to_lowercase());
                 if prev_u_val.is_none()
                 /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
                 {
-                    // if !pending_depth_messages.contains_key(&data.symbol) {
+                    // if !pending_depth_messages.contains_key(&data.symbol.to_lowercase()) {
                     let client_ = self.client.clone();
-                    let symbol = data.symbol.clone();
+                    let symbol = data.symbol.to_lowercase();
                     let rest_tx = self.rest_tx.clone();
                     tokio::spawn(async move {
                         let resp = client_.get_depth(&symbol).await;
@@ -96,58 +92,58 @@ impl MarketDataStream {
                 // fixme: currently supports natural refresh only.
                 *self
                     .prev_u
-                    .entry(data.symbol.clone())
+                    .entry(data.symbol.to_lowercase())
                     .or_insert(data.last_update_id) = data.last_update_id;
 
                 match parse_depth(data.bids, data.asks) {
                     Ok((bids, asks)) => {
-                        let mut bid_events: Vec<_> = bids
-                            .iter()
-                            .map(|&(px, qty)| Event {
-                                ev: LOCAL_BID_DEPTH_EVENT,
-                                exch_ts: data.transaction_time * 1_000_000,
-                                local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                                order_id: 0,
-                                px,
-                                qty,
-                                ival: 0,
-                                fval: 0.0,
-                            })
-                            .collect();
-                        let mut ask_events: Vec<_> = asks
-                            .iter()
-                            .map(|&(px, qty)| Event {
-                                ev: LOCAL_ASK_DEPTH_EVENT,
-                                exch_ts: data.transaction_time * 1_000_000,
-                                local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                                order_id: 0,
-                                px,
-                                qty,
-                                ival: 0,
-                                fval: 0.0,
-                            })
-                            .collect();
-                        let mut events = Vec::new();
-                        events.append(&mut bid_events);
-                        events.append(&mut ask_events);
-                        self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
-                                symbol: data.symbol,
-                                events,
-                            }))
-                            .unwrap();
+                        for (px, qty) in bids {
+                            self.ev_tx
+                                .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                                    symbol: data.symbol.to_lowercase(),
+                                    event: Event {
+                                        ev: LOCAL_BID_DEPTH_EVENT,
+                                        exch_ts: data.transaction_time * 1_000_000,
+                                        local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                        order_id: 0,
+                                        px,
+                                        qty,
+                                        ival: 0,
+                                        fval: 0.0,
+                                    },
+                                }))
+                                .unwrap();
+                        }
+
+                        for (px, qty) in asks {
+                            self.ev_tx
+                                .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                                    symbol: data.symbol.to_lowercase(),
+                                    event: Event {
+                                        ev: LOCAL_ASK_DEPTH_EVENT,
+                                        exch_ts: data.transaction_time * 1_000_000,
+                                        local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                        order_id: 0,
+                                        px,
+                                        qty,
+                                        ival: 0,
+                                        fval: 0.0,
+                                    },
+                                }))
+                                .unwrap();
+                        }
                     }
                     Err(error) => {
                         error!(?error, "Couldn't parse DepthUpdate stream.");
                     }
                 }
             }
-            Data::Trade(data) => match parse_px_qty_tup(data.price, data.qty) {
+            Stream::Trade(data) => match parse_px_qty_tup(data.price, data.qty) {
                 Ok((px, qty)) => {
                     self.ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
-                            symbol: data.symbol,
-                            events: vec![Event {
+                        .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            symbol: data.symbol.to_lowercase(),
+                            event: Event {
                                 ev: {
                                     if data.is_the_buyer_the_market_maker {
                                         LOCAL_SELL_TRADE_EVENT
@@ -162,7 +158,7 @@ impl MarketDataStream {
                                 qty,
                                 ival: 0,
                                 fval: 0.0,
-                            }],
+                            },
                         }))
                         .unwrap();
                 }
@@ -177,41 +173,41 @@ impl MarketDataStream {
     fn process_snapshot(&self, symbol: String, data: rest::Depth) {
         match parse_depth(data.bids, data.asks) {
             Ok((bids, asks)) => {
-                let mut bid_events: Vec<_> = bids
-                    .iter()
-                    .map(|&(px, qty)| Event {
-                        ev: LOCAL_BID_DEPTH_EVENT,
-                        exch_ts: data.transaction_time * 1_000_000,
-                        local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                        order_id: 0,
-                        px,
-                        qty,
-                        ival: 0,
-                        fval: 0.0,
-                    })
-                    .collect();
-                let mut ask_events: Vec<_> = asks
-                    .iter()
-                    .map(|&(px, qty)| Event {
-                        ev: LOCAL_ASK_DEPTH_EVENT,
-                        exch_ts: data.transaction_time * 1_000_000,
-                        local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                        order_id: 0,
-                        px,
-                        qty,
-                        ival: 0,
-                        fval: 0.0,
-                    })
-                    .collect();
-                let mut events = Vec::new();
-                events.append(&mut bid_events);
-                events.append(&mut ask_events);
-                self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
-                        symbol,
-                        events,
-                    }))
-                    .unwrap();
+                for (px, qty) in bids {
+                    self.ev_tx
+                        .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            symbol: symbol.clone(),
+                            event: Event {
+                                ev: LOCAL_BID_DEPTH_EVENT,
+                                exch_ts: data.transaction_time * 1_000_000,
+                                local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                order_id: 0,
+                                px,
+                                qty,
+                                ival: 0,
+                                fval: 0.0,
+                            },
+                        }))
+                        .unwrap();
+                }
+
+                for (px, qty) in asks {
+                    self.ev_tx
+                        .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            symbol: symbol.clone(),
+                            event: Event {
+                                ev: LOCAL_ASK_DEPTH_EVENT,
+                                exch_ts: data.transaction_time * 1_000_000,
+                                local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                order_id: 0,
+                                px,
+                                qty,
+                                ival: 0,
+                                fval: 0.0,
+                            },
+                        }))
+                        .unwrap();
+                }
             }
             Err(error) => {
                 error!(?error, "Couldn't parse Depth response.");

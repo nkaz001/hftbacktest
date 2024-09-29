@@ -12,39 +12,29 @@ use bincode::{
     Encode,
 };
 use iceoryx2::{
-    iox2::Iox2,
     port::{
         publisher::{Publisher, PublisherLoanError, PublisherSendError},
         subscriber::{Subscriber, SubscriberReceiveError},
     },
-    prelude::{zero_copy, Iox2Event, ServiceName},
-    service::{port_factory::publish_subscribe::PortFactory, Service},
+    prelude::{ipc, Node, NodeBuilder, NodeEvent, ServiceName},
+    service,
+    service::port_factory::publish_subscribe::PortFactory,
 };
 use thiserror::Error;
+use tracing::info;
 
 use crate::{
     live::{BotError, Channel},
-    prelude::{LiveEvent, Request},
+    prelude::{BuildError, LiveEvent, Request},
 };
 
 pub const TO_ALL: u64 = 0;
 
+#[derive(Default, Debug)]
 #[repr(C)]
-#[derive(Debug)]
-struct BinPayload {
-    data: [u8; 1024],
-    len: usize,
-    id: u64,
-}
-
-impl Default for BinPayload {
-    fn default() -> Self {
-        Self {
-            data: [0; 1024],
-            len: 0,
-            id: 0,
-        }
-    }
+pub struct CustomHeader {
+    pub id: u64,
+    pub len: usize,
 }
 
 #[derive(Error, Debug)]
@@ -67,8 +57,8 @@ pub enum PubSubError {
 
 pub struct IceoryxSender<T> {
     // Unfortunately, the publisher's lifetime seems to be tied to the factory.
-    _pub_factory: PortFactory<zero_copy::Service, BinPayload>,
-    publisher: Publisher<zero_copy::Service, BinPayload>,
+    _pub_factory: PortFactory<ipc::Service, [u8], CustomHeader>,
+    publisher: Publisher<ipc::Service, [u8], CustomHeader>,
     _t_marker: PhantomData<T>,
 }
 
@@ -77,17 +67,24 @@ where
     T: Encode,
 {
     pub fn build(name: &str) -> Result<Self, PubSubError> {
-        let from_bot = ServiceName::new(&format!("{}/FromBot", name))
+        let node = NodeBuilder::new()
+            .create::<ipc::Service>()
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-        let pub_factory = zero_copy::Service::new(&from_bot)
-            .publish_subscribe()
-            .max_publishers(1000)
-            .max_subscribers(1)
-            .open_or_create::<BinPayload>()
+        let from_bot =
+            ServiceName::new(name).map_err(|error| PubSubError::BuildError(error.to_string()))?;
+        let pub_factory = node
+            .service_builder(&from_bot)
+            .publish_subscribe::<[u8]>()
+            .subscriber_max_buffer_size(100000)
+            .max_publishers(500)
+            .max_subscribers(500)
+            .user_header::<CustomHeader>()
+            .open_or_create()
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
         let publisher = pub_factory
-            .publisher()
+            .publisher_builder()
+            .max_slice_len(128)
             .create()
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
@@ -99,23 +96,25 @@ where
     }
 
     pub fn send(&self, id: u64, data: &T) -> Result<(), PubSubError> {
-        let sample = self.publisher.loan_uninit()?;
+        let sample = self.publisher.loan_slice_uninit(128)?;
         let mut sample = unsafe { sample.assume_init() };
+
         let payload = sample.payload_mut();
+        let length = bincode::encode_into_slice(data, payload, config::standard())?;
 
-        let length = bincode::encode_into_slice(data, &mut payload.data, config::standard())?;
+        sample.user_header_mut().id = id;
+        sample.user_header_mut().len = length;
 
-        payload.len = length;
-        payload.id = id;
         sample.send()?;
+
         Ok(())
     }
 }
 
 pub struct IceoryxReceiver<T> {
     // Unfortunately, the subscriber's lifetime seems to be tied to the factory.
-    _sub_factory: PortFactory<zero_copy::Service, BinPayload>,
-    subscriber: Subscriber<zero_copy::Service, BinPayload>,
+    _sub_factory: PortFactory<ipc::Service, [u8], CustomHeader>,
+    subscriber: Subscriber<ipc::Service, [u8], CustomHeader>,
     _t_marker: PhantomData<T>,
 }
 
@@ -124,17 +123,23 @@ where
     T: Decode,
 {
     pub fn build(name: &str) -> Result<Self, PubSubError> {
-        let to_bot = ServiceName::new(&format!("{}/ToBot", name))
+        let node = NodeBuilder::new()
+            .create::<ipc::Service>()
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-        let sub_factory = zero_copy::Service::new(&to_bot)
-            .publish_subscribe()
-            .max_publishers(1)
-            .max_subscribers(1000)
-            .open_or_create::<BinPayload>()
+        let to_bot =
+            ServiceName::new(name).map_err(|error| PubSubError::BuildError(error.to_string()))?;
+        let sub_factory = node
+            .service_builder(&to_bot)
+            .publish_subscribe::<[u8]>()
+            .subscriber_max_buffer_size(100000)
+            .max_publishers(500)
+            .max_subscribers(500)
+            .user_header::<CustomHeader>()
+            .open_or_create()
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
         let subscriber = sub_factory
-            .subscriber()
+            .subscriber_builder()
             .create()
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
@@ -149,28 +154,31 @@ where
         match self.subscriber.receive()? {
             None => Ok(None),
             Some(sample) => {
-                let bytes = &sample.data[0..sample.len];
+                let id = sample.user_header().id;
+                let len = sample.user_header().len;
+
+                let bytes = &sample.payload()[0..len];
                 let (decoded, _len): (T, usize) =
                     bincode::decode_from_slice(bytes, config::standard())?;
-                Ok(Some((sample.id, decoded)))
+                Ok(Some((id, decoded)))
             }
         }
     }
 }
 
-pub struct IceoryxPubSub<S, R> {
+pub struct IceoryxPubSubBot<S, R> {
     publisher: IceoryxSender<S>,
     subscriber: IceoryxReceiver<R>,
 }
 
-impl<S, R> IceoryxPubSub<S, R>
+impl<S, R> IceoryxPubSubBot<S, R>
 where
     S: Encode,
     R: Decode,
 {
     pub fn new(name: &str) -> Result<Self, anyhow::Error> {
-        let publisher = IceoryxSender::build(name)?;
-        let subscriber = IceoryxReceiver::build(name)?;
+        let publisher = IceoryxSender::build(&format!("{name}/FromBot"))?;
+        let subscriber = IceoryxReceiver::build(&format!("{name}/ToBot"))?;
 
         Ok(Self {
             publisher,
@@ -188,17 +196,22 @@ where
 }
 
 pub struct PubSubList {
-    pubsub: Vec<Rc<IceoryxPubSub<Request, LiveEvent>>>,
+    pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEvent>>>,
     pubsub_i: usize,
+    node: Node<ipc::Service>,
 }
 
 impl PubSubList {
-    pub fn new(pubsub: Vec<Rc<IceoryxPubSub<Request, LiveEvent>>>) -> Self {
+    pub fn new(pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEvent>>>) -> Result<Self, PubSubError> {
         assert!(!pubsub.is_empty());
-        Self {
+        let node = NodeBuilder::new()
+            .create::<ipc::Service>()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+        Ok(Self {
             pubsub,
             pubsub_i: 0,
-        }
+            node,
+        })
     }
 }
 
@@ -212,8 +225,8 @@ impl Channel for PubSubList {
             }
 
             // todo: this needs to retrieve Iox2Event without waiting.
-            match Iox2::wait(Duration::from_nanos(1)) {
-                Iox2Event::Tick => {
+            match self.node.wait(Duration::from_nanos(1)) {
+                NodeEvent::Tick => {
                     let pubsub = unsafe { self.pubsub.get_unchecked(self.pubsub_i) };
 
                     self.pubsub_i += 1;
@@ -230,7 +243,7 @@ impl Channel for PubSubList {
                         }
                     }
                 }
-                Iox2Event::TerminationRequest | Iox2Event::InterruptSignal => {
+                NodeEvent::TerminationRequest | NodeEvent::InterruptSignal => {
                     return Err(BotError::Interrupted);
                 }
             }

@@ -5,16 +5,17 @@ use std::{
 };
 
 use chrono::Utc;
+use iceoryx2::prelude::{ipc, NodeBuilder};
 use rand::Rng;
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::{
     depth::{L2MarketDepth, MarketDepth},
     live::{
-        ipc::{IceoryxPubSub, PubSubList},
-        Asset,
+        ipc::{IceoryxPubSubBot, PubSubList},
         Channel,
+        Instrument,
     },
     types::{
         Bot,
@@ -61,7 +62,7 @@ pub enum BotError {
 pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
-pub type DepthBuilder<MD> = Box<dyn FnMut(&Asset) -> MD>;
+pub type DepthBuilder<MD> = Box<dyn FnMut(&Instrument) -> MD>;
 
 fn generate_random_id() -> u64 {
     // Initialize the random number generator
@@ -73,7 +74,7 @@ fn generate_random_id() -> u64 {
 
 /// Live [`LiveBot`] builder.
 pub struct LiveBotBuilder<MD> {
-    assets: Vec<(String, Asset)>,
+    instruments: Vec<(String, Instrument)>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
     depth_builder: Option<DepthBuilder<MD>>,
@@ -92,12 +93,12 @@ impl<MD> LiveBotBuilder<MD> {
     /// * `lot_size` -  The minimum trade size.
     pub fn add(self, name: &str, symbol: &str, tick_size: f64, lot_size: f64) -> Self {
         Self {
-            assets: {
-                let asset_no = self.assets.len();
-                let mut assets = self.assets;
+            instruments: {
+                let asset_no = self.instruments.len();
+                let mut assets = self.instruments;
                 assets.push((
                     name.to_string(),
-                    Asset {
+                    Instrument {
                         asset_no,
                         symbol: symbol.to_string(),
                         tick_size,
@@ -135,7 +136,7 @@ impl<MD> LiveBotBuilder<MD> {
     /// Sets [`MarketDepth`] build function.
     pub fn depth<Builder>(self, builder: Builder) -> Self
     where
-        Builder: Fn(&Asset) -> MD + 'static,
+        Builder: Fn(&Instrument) -> MD + 'static,
     {
         Self {
             depth_builder: Some(Box::new(builder)),
@@ -155,9 +156,10 @@ impl<MD> LiveBotBuilder<MD> {
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
     pub fn build(self) -> Result<LiveBot<MD>, BuildError> {
         let mut dup = HashSet::new();
-        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSub<Request, LiveEvent>>> = HashMap::new();
+        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEvent>>> =
+            HashMap::new();
         let mut pubsub = Vec::new();
-        for (name, asset_info) in self.assets.iter() {
+        for (name, asset_info) in self.instruments.iter() {
             if !dup.insert(format!("{}/{}", name, asset_info.symbol)) {
                 Err(BuildError::Duplicate(
                     name.clone(),
@@ -171,7 +173,7 @@ impl<MD> LiveBotBuilder<MD> {
                     pubsub.push(ps);
                 }
                 Entry::Vacant(entry) => {
-                    let ps = Rc::new(IceoryxPubSub::new(name)?);
+                    let ps = Rc::new(IceoryxPubSubBot::new(name)?);
                     entry.insert(ps.clone());
                     pubsub.push(ps);
                 }
@@ -182,23 +184,27 @@ impl<MD> LiveBotBuilder<MD> {
             .depth_builder
             .ok_or(BuildError::BuilderIncomplete("depth"))?;
         let depth = self
-            .assets
+            .instruments
             .iter()
             .map(|(_, asset_info)| depth_builder(asset_info))
             .collect();
 
-        let orders = self.assets.iter().map(|_| HashMap::new()).collect();
-        let state = self.assets.iter().map(|_| Default::default()).collect();
+        let orders = self.instruments.iter().map(|_| HashMap::new()).collect();
+        let state = self
+            .instruments
+            .iter()
+            .map(|_| Default::default())
+            .collect();
         let trade = self
-            .assets
+            .instruments
             .iter()
             .map(|_| Vec::with_capacity(self.last_trades_capacity))
             .collect();
-        let last_feed_latency = self.assets.iter().map(|_| None).collect();
-        let last_order_latency = self.assets.iter().map(|_| None).collect();
+        let last_feed_latency = self.instruments.iter().map(|_| None).collect();
+        let last_order_latency = self.instruments.iter().map(|_| None).collect();
 
         let asset_name_to_no: HashMap<_, _> = self
-            .assets
+            .instruments
             .iter()
             .enumerate()
             .map(|(asset_no, (_, asset))| (asset.symbol.clone(), asset_no))
@@ -208,26 +214,30 @@ impl<MD> LiveBotBuilder<MD> {
 
         // Requests to prepare a given asset for trading.
         // The Connector will send the current orders on this asset.
-        for (symbol, asset_info) in &self.assets {
-            let asset_no = asset_name_to_no.get(symbol).unwrap();
+        for (name, instrument) in &self.instruments {
+            info!(%name, ?instrument, "Prepares the instrument.");
+            let asset_no = asset_name_to_no.get(&instrument.symbol).unwrap();
             let ps = pubsub.get(*asset_no).unwrap();
             ps.send(
                 id,
                 &Request::AddInstrument {
-                    symbol: symbol.clone(),
-                    tick_size: asset_info.tick_size,
+                    symbol: instrument.symbol.clone(),
+                    tick_size: instrument.tick_size,
                 },
             )
             .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
         }
 
+        let pubsub = PubSubList::new(pubsub)
+            .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
+
         Ok(LiveBot {
             id,
-            pubsub: PubSubList::new(pubsub),
+            pubsub,
             depth,
             orders,
             state,
-            assets: self.assets,
+            assets: self.instruments,
             asset_name_to_no,
             trade,
             last_trades_capacity: self.last_trades_capacity,
@@ -259,7 +269,7 @@ pub struct LiveBot<MD> {
     orders: Vec<HashMap<OrderId, Order>>,
     trade: Vec<Vec<Event>>,
     last_trades_capacity: usize,
-    assets: Vec<(String, Asset)>,
+    assets: Vec<(String, Instrument)>,
     asset_name_to_no: HashMap<String, usize>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
@@ -275,7 +285,7 @@ where
     /// Builder to construct [`LiveBot`] instances.
     pub fn builder() -> LiveBotBuilder<MD> {
         LiveBotBuilder {
-            assets: Vec::new(),
+            instruments: Vec::new(),
             error_handler: None,
             order_hook: None,
             depth_builder: None,
@@ -289,30 +299,30 @@ where
         wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BotError> {
         match ev {
-            LiveEvent::FeedBatch { symbol, events } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
-                    return Ok(false);
-                };
-                for event in events {
-                    *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
-                        Some((event.exch_ts, event.local_ts));
-                    if event.is(LOCAL_BID_DEPTH_EVENT) {
-                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                        depth.update_bid_depth(event.px, event.qty, event.exch_ts);
-                    } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
-                        let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                        depth.update_ask_depth(event.px, event.qty, event.exch_ts);
-                    } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
-                        && self.last_trades_capacity > 0
-                    {
-                        let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-                        trade.push(event);
-                    }
-                }
-                if WAIT_NEXT_FEED {
-                    return Ok(true);
-                }
-            }
+            // LiveEvent::FeedBatch { symbol, events } => {
+            //     let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+            //         return Ok(false);
+            //     };
+            //     for event in events {
+            //         *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
+            //             Some((event.exch_ts, event.local_ts));
+            //         if event.is(LOCAL_BID_DEPTH_EVENT) {
+            //             let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+            //             depth.update_bid_depth(event.px, event.qty, event.exch_ts);
+            //         } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
+            //             let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
+            //             depth.update_ask_depth(event.px, event.qty, event.exch_ts);
+            //         } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
+            //             && self.last_trades_capacity > 0
+            //         {
+            //             let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
+            //             trade.push(event);
+            //         }
+            //     }
+            //     if WAIT_NEXT_FEED {
+            //         return Ok(true);
+            //     }
+            // }
             LiveEvent::Feed { symbol, event } => {
                 let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
                     return Ok(false);
@@ -374,8 +384,8 @@ where
                             }
                         }
                     }
-                    Entry::Vacant(_) => {
-                        // This order is created by another bot.
+                    Entry::Vacant(entry) => {
+                        entry.insert(order);
                     }
                 }
                 if received_order_resp {

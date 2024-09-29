@@ -17,7 +17,7 @@ use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::{broadcast, broadcast::Sender, mpsc::UnboundedSender};
 use tokio_tungstenite::tungstenite;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     binancefutures::{
@@ -75,8 +75,11 @@ impl From<BinanceFuturesError> for Value {
 pub struct Config {
     stream_url: String,
     api_url: String,
+    #[serde(default)]
     order_prefix: String,
+    #[serde(default)]
     api_key: String,
+    #[serde(default)]
     secret: String,
 }
 
@@ -100,7 +103,10 @@ impl BinanceFutures {
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
                 .error_handler(|error: BinanceFuturesError| {
-                    error!(?error, "Connection interuppted.");
+                    error!(
+                        ?error,
+                        "An error occurred in the market data stream connection."
+                    );
                     ev_tx
                         .send(PublishMessage::LiveEvent(LiveEvent::Error(
                             LiveError::with(ErrorKind::ConnectionInterrupted, error.into()),
@@ -130,7 +136,18 @@ impl BinanceFutures {
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
-                .error_handler(|_: BinanceFuturesError| Ok(()))
+                .error_handler(|error: BinanceFuturesError| {
+                    error!(
+                        ?error,
+                        "An error occurred in the user data stream connection."
+                    );
+                    ev_tx
+                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                            LiveError::with(ErrorKind::ConnectionInterrupted, error.into()),
+                        )))
+                        .unwrap();
+                    Ok(())
+                })
                 .retry(|| async {
                     let mut stream = user_data_stream::UserDataStream::new(
                         client.clone(),
@@ -149,9 +166,7 @@ impl BinanceFutures {
 
                     let listen_key = stream.get_listen_key().await?;
 
-                    stream
-                        .connect(&format!("{base_url}/stream?streams={listen_key}"))
-                        .await?;
+                    stream.connect(&format!("{base_url}/{listen_key}")).await?;
                     Ok(())
                 })
                 .await;
@@ -218,7 +233,10 @@ impl Connector for BinanceFutures {
 
     fn run(&mut self, ev_tx: UnboundedSender<PublishMessage>) {
         self.connect_market_data_stream(ev_tx.clone());
-        self.connect_user_data_stream(ev_tx.clone());
+        // Connects to the user stream only if the API key and secret are provided.
+        if !self.config.api_key.is_empty() && !self.config.secret.is_empty() {
+            self.connect_user_data_stream(ev_tx.clone());
+        }
     }
 
     fn submit(&self, symbol: String, mut order: Order, tx: UnboundedSender<PublishMessage>) {

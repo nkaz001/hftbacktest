@@ -2,6 +2,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     fs::read_to_string,
     process::exit,
+    thread,
     time::Duration,
 };
 
@@ -11,12 +12,16 @@ use hftbacktest::{
     prelude::*,
     types::Request,
 };
-use iceoryx2::{iox2::Iox2, prelude::Iox2Event};
+use iceoryx2::{
+    node::NodeBuilder,
+    prelude::{ipc, set_log_level, LogLevel, NodeEvent},
+};
 use tokio::{
+    runtime::Builder,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     task::LocalSet,
 };
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     binancefutures::BinanceFutures,
@@ -38,12 +43,15 @@ fn run_receive_task(
     name: &str,
     tx: UnboundedSender<PublishMessage>,
     connector: &mut Box<dyn Connector>,
-) -> Result<(), anyhow::Error> {
-    let bot_rx = IceoryxReceiver::<Request>::build(name)?;
+) -> Result<(), PubSubError> {
+    let node = NodeBuilder::new()
+        .create::<ipc::Service>()
+        .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+    let bot_rx = IceoryxReceiver::<Request>::build(&format!("{name}/FromBot"))?;
     loop {
         let cycle_time = Duration::from_nanos(1000);
-        match Iox2::wait(cycle_time) {
-            Iox2Event::Tick => {
+        match node.wait(cycle_time) {
+            NodeEvent::Tick => {
                 while let Some((id, ev)) = bot_rx.receive()? {
                     match ev {
                         Request::Order {
@@ -77,7 +85,7 @@ fn run_receive_task(
                     }
                 }
             }
-            Iox2Event::TerminationRequest | Iox2Event::InterruptSignal => {
+            NodeEvent::TerminationRequest | NodeEvent::InterruptSignal => {
                 break;
             }
         }
@@ -89,12 +97,9 @@ async fn run_publish_task(
     name: &str,
     mut rx: UnboundedReceiver<PublishMessage>,
 ) -> Result<(), PubSubError> {
-    // The size is constrained by the buffer size of the IPC payload.
-    // todo: check the right size.
-    const LIVE_EVENT_CHUNK_SIZE: usize = 10;
-
     let mut depth = HashMap::new();
-    let bot_tx = IceoryxSender::<LiveEvent>::build(name)?;
+    let mut position = HashMap::new();
+    let bot_tx = IceoryxSender::<LiveEvent>::build(&format!("{name}/ToBot"))?;
 
     while let Some(msg) = rx.recv().await {
         match msg {
@@ -102,25 +107,37 @@ async fn run_publish_task(
                 id,
                 symbol,
                 tick_size,
-            } => match depth.entry(symbol) {
-                Entry::Occupied(mut entry) => {
-                    let depth_: &mut FusedHashMapMarketDepth = entry.get_mut();
-                    let snapshot = depth_.snapshot();
-                    for chunk in snapshot.chunks(LIVE_EVENT_CHUNK_SIZE).map(|s| s.into()) {
-                        let ev = LiveEvent::FeedBatch {
-                            symbol: entry.key().clone(),
-                            events: chunk,
-                        };
-                        bot_tx.send(id, &ev)?;
+            } => {
+                let symbol = symbol.to_lowercase();
+
+                if let Some(qty) = position.get(&symbol) {
+                    let lev = LiveEvent::Position {
+                        symbol: symbol.clone(),
+                        qty: *qty,
+                    };
+                    bot_tx.send(id, &lev)?;
+                }
+
+                match depth.entry(symbol) {
+                    Entry::Occupied(mut entry) => {
+                        let depth_: &mut FusedHashMapMarketDepth = entry.get_mut();
+                        let snapshot = depth_.snapshot();
+                        for event in snapshot {
+                            let lev = LiveEvent::Feed {
+                                symbol: entry.key().clone(),
+                                event,
+                            };
+                            bot_tx.send(id, &lev)?;
+                        }
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(FusedHashMapMarketDepth::new(tick_size));
                     }
                 }
-                Entry::Vacant(entry) => {
-                    entry.insert(FusedHashMapMarketDepth::new(tick_size));
-                }
-            },
+            }
             PublishMessage::LiveEvent(ev) => {
                 // The live event will only be published if the result is true.
-                if handle_ev(&ev, &mut depth) {
+                if handle_ev(&ev, &mut depth, &mut position) {
                     bot_tx.send(TO_ALL, &ev)?;
                 }
             }
@@ -144,24 +161,38 @@ async fn run_publish_task(
 /// Returns true when the received live event needs to be published; otherwise, it does not.
 /// For example, publication is unnecessary if the received market depth data is outdated by more
 /// recent data from a different stream due to fusion.
-fn handle_ev(lev: &LiveEvent, depth: &mut HashMap<String, FusedHashMapMarketDepth>) -> bool {
-    if let LiveEvent::Feed { symbol, event } = lev {
-        if event.is(BUY_EVENT | DEPTH_EVENT) {
-            let depth_ = depth.get_mut(symbol).unwrap();
-            return depth_.update_bid_depth(event.px, event.qty, event.exch_ts);
-        } else if event.is(SELL_EVENT | DEPTH_EVENT) {
-            let depth_ = depth.get_mut(symbol).unwrap();
-            return depth_.update_ask_depth(event.px, event.qty, event.exch_ts);
-        } else if event.is(BUY_EVENT | DEPTH_BBO_EVENT) {
-            let depth_ = depth.get_mut(symbol).unwrap();
-            return depth_.update_best_bid(event.px, event.qty, event.exch_ts);
-        } else if event.is(SELL_EVENT | DEPTH_BBO_EVENT) {
-            let depth_ = depth.get_mut(symbol).unwrap();
-            return depth_.update_best_ask(event.px, event.qty, event.exch_ts);
-        } else if event.is(DEPTH_CLEAR_EVENT) {
-            let depth_ = depth.get_mut(symbol).unwrap();
-            depth_.clear_depth(Side::None, 0.0);
+fn handle_ev(
+    ev: &LiveEvent,
+    depth: &mut HashMap<String, FusedHashMapMarketDepth>,
+    position: &mut HashMap<String, f64>,
+) -> bool {
+    match ev {
+        LiveEvent::Feed { symbol, event } => {
+            if event.is(BUY_EVENT | DEPTH_EVENT) {
+                let depth_ = depth.get_mut(symbol).unwrap();
+                return depth_.update_bid_depth(event.px, event.qty, event.exch_ts);
+            } else if event.is(SELL_EVENT | DEPTH_EVENT) {
+                let depth_ = depth.get_mut(symbol).unwrap();
+                return depth_.update_ask_depth(event.px, event.qty, event.exch_ts);
+            } else if event.is(BUY_EVENT | DEPTH_BBO_EVENT) {
+                let depth_ = depth.get_mut(symbol).unwrap();
+                return depth_.update_best_bid(event.px, event.qty, event.exch_ts);
+            } else if event.is(SELL_EVENT | DEPTH_BBO_EVENT) {
+                let depth_ = depth.get_mut(symbol).unwrap();
+                return depth_.update_best_ask(event.px, event.qty, event.exch_ts);
+            } else if event.is(DEPTH_CLEAR_EVENT) {
+                let depth_ = depth.get_mut(symbol).unwrap();
+                depth_.clear_depth(Side::None, 0.0);
+            }
         }
+        LiveEvent::Position { symbol, qty } => {
+            if position.contains_key(symbol) {
+                *position.get_mut(symbol).unwrap() = *qty;
+            } else {
+                position.insert(symbol.clone(), *qty);
+            }
+        }
+        _ => {}
     }
     true
 }
@@ -169,7 +200,12 @@ fn handle_ev(lev: &LiveEvent, depth: &mut HashMap<String, FusedHashMapMarketDept
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Name of the connector
+    /// Name of the connector, used when connecting the bot to the connector.
+    name: String,
+
+    /// Connector
+    /// * binancefutures: Binance USD-m Futures
+    /// * bybit: Bybit Linear Futures
     connector: String,
 
     /// Connector's configuration file path.
@@ -180,6 +216,7 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
+    set_log_level(LogLevel::Trace);
     tracing_subscriber::fmt::init();
 
     let (pub_tx, pub_rx) = unbounded_channel();
@@ -219,22 +256,25 @@ async fn main() {
         }
     };
 
-    let local = LocalSet::new();
-    let connector_name = args.connector.clone();
-    let handle = local.spawn_local(async move {
-        run_publish_task(&connector_name, pub_rx)
-            .await
-            .map_err(|error: PubSubError| {
-                error!(
-                    ?error,
-                    "An error occurred while sending a live event to the bots."
-                );
-            })
-            .unwrap();
+    let name = args.name.clone();
+    let handle = thread::spawn(move || {
+        let rt = Builder::new_current_thread().enable_all().build().unwrap();
+
+        rt.block_on(async move {
+            run_publish_task(&name, pub_rx)
+                .await
+                .map_err(|error: PubSubError| {
+                    error!(
+                        ?error,
+                        "An error occurred while sending a live event to the bots."
+                    );
+                })
+                .unwrap();
+        });
     });
 
-    let connector_name = args.connector;
-    run_receive_task(&connector_name, pub_tx, &mut connector)
+    let name = args.name;
+    run_receive_task(&name, pub_tx, &mut connector)
         .map_err(|error| {
             error!(
                 ?error,
@@ -242,5 +282,5 @@ async fn main() {
             );
         })
         .unwrap();
-    let _ = handle.await;
+    let _ = handle.join();
 }

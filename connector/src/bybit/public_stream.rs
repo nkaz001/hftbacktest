@@ -108,12 +108,14 @@ impl PublicStream {
                     let mut events = Vec::new();
                     events.append(&mut bid_events);
                     events.append(&mut ask_events);
-                    self.ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
-                            symbol: data.symbol,
-                            events,
-                        }))
-                        .unwrap();
+                    for event in events {
+                        self.ev_tx
+                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                                symbol: data.symbol.clone(),
+                                event,
+                            }))
+                            .unwrap();
+                    }
                 } else if stream.topic.starts_with("orderbook") {
                     let data: OrderBook = serde_json::from_value(stream.data)?;
                     let (bids, asks) = parse_depth(data.bids, data.asks)?;
@@ -146,19 +148,21 @@ impl PublicStream {
                     let mut events = Vec::new();
                     events.append(&mut bid_events);
                     events.append(&mut ask_events);
-                    self.ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
-                            symbol: data.symbol,
-                            events,
-                        }))
-                        .unwrap();
+                    for event in events {
+                        self.ev_tx
+                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                                symbol: data.symbol.clone(),
+                                event,
+                            }))
+                            .unwrap();
+                    }
                 } else if stream.topic.starts_with("publicTrade") {
                     let data: Vec<msg::Trade> = serde_json::from_value(stream.data)?;
                     for item in data {
                         self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::FeedBatch {
+                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
                                 symbol: item.symbol,
-                                events: vec![Event {
+                                event: Event {
                                     ev: {
                                         if item.side == Side::Sell {
                                             LOCAL_SELL_TRADE_EVENT
@@ -173,7 +177,7 @@ impl PublicStream {
                                     qty: item.trade_size,
                                     ival: 0,
                                     fval: 0.0,
-                                }],
+                                },
                             }))
                             .unwrap();
                     }

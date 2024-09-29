@@ -138,7 +138,7 @@ pub enum ErrorKind {
 /// Events occurring in a live bot sent by a [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug, Decode, Encode)]
 pub enum LiveEvent {
-    FeedBatch { symbol: String, events: Vec<Event> },
+    // FeedBatch { symbol: String, events: Vec<Event> },
     Feed { symbol: String, event: Event },
     Order { symbol: String, order: Order },
     Position { symbol: String, qty: f64 },

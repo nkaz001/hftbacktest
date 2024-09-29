@@ -5,14 +5,8 @@ use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_t
 use crate::utils::from_str_to_f64;
 
 #[derive(Deserialize, Debug)]
-pub struct Stream {
-    pub stream: String,
-    pub data: Data,
-}
-
-#[derive(Deserialize, Debug)]
 #[serde(tag = "e")]
-pub enum Data {
+pub enum Stream {
     #[serde(rename = "depthUpdate")]
     DepthUpdate(Depth),
     #[serde(rename = "trade")]

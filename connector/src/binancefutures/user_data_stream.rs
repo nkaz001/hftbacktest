@@ -11,7 +11,7 @@ use tracing::error;
 
 use crate::{
     binancefutures::{
-        msg::stream::{Data, Stream},
+        msg::stream::Stream,
         ordermanager::{OrderManager, SharedOrderManager},
         rest::BinanceFuturesClient,
         BinanceFuturesError,
@@ -56,7 +56,7 @@ impl UserDataStream {
                 order.status = Status::Canceled;
                 self.ev_tx
                     .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                        symbol: symbol.clone(),
+                        symbol: symbol.to_lowercase(),
                         order,
                     }))
                     .unwrap();
@@ -72,7 +72,7 @@ impl UserDataStream {
             symbols.remove(&position.symbol);
             self.ev_tx
                 .send(PublishMessage::LiveEvent(LiveEvent::Position {
-                    symbol: position.symbol,
+                    symbol: position.symbol.to_lowercase(),
                     qty: position.position_amount,
                 }))
                 .unwrap();
@@ -93,22 +93,22 @@ impl UserDataStream {
     }
 
     fn process_message(&self, stream: Stream) -> Result<(), BinanceFuturesError> {
-        match stream.data {
-            Data::DepthUpdate(_) | Data::Trade(_) => unreachable!(),
-            Data::ListenKeyExpired(_) => {
+        match stream {
+            Stream::DepthUpdate(_) | Stream::Trade(_) => unreachable!(),
+            Stream::ListenKeyExpired(_) => {
                 return Err(BinanceFuturesError::ListenKeyExpired);
             }
-            Data::AccountUpdate(data) => {
+            Stream::AccountUpdate(data) => {
                 for position in data.account.position {
                     self.ev_tx
                         .send(PublishMessage::LiveEvent(LiveEvent::Position {
-                            symbol: position.symbol,
+                            symbol: position.symbol.to_lowercase(),
                             qty: position.position_amount,
                         }))
                         .unwrap();
                 }
             }
-            Data::OrderTradeUpdate(data) => {
+            Stream::OrderTradeUpdate(data) => {
                 if let Some(asset_info) = self.instruments.lock().unwrap().get(&data.order.symbol) {
                     if let Some(order_id) = OrderManager::parse_client_order_id(
                         &data.order.client_order_id,
@@ -145,7 +145,7 @@ impl UserDataStream {
                         if let Some(order) = order {
                             self.ev_tx
                                 .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                                    symbol: data.order.symbol,
+                                    symbol: data.order.symbol.to_lowercase(),
                                     order,
                                 }))
                                 .unwrap();

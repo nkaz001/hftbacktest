@@ -10,8 +10,8 @@ pub mod ipc;
 mod recorder;
 
 /// Provides asset information for internal use.
-#[derive(Clone)]
-pub struct Asset {
+#[derive(Clone, Debug)]
+pub struct Instrument {
     pub asset_no: usize,
     pub symbol: String,
     pub tick_size: f64,

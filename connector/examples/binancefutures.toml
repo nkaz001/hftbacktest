@@ -1,0 +1,14 @@
+# Testnet: wss://fstream.binancefuture.com/ws
+# Mainnet: wss://fstream.binance.com/ws
+# Private: wss://fstream-auth.binance.com/ws
+# Low-Latency Market Maker: wss://fstream-mm.binance.com
+stream_url = "wss://fstream.binancefuture.com/ws"
+
+# Testnet: https://testnet.binancefuture.com
+# Mainnet: https://fapi.binance.com
+# Low-Latency Market Maker: https://fapi-mm.binance.com
+api_url = "https://testnet.binancefuture.com"
+
+order_prefix = "test"
+api_key = ""
+secret = ""
