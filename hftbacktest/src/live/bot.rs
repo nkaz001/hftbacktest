@@ -5,7 +5,6 @@ use std::{
 };
 
 use chrono::Utc;
-use iceoryx2::prelude::{ipc, NodeBuilder};
 use rand::Rng;
 use thiserror::Error;
 use tracing::{debug, error, info};

@@ -19,9 +19,8 @@ use iceoryx2::{
 use tokio::{
     runtime::Builder,
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    task::LocalSet,
 };
-use tracing::{error, info};
+use tracing::error;
 
 use crate::{
     binancefutures::BinanceFutures,

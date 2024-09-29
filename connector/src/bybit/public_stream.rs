@@ -34,28 +34,8 @@ use crate::{
         BybitError,
     },
     connector::PublishMessage,
+    utils::parse_depth,
 };
-
-pub type PxQty = (f64, f64);
-
-fn parse_depth(
-    bids: Vec<(String, String)>,
-    asks: Vec<(String, String)>,
-) -> Result<(Vec<PxQty>, Vec<PxQty>), BybitError> {
-    let mut bids_ = Vec::with_capacity(bids.len());
-    for (px, qty) in bids {
-        bids_.push(parse_px_qty_tup(px, qty)?);
-    }
-    let mut asks_ = Vec::with_capacity(asks.len());
-    for (px, qty) in asks {
-        asks_.push(parse_px_qty_tup(px, qty)?);
-    }
-    Ok((bids_, asks_))
-}
-
-fn parse_px_qty_tup(px: String, qty: String) -> Result<PxQty, BybitError> {
-    Ok((px.parse()?, qty.parse()?))
-}
 
 pub struct PublicStream {
     ev_tx: UnboundedSender<PublishMessage>,
@@ -77,82 +57,78 @@ impl PublicStream {
                 if stream.topic.starts_with("orderbook.1") {
                     let data: OrderBook = serde_json::from_value(stream.data)?;
                     let (bids, asks) = parse_depth(data.bids, data.asks)?;
-                    assert_eq!(bids.len(), 1);
-                    let mut bid_events: Vec<_> = bids
-                        .iter()
-                        .map(|&(px, qty)| Event {
-                            ev: LOCAL_BID_DEPTH_BBO_EVENT,
-                            exch_ts: stream.cts.unwrap() * 1_000_000,
-                            local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                            order_id: 0,
-                            px,
-                            qty,
-                            ival: 0,
-                            fval: 0.0,
-                        })
-                        .collect();
-                    assert_eq!(asks.len(), 1);
-                    let mut ask_events: Vec<_> = asks
-                        .iter()
-                        .map(|&(px, qty)| Event {
-                            ev: LOCAL_ASK_DEPTH_BBO_EVENT,
-                            exch_ts: stream.cts.unwrap() * 1_000_000,
-                            local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                            order_id: 0,
-                            px,
-                            qty,
-                            ival: 0,
-                            fval: 0.0,
-                        })
-                        .collect();
-                    let mut events = Vec::new();
-                    events.append(&mut bid_events);
-                    events.append(&mut ask_events);
-                    for event in events {
+
+                    for (px, qty) in bids {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: data.symbol.clone(),
-                                event,
+                                symbol: data.symbol.to_uppercase(),
+                                event: Event {
+                                    ev: LOCAL_BID_DEPTH_BBO_EVENT,
+                                    exch_ts: stream.cts.unwrap() * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
+                                    px,
+                                    qty,
+                                    ival: 0,
+                                    fval: 0.0,
+                                },
+                            }))
+                            .unwrap();
+                    }
+
+                    for (px, qty) in asks {
+                        self.ev_tx
+                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                                symbol: data.symbol.to_uppercase(),
+                                event: Event {
+                                    ev: LOCAL_ASK_DEPTH_BBO_EVENT,
+                                    exch_ts: stream.cts.unwrap() * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
+                                    px,
+                                    qty,
+                                    ival: 0,
+                                    fval: 0.0,
+                                },
                             }))
                             .unwrap();
                     }
                 } else if stream.topic.starts_with("orderbook") {
                     let data: OrderBook = serde_json::from_value(stream.data)?;
                     let (bids, asks) = parse_depth(data.bids, data.asks)?;
-                    let mut bid_events: Vec<_> = bids
-                        .iter()
-                        .map(|&(px, qty)| Event {
-                            ev: LOCAL_BID_DEPTH_EVENT,
-                            exch_ts: stream.cts.unwrap() * 1_000_000,
-                            local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                            order_id: 0,
-                            px,
-                            qty,
-                            ival: 0,
-                            fval: 0.0,
-                        })
-                        .collect();
-                    let mut ask_events: Vec<_> = asks
-                        .iter()
-                        .map(|&(px, qty)| Event {
-                            ev: LOCAL_ASK_DEPTH_EVENT,
-                            exch_ts: stream.cts.unwrap() * 1_000_000,
-                            local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                            order_id: 0,
-                            px,
-                            qty,
-                            ival: 0,
-                            fval: 0.0,
-                        })
-                        .collect();
-                    let mut events = Vec::new();
-                    events.append(&mut bid_events);
-                    events.append(&mut ask_events);
-                    for event in events {
+
+                    for (px, qty) in bids {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: data.symbol.clone(),
-                                event,
+                                symbol: data.symbol.to_uppercase(),
+                                event: Event {
+                                    ev: LOCAL_BID_DEPTH_EVENT,
+                                    exch_ts: stream.cts.unwrap() * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
+                                    px,
+                                    qty,
+                                    ival: 0,
+                                    fval: 0.0,
+                                },
+                            }))
+                            .unwrap();
+                    }
+
+                    for (px, qty) in asks {
+                        self.ev_tx
+                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                                symbol: data.symbol.to_uppercase(),
+                                event: Event {
+                                    ev: LOCAL_ASK_DEPTH_EVENT,
+                                    exch_ts: stream.cts.unwrap() * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
+                                    px,
+                                    qty,
+                                    ival: 0,
+                                    fval: 0.0,
+                                },
                             }))
                             .unwrap();
                     }
@@ -161,7 +137,7 @@ impl PublicStream {
                     for item in data {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: item.symbol,
+                                symbol: item.symbol.to_uppercase(),
                                 event: Event {
                                     ev: {
                                         if item.side == Side::Sell {
@@ -208,8 +184,14 @@ impl PublicStream {
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
+                        // Subscribes to the orderbook.1, orderbook.50 and orderbook.500 topics to
+                        // obtain a wider range of depth and the most frequent updates.
+                        // The different updates are handled by data fusion.
+                        // Please see: `<https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook>`
                         let args = vec![
+                            format!("orderbook.1.{symbol}"),
                             format!("orderbook.50.{symbol}"),
+                            format!("orderbook.500.{symbol}"),
                             format!("publicTrade.{symbol}")
                         ];
                         let op = Op {

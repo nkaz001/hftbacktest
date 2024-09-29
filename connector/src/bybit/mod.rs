@@ -113,16 +113,6 @@ pub struct Config {
     order_prefix: String,
 }
 
-/*/// Subscribes to the orderbook.1 and orderbook.500 topics to obtain a wider range of depth and
-/// the most frequent updates. `MarketDepth` that can handle data fusion should be used, such as
-/// [FusedHashMapMarketDepth](hftbacktest::depth::fuse::FusedHashMapMarketDepth).
-/// Please see: `<https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook>`
-pub fn subscribe_multiple_depth(mut self) -> Self {
-    self.topics.insert("orderbook.1".to_string());
-    self.topics.insert("orderbook.500".to_string());
-    self
-}*/
-
 type SharedInstrumentMap = Arc<Mutex<HashMap<String, Instrument>>>;
 
 pub struct Bybit {
@@ -139,14 +129,18 @@ impl Bybit {
         // Connects to the public stream for the market data.
         let public_url = self.config.public_url.clone();
         let symbol_tx = self.symbol_tx.clone();
-        // let mut topics = vec!["orderbook.50".to_string(), "publicTrade".to_string()];
-        // for topic in self.topics.iter() {
-        //     topics.push(topic.clone());
-        // }
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
-                .error_handler(|_| Ok(()))
+                .error_handler(|error: BybitError| {
+                    error!(?error, "An error occurred in the public stream connection.");
+                    ev_tx
+                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                            LiveError::with(ErrorKind::ConnectionInterrupted, error.to_value()),
+                        )))
+                        .unwrap();
+                    Ok(())
+                })
                 .retry(|| async {
                     let mut stream = PublicStream::new(ev_tx.clone(), symbol_tx.subscribe());
                     if let Err(error) = stream.connect(&public_url).await {
@@ -181,7 +175,18 @@ impl Bybit {
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
-                .error_handler(|_: BybitError| Ok(()))
+                .error_handler(|error: BybitError| {
+                    error!(
+                        ?error,
+                        "An error occurred in the private stream connection."
+                    );
+                    ev_tx
+                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                            LiveError::with(ErrorKind::ConnectionInterrupted, error.to_value()),
+                        )))
+                        .unwrap();
+                    Ok(())
+                })
                 .retry(|| async {
                     let stream = private_stream::PrivateStream::new(
                         api_key.clone(),
@@ -212,9 +217,18 @@ impl Bybit {
         let secret = self.config.secret.clone();
         let order_manager = self.order_manager.clone();
         let order_tx = self.order_tx.clone();
+
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
-                .error_handler(|_: BybitError| Ok(()))
+                .error_handler(|error: BybitError| {
+                    error!(?error, "An error occurred in the trade stream connection.");
+                    ev_tx
+                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
+                            LiveError::with(ErrorKind::ConnectionInterrupted, error.to_value()),
+                        )))
+                        .unwrap();
+                    Ok(())
+                })
                 .retry(|| async {
                     let mut stream = trade_stream::TradeStream::new(
                         api_key.clone(),
@@ -234,7 +248,6 @@ impl Bybit {
 impl ConnectorBuilder for Bybit {
     type Error = BybitError;
 
-    /// Builds [`Bybit`] connector.
     fn build_from(config: &str) -> Result<Self, Self::Error> {
         let config: Config = toml::from_str(config)?;
         if config.order_prefix.contains("/") {

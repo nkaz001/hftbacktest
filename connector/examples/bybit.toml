@@ -1,0 +1,24 @@
+# Mainnet:
+#  - Linear: wss://stream.bybit.com/v5/public/linear
+# Testnet:
+#  - Linear: wss://stream-testnet.bybit.com/v5/public/linear
+public_url = "wss://stream-testnet.bybit.com/v5/public/linear"
+
+# Mainnet: wss://stream.bybit.com/v5/private
+# Testnet: wss://stream-testnet.bybit.com/v5/private
+private_url = "wss://stream-testnet.bybit.com/v5/private"
+
+# Mainnet: wss://stream.bybit.com/v5/trade
+# Testnet: wss://stream-testnet.bybit.com/v5/trade
+trade_url = "wss://stream-testnet.bybit.com/v5/trade"
+
+# Mainnet: https://api.bybit.com
+# Testnet: https://api-testnet.bybit.com
+rest_url = "https://api-testnet.bybit.com"
+
+# Linear
+category = "linear"
+
+order_prefix = ""
+api_key = ""
+secret = ""

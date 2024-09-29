@@ -5,8 +5,7 @@ use std::{
 
 use chrono::Utc;
 use hftbacktest::types::{Order, OrderId, Status};
-use tokio_tungstenite::tungstenite::client;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use crate::{
     binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},

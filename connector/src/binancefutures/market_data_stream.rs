@@ -23,6 +23,7 @@ use crate::{
         BinanceFuturesError,
     },
     connector::PublishMessage,
+    utils::{parse_depth, parse_px_qty_tup},
 };
 
 pub struct MarketDataStream {
@@ -304,25 +305,4 @@ impl MarketDataStream {
             }
         }
     }
-}
-
-pub type PxQtyDepth = Vec<(f64, f64)>;
-
-fn parse_depth(
-    bids: Vec<(String, String)>,
-    asks: Vec<(String, String)>,
-) -> Result<(PxQtyDepth, PxQtyDepth), anyhow::Error> {
-    let mut bids_ = Vec::with_capacity(bids.len());
-    for (px, qty) in bids {
-        bids_.push(parse_px_qty_tup(px, qty)?);
-    }
-    let mut asks_ = Vec::with_capacity(asks.len());
-    for (px, qty) in asks {
-        asks_.push(parse_px_qty_tup(px, qty)?);
-    }
-    Ok((bids_, asks_))
-}
-
-fn parse_px_qty_tup(px: String, qty: String) -> Result<(f64, f64), anyhow::Error> {
-    Ok((px.parse()?, qty.parse()?))
 }

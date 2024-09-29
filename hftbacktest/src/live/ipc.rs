@@ -17,15 +17,13 @@ use iceoryx2::{
         subscriber::{Subscriber, SubscriberReceiveError},
     },
     prelude::{ipc, Node, NodeBuilder, NodeEvent, ServiceName},
-    service,
     service::port_factory::publish_subscribe::PortFactory,
 };
 use thiserror::Error;
-use tracing::info;
 
 use crate::{
     live::{BotError, Channel},
-    prelude::{BuildError, LiveEvent, Request},
+    prelude::{LiveEvent, Request},
 };
 
 pub const TO_ALL: u64 = 0;

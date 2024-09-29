@@ -39,7 +39,7 @@ impl BybitClient {
         let signature = sign_hmac_sha256(secret, &sign_body);
         let resp = self
             .client
-            .get(&format!("{}{}?{}", self.url, path, query))
+            .get(format!("{}{}?{}", self.url, path, query))
             .header("Accept", "application/json")
             .header("X-BAPI-SIGN", signature)
             .header("X-BAPI-API-KEY", api_key)
@@ -64,7 +64,7 @@ impl BybitClient {
         let signature = sign_hmac_sha256(secret, &sign_body);
         let resp = self
             .client
-            .post(&format!("{}{}", self.url, path))
+            .post(format!("{}{}", self.url, path))
             .header("Accept", "application/json")
             .header("X-BAPI-SIGN", signature)
             .header("X-BAPI-API-KEY", api_key)

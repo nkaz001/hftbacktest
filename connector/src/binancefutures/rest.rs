@@ -39,7 +39,7 @@ impl BinanceFuturesClient {
     ) -> Result<T, reqwest::Error> {
         let resp = self
             .client
-            .get(&format!("{}{}?{}", self.url, path, query))
+            .get(format!("{}{}?{}", self.url, path, query))
             .header("Accept", "application/json")
             .send()
             .await?
@@ -62,7 +62,7 @@ impl BinanceFuturesClient {
         let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
-            .get(&format!(
+            .get(format!(
                 "{}{}?{}&signature={}",
                 self.url, path, query, signature
             ))
@@ -85,7 +85,7 @@ impl BinanceFuturesClient {
         let signature = sign_hmac_sha256(&self.secret, &sign_body);
         let resp = self
             .client
-            .put(&format!(
+            .put(format!(
                 "{}{}?recvWindow=5000&timestamp={}&signature={}",
                 self.url, path, time, signature
             ))
@@ -109,7 +109,7 @@ impl BinanceFuturesClient {
         let signature = sign_hmac_sha256(&self.secret, &sign_body);
         let resp = self
             .client
-            .post(&format!(
+            .post(format!(
                 "{}{}?recvWindow=5000&timestamp={}&signature={}",
                 self.url, path, time, signature
             ))
@@ -133,7 +133,7 @@ impl BinanceFuturesClient {
         let signature = sign_hmac_sha256(&self.secret, &sign_body);
         let resp = self
             .client
-            .delete(&format!(
+            .delete(format!(
                 "{}{}?recvWindow=5000&timestamp={}&signature={}",
                 self.url, path, time, signature
             ))

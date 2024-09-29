@@ -15,6 +15,8 @@ use serde::{
 };
 use sha2::Sha256;
 
+use crate::bybit::BybitError;
+
 struct I64Visitor;
 
 impl<'de> Visitor<'de> for I64Visitor {
@@ -113,6 +115,27 @@ pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {
         write!(&mut tmp, "{:02x}", c).unwrap();
     }
     tmp
+}
+
+pub type PxQty = (f64, f64);
+
+pub fn parse_depth(
+    bids: Vec<(String, String)>,
+    asks: Vec<(String, String)>,
+) -> Result<(Vec<PxQty>, Vec<PxQty>), BybitError> {
+    let mut bids_ = Vec::with_capacity(bids.len());
+    for (px, qty) in bids {
+        bids_.push(parse_px_qty_tup(px, qty)?);
+    }
+    let mut asks_ = Vec::with_capacity(asks.len());
+    for (px, qty) in asks {
+        asks_.push(parse_px_qty_tup(px, qty)?);
+    }
+    Ok((bids_, asks_))
+}
+
+pub fn parse_px_qty_tup(px: String, qty: String) -> Result<PxQty, BybitError> {
+    Ok((px.parse()?, qty.parse()?))
 }
 
 pub fn gen_random_string(len: usize) -> String {
