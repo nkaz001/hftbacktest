@@ -1,1 +1,0 @@
-**The project has been restructured. Please see the https://github.com/nkaz001/hftbacktest or https://github.com/nkaz001/hftbacktest/tree/master/hftbacktest** 
