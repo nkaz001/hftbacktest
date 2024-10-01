@@ -1,6 +1,8 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     fs::read_to_string,
+    panic,
+    process,
     process::exit,
     thread,
     time::Duration,
@@ -211,6 +213,13 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
+    // Ensures that the main thread will terminate if any of its child threads panics.
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        orig_hook(panic_info);
+        exit(1);
+    }));
+
     let args = Args::parse();
 
     tracing_subscriber::fmt::init();
