@@ -215,7 +215,6 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    set_log_level(LogLevel::Trace);
     tracing_subscriber::fmt::init();
 
     let (pub_tx, pub_rx) = unbounded_channel();
