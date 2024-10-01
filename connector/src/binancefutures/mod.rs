@@ -324,7 +324,7 @@ impl Connector for BinanceFutures {
             let client_order_id = order_manager
                 .lock()
                 .unwrap()
-                .get_client_order_id(order.order_id);
+                .get_client_order_id(&symbol, order.order_id);
 
             match client_order_id {
                 Some(client_order_id) => {

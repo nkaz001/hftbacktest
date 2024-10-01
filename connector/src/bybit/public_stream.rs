@@ -61,7 +61,7 @@ impl PublicStream {
                     for (px, qty) in bids {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: data.symbol.to_uppercase(),
+                                symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_BID_DEPTH_BBO_EVENT,
                                     exch_ts: stream.cts.unwrap() * 1_000_000,
@@ -79,7 +79,7 @@ impl PublicStream {
                     for (px, qty) in asks {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: data.symbol.to_uppercase(),
+                                symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_ASK_DEPTH_BBO_EVENT,
                                     exch_ts: stream.cts.unwrap() * 1_000_000,
@@ -100,7 +100,7 @@ impl PublicStream {
                     for (px, qty) in bids {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: data.symbol.to_uppercase(),
+                                symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_BID_DEPTH_EVENT,
                                     exch_ts: stream.cts.unwrap() * 1_000_000,
@@ -118,7 +118,7 @@ impl PublicStream {
                     for (px, qty) in asks {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: data.symbol.to_uppercase(),
+                                symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_ASK_DEPTH_EVENT,
                                     exch_ts: stream.cts.unwrap() * 1_000_000,
@@ -137,7 +137,7 @@ impl PublicStream {
                     for item in data {
                         self.ev_tx
                             .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                symbol: item.symbol.to_uppercase(),
+                                symbol: item.symbol.clone(),
                                 event: Event {
                                     ev: {
                                         if item.side == Side::Sell {

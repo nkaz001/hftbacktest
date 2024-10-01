@@ -1,4 +1,5 @@
 use std::{
+    borrow::{Borrow, Cow},
     fmt,
     fmt::{Debug, Write},
     future::Future,
@@ -6,11 +7,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, KeyInit, Mac};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{
     de,
     de::{Error, Visitor},
+    Deserialize,
     Deserializer,
 };
 use sha2::Sha256;
@@ -104,6 +107,14 @@ where
     D: Deserializer<'de>,
 {
     deserializer.deserialize_option(OptionF64Visitor)
+}
+
+pub fn to_uppercase<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+    Ok(s.to_uppercase())
 }
 
 pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {
@@ -250,5 +261,17 @@ where
                 }
             }
         }
+    }
+}
+
+#[derive(Eq, Hash, PartialEq, Debug)]
+pub struct SymbolOrderId {
+    symbol: String,
+    order_id: OrderId,
+}
+
+impl SymbolOrderId {
+    pub fn new(symbol: String, order_id: OrderId) -> Self {
+        Self { symbol, order_id }
     }
 }
