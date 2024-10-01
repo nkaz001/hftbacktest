@@ -15,7 +15,7 @@ use tracing::{debug, error, warn};
 use crate::{
     bybit::{
         msg::{Op, PrivateStreamMsg, PrivateStreamTopicMsg},
-        ordermanager::{OrderEx, SharedOrderManager},
+        ordermanager::{OrderExt, SharedOrderManager},
         rest::BybitClient,
         BybitError,
         SharedInstrumentMap,
@@ -139,7 +139,7 @@ impl PrivateStream {
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 for item in &data.data {
                     match order_man_.update_execution(item) {
-                        Ok(OrderEx {
+                        Ok(OrderExt {
                             symbol: asset,
                             order_link_id: _,
                             order,
@@ -162,7 +162,7 @@ impl PrivateStream {
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 for item in &data.data {
                     match order_man_.update_fast_execution(item) {
-                        Ok(OrderEx {
+                        Ok(OrderExt {
                             symbol: asset,
                             order_link_id: _,
                             order,
@@ -185,7 +185,7 @@ impl PrivateStream {
                 for item in &data.data {
                     let mut order_man_ = self.order_manager.lock().unwrap();
                     match order_man_.update_order(item) {
-                        Ok(OrderEx {
+                        Ok(OrderExt {
                             symbol: asset,
                             order_link_id: _,
                             order,

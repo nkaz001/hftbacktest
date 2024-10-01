@@ -1,5 +1,4 @@
 use std::{
-    borrow::{Borrow, Cow},
     fmt,
     fmt::{Debug, Write},
     future::Future,
@@ -7,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, KeyInit, Mac};
 use rand::{distributions::Alphanumeric, Rng};
@@ -266,12 +266,51 @@ where
 
 #[derive(Eq, Hash, PartialEq, Debug)]
 pub struct SymbolOrderId {
-    symbol: String,
-    order_id: OrderId,
+    pub symbol: String,
+    pub order_id: OrderId,
 }
 
 impl SymbolOrderId {
     pub fn new(symbol: String, order_id: OrderId) -> Self {
         Self { symbol, order_id }
+    }
+}
+
+#[derive(Eq, Hash, PartialEq, Debug)]
+pub struct RefSymbolOrderId<'a> {
+    pub symbol: &'a str,
+    pub order_id: OrderId,
+}
+
+impl<'a> RefSymbolOrderId<'a> {
+    pub fn new(symbol: &'a str, order_id: OrderId) -> Self {
+        Self { symbol, order_id }
+    }
+}
+
+impl Equivalent<SymbolOrderId> for RefSymbolOrderId<'_> {
+    fn equivalent(&self, key: &SymbolOrderId) -> bool {
+        key.symbol == self.symbol && key.order_id == self.order_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hashbrown::HashMap;
+
+    use crate::utils::{RefSymbolOrderId, SymbolOrderId};
+
+    #[test]
+    fn equivalent_symbol_order_id() {
+        let mut map = HashMap::new();
+        map.insert(
+            SymbolOrderId::new("key1".to_string(), 1),
+            "value1".to_string(),
+        );
+
+        assert_eq!(
+            map.get(&RefSymbolOrderId::new("key1", 1)).unwrap(),
+            "value1"
+        )
     }
 }

@@ -1,8 +1,6 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
+use hashbrown::{hash_map::Entry, HashMap};
 use hftbacktest::{
     prelude::get_precision,
     types::{OrdType, Order, OrderId, Side, Status, TimeInForce},
@@ -13,13 +11,13 @@ use crate::{
         msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
         BybitError,
     },
-    utils::{gen_random_string, SymbolOrderId},
+    utils::{gen_random_string, RefSymbolOrderId, SymbolOrderId},
 };
 
 pub type SharedOrderManager = Arc<Mutex<OrderManager>>;
 
 #[derive(Clone)]
-pub struct OrderEx {
+pub struct OrderExt {
     pub symbol: String,
     pub order_link_id: String,
     pub order: Order,
@@ -27,7 +25,7 @@ pub struct OrderEx {
 
 pub struct OrderManager {
     prefix: String,
-    orders: HashMap<String, OrderEx>,
+    orders: HashMap<String, OrderExt>,
     order_id_map: HashMap<SymbolOrderId, String>,
 }
 
@@ -40,7 +38,7 @@ impl OrderManager {
         }
     }
 
-    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<OrderEx, BybitError> {
+    pub fn update_order(&mut self, data: &PrivateOrder) -> Result<OrderExt, BybitError> {
         let order = self
             .orders
             .get_mut(&data.order_link_id)
@@ -50,17 +48,15 @@ impl OrderManager {
         order.order.exch_timestamp = data.updated_time * 1_000_000;
         let is_active = order.order.active();
         if !is_active {
-            self.order_id_map.remove(&SymbolOrderId::new(
-                order.symbol.clone(),
-                order.order.order_id,
-            ));
+            self.order_id_map
+                .remove(&RefSymbolOrderId::new(&order.symbol, order.order.order_id));
             Ok(self.orders.remove(&data.order_link_id).unwrap())
         } else {
             Ok(order.clone())
         }
     }
 
-    pub fn update_execution(&mut self, data: &Execution) -> Result<OrderEx, BybitError> {
+    pub fn update_execution(&mut self, data: &Execution) -> Result<OrderExt, BybitError> {
         let order_info = self
             .orders
             .get_mut(&data.order_link_id)
@@ -72,7 +68,7 @@ impl OrderManager {
         Ok(order_info.clone())
     }
 
-    pub fn update_fast_execution(&mut self, data: &FastExecution) -> Result<OrderEx, BybitError> {
+    pub fn update_fast_execution(&mut self, data: &FastExecution) -> Result<OrderExt, BybitError> {
         // fixme: there is no valid order_link_id.
         let order_info = self
             .orders
@@ -135,7 +131,7 @@ impl OrderManager {
                 return Err(BybitError::OrderAlreadyExist);
             }
             Entry::Vacant(entry) => {
-                entry.insert(OrderEx {
+                entry.insert(OrderExt {
                     symbol: symbol.to_string(),
                     order_link_id: bybit_order.order_link_id.clone(),
                     order,
@@ -153,7 +149,7 @@ impl OrderManager {
     ) -> Result<BybitOrder, BybitError> {
         let order_link_id = self
             .order_id_map
-            .get(&SymbolOrderId::new(symbol.to_string(), order_id))
+            .get(&RefSymbolOrderId::new(symbol, order_id))
             .ok_or(BybitError::OrderNotFound)?;
         let order = BybitOrder {
             symbol: symbol.to_string(),
@@ -168,21 +164,19 @@ impl OrderManager {
         Ok(order)
     }
 
-    pub fn update_submit_fail(&mut self, order_link_id: &str) -> Result<OrderEx, BybitError> {
+    pub fn update_submit_fail(&mut self, order_link_id: &str) -> Result<OrderExt, BybitError> {
         let mut order = self
             .orders
             .remove(order_link_id)
             .ok_or(BybitError::OrderNotFound)?;
         order.order.req = Status::None;
         order.order.status = Status::Expired;
-        self.order_id_map.remove(&SymbolOrderId::new(
-            order.symbol.clone(),
-            order.order.order_id,
-        ));
+        self.order_id_map
+            .remove(&RefSymbolOrderId::new(&order.symbol, order.order.order_id));
         Ok(order)
     }
 
-    pub fn update_cancel_fail(&mut self, order_link_id: &str) -> Result<OrderEx, BybitError> {
+    pub fn update_cancel_fail(&mut self, order_link_id: &str) -> Result<OrderExt, BybitError> {
         let mut order_info = self
             .orders
             .get_mut(order_link_id)
@@ -204,8 +198,8 @@ impl OrderManager {
         let mut removed_orders = Vec::new();
         for order_id in removed_order_ids {
             let removed_order = self.orders.remove(&order_id).unwrap();
-            self.order_id_map.remove(&SymbolOrderId::new(
-                removed_order.symbol.clone(),
+            self.order_id_map.remove(&RefSymbolOrderId::new(
+                &removed_order.symbol,
                 removed_order.order.order_id,
             ));
             removed_orders.push(removed_order.order);

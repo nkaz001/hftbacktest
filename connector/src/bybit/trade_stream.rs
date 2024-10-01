@@ -20,7 +20,7 @@ use tracing::{error, info};
 use crate::{
     bybit::{
         msg::{Op, Order, TradeOp, TradeStreamMsg},
-        ordermanager::{OrderEx, SharedOrderManager},
+        ordermanager::{OrderExt, SharedOrderManager},
         BybitError,
     },
     connector::PublishMessage,
@@ -185,7 +185,7 @@ impl TradeStream {
                  */
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;
-                let OrderEx {
+                let OrderExt {
                     symbol,
                     order_link_id: _,
                     order,
@@ -221,7 +221,7 @@ impl TradeStream {
                  */
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;
-                let OrderEx {
+                let OrderExt {
                     symbol,
                     order_link_id: _,
                     order,
