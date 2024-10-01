@@ -107,8 +107,6 @@ async fn run_publish_task(
                 symbol,
                 tick_size,
             } => {
-                let symbol = symbol.to_lowercase();
-
                 if let Some(qty) = position.get(&symbol) {
                     let lev = LiveEvent::Position {
                         symbol: symbol.clone(),
