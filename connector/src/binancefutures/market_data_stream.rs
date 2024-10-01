@@ -59,13 +59,13 @@ impl MarketDataStream {
     fn process_message(&mut self, stream: Stream) {
         match stream {
             Stream::DepthUpdate(data) => {
-                let mut prev_u_val = self.prev_u.get_mut(&data.symbol.to_lowercase());
+                let mut prev_u_val = self.prev_u.get_mut(&data.symbol);
                 if prev_u_val.is_none()
                 /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
                 {
-                    // if !pending_depth_messages.contains_key(&data.symbol.to_lowercase()) {
+                    // if !pending_depth_messages.contains_key(&data.symbol) {
                     let client_ = self.client.clone();
-                    let symbol = data.symbol.to_lowercase();
+                    let symbol = data.symbol.clone();
                     let rest_tx = self.rest_tx.clone();
                     tokio::spawn(async move {
                         let resp = client_.get_depth(&symbol).await;
@@ -93,7 +93,7 @@ impl MarketDataStream {
                 // fixme: currently supports natural refresh only.
                 *self
                     .prev_u
-                    .entry(data.symbol.to_lowercase())
+                    .entry(data.symbol.clone())
                     .or_insert(data.last_update_id) = data.last_update_id;
 
                 match parse_depth(data.bids, data.asks) {
@@ -101,7 +101,7 @@ impl MarketDataStream {
                         for (px, qty) in bids {
                             self.ev_tx
                                 .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                    symbol: data.symbol.to_lowercase(),
+                                    symbol: data.symbol.clone(),
                                     event: Event {
                                         ev: LOCAL_BID_DEPTH_EVENT,
                                         exch_ts: data.transaction_time * 1_000_000,
@@ -119,7 +119,7 @@ impl MarketDataStream {
                         for (px, qty) in asks {
                             self.ev_tx
                                 .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                                    symbol: data.symbol.to_lowercase(),
+                                    symbol: data.symbol.clone(),
                                     event: Event {
                                         ev: LOCAL_ASK_DEPTH_EVENT,
                                         exch_ts: data.transaction_time * 1_000_000,
@@ -143,7 +143,7 @@ impl MarketDataStream {
                 Ok((px, qty)) => {
                     self.ev_tx
                         .send(PublishMessage::LiveEvent(LiveEvent::Feed {
-                            symbol: data.symbol.to_lowercase(),
+                            symbol: data.symbol,
                             event: Event {
                                 ev: {
                                     if data.is_the_buyer_the_market_maker {

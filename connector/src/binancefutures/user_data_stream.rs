@@ -51,12 +51,12 @@ impl UserDataStream {
             // todo: rate-limit throttling.
             self.client.cancel_all_orders(&symbol).await?;
             let mut order_manager = self.order_manager.lock().unwrap();
-            let canceled_orders = order_manager.clear_orders(&symbol);
+            let canceled_orders = order_manager.cancel_all_from_rest(&symbol);
             for mut order in canceled_orders {
                 order.status = Status::Canceled;
                 self.ev_tx
                     .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                        symbol: symbol.to_lowercase(),
+                        symbol: symbol.clone(),
                         order,
                     }))
                     .unwrap();
@@ -72,7 +72,7 @@ impl UserDataStream {
             symbols.remove(&position.symbol);
             self.ev_tx
                 .send(PublishMessage::LiveEvent(LiveEvent::Position {
-                    symbol: position.symbol.to_lowercase(),
+                    symbol: position.symbol,
                     qty: position.position_amount,
                 }))
                 .unwrap();
@@ -102,7 +102,7 @@ impl UserDataStream {
                 for position in data.account.position {
                     self.ev_tx
                         .send(PublishMessage::LiveEvent(LiveEvent::Position {
-                            symbol: position.symbol.to_lowercase(),
+                            symbol: position.symbol,
                             qty: position.position_amount,
                         }))
                         .unwrap();
@@ -113,6 +113,7 @@ impl UserDataStream {
                     if let Some(order_id) = OrderManager::parse_client_order_id(
                         &data.order.client_order_id,
                         &self.prefix,
+                        &data.order.symbol,
                     ) {
                         let order = Order {
                             qty: data.order.original_qty,
@@ -145,7 +146,7 @@ impl UserDataStream {
                         if let Some(order) = order {
                             self.ev_tx
                                 .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                                    symbol: data.order.symbol.to_lowercase(),
+                                    symbol: data.order.symbol,
                                     order,
                                 }))
                                 .unwrap();
