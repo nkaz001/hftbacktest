@@ -188,8 +188,8 @@ impl UserDataStream {
                             }
                         }
                     }
-                    Some(Ok(Message::Ping(_))) => {
-                        write.send(Message::Pong(Vec::new())).await?;
+                    Some(Ok(Message::Ping(data))) => {
+                        write.send(Message::Pong(data)).await?;
                     }
                     Some(Ok(Message::Close(close_frame))) => {
                         return Err(BinanceFuturesError::ConnectionAbort(
