@@ -10,7 +10,7 @@ use std::{
 
 use clap::Parser;
 use hftbacktest::{
-    live::ipc::{IceoryxReceiver, IceoryxSender, PubSubError, TO_ALL},
+    live::ipc::{IceoryxBuilder, IceoryxReceiver, IceoryxSender, PubSubError, TO_ALL},
     prelude::*,
     types::Request,
 };
@@ -48,7 +48,7 @@ fn run_receive_task(
     let node = NodeBuilder::new()
         .create::<ipc::Service>()
         .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-    let bot_rx = IceoryxReceiver::<Request>::build(&format!("{name}/FromBot"))?;
+    let bot_rx = IceoryxBuilder::new(name).bot(false).receiver()?;
     loop {
         let cycle_time = Duration::from_nanos(1000);
         match node.wait(cycle_time) {
@@ -100,7 +100,7 @@ async fn run_publish_task(
 ) -> Result<(), PubSubError> {
     let mut depth = HashMap::new();
     let mut position = HashMap::new();
-    let bot_tx = IceoryxSender::<LiveEvent>::build(&format!("{name}/ToBot"))?;
+    let bot_tx = IceoryxBuilder::new(name).bot(false).sender()?;
 
     while let Some(msg) = rx.recv().await {
         match msg {

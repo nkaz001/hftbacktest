@@ -23,7 +23,7 @@ use thiserror::Error;
 
 use crate::{
     live::{BotError, Channel},
-    prelude::{LiveEvent, Request},
+    prelude::{BuildError, LiveEvent, Request},
 };
 
 pub const TO_ALL: u64 = 0;
@@ -53,6 +53,105 @@ pub enum PubSubError {
     FromUtf8(#[from] FromUtf8Error),
 }
 
+pub struct IceoryxBuilder {
+    name: String,
+    bot: bool,
+}
+
+impl IceoryxBuilder {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            bot: true,
+        }
+    }
+
+    pub fn bot(self, bot: bool) -> Self {
+        Self { bot, ..self }
+    }
+
+    pub fn receiver<T>(self) -> Result<IceoryxReceiver<T>, PubSubError> {
+        let node = NodeBuilder::new()
+            .create::<ipc::Service>()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+        let sub_factory = if self.bot {
+            let service_name = ServiceName::new(&format!("{}/ToBot", self.name))
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            node.service_builder(&service_name)
+                .publish_subscribe::<[u8]>()
+                .subscriber_max_buffer_size(100000)
+                .max_publishers(1)
+                .max_subscribers(500)
+                .user_header::<CustomHeader>()
+                .open_or_create()
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+        } else {
+            let service_name = ServiceName::new(&format!("{}/FromBot", self.name))
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            node.service_builder(&service_name)
+                .publish_subscribe::<[u8]>()
+                .subscriber_max_buffer_size(100000)
+                .max_publishers(500)
+                .max_subscribers(1)
+                .user_header::<CustomHeader>()
+                .open_or_create()
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+        };
+
+        let subscriber = sub_factory
+            .subscriber_builder()
+            .create()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+
+        Ok(IceoryxReceiver {
+            _sub_factory: sub_factory,
+            subscriber,
+            _t_marker: Default::default(),
+        })
+    }
+
+    pub fn sender<T>(self) -> Result<IceoryxSender<T>, PubSubError> {
+        let node = NodeBuilder::new()
+            .create::<ipc::Service>()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+        let pub_factory = if self.bot {
+            let service_name = ServiceName::new(&format!("{}/FromBot", self.name))
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            node.service_builder(&service_name)
+                .publish_subscribe::<[u8]>()
+                .subscriber_max_buffer_size(100000)
+                .max_publishers(500)
+                .max_subscribers(1)
+                .user_header::<CustomHeader>()
+                .open_or_create()
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+        } else {
+            let service_name = ServiceName::new(&format!("{}/ToBot", self.name))
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            node.service_builder(&service_name)
+                .publish_subscribe::<[u8]>()
+                .subscriber_max_buffer_size(100000)
+                .max_publishers(1)
+                .max_subscribers(500)
+                .user_header::<CustomHeader>()
+                .open_or_create()
+                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+        };
+
+        let publisher = pub_factory
+            .publisher_builder()
+            .max_slice_len(128)
+            .create()
+            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+
+        Ok(IceoryxSender {
+            _pub_factory: pub_factory,
+            publisher,
+            _t_marker: Default::default(),
+        })
+    }
+}
+
 pub struct IceoryxSender<T> {
     // Unfortunately, the publisher's lifetime seems to be tied to the factory.
     _pub_factory: PortFactory<ipc::Service, [u8], CustomHeader>,
@@ -64,35 +163,6 @@ impl<T> IceoryxSender<T>
 where
     T: Encode,
 {
-    pub fn build(name: &str) -> Result<Self, PubSubError> {
-        let node = NodeBuilder::new()
-            .create::<ipc::Service>()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-        let from_bot =
-            ServiceName::new(name).map_err(|error| PubSubError::BuildError(error.to_string()))?;
-        let pub_factory = node
-            .service_builder(&from_bot)
-            .publish_subscribe::<[u8]>()
-            .subscriber_max_buffer_size(100000)
-            .max_publishers(500)
-            .max_subscribers(500)
-            .user_header::<CustomHeader>()
-            .open_or_create()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-
-        let publisher = pub_factory
-            .publisher_builder()
-            .max_slice_len(128)
-            .create()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-
-        Ok(Self {
-            _pub_factory: pub_factory,
-            publisher,
-            _t_marker: Default::default(),
-        })
-    }
-
     pub fn send(&self, id: u64, data: &T) -> Result<(), PubSubError> {
         let sample = self.publisher.loan_slice_uninit(128)?;
         let mut sample = unsafe { sample.assume_init() };
@@ -120,34 +190,6 @@ impl<T> IceoryxReceiver<T>
 where
     T: Decode,
 {
-    pub fn build(name: &str) -> Result<Self, PubSubError> {
-        let node = NodeBuilder::new()
-            .create::<ipc::Service>()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-        let to_bot =
-            ServiceName::new(name).map_err(|error| PubSubError::BuildError(error.to_string()))?;
-        let sub_factory = node
-            .service_builder(&to_bot)
-            .publish_subscribe::<[u8]>()
-            .subscriber_max_buffer_size(100000)
-            .max_publishers(500)
-            .max_subscribers(500)
-            .user_header::<CustomHeader>()
-            .open_or_create()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-
-        let subscriber = sub_factory
-            .subscriber_builder()
-            .create()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
-
-        Ok(Self {
-            _sub_factory: sub_factory,
-            subscriber,
-            _t_marker: Default::default(),
-        })
-    }
-
     pub fn receive(&self) -> Result<Option<(u64, T)>, PubSubError> {
         match self.subscriber.receive()? {
             None => Ok(None),
@@ -175,8 +217,8 @@ where
     R: Decode,
 {
     pub fn new(name: &str) -> Result<Self, anyhow::Error> {
-        let publisher = IceoryxSender::build(&format!("{name}/FromBot"))?;
-        let subscriber = IceoryxReceiver::build(&format!("{name}/ToBot"))?;
+        let publisher = IceoryxBuilder::new(name).sender()?;
+        let subscriber = IceoryxBuilder::new(name).receiver()?;
 
         Ok(Self {
             publisher,
