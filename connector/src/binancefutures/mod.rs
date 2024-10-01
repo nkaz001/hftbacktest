@@ -202,6 +202,8 @@ impl Connector for BinanceFutures {
         id: u64,
         ev_tx: UnboundedSender<PublishMessage>,
     ) {
+        // Binance futures symbols must be lowercase to subscribe to the WebSocket stream.
+        let symbol = symbol.to_lowercase();
         let mut instruments = self.instruments.lock().unwrap();
         if instruments.contains_key(&symbol) {
             let order_manager = self.order_manager.lock().unwrap();

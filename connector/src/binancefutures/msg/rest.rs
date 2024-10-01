@@ -2,7 +2,7 @@ use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::Deserialize;
 
 use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type};
-use crate::utils::{from_str_to_f64, from_str_to_f64_opt, to_uppercase};
+use crate::utils::{from_str_to_f64, from_str_to_f64_opt, to_lowercase};
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
@@ -56,7 +56,7 @@ pub struct OrderResponse {
     pub stop_price: f64,
     #[serde(rename = "closePosition")]
     pub close_position: bool,
-    #[serde(deserialize_with = "to_uppercase")]
+    #[serde(deserialize_with = "to_lowercase")]
     pub symbol: String,
     // for Coin-M futures
     // pub pair: String,
@@ -132,7 +132,7 @@ pub struct PositionInformationV2 {
     pub notional: f64,
     #[serde(rename = "isolatedWallet")]
     pub isolated_wallet: String,
-    #[serde(deserialize_with = "to_uppercase")]
+    #[serde(deserialize_with = "to_lowercase")]
     pub symbol: String,
     #[serde(rename = "unRealizedProfit")]
     pub unrealized_pnl: String,

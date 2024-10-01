@@ -117,6 +117,14 @@ where
     Ok(s.to_uppercase())
 }
 
+pub fn to_lowercase<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+    Ok(s.to_lowercase())
+}
+
 pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
     mac.update(s.as_bytes());
