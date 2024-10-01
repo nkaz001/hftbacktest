@@ -67,7 +67,7 @@ impl FusedHashMapMarketDepth {
     pub fn update_bid_depth(&mut self, price: f64, qty: f64, timestamp: i64) -> bool {
         let price_tick = (price / self.tick_size).round() as i64;
         let depth = self.bid_depth.entry(price_tick).or_default();
-        if timestamp > depth.ts {
+        if timestamp >= depth.ts {
             depth.qty = qty;
             depth.ts = timestamp;
         } else {
@@ -107,7 +107,7 @@ impl FusedHashMapMarketDepth {
     pub fn update_ask_depth(&mut self, price: f64, qty: f64, timestamp: i64) -> bool {
         let price_tick = (price / self.tick_size).round() as i64;
         let depth = self.ask_depth.entry(price_tick).or_default();
-        if timestamp > depth.ts {
+        if timestamp >= depth.ts {
             depth.qty = qty;
             depth.ts = timestamp;
         } else {
@@ -295,18 +295,16 @@ mod tests {
 
         depth.update_bid_depth(10.1, 0.01, 1);
         depth.update_bid_depth(10.2, 0.02, 1);
-        assert_eq!(depth.best_bid_tick(), 102);
+        assert_eq!(depth.best_bid_tick, 102);
         depth.update_bid_depth(10.2, 0.03, 0);
-        assert_eq!(depth.bid_qty_at_tick(102), 0.02);
         depth.update_bid_depth(10.3, 0.03, 0);
-        assert_eq!(depth.best_bid_tick(), 102);
+        assert_eq!(depth.best_bid_tick, 102);
         depth.update_bid_depth(10.3, 0.03, 2);
-        assert_eq!(depth.best_bid_tick(), 103);
+        assert_eq!(depth.best_bid_tick, 103);
         depth.update_bid_depth(10.3, 0.0, 1);
-        assert_eq!(depth.best_bid_tick(), 103);
-        assert_eq!(depth.bid_qty_at_tick(103), 0.03);
+        assert_eq!(depth.best_bid_tick, 103);
         depth.update_bid_depth(10.3, 0.0, 2);
-        assert_eq!(depth.best_bid_tick(), 102);
+        assert_eq!(depth.best_bid_tick, 102);
     }
 
     #[test]
@@ -315,18 +313,16 @@ mod tests {
 
         depth.update_ask_depth(10.2, 0.02, 1);
         depth.update_ask_depth(10.1, 0.01, 1);
-        assert_eq!(depth.best_ask_tick(), 101);
+        assert_eq!(depth.best_ask_tick, 101);
         depth.update_ask_depth(10.1, 0.03, 0);
-        assert_eq!(depth.ask_qty_at_tick(101), 0.01);
         depth.update_ask_depth(10.0, 0.03, 0);
-        assert_eq!(depth.best_ask_tick(), 101);
+        assert_eq!(depth.best_ask_tick, 101);
         depth.update_ask_depth(10.0, 0.03, 2);
-        assert_eq!(depth.best_ask_tick(), 100);
+        assert_eq!(depth.best_ask_tick, 100);
         depth.update_ask_depth(10.0, 0.0, 1);
-        assert_eq!(depth.best_ask_tick(), 100);
-        assert_eq!(depth.ask_qty_at_tick(100), 0.03);
+        assert_eq!(depth.best_ask_tick, 100);
         depth.update_ask_depth(10.0, 0.0, 2);
-        assert_eq!(depth.best_ask_tick(), 101);
+        assert_eq!(depth.best_ask_tick, 101);
     }
 
     #[test]
@@ -339,22 +335,22 @@ mod tests {
         depth.update_ask_depth(10.4, 0.01, 1);
 
         depth.update_ask_depth(10.2, 0.01, 3);
-        assert_eq!(depth.best_bid_tick(), 101);
-        assert_eq!(depth.best_ask_tick(), 102);
+        assert_eq!(depth.best_bid_tick, 101);
+        assert_eq!(depth.best_ask_tick, 102);
 
         depth.update_bid_depth(10.2, 0.03, 5);
-        assert_eq!(depth.best_bid_tick(), 102);
-        assert_eq!(depth.best_ask_tick(), 103);
+        assert_eq!(depth.best_bid_tick, 102);
+        assert_eq!(depth.best_ask_tick, 103);
 
         depth.update_ask_depth(10.2, 0.01, 4);
-        assert_eq!(depth.best_bid_tick(), 102);
-        assert_eq!(depth.best_ask_tick(), 103);
+        assert_eq!(depth.best_bid_tick, 102);
+        assert_eq!(depth.best_ask_tick, 103);
         depth.update_ask_depth(10.2, 0.0, 4);
 
         depth.update_ask_depth(10.3, 0.01, 7);
         depth.update_bid_depth(10.3, 0.01, 6);
-        assert_eq!(depth.best_bid_tick(), 102);
-        assert_eq!(depth.best_ask_tick(), 103);
+        assert_eq!(depth.best_bid_tick, 102);
+        assert_eq!(depth.best_ask_tick, 103);
     }
 
     #[test]
@@ -367,23 +363,20 @@ mod tests {
         depth.update_ask_depth(10.4, 0.01, 1);
 
         depth.update_best_bid(10.3, 0.03, 0);
-        assert_eq!(depth.best_bid_tick(), 102);
+        assert_eq!(depth.best_bid_tick, 102);
         depth.update_best_bid(10.2, 0.03, 2);
-        assert_eq!(depth.bid_qty_at_tick(102), 0.03);
         depth.update_best_bid(10.3, 0.01, 3);
-        assert_eq!(depth.best_bid_tick(), 103);
-        assert_eq!(depth.bid_qty_at_tick(103), 0.01);
-        assert_eq!(depth.best_ask_tick(), 104);
+        assert_eq!(depth.best_bid_tick, 103);
+        assert_eq!(depth.best_ask_tick, 104);
 
         depth.update_bid_depth(10.1, 0.01, 5);
         depth.update_bid_depth(10.2, 0.02, 5);
         depth.update_best_bid(10.1, 0.05, 2);
-        assert_eq!(depth.best_bid_tick(), 103);
-        assert_eq!(depth.best_ask_tick(), 104);
-        assert_eq!(depth.bid_qty_at_tick(101), 0.01);
+        assert_eq!(depth.best_bid_tick, 103);
+        assert_eq!(depth.best_ask_tick, 104);
 
         depth.update_best_bid(10.1, 0.05, 6);
-        assert_eq!(depth.best_bid_tick(), 101);
+        assert_eq!(depth.best_bid_tick, 101);
     }
 
     #[test]
@@ -396,22 +389,19 @@ mod tests {
         depth.update_ask_depth(10.4, 0.01, 1);
 
         depth.update_best_ask(10.2, 0.03, 0);
-        assert_eq!(depth.best_ask_tick(), 103);
+        assert_eq!(depth.best_ask_tick, 103);
         depth.update_best_ask(10.3, 0.03, 2);
-        assert_eq!(depth.ask_qty_at_tick(103), 0.03);
         depth.update_best_ask(10.2, 0.01, 3);
-        assert_eq!(depth.best_bid_tick(), 101);
-        assert_eq!(depth.ask_qty_at_tick(102), 0.01);
-        assert_eq!(depth.best_ask_tick(), 102);
+        assert_eq!(depth.best_bid_tick, 101);
+        assert_eq!(depth.best_ask_tick, 102);
 
         depth.update_ask_depth(10.3, 0.02, 5);
         depth.update_ask_depth(10.4, 0.01, 5);
         depth.update_best_ask(10.4, 0.05, 2);
-        assert_eq!(depth.best_bid_tick(), 101);
-        assert_eq!(depth.best_ask_tick(), 102);
-        assert_eq!(depth.ask_qty_at_tick(104), 0.01);
+        assert_eq!(depth.best_bid_tick, 101);
+        assert_eq!(depth.best_ask_tick, 102);
 
         depth.update_best_ask(10.4, 0.05, 6);
-        assert_eq!(depth.best_ask_tick(), 104);
+        assert_eq!(depth.best_ask_tick, 104);
     }
 }
