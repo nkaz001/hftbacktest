@@ -29,7 +29,6 @@ fn prepare_live() -> LiveBot<HashMapMarketDepth> {
         .build()
         .unwrap();
 
-    hbt.run().unwrap();
     hbt
 }
 
