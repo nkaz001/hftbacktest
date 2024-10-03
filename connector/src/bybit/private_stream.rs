@@ -10,7 +10,7 @@ use tokio_tungstenite::{
     MaybeTlsStream,
     WebSocketStream,
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::{
     bybit::{
@@ -18,7 +18,7 @@ use crate::{
         ordermanager::{OrderExt, SharedOrderManager},
         rest::BybitClient,
         BybitError,
-        SharedInstrumentMap,
+        SharedSymbolSet,
     },
     connector::PublishMessage,
     utils::sign_hmac_sha256,
@@ -29,7 +29,7 @@ pub struct PrivateStream {
     secret: String,
     ev_tx: UnboundedSender<PublishMessage>,
     order_manager: SharedOrderManager,
-    instruments: SharedInstrumentMap,
+    symbols: SharedSymbolSet,
     client: BybitClient,
 }
 
@@ -39,7 +39,7 @@ impl PrivateStream {
         secret: String,
         ev_tx: UnboundedSender<PublishMessage>,
         order_manager: SharedOrderManager,
-        instruments: SharedInstrumentMap,
+        symbols: SharedSymbolSet,
         client: BybitClient,
     ) -> Self {
         Self {
@@ -47,13 +47,13 @@ impl PrivateStream {
             secret,
             ev_tx,
             order_manager,
-            instruments,
+            symbols,
             client,
         }
     }
 
     pub async fn cancel_all(&self, category: &str) -> Result<(), BybitError> {
-        let symbols: Vec<_> = self.instruments.lock().unwrap().keys().cloned().collect();
+        let symbols: Vec<_> = self.symbols.lock().unwrap().iter().cloned().collect();
         for symbol in symbols {
             // todo: rate-limit throttling.
             self.client.cancel_all_orders(category, &symbol).await?;
@@ -74,7 +74,7 @@ impl PrivateStream {
     }
 
     pub async fn get_all_position(&self, category: &str) -> Result<(), BybitError> {
-        let symbols: Vec<_> = self.instruments.lock().unwrap().keys().cloned().collect();
+        let symbols: Vec<_> = self.symbols.lock().unwrap().iter().cloned().collect();
         for symbol in symbols {
             // todo: rate-limit throttling.
             let position = self
@@ -141,7 +141,6 @@ impl PrivateStream {
                     match order_man_.update_execution(item) {
                         Ok(OrderExt {
                             symbol: asset,
-                            order_link_id: _,
                             order,
                         }) => {
                             self.ev_tx
@@ -164,7 +163,6 @@ impl PrivateStream {
                     match order_man_.update_fast_execution(item) {
                         Ok(OrderExt {
                             symbol: asset,
-                            order_link_id: _,
                             order,
                         }) => {
                             self.ev_tx
@@ -182,20 +180,19 @@ impl PrivateStream {
             }
             PrivateStreamMsg::Topic(PrivateStreamTopicMsg::Order(data)) => {
                 debug!(?data, "Order");
-                for item in &data.data {
-                    let mut order_man_ = self.order_manager.lock().unwrap();
-                    match order_man_.update_order(item) {
-                        Ok(OrderExt {
-                            symbol: asset,
-                            order_link_id: _,
-                            order,
-                        }) => {
+                for order_msg in &data.data {
+                    let mut order_manager = self.order_manager.lock().unwrap();
+                    match order_manager.update_order(order_msg) {
+                        Ok(OrderExt { symbol, order }) => {
                             self.ev_tx
                                 .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                                    symbol: asset,
+                                    symbol,
                                     order,
                                 }))
                                 .unwrap();
+                        }
+                        Err(BybitError::PrefixUnmatched) => {
+                            // The order is not created by this connector.
                         }
                         Err(error) => {
                             error!(?error, ?data, "Couldn't update the order data");
@@ -244,7 +241,7 @@ impl PrivateStream {
                             ).await {
                                 Ok(_) => {}
                                 Err(BybitError::PrefixUnmatched) => {
-                                    warn!(%text, "PrefixUnmatched");
+                                    // The order is not created by this connector.
                                 }
                                 Err(error) => {
                                     error!(%text, ?error, "Couldn't properly handle PrivateStreamMsg");

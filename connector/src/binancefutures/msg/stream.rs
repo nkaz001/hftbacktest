@@ -5,8 +5,21 @@ use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_t
 use crate::utils::{from_str_to_f64, to_lowercase};
 
 #[derive(Deserialize, Debug)]
-#[serde(tag = "e")]
+#[serde(untagged)]
 pub enum Stream {
+    EventStream(EventStream),
+    Result(Result),
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Result {
+    pub result: Option<String>,
+    pub id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "e")]
+pub enum EventStream {
     #[serde(rename = "depthUpdate")]
     DepthUpdate(Depth),
     #[serde(rename = "trade")]

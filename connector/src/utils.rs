@@ -9,7 +9,7 @@ use std::{
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, KeyInit, Mac};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use serde::{
     de,
     de::{Error, Visitor},
@@ -157,14 +157,6 @@ pub fn parse_px_qty_tup(px: String, qty: String) -> Result<PxQty, BybitError> {
     Ok((px.parse()?, qty.parse()?))
 }
 
-pub fn gen_random_string(len: usize) -> String {
-    rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(len)
-        .map(char::from)
-        .collect()
-}
-
 pub trait BackoffStrategy {
     fn backoff(&mut self) -> Duration;
 }
@@ -300,6 +292,14 @@ impl Equivalent<SymbolOrderId> for RefSymbolOrderId<'_> {
     fn equivalent(&self, key: &SymbolOrderId) -> bool {
         key.symbol == self.symbol && key.order_id == self.order_id
     }
+}
+
+pub fn generate_rand_string(length: usize) -> String {
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(length)
+        .map(char::from)
+        .collect()
 }
 
 #[cfg(test)]

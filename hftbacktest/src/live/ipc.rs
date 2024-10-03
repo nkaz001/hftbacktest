@@ -23,7 +23,7 @@ use thiserror::Error;
 
 use crate::{
     live::{BotError, Channel},
-    prelude::{BuildError, LiveEvent, Request},
+    prelude::{LiveEvent, Request},
 };
 
 pub const TO_ALL: u64 = 0;

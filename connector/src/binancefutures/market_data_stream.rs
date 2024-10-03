@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
-use hftbacktest::{live::Instrument, prelude::*};
+use hftbacktest::prelude::*;
 use tokio::{
     select,
     sync::{
@@ -18,16 +18,19 @@ use tracing::error;
 
 use crate::{
     binancefutures::{
-        msg::{rest, stream, stream::Stream},
+        msg::{
+            rest,
+            stream,
+            stream::{EventStream, Stream},
+        },
         rest::BinanceFuturesClient,
         BinanceFuturesError,
     },
     connector::PublishMessage,
-    utils::{parse_depth, parse_px_qty_tup},
+    utils::{generate_rand_string, parse_depth, parse_px_qty_tup},
 };
 
 pub struct MarketDataStream {
-    symbols: HashMap<String, Instrument>,
     client: BinanceFuturesClient,
     ev_tx: UnboundedSender<PublishMessage>,
     symbol_rx: Receiver<String>,
@@ -45,7 +48,6 @@ impl MarketDataStream {
     ) -> Self {
         let (rest_tx, rest_rx) = unbounded_channel::<(String, rest::Depth)>();
         Self {
-            symbols: Default::default(),
             client,
             ev_tx,
             symbol_rx,
@@ -56,9 +58,9 @@ impl MarketDataStream {
         }
     }
 
-    fn process_message(&mut self, stream: Stream) {
+    fn process_message(&mut self, stream: EventStream) {
         match stream {
-            Stream::DepthUpdate(data) => {
+            EventStream::DepthUpdate(data) => {
                 let mut prev_u_val = self.prev_u.get_mut(&data.symbol);
                 if prev_u_val.is_none()
                 /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
@@ -139,7 +141,7 @@ impl MarketDataStream {
                     }
                 }
             }
-            Stream::Trade(data) => match parse_px_qty_tup(data.price, data.qty) {
+            EventStream::Trade(data) => match parse_px_qty_tup(data.price, data.qty) {
                 Ok((px, qty)) => {
                     self.ev_tx
                         .send(PublishMessage::LiveEvent(LiveEvent::Feed {
@@ -257,13 +259,14 @@ impl MarketDataStream {
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
+                        let id = generate_rand_string(16);
                         write.send(Message::Text(format!(r#"{{
                             "method": "SUBSCRIBE",
                             "params": [
                                 "{symbol}@trade",
                                 "{symbol}@depth@0ms"
                             ],
-                            "id": 1
+                            "id": "{id}"
                         }}"#))).await?;
                     }
                     Err(RecvError::Closed) => {
@@ -276,8 +279,12 @@ impl MarketDataStream {
                 message = read.next() => match message {
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<Stream>(&text) {
-                            Ok(stream) => {
+                            Ok(Stream::EventStream(stream)) => {
                                 self.process_message(stream);
+                            }
+                            Ok(Stream::Result(result)) => {
+                                // todo:
+                                error!(?result, "result");
                             }
                             Err(error) => {
                                 error!(?error, %text, "Couldn't parse Stream.");

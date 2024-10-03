@@ -5,7 +5,7 @@ mod rest;
 mod user_data_stream;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -24,7 +24,7 @@ use crate::{
         ordermanager::{OrderManager, SharedOrderManager},
         rest::BinanceFuturesClient,
     },
-    connector::{Connector, ConnectorBuilder, Instrument, PublishMessage},
+    connector::{Connector, ConnectorBuilder, PublishMessage},
     utils::{ExponentialBackoff, Retry},
 };
 
@@ -44,6 +44,10 @@ pub enum BinanceFuturesError {
     ReqError(#[from] reqwest::Error),
     #[error("OrderError: {code} - {msg})")]
     OrderError { code: i64, msg: String },
+    #[error("PrefixUnmatched")]
+    PrefixUnmatched,
+    #[error("OrderNotFound")]
+    OrderNotFound,
     #[error("Tunstenite: {0:?}")]
     Tunstenite(#[from] tungstenite::Error),
     #[error("Config: {0:?}")]
@@ -67,6 +71,8 @@ impl From<BinanceFuturesError> for Value {
             BinanceFuturesError::ConnectionInterrupted => Value::String(value.to_string()),
             BinanceFuturesError::ConnectionAbort(_) => Value::String(value.to_string()),
             BinanceFuturesError::Config(_) => Value::String(value.to_string()),
+            BinanceFuturesError::PrefixUnmatched => Value::String(value.to_string()),
+            BinanceFuturesError::OrderNotFound => Value::String(value.to_string()),
         }
     }
 }
@@ -83,12 +89,12 @@ pub struct Config {
     secret: String,
 }
 
-type SharedInstrumentMap = Arc<Mutex<HashMap<String, Instrument>>>;
+type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;
 
 /// A connector for Binance USD-m Futures.
 pub struct BinanceFutures {
     config: Config,
-    instruments: SharedInstrumentMap,
+    symbols: SharedSymbolSet,
     order_manager: SharedOrderManager,
     client: BinanceFuturesClient,
     symbol_tx: Sender<String>,
@@ -129,10 +135,9 @@ impl BinanceFutures {
 
     pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<PublishMessage>) {
         let base_url = self.config.stream_url.clone();
-        let prefix = self.config.order_prefix.clone();
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
-        let instruments = self.instruments.clone();
+        let instruments = self.symbols.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -154,7 +159,6 @@ impl BinanceFutures {
                         ev_tx.clone(),
                         order_manager.clone(),
                         instruments.clone(),
-                        prefix.clone(),
                     );
 
                     // Cancel all orders before connecting to the stream in order to start with the
@@ -186,7 +190,7 @@ impl ConnectorBuilder for BinanceFutures {
 
         Ok(BinanceFutures {
             config,
-            instruments: Default::default(),
+            symbols: Default::default(),
             order_manager,
             client,
             symbol_tx,
@@ -195,17 +199,11 @@ impl ConnectorBuilder for BinanceFutures {
 }
 
 impl Connector for BinanceFutures {
-    fn add(
-        &mut self,
-        symbol: String,
-        tick_size: f64,
-        id: u64,
-        ev_tx: UnboundedSender<PublishMessage>,
-    ) {
+    fn add(&mut self, symbol: String, id: u64, ev_tx: UnboundedSender<PublishMessage>) {
         // Binance futures symbols must be lowercase to subscribe to the WebSocket stream.
         let symbol = symbol.to_lowercase();
-        let mut instruments = self.instruments.lock().unwrap();
-        if instruments.contains_key(&symbol) {
+        let mut symbols = self.symbols.lock().unwrap();
+        if symbols.contains(&symbol) {
             let order_manager = self.order_manager.lock().unwrap();
             let orders = order_manager.get_orders(&symbol);
 
@@ -222,13 +220,7 @@ impl Connector for BinanceFutures {
                 })
                 .unwrap();
         } else {
-            instruments.insert(
-                symbol.clone(),
-                Instrument {
-                    symbol: symbol.clone(),
-                    tick_size,
-                },
-            );
+            symbols.insert(symbol.clone());
             self.symbol_tx.send(symbol).unwrap();
         }
     }

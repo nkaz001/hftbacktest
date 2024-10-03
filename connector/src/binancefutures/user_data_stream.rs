@@ -11,21 +11,20 @@ use tracing::error;
 
 use crate::{
     binancefutures::{
-        msg::stream::Stream,
-        ordermanager::{OrderManager, SharedOrderManager},
+        msg::stream::{EventStream, Stream},
+        ordermanager::SharedOrderManager,
         rest::BinanceFuturesClient,
         BinanceFuturesError,
-        SharedInstrumentMap,
+        SharedSymbolSet,
     },
     connector::PublishMessage,
 };
 
 pub struct UserDataStream {
-    instruments: SharedInstrumentMap,
+    symbols: SharedSymbolSet,
     client: BinanceFuturesClient,
     ev_tx: UnboundedSender<PublishMessage>,
     order_manager: SharedOrderManager,
-    prefix: String,
 }
 
 impl UserDataStream {
@@ -33,20 +32,18 @@ impl UserDataStream {
         client: BinanceFuturesClient,
         ev_tx: UnboundedSender<PublishMessage>,
         order_manager: SharedOrderManager,
-        instruments: SharedInstrumentMap,
-        prefix: String,
+        symbols: SharedSymbolSet,
     ) -> Self {
         Self {
-            instruments,
+            symbols,
             client,
             ev_tx,
             order_manager,
-            prefix,
         }
     }
 
     pub async fn cancel_all(&self) -> Result<(), BinanceFuturesError> {
-        let symbols: Vec<_> = self.instruments.lock().unwrap().keys().cloned().collect();
+        let symbols: Vec<_> = self.symbols.lock().unwrap().iter().cloned().collect();
         for symbol in symbols {
             // todo: rate-limit throttling.
             self.client.cancel_all_orders(&symbol).await?;
@@ -67,7 +64,7 @@ impl UserDataStream {
 
     pub async fn get_position_information(&self) -> Result<(), BinanceFuturesError> {
         let position_information = self.client.get_position_information().await?;
-        let mut symbols: HashSet<_> = self.instruments.lock().unwrap().keys().cloned().collect();
+        let mut symbols: HashSet<_> = self.symbols.lock().unwrap().iter().cloned().collect();
         position_information.into_iter().for_each(|position| {
             symbols.remove(&position.symbol);
             self.ev_tx
@@ -92,13 +89,13 @@ impl UserDataStream {
         Ok(self.client.start_user_data_stream().await?)
     }
 
-    fn process_message(&self, stream: Stream) -> Result<(), BinanceFuturesError> {
+    fn process_message(&self, stream: EventStream) -> Result<(), BinanceFuturesError> {
         match stream {
-            Stream::DepthUpdate(_) | Stream::Trade(_) => unreachable!(),
-            Stream::ListenKeyExpired(_) => {
+            EventStream::DepthUpdate(_) | EventStream::Trade(_) => unreachable!(),
+            EventStream::ListenKeyExpired(_) => {
                 return Err(BinanceFuturesError::ListenKeyExpired);
             }
-            Stream::AccountUpdate(data) => {
+            EventStream::AccountUpdate(data) => {
                 for position in data.account.position {
                     self.ev_tx
                         .send(PublishMessage::LiveEvent(LiveEvent::Position {
@@ -108,49 +105,33 @@ impl UserDataStream {
                         .unwrap();
                 }
             }
-            Stream::OrderTradeUpdate(data) => {
-                if let Some(asset_info) = self.instruments.lock().unwrap().get(&data.order.symbol) {
-                    if let Some(order_id) = OrderManager::parse_client_order_id(
-                        &data.order.client_order_id,
-                        &self.prefix,
-                        &data.order.symbol,
-                    ) {
-                        let order = Order {
-                            qty: data.order.original_qty,
-                            leaves_qty: data.order.original_qty
-                                - data.order.order_filled_accumulated_qty,
-                            price_tick: (data.order.original_price / asset_info.tick_size).round()
-                                as i64,
-                            tick_size: asset_info.tick_size,
-                            side: data.order.side,
-                            time_in_force: data.order.time_in_force,
-                            exch_timestamp: data.transaction_time * 1_000_000,
-                            status: data.order.order_status,
-                            local_timestamp: 0,
-                            req: Status::None,
-                            exec_price_tick: (data.order.last_filled_price / asset_info.tick_size)
-                                .round() as i64,
-                            exec_qty: data.order.order_last_filled_qty,
-                            order_id,
-                            order_type: data.order.order_type,
-                            // Invalid information
-                            q: Box::new(()),
-                            maker: false,
-                        };
-
-                        let order = self.order_manager.lock().unwrap().update_from_ws(
-                            asset_info.symbol.clone(),
-                            data.order.client_order_id,
-                            order,
+            EventStream::OrderTradeUpdate(data) => {
+                let result = self.order_manager.lock().unwrap().update_from_ws(
+                    &data.order.symbol,
+                    &data.order.client_order_id,
+                    &data,
+                );
+                match result {
+                    Ok(Some(order)) => {
+                        self.ev_tx
+                            .send(PublishMessage::LiveEvent(LiveEvent::Order {
+                                symbol: data.order.symbol,
+                                order,
+                            }))
+                            .unwrap();
+                    }
+                    Ok(None) => {
+                        // This order is already deleted.
+                    }
+                    Err(BinanceFuturesError::PrefixUnmatched) => {
+                        // This order is not created by this connector.
+                    }
+                    Err(error) => {
+                        error!(
+                            ?error,
+                            ?data,
+                            "Couldn't update the order from OrderTradeUpdate message."
                         );
-                        if let Some(order) = order {
-                            self.ev_tx
-                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                                    symbol: data.order.symbol,
-                                    order,
-                                }))
-                                .unwrap();
-                        }
                     }
                 }
             }
@@ -180,8 +161,11 @@ impl UserDataStream {
                 message = read.next() => match message {
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<Stream>(&text) {
-                            Ok(stream) => {
+                            Ok(Stream::EventStream(stream)) => {
                                 self.process_message(stream)?;
+                            }
+                            Ok(Stream::Result(result)) => {
+                                error!(?result, "result.");
                             }
                             Err(error) => {
                                 error!(?error, %text, "Couldn't parse Stream.");

@@ -23,10 +23,9 @@ reqwest = { version = "0.12.3", default-features = false, features = ["json", "r
 futures-util = { version = "0.3.30" }
 sha2 = { version = "0.11.0-pre.3" }
 hmac = { version = "0.13.0-pre.3" }
-rand = { version = "0.8.5" }
-uuid = { version = "1.8.0", features = ["v4"] }
 iceoryx2 = { version = "0.4.1", features = ["logger_tracing"] }
 toml = "0.8.19"
 tracing-subscriber = "0.3.18"
 clap = { version = "4.5.15", features = ["derive"] }
-hashbrown = "0.14.5"
+hashbrown = "0.15.0"
+rand = "0.8.5"

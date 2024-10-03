@@ -11,22 +11,23 @@ use crate::{
         msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
         BybitError,
     },
-    utils::{gen_random_string, RefSymbolOrderId, SymbolOrderId},
+    utils::{generate_rand_string, RefSymbolOrderId, SymbolOrderId},
 };
 
 pub type SharedOrderManager = Arc<Mutex<OrderManager>>;
 
+pub type OrderLinkId = String;
+
 #[derive(Clone)]
 pub struct OrderExt {
     pub symbol: String,
-    pub order_link_id: String,
     pub order: Order,
 }
 
 pub struct OrderManager {
     prefix: String,
-    orders: HashMap<String, OrderExt>,
-    order_id_map: HashMap<SymbolOrderId, String>,
+    orders: HashMap<OrderLinkId, OrderExt>,
+    order_id_map: HashMap<SymbolOrderId, OrderLinkId>,
 }
 
 impl OrderManager {
@@ -39,6 +40,9 @@ impl OrderManager {
     }
 
     pub fn update_order(&mut self, data: &PrivateOrder) -> Result<OrderExt, BybitError> {
+        if !data.order_link_id.starts_with(&self.prefix) {
+            return Err(BybitError::PrefixUnmatched);
+        }
         let order = self
             .orders
             .get_mut(&data.order_link_id)
@@ -57,6 +61,9 @@ impl OrderManager {
     }
 
     pub fn update_execution(&mut self, data: &Execution) -> Result<OrderExt, BybitError> {
+        if !data.order_link_id.starts_with(&self.prefix) {
+            return Err(BybitError::PrefixUnmatched);
+        }
         let order_info = self
             .orders
             .get_mut(&data.order_link_id)
@@ -70,6 +77,9 @@ impl OrderManager {
 
     pub fn update_fast_execution(&mut self, data: &FastExecution) -> Result<OrderExt, BybitError> {
         // fixme: there is no valid order_link_id.
+        if !data.order_link_id.starts_with(&self.prefix) {
+            return Err(BybitError::PrefixUnmatched);
+        }
         let order_info = self
             .orders
             .get_mut(&data.order_link_id)
@@ -88,8 +98,7 @@ impl OrderManager {
         order: Order,
     ) -> Result<BybitOrder, BybitError> {
         let price_prec = get_precision(order.tick_size);
-        let rand_id = gen_random_string(8);
-        let order_link_id = format!("{}{}{}{}", self.prefix, symbol, rand_id, order.order_id);
+        let order_link_id = format!("{}{}", self.prefix, generate_rand_string(16));
         let bybit_order = BybitOrder {
             symbol: symbol.to_string(),
             side: Some({
@@ -133,7 +142,6 @@ impl OrderManager {
             Entry::Vacant(entry) => {
                 entry.insert(OrderExt {
                     symbol: symbol.to_string(),
-                    order_link_id: bybit_order.order_link_id.clone(),
                     order,
                 });
             }

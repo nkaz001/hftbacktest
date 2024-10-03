@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     num::{ParseFloatError, ParseIntError},
     sync::{Arc, Mutex},
 };
@@ -17,7 +17,7 @@ use crate::{
         rest::BybitClient,
         trade_stream::OrderOp,
     },
-    connector::{Connector, ConnectorBuilder, Instrument, PublishMessage},
+    connector::{Connector, ConnectorBuilder, PublishMessage},
     utils::{ExponentialBackoff, Retry},
 };
 
@@ -113,13 +113,13 @@ pub struct Config {
     order_prefix: String,
 }
 
-type SharedInstrumentMap = Arc<Mutex<HashMap<String, Instrument>>>;
+type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;
 
 pub struct Bybit {
     config: Config,
     order_tx: Sender<OrderOp>,
     order_manager: SharedOrderManager,
-    instruments: SharedInstrumentMap,
+    symbols: SharedSymbolSet,
     client: BybitClient,
     symbol_tx: Sender<String>,
 }
@@ -170,7 +170,7 @@ impl Bybit {
         let secret = self.config.secret.clone();
         let category = self.config.category.clone();
         let order_manager = self.order_manager.clone();
-        let instruments = self.instruments.clone();
+        let instruments = self.symbols.clone();
         let client = self.client.clone();
 
         tokio::spawn(async move {
@@ -265,22 +265,16 @@ impl ConnectorBuilder for Bybit {
             order_tx,
             order_manager,
             client,
-            instruments: Default::default(),
+            symbols: Default::default(),
             symbol_tx,
         })
     }
 }
 
 impl Connector for Bybit {
-    fn add(
-        &mut self,
-        symbol: String,
-        tick_size: f64,
-        id: u64,
-        ev_tx: UnboundedSender<PublishMessage>,
-    ) {
-        let mut instruments = self.instruments.lock().unwrap();
-        if instruments.contains_key(&symbol) {
+    fn add(&mut self, symbol: String, id: u64, ev_tx: UnboundedSender<PublishMessage>) {
+        let mut symbols = self.symbols.lock().unwrap();
+        if symbols.contains(&symbol) {
             let order_manager = self.order_manager.lock().unwrap();
             let orders = order_manager.get_orders(&symbol);
 
@@ -297,13 +291,7 @@ impl Connector for Bybit {
                 })
                 .unwrap();
         } else {
-            instruments.insert(
-                symbol.clone(),
-                Instrument {
-                    symbol: symbol.clone(),
-                    tick_size,
-                },
-            );
+            symbols.insert(symbol.clone());
             self.symbol_tx.send(symbol).unwrap();
         }
     }

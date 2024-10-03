@@ -24,7 +24,7 @@ use crate::{
         BybitError,
     },
     connector::PublishMessage,
-    utils::{gen_random_string, sign_hmac_sha256},
+    utils::{generate_rand_string, sign_hmac_sha256},
 };
 
 #[derive(Debug, Clone)]
@@ -93,11 +93,10 @@ impl TradeStream {
                     match order {
                         Ok(order) => {
                             let req_id = {
-                                let rand_id = gen_random_string(8);
                                 format!(
                                     "{}/{}",
                                     order.bybit_order.order_link_id.clone(),
-                                    rand_id,
+                                    generate_rand_string(16),
                                 )
                             };
                             let op = TradeOp {
@@ -185,11 +184,7 @@ impl TradeStream {
                  */
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;
-                let OrderExt {
-                    symbol,
-                    order_link_id: _,
-                    order,
-                } = order_man_.update_submit_fail(order_link_id)?;
+                let OrderExt { symbol, order } = order_man_.update_submit_fail(order_link_id)?;
                 self.ev_tx
                     .send(PublishMessage::LiveEvent(LiveEvent::Order {
                         symbol,
@@ -221,11 +216,7 @@ impl TradeStream {
                  */
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;
-                let OrderExt {
-                    symbol,
-                    order_link_id: _,
-                    order,
-                } = order_man_.update_cancel_fail(order_link_id)?;
+                let OrderExt { symbol, order } = order_man_.update_cancel_fail(order_link_id)?;
                 self.ev_tx
                     .send(PublishMessage::LiveEvent(LiveEvent::Order {
                         symbol,

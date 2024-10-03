@@ -2,7 +2,6 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     fs::read_to_string,
     panic,
-    process,
     process::exit,
     thread,
     time::Duration,
@@ -10,13 +9,13 @@ use std::{
 
 use clap::Parser;
 use hftbacktest::{
-    live::ipc::{IceoryxBuilder, IceoryxReceiver, IceoryxSender, PubSubError, TO_ALL},
+    live::ipc::{IceoryxBuilder, PubSubError, TO_ALL},
     prelude::*,
     types::Request,
 };
 use iceoryx2::{
     node::NodeBuilder,
-    prelude::{ipc, set_log_level, LogLevel, NodeEvent},
+    prelude::{ipc, NodeEvent},
 };
 use tokio::{
     runtime::Builder,
@@ -81,7 +80,7 @@ fn run_receive_task(
                             .unwrap();
                             // Requests to the Connector subscribe to the necessary feeds for the
                             // instrument.
-                            connector.add(symbol, tick_size, id, tx.clone());
+                            connector.add(symbol, id, tx.clone());
                         }
                     }
                 }

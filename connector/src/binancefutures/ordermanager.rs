@@ -6,8 +6,11 @@ use hftbacktest::types::{Order, OrderId, Status};
 use tracing::{debug, error};
 
 use crate::{
-    binancefutures::{msg::rest::OrderResponse, BinanceFuturesError},
-    utils::{gen_random_string, RefSymbolOrderId, SymbolOrderId},
+    binancefutures::{
+        msg::{rest::OrderResponse, stream::OrderTradeUpdate},
+        BinanceFuturesError,
+    },
+    utils::{generate_rand_string, RefSymbolOrderId, SymbolOrderId},
 };
 
 #[derive(Debug)]
@@ -20,17 +23,27 @@ struct OrderExt {
 
 pub type SharedOrderManager = Arc<Mutex<OrderManager>>;
 
-const RAND_ID_LENGTH: usize = 8;
+pub type ClientOrderId = String;
 
 /// Binance has separated channels for REST APIs and Websocket. Order responses are delivered
 /// through these channels, with no guaranteed order of transmission. To prevent duplicate handling
 /// of order responses, such as order deletion due to cancellation or fill, OrderManager manages the
 /// order states before transmitting the responses to a live bot.
+///
+/// Deletions must be confirmed by both channels. If not, differences in response times could result
+/// in attempts to update an order that has already been deleted, potentially creating a ghost order
+/// unintentionally.
+///
+/// To handle this, the `client_order_id` should include a random ID to differentiate it, even when
+/// the order ID is the same(bot's order id). This is necessary because the order deletion is
+/// immediately notified to the bot, but the Connector must still retain the `client_order_id` in
+/// case an update arrives later from the other channel, which has not yet sent the deletion
+/// message.
 #[derive(Default, Debug)]
 pub struct OrderManager {
     prefix: String,
-    orders: HashMap<String, OrderExt>,
-    order_id_map: HashMap<SymbolOrderId, String>,
+    orders: HashMap<ClientOrderId, OrderExt>,
+    order_id_map: HashMap<SymbolOrderId, ClientOrderId>,
 }
 
 impl OrderManager {
@@ -44,60 +57,55 @@ impl OrderManager {
 
     pub fn update_from_ws(
         &mut self,
-        symbol: String,
-        client_order_id: String,
-        order: Order,
-    ) -> Option<Order> {
-        match self.orders.entry(client_order_id.clone()) {
-            Entry::Occupied(mut entry) => {
-                let wrapper = entry.get_mut();
-                let already_removed = wrapper.removed_by_ws || wrapper.removed_by_rest;
-                if order.exch_timestamp >= wrapper.order.exch_timestamp {
-                    wrapper.order.update(&order);
-                }
+        symbol: &str,
+        client_order_id: &ClientOrderId,
+        data: &OrderTradeUpdate,
+    ) -> Result<Option<Order>, BinanceFuturesError> {
+        if !client_order_id.starts_with(&self.prefix) {
+            return Err(BinanceFuturesError::PrefixUnmatched);
+        }
 
-                if order.status != Status::New && order.status != Status::PartiallyFilled {
-                    wrapper.removed_by_ws = true;
-                    if !already_removed {
-                        self.order_id_map
-                            .remove(&RefSymbolOrderId::new(&symbol, order.order_id));
-                    }
+        error!(?data, %symbol, %client_order_id, "update_from_ws");
 
-                    if wrapper.removed_by_ws && wrapper.removed_by_rest {
-                        entry.remove_entry();
-                    }
-                }
+        let order_ext = self
+            .orders
+            .get_mut(client_order_id)
+            .ok_or(BinanceFuturesError::OrderNotFound)?;
 
-                if already_removed {
-                    None
-                } else {
-                    Some(order)
-                }
+        let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
+        if data.transaction_time * 1_000_000 >= order_ext.order.exch_timestamp {
+            order_ext.order.qty = data.order.original_qty;
+            order_ext.order.leaves_qty =
+                data.order.original_qty - data.order.order_filled_accumulated_qty;
+            order_ext.order.side = data.order.side;
+            order_ext.order.time_in_force = data.order.time_in_force;
+            order_ext.order.exch_timestamp = data.transaction_time * 1_000_000;
+            order_ext.order.status = data.order.order_status;
+            order_ext.order.exec_qty = data.order.order_last_filled_qty;
+            order_ext.order.order_type = data.order.order_type;
+        }
+
+        let result = if already_removed {
+            None
+        } else {
+            Some(order_ext.order.clone())
+        };
+
+        if order_ext.order.status != Status::New
+            && order_ext.order.status != Status::PartiallyFilled
+        {
+            order_ext.removed_by_ws = true;
+            if !already_removed {
+                self.order_id_map
+                    .remove(&RefSymbolOrderId::new(symbol, order_ext.order.order_id));
             }
-            Entry::Vacant(entry) => {
-                if !order.active() {
-                    return None;
-                }
 
-                debug!(
-                    %client_order_id,
-                    ?order,
-                    "BinanceFutures OrderManager received an unmanaged order from WS."
-                );
-                let wrapper = entry.insert(OrderExt {
-                    symbol: symbol.clone(),
-                    order: order.clone(),
-                    removed_by_ws: order.status != Status::New
-                        && order.status != Status::PartiallyFilled,
-                    removed_by_rest: false,
-                });
-                if wrapper.removed_by_ws || wrapper.removed_by_rest {
-                    self.order_id_map
-                        .remove(&RefSymbolOrderId::new(&symbol, order.order_id));
-                }
-                Some(order)
+            if order_ext.removed_by_ws && order_ext.removed_by_rest {
+                self.orders.remove(client_order_id).unwrap();
             }
         }
+
+        Ok(result)
     }
 
     pub fn update_submit_success(
@@ -133,7 +141,7 @@ impl OrderManager {
         symbol: String,
         mut order: Order,
         error: &BinanceFuturesError,
-        client_order_id: String,
+        client_order_id: ClientOrderId,
     ) -> Option<Order> {
         match error {
             BinanceFuturesError::OrderError { code: -5022, .. } => {
@@ -194,7 +202,7 @@ impl OrderManager {
         symbol: String,
         mut order: Order,
         error: &BinanceFuturesError,
-        client_order_id: String,
+        client_order_id: ClientOrderId,
     ) -> Option<Order> {
         match error {
             BinanceFuturesError::OrderError { code: -2011, .. } => {
@@ -215,7 +223,7 @@ impl OrderManager {
     fn update_from_rest(
         &mut self,
         symbol: String,
-        client_order_id: String,
+        client_order_id: ClientOrderId,
         order: Order,
     ) -> Option<Order> {
         match self.orders.entry(client_order_id.clone()) {
@@ -273,12 +281,11 @@ impl OrderManager {
     pub fn prepare_client_order_id(&mut self, symbol: String, order: Order) -> Option<String> {
         let symbol_order_id = SymbolOrderId::new(symbol.clone(), order.order_id);
         if self.order_id_map.contains_key(&symbol_order_id) {
+            println!("symbol order id duplicate");
             return None;
         }
 
-        let rand_id = gen_random_string(RAND_ID_LENGTH);
-
-        let client_order_id = format!("{}{}{}{}", self.prefix, &rand_id, symbol, order.order_id);
+        let client_order_id = format!("{}{}", self.prefix, generate_rand_string(16));
         if self.orders.contains_key(&client_order_id) {
             return None;
         }
@@ -297,25 +304,16 @@ impl OrderManager {
         Some(client_order_id)
     }
 
-    pub fn parse_client_order_id(client_order_id: &str, prefix: &str, symbol: &str) -> Option<u64> {
-        if !client_order_id.starts_with(prefix) {
-            None
-        } else {
-            let s = &client_order_id[(prefix.len() + RAND_ID_LENGTH + symbol.len())..];
-            if let Ok(order_id) = s.parse() {
-                Some(order_id)
-            } else {
-                None
-            }
-        }
-    }
-
     pub fn get_client_order_id(&self, symbol: &str, order_id: OrderId) -> Option<String> {
         self.order_id_map
             .get(&RefSymbolOrderId::new(symbol, order_id))
             .cloned()
     }
 
+    /// Due to API instability or network issues, discrepancies can occur where an order is deleted
+    /// by one channel but remains active because its deletion wasn't confirmed by both channels.
+    /// The gc method resolves this by removing orders that were deleted by one channel but not
+    /// confirmed by the other, after a defined threshold period.
     pub fn gc(&mut self) {
         let now = Utc::now().timestamp_nanos_opt().unwrap();
         let stale_ts = now - 300_000_000_000;
@@ -347,25 +345,25 @@ impl OrderManager {
     pub fn cancel_all_from_rest(&mut self, symbol: &str) -> Vec<Order> {
         let mut removed_orders = Vec::new();
         let mut removed_order_ids = Vec::new();
-        for (client_order_id, wrapper) in &mut self.orders {
-            if wrapper.symbol != symbol {
+        for (client_order_id, order_ext) in &mut self.orders {
+            if order_ext.symbol != symbol {
                 continue;
             }
-            let already_removed = wrapper.removed_by_ws || wrapper.removed_by_rest;
+            let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
 
-            wrapper.removed_by_rest = true;
-            wrapper.order.status = Status::Canceled;
+            order_ext.removed_by_rest = true;
+            order_ext.order.status = Status::Canceled;
             // todo: check if the exchange timestamp exists in the REST response.
-            wrapper.order.exch_timestamp = Utc::now().timestamp_nanos_opt().unwrap();
+            order_ext.order.exch_timestamp = Utc::now().timestamp_nanos_opt().unwrap();
             if !already_removed {
                 self.order_id_map
-                    .remove(&RefSymbolOrderId::new(symbol, wrapper.order.order_id));
-                removed_orders.push(wrapper.order.clone());
+                    .remove(&RefSymbolOrderId::new(symbol, order_ext.order.order_id));
+                removed_orders.push(order_ext.order.clone());
             }
 
             // Completely deletes the order if it is removed by both the REST response and the
             // WebSocket stream.
-            if wrapper.removed_by_ws && wrapper.removed_by_rest {
+            if order_ext.removed_by_ws && order_ext.removed_by_rest {
                 removed_order_ids.push(client_order_id.clone());
             }
         }
