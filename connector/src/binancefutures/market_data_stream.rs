@@ -14,7 +14,7 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message},
 };
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
     binancefutures::{
@@ -283,8 +283,7 @@ impl MarketDataStream {
                                 self.process_message(stream);
                             }
                             Ok(Stream::Result(result)) => {
-                                // todo:
-                                error!(?result, "result");
+                                debug!(?result, "Subscription request response is received.");
                             }
                             Err(error) => {
                                 error!(?error, %text, "Couldn't parse Stream.");

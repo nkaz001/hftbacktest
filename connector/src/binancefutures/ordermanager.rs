@@ -64,9 +64,6 @@ impl OrderManager {
         if !client_order_id.starts_with(&self.prefix) {
             return Err(BinanceFuturesError::PrefixUnmatched);
         }
-
-        error!(?data, %symbol, %client_order_id, "update_from_ws");
-
         let order_ext = self
             .orders
             .get_mut(client_order_id)
