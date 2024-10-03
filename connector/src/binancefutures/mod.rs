@@ -220,6 +220,14 @@ impl Connector for BinanceFutures {
                 })
                 .unwrap();
         } else {
+            // Sends the empty LiveEventsWithId to notify the end of batch.
+            ev_tx
+                .send(PublishMessage::LiveEventsWithId {
+                    id,
+                    events: Vec::with_capacity(0),
+                })
+                .unwrap();
+
             symbols.insert(symbol.clone());
             self.symbol_tx.send(symbol).unwrap();
         }
@@ -262,7 +270,7 @@ impl Connector for BinanceFutures {
                             if let Some(order) = order_manager
                                 .lock()
                                 .unwrap()
-                                .update_submit_success(symbol.clone(), order, resp)
+                                .update_from_rest(&client_order_id, &resp)
                             {
                                 tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol,
@@ -272,12 +280,11 @@ impl Connector for BinanceFutures {
                             }
                         }
                         Err(error) => {
-                            if let Some(order) = order_manager.lock().unwrap().update_submit_fail(
-                                symbol.clone(),
-                                order,
-                                &error,
-                                client_order_id,
-                            ) {
+                            if let Some(order) = order_manager
+                                .lock()
+                                .unwrap()
+                                .update_submit_fail(&client_order_id, &error)
+                            {
                                 tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol,
                                     order,
@@ -328,7 +335,7 @@ impl Connector for BinanceFutures {
                             if let Some(order) = order_manager
                                 .lock()
                                 .unwrap()
-                                .update_cancel_success(symbol.clone(), order, resp)
+                                .update_from_rest(&client_order_id, &resp)
                             {
                                 tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol,
@@ -338,12 +345,11 @@ impl Connector for BinanceFutures {
                             }
                         }
                         Err(error) => {
-                            if let Some(order) = order_manager.lock().unwrap().update_cancel_fail(
-                                symbol.clone(),
-                                order,
-                                &error,
-                                client_order_id,
-                            ) {
+                            if let Some(order) = order_manager
+                                .lock()
+                                .unwrap()
+                                .update_cancel_fail(&client_order_id, &error)
+                            {
                                 tx.send(PublishMessage::LiveEvent(LiveEvent::Order {
                                     symbol,
                                     order,
@@ -359,7 +365,7 @@ impl Connector for BinanceFutures {
                     }
                 }
                 None => {
-                    debug!(
+                    warn!(
                         order_id = order.order_id,
                         "client_order_id corresponding to order_id is not found; \
                         this may be due to the order already being canceled or filled."

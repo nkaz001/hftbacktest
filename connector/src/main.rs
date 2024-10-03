@@ -9,7 +9,7 @@ use std::{
 
 use clap::Parser;
 use hftbacktest::{
-    live::ipc::{IceoryxBuilder, PubSubError, TO_ALL},
+    live::ipc::{IceoryxBuilder, LiveEventExt, PubSubError, TO_ALL},
     prelude::*,
     types::Request,
 };
@@ -109,11 +109,13 @@ async fn run_publish_task(
                 tick_size,
             } => {
                 if let Some(qty) = position.get(&symbol) {
-                    let lev = LiveEvent::Position {
-                        symbol: symbol.clone(),
-                        qty: *qty,
-                    };
-                    bot_tx.send(id, &lev)?;
+                    bot_tx.send(
+                        id,
+                        &LiveEventExt::Batch(LiveEvent::Position {
+                            symbol: symbol.clone(),
+                            qty: *qty,
+                        }),
+                    )?;
                 }
 
                 match depth.entry(symbol) {
@@ -121,11 +123,13 @@ async fn run_publish_task(
                         let depth_: &mut FusedHashMapMarketDepth = entry.get_mut();
                         let snapshot = depth_.snapshot();
                         for event in snapshot {
-                            let lev = LiveEvent::Feed {
-                                symbol: entry.key().clone(),
-                                event,
-                            };
-                            bot_tx.send(id, &lev)?;
+                            bot_tx.send(
+                                id,
+                                &LiveEventExt::Batch(LiveEvent::Feed {
+                                    symbol: entry.key().clone(),
+                                    event,
+                                }),
+                            )?;
                         }
                     }
                     Entry::Vacant(entry) => {
@@ -136,15 +140,16 @@ async fn run_publish_task(
             PublishMessage::LiveEvent(ev) => {
                 // The live event will only be published if the result is true.
                 if handle_ev(&ev, &mut depth, &mut position) {
-                    bot_tx.send(TO_ALL, &ev)?;
+                    bot_tx.send(TO_ALL, &LiveEventExt::Normal(ev))?;
                 }
             }
             PublishMessage::LiveEventsWithId { id, events } => {
                 // This occurs when an order or position snapshot needs to be published by adding
                 // the instrument.
                 for ev in events {
-                    bot_tx.send(id, &ev)?;
+                    bot_tx.send(id, &LiveEventExt::Batch(ev))?;
                 }
+                bot_tx.send(id, &LiveEventExt::EndOfBatch)?;
             }
         }
     }

@@ -106,11 +106,7 @@ impl UserDataStream {
                 }
             }
             EventStream::OrderTradeUpdate(data) => {
-                let result = self.order_manager.lock().unwrap().update_from_ws(
-                    &data.order.symbol,
-                    &data.order.client_order_id,
-                    &data,
-                );
+                let result = self.order_manager.lock().unwrap().update_from_ws(&data);
                 match result {
                     Ok(Some(order)) => {
                         self.ev_tx

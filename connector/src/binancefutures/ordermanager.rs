@@ -1,9 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::HashMap;
 use hftbacktest::types::{Order, OrderId, Status};
-use tracing::{debug, error};
+use tracing::error;
 
 use crate::{
     binancefutures::{
@@ -57,29 +57,27 @@ impl OrderManager {
 
     pub fn update_from_ws(
         &mut self,
-        symbol: &str,
-        client_order_id: &ClientOrderId,
-        data: &OrderTradeUpdate,
+        resp: &OrderTradeUpdate,
     ) -> Result<Option<Order>, BinanceFuturesError> {
-        if !client_order_id.starts_with(&self.prefix) {
+        if !resp.order.client_order_id.starts_with(&self.prefix) {
             return Err(BinanceFuturesError::PrefixUnmatched);
         }
         let order_ext = self
             .orders
-            .get_mut(client_order_id)
+            .get_mut(&resp.order.client_order_id)
             .ok_or(BinanceFuturesError::OrderNotFound)?;
 
         let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
-        if data.transaction_time * 1_000_000 >= order_ext.order.exch_timestamp {
-            order_ext.order.qty = data.order.original_qty;
+        if resp.transaction_time * 1_000_000 >= order_ext.order.exch_timestamp {
+            order_ext.order.qty = resp.order.original_qty;
             order_ext.order.leaves_qty =
-                data.order.original_qty - data.order.order_filled_accumulated_qty;
-            order_ext.order.side = data.order.side;
-            order_ext.order.time_in_force = data.order.time_in_force;
-            order_ext.order.exch_timestamp = data.transaction_time * 1_000_000;
-            order_ext.order.status = data.order.order_status;
-            order_ext.order.exec_qty = data.order.order_last_filled_qty;
-            order_ext.order.order_type = data.order.order_type;
+                resp.order.original_qty - resp.order.order_filled_accumulated_qty;
+            order_ext.order.side = resp.order.side;
+            order_ext.order.time_in_force = resp.order.time_in_force;
+            order_ext.order.exch_timestamp = resp.transaction_time * 1_000_000;
+            order_ext.order.status = resp.order.order_status;
+            order_ext.order.exec_qty = resp.order.order_last_filled_qty;
+            order_ext.order.order_type = resp.order.order_type;
         }
 
         let result = if already_removed {
@@ -93,52 +91,24 @@ impl OrderManager {
         {
             order_ext.removed_by_ws = true;
             if !already_removed {
-                self.order_id_map
-                    .remove(&RefSymbolOrderId::new(symbol, order_ext.order.order_id));
+                self.order_id_map.remove(&RefSymbolOrderId::new(
+                    &order_ext.symbol,
+                    order_ext.order.order_id,
+                ));
             }
 
             if order_ext.removed_by_ws && order_ext.removed_by_rest {
-                self.orders.remove(client_order_id).unwrap();
+                self.orders.remove(&resp.order.client_order_id).unwrap();
             }
         }
 
         Ok(result)
     }
 
-    pub fn update_submit_success(
-        &mut self,
-        symbol: String,
-        order: Order,
-        resp: OrderResponse,
-    ) -> Option<Order> {
-        let order = Order {
-            qty: resp.orig_qty,
-            leaves_qty: resp.orig_qty - resp.cum_qty,
-            price_tick: (resp.price / order.tick_size).round() as i64,
-            tick_size: order.tick_size,
-            side: order.side,
-            time_in_force: resp.time_in_force,
-            exch_timestamp: resp.update_time * 1_000_000,
-            status: Status::New,
-            local_timestamp: 0,
-            req: Status::None,
-            exec_price_tick: 0,
-            exec_qty: resp.executed_qty,
-            order_id: order.order_id,
-            order_type: resp.ty,
-            // Invalid information
-            q: Box::new(()),
-            maker: false,
-        };
-        self.update_from_rest(symbol, resp.client_order_id, order)
-    }
-
     pub fn update_submit_fail(
         &mut self,
-        symbol: String,
-        mut order: Order,
+        client_order_id: &ClientOrderId,
         error: &BinanceFuturesError,
-        client_order_id: ClientOrderId,
     ) -> Option<Order> {
         match error {
             BinanceFuturesError::OrderError { code: -5022, .. } => {
@@ -153,126 +123,118 @@ impl OrderManager {
                 error!("Margin is insufficient.");
             }
             BinanceFuturesError::OrderError { code: -1015, .. } => {
-                // Too many new orders; current limit is 300 orders per TEN_SECONDS."
+                // Too many new orders; current limit is 300 orders per TEN_SECONDS.
                 error!("Too many new orders; current limit is 300 orders per TEN_SECONDS.");
             }
             error => {
                 error!(?error, "submit error");
             }
         }
-
-        order.req = Status::None;
-        order.status = Status::Expired;
-        self.update_from_rest(symbol, client_order_id, order)
-    }
-
-    pub fn update_cancel_success(
-        &mut self,
-        symbol: String,
-        order: Order,
-        resp: OrderResponse,
-    ) -> Option<Order> {
-        let order = Order {
-            qty: resp.orig_qty,
-            leaves_qty: resp.orig_qty - resp.cum_qty,
-            price_tick: (resp.price / order.tick_size).round() as i64,
-            tick_size: order.tick_size,
-            side: resp.side,
-            time_in_force: resp.time_in_force,
-            exch_timestamp: resp.update_time * 1_000_000,
-            status: Status::Canceled,
-            local_timestamp: 0,
-            req: Status::None,
-            exec_price_tick: 0,
-            exec_qty: resp.executed_qty,
-            order_id: order.order_id,
-            order_type: resp.ty,
-            // Invalid information
-            q: Box::new(()),
-            maker: false,
-        };
-        self.update_from_rest(symbol, resp.client_order_id, order)
+        self.update_from_rest_fail(client_order_id, Some(Status::Expired))
     }
 
     pub fn update_cancel_fail(
         &mut self,
-        symbol: String,
-        mut order: Order,
+        client_order_id: &ClientOrderId,
         error: &BinanceFuturesError,
-        client_order_id: ClientOrderId,
     ) -> Option<Order> {
         match error {
             BinanceFuturesError::OrderError { code: -2011, .. } => {
                 // The given order may no longer exist; it could have already been filled or
                 // canceled. But, it cannot determine the order status because it lacks the
                 // necessary information.
-                order.leaves_qty = 0.0;
-                order.status = Status::None;
+                self.update_from_rest_fail(client_order_id, Some(Status::None))
             }
             error => {
                 error!(?error, "cancel error");
+                self.update_from_rest_fail(client_order_id, None)
             }
         }
-        order.req = Status::None;
-        self.update_from_rest(symbol, client_order_id, order)
     }
 
-    fn update_from_rest(
+    pub fn update_from_rest_fail(
         &mut self,
-        symbol: String,
-        client_order_id: ClientOrderId,
-        order: Order,
+        client_order_id: &ClientOrderId,
+        status: Option<Status>,
     ) -> Option<Order> {
-        match self.orders.entry(client_order_id.clone()) {
-            Entry::Occupied(mut entry) => {
-                let wrapper = entry.get_mut();
-                let already_removed = wrapper.removed_by_ws || wrapper.removed_by_rest;
-                if order.exch_timestamp >= wrapper.order.exch_timestamp {
-                    wrapper.order.update(&order);
-                }
+        let order_ext = self.orders.get_mut(client_order_id)?;
+        // .ok_or(BinanceFuturesError::OrderNotFound)?;
 
-                if order.status != Status::New && order.status != Status::PartiallyFilled {
-                    wrapper.removed_by_rest = true;
-                    if !already_removed {
-                        self.order_id_map
-                            .remove(&RefSymbolOrderId::new(&symbol, order.order_id));
-                    }
+        let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
+        if let Some(status) = status {
+            order_ext.order.status = status;
+        }
+        order_ext.order.req = Status::None;
 
-                    if wrapper.removed_by_ws && wrapper.removed_by_rest {
-                        entry.remove_entry();
-                    }
-                }
+        let result = if already_removed {
+            None
+        } else {
+            Some(order_ext.order.clone())
+        };
 
-                if already_removed {
-                    None
-                } else {
-                    Some(order)
-                }
+        if order_ext.order.status != Status::New
+            && order_ext.order.status != Status::PartiallyFilled
+        {
+            order_ext.removed_by_rest = true;
+            if !already_removed {
+                self.order_id_map.remove(&RefSymbolOrderId::new(
+                    &order_ext.symbol,
+                    order_ext.order.order_id,
+                ));
             }
-            Entry::Vacant(entry) => {
-                if !order.active() {
-                    return None;
-                }
 
-                debug!(
-                    %client_order_id,
-                    ?order,
-                    "BinanceFutures OrderManager received an unmanaged order from REST."
-                );
-                let order_ex = entry.insert(OrderExt {
-                    symbol,
-                    order: order.clone(),
-                    removed_by_ws: false,
-                    removed_by_rest: order.status != Status::New
-                        && order.status != Status::PartiallyFilled,
-                });
-                if order_ex.removed_by_ws || order_ex.removed_by_rest {
-                    self.order_id_map
-                        .remove(&RefSymbolOrderId::new(&order_ex.symbol, order.order_id));
-                }
-                Some(order)
+            if order_ext.removed_by_ws && order_ext.removed_by_rest {
+                self.orders.remove(client_order_id).unwrap();
             }
         }
+
+        result
+    }
+
+    pub fn update_from_rest(
+        &mut self,
+        client_order_id: &ClientOrderId,
+        resp: &OrderResponse,
+    ) -> Option<Order> {
+        let order_ext = self.orders.get_mut(client_order_id)?;
+        // .ok_or(BinanceFuturesError::OrderNotFound)?;
+
+        let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
+        if resp.update_time * 1_000_000 >= order_ext.order.exch_timestamp {
+            order_ext.order.qty = resp.orig_qty;
+            order_ext.order.leaves_qty = resp.orig_qty - resp.cum_qty;
+            order_ext.order.side = resp.side;
+            order_ext.order.time_in_force = resp.time_in_force;
+            order_ext.order.exch_timestamp = resp.update_time * 1_000_000;
+            order_ext.order.status = resp.status;
+            order_ext.order.exec_qty = resp.executed_qty;
+            order_ext.order.order_type = resp.ty;
+            order_ext.order.req = Status::None;
+        }
+
+        let result = if already_removed {
+            None
+        } else {
+            Some(order_ext.order.clone())
+        };
+
+        if order_ext.order.status != Status::New
+            && order_ext.order.status != Status::PartiallyFilled
+        {
+            order_ext.removed_by_rest = true;
+            if !already_removed {
+                self.order_id_map.remove(&RefSymbolOrderId::new(
+                    &order_ext.symbol,
+                    order_ext.order.order_id,
+                ));
+            }
+
+            if order_ext.removed_by_ws && order_ext.removed_by_rest {
+                self.orders.remove(client_order_id).unwrap();
+            }
+        }
+
+        result
     }
 
     pub fn prepare_client_order_id(&mut self, symbol: String, order: Order) -> Option<String> {

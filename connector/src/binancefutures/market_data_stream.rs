@@ -100,6 +100,7 @@ impl MarketDataStream {
 
                 match parse_depth(data.bids, data.asks) {
                     Ok((bids, asks)) => {
+                        // todo: It should be handled as a batch feed.
                         for (px, qty) in bids {
                             self.ev_tx
                                 .send(PublishMessage::LiveEvent(LiveEvent::Feed {

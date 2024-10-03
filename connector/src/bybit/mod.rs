@@ -291,6 +291,14 @@ impl Connector for Bybit {
                 })
                 .unwrap();
         } else {
+            // Sends the empty LiveEventsWithId to notify the end of batch.
+            ev_tx
+                .send(PublishMessage::LiveEventsWithId {
+                    id,
+                    events: Vec::with_capacity(0),
+                })
+                .unwrap();
+
             symbols.insert(symbol.clone());
             self.symbol_tx.send(symbol).unwrap();
         }

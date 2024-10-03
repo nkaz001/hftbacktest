@@ -3,7 +3,7 @@ use std::time::Duration;
 pub use bot::{BotError, LiveBot, LiveBotBuilder};
 pub use recorder::LoggingRecorder;
 
-use crate::{prelude::Request, types::LiveEvent};
+use crate::{live::ipc::LiveEventExt, prelude::Request, types::LiveEvent};
 
 mod bot;
 pub mod ipc;
@@ -19,7 +19,7 @@ pub struct Instrument {
 }
 
 pub trait Channel {
-    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError>;
+    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEventExt, BotError>;
 
     fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError>;
 }

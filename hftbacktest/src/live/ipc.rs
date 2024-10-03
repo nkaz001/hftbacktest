@@ -35,6 +35,13 @@ pub struct CustomHeader {
     pub len: usize,
 }
 
+#[derive(Encode, Decode, Debug)]
+pub enum LiveEventExt {
+    Batch(LiveEvent),
+    EndOfBatch,
+    Normal(LiveEvent),
+}
+
 #[derive(Error, Debug)]
 pub enum PubSubError {
     #[error("BuildError - {0}")]
@@ -236,13 +243,15 @@ where
 }
 
 pub struct PubSubList {
-    pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEvent>>>,
+    pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEventExt>>>,
     pubsub_i: usize,
     node: Node<ipc::Service>,
 }
 
 impl PubSubList {
-    pub fn new(pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEvent>>>) -> Result<Self, PubSubError> {
+    pub fn new(
+        pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEventExt>>>,
+    ) -> Result<Self, PubSubError> {
         assert!(!pubsub.is_empty());
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
@@ -256,7 +265,7 @@ impl PubSubList {
 }
 
 impl Channel for PubSubList {
-    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError> {
+    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEventExt, BotError> {
         let instant = Instant::now();
         loop {
             let elapsed = instant.elapsed();

@@ -12,7 +12,7 @@ use tracing::{debug, error, info};
 use crate::{
     depth::{L2MarketDepth, MarketDepth},
     live::{
-        ipc::{IceoryxPubSubBot, PubSubList},
+        ipc::{IceoryxPubSubBot, LiveEventExt, PubSubList},
         Channel,
         Instrument,
     },
@@ -155,7 +155,7 @@ impl<MD> LiveBotBuilder<MD> {
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
     pub fn build(self) -> Result<LiveBot<MD>, BuildError> {
         let mut dup = HashSet::new();
-        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEvent>>> =
+        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEventExt>>> =
             HashMap::new();
         let mut pubsub = Vec::new();
         for (name, asset_info) in self.instruments.iter() {
@@ -415,11 +415,28 @@ where
         let instant = Instant::now();
         let duration = Duration::from_nanos(duration as u64);
         let mut remaining_duration = duration;
+        let mut in_batch = false;
+        let mut receive_wait_resp = false;
 
         loop {
             match self.pubsub.recv_timeout(self.id, remaining_duration) {
-                Ok(ev) => {
+                Ok(LiveEventExt::Normal(ev)) => {
                     if self.process_event::<WAIT_NEXT_FEED>(ev, wait_order_response)? {
+                        receive_wait_resp = true;
+                        if !in_batch {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(LiveEventExt::Batch(ev)) => {
+                    in_batch = true;
+                    if self.process_event::<WAIT_NEXT_FEED>(ev, wait_order_response)? {
+                        receive_wait_resp = true;
+                    }
+                }
+                Ok(LiveEventExt::EndOfBatch) => {
+                    in_batch = false;
+                    if receive_wait_resp {
                         return Ok(true);
                     }
                 }
@@ -433,11 +450,13 @@ where
                     return Err(error);
                 }
             }
-            let elapsed = instant.elapsed();
-            if elapsed > duration {
-                return Ok(true);
+            if !in_batch {
+                let elapsed = instant.elapsed();
+                if elapsed > duration {
+                    return Ok(true);
+                }
+                remaining_duration = duration - elapsed;
             }
-            remaining_duration = duration - elapsed;
         }
     }
 
