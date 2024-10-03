@@ -28,6 +28,8 @@ use crate::{
 
 pub const TO_ALL: u64 = 0;
 
+const MAX_PAYLOAD_SIZE: usize = 512;
+
 #[derive(Default, Debug)]
 #[repr(C)]
 pub struct CustomHeader {
@@ -147,7 +149,7 @@ impl IceoryxBuilder {
 
         let publisher = pub_factory
             .publisher_builder()
-            .max_slice_len(128)
+            .max_slice_len(MAX_PAYLOAD_SIZE)
             .create()
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
@@ -171,7 +173,7 @@ where
     T: Encode,
 {
     pub fn send(&self, id: u64, data: &T) -> Result<(), PubSubError> {
-        let sample = self.publisher.loan_slice_uninit(128)?;
+        let sample = self.publisher.loan_slice_uninit(MAX_PAYLOAD_SIZE)?;
         let mut sample = unsafe { sample.assume_init() };
 
         let payload = sample.payload_mut();
