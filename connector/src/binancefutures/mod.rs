@@ -17,7 +17,7 @@ use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::{broadcast, broadcast::Sender, mpsc::UnboundedSender};
 use tokio_tungstenite::tungstenite;
-use tracing::{debug, error, warn};
+use tracing::{error, warn};
 
 use crate::{
     binancefutures::{
@@ -219,14 +219,9 @@ impl Connector for BinanceFutures {
                         .collect(),
                 })
                 .unwrap();
+            ev_tx.send(PublishMessage::EndOfBatch(id)).unwrap();
         } else {
-            // Sends the empty LiveEventsWithId to notify the end of batch.
-            ev_tx
-                .send(PublishMessage::LiveEventsWithId {
-                    id,
-                    events: Vec::with_capacity(0),
-                })
-                .unwrap();
+            ev_tx.send(PublishMessage::EndOfBatch(id)).unwrap();
 
             symbols.insert(symbol.clone());
             self.symbol_tx.send(symbol).unwrap();

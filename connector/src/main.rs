@@ -143,12 +143,20 @@ async fn run_publish_task(
                     bot_tx.send(TO_ALL, &LiveEventExt::Normal(ev))?;
                 }
             }
+            PublishMessage::BatchLiveEvent(ev) => {
+                // The live event will only be published if the result is true.
+                if handle_ev(&ev, &mut depth, &mut position) {
+                    bot_tx.send(TO_ALL, &LiveEventExt::Batch(ev))?;
+                }
+            }
             PublishMessage::LiveEventsWithId { id, events } => {
                 // This occurs when an order or position snapshot needs to be published by adding
                 // the instrument.
                 for ev in events {
                     bot_tx.send(id, &LiveEventExt::Batch(ev))?;
                 }
+            }
+            PublishMessage::EndOfBatch(id) => {
                 bot_tx.send(id, &LiveEventExt::EndOfBatch)?;
             }
         }

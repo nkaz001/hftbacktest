@@ -3,7 +3,7 @@ use std::time::Duration;
 pub use bot::{BotError, LiveBot, LiveBotBuilder};
 pub use recorder::LoggingRecorder;
 
-use crate::{live::ipc::LiveEventExt, prelude::Request, types::LiveEvent};
+use crate::{live::ipc::LiveEventExt, prelude::Request};
 
 mod bot;
 pub mod ipc;

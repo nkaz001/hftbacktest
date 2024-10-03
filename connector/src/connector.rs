@@ -6,6 +6,8 @@ use tokio::sync::mpsc::UnboundedSender;
 /// A message will be received by the publisher thread and then published to the bots.
 pub enum PublishMessage {
     LiveEvent(LiveEvent),
+    BatchLiveEvent(LiveEvent),
+    EndOfBatch(u64),
     LiveEventsWithId {
         id: u64,
         events: Vec<LiveEvent>,
