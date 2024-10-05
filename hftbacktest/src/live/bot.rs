@@ -45,7 +45,7 @@ pub enum BotError {
     #[error("OrderIdExist")]
     OrderIdExist,
     #[error("AssetNotFound")]
-    AssetNotFound,
+    InstrumentNotFound,
     #[error("OrderNotFound")]
     OrderNotFound,
     #[error("InvalidOrderStatus")]
@@ -61,8 +61,6 @@ pub enum BotError {
 pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
-pub type DepthBuilder<MD> = Box<dyn FnMut(&Instrument) -> MD>;
-
 fn generate_random_id() -> u64 {
     // Initialize the random number generator
     let mut rng = rand::thread_rng();
@@ -73,15 +71,14 @@ fn generate_random_id() -> u64 {
 
 /// Live [`LiveBot`] builder.
 pub struct LiveBotBuilder<MD> {
-    instruments: Vec<(String, Instrument)>,
+    id: u64,
+    instruments: Vec<Instrument<MD>>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
-    depth_builder: Option<DepthBuilder<MD>>,
-    last_trades_capacity: usize,
 }
 
 impl<MD> LiveBotBuilder<MD> {
-    /// Adds an asset.
+    /// Adds an instrument.
     ///
     /// * `name` - Name of the [`Connector`], which is registered by
     ///            [`register()`](`LiveBotBuilder::register()`), through which this asset will be
@@ -90,21 +87,13 @@ impl<MD> LiveBotBuilder<MD> {
     ///              is used.
     /// * `tick_size` - The minimum price fluctuation.
     /// * `lot_size` -  The minimum trade size.
-    pub fn add(self, name: &str, symbol: &str, tick_size: f64, lot_size: f64) -> Self {
+    /// * `depth` -  The market depth.
+    pub fn add(self, instrument: Instrument<MD>) -> Self {
         Self {
             instruments: {
-                let asset_no = self.instruments.len();
-                let mut assets = self.instruments;
-                assets.push((
-                    name.to_string(),
-                    Instrument {
-                        asset_no,
-                        symbol: symbol.to_string(),
-                        tick_size,
-                        lot_size,
-                    },
-                ));
-                assets
+                let mut instruments = self.instruments;
+                instruments.push(instrument);
+                instruments
             },
             ..self
         }
@@ -132,24 +121,9 @@ impl<MD> LiveBotBuilder<MD> {
         }
     }
 
-    /// Sets [`MarketDepth`] build function.
-    pub fn depth<Builder>(self, builder: Builder) -> Self
-    where
-        Builder: Fn(&Instrument) -> MD + 'static,
-    {
-        Self {
-            depth_builder: Some(Box::new(builder)),
-            ..self
-        }
-    }
-
-    /// Sets the length of market trades to be stored in the local processor. The default value is
-    /// `0`.
-    pub fn last_trades_capacity(self, last_trades_capacity: usize) -> Self {
-        Self {
-            last_trades_capacity,
-            ..self
-        }
+    /// Sets the bot ID. It must be unique among all bots connected to the same `Connector`.
+    pub fn id(self, id: u64) -> Self {
+        Self { id, ..self }
     }
 
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
@@ -158,63 +132,47 @@ impl<MD> LiveBotBuilder<MD> {
         let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEventExt>>> =
             HashMap::new();
         let mut pubsub = Vec::new();
-        for (name, asset_info) in self.instruments.iter() {
-            if !dup.insert(format!("{}/{}", name, asset_info.symbol)) {
+        for instrument in self.instruments.iter() {
+            if !dup.insert(format!(
+                "{}/{}",
+                instrument.connector_name, instrument.symbol
+            )) {
                 Err(BuildError::Duplicate(
-                    name.clone(),
-                    asset_info.symbol.clone(),
+                    instrument.connector_name.clone(),
+                    instrument.symbol.clone(),
                 ))?;
             }
 
-            match tmp_pubsub.entry(name.clone()) {
+            match tmp_pubsub.entry(instrument.connector_name.clone()) {
                 Entry::Occupied(entry) => {
                     let ps = entry.get().clone();
                     pubsub.push(ps);
                 }
                 Entry::Vacant(entry) => {
-                    let ps = Rc::new(IceoryxPubSubBot::new(name)?);
+                    let ps = Rc::new(IceoryxPubSubBot::new(&instrument.connector_name)?);
                     entry.insert(ps.clone());
                     pubsub.push(ps);
                 }
             }
         }
 
-        let mut depth_builder = self
-            .depth_builder
-            .ok_or(BuildError::BuilderIncomplete("depth"))?;
-        let depth = self
-            .instruments
-            .iter()
-            .map(|(_, asset_info)| depth_builder(asset_info))
-            .collect();
-
-        let orders = self.instruments.iter().map(|_| HashMap::new()).collect();
-        let state = self
-            .instruments
-            .iter()
-            .map(|_| Default::default())
-            .collect();
-        let trade = self
-            .instruments
-            .iter()
-            .map(|_| Vec::with_capacity(self.last_trades_capacity))
-            .collect();
-        let last_feed_latency = self.instruments.iter().map(|_| None).collect();
-        let last_order_latency = self.instruments.iter().map(|_| None).collect();
-
         let asset_name_to_no: HashMap<_, _> = self
             .instruments
             .iter()
             .enumerate()
-            .map(|(asset_no, (_, asset))| (asset.symbol.clone(), asset_no))
+            .map(|(asset_no, instrument)| (instrument.symbol.clone(), asset_no))
             .collect();
 
-        let id = generate_random_id();
+        let id = self.id;
 
         // Requests to prepare a given asset for trading.
         // The Connector will send the current orders on this asset.
-        for (name, instrument) in &self.instruments {
-            info!(%name, ?instrument, "Prepares the instrument.");
+        for instrument in &self.instruments {
+            info!(
+                connector_name = instrument.connector_name,
+                symbol = instrument.symbol,
+                "Prepares the instrument."
+            );
             let asset_no = asset_name_to_no.get(&instrument.symbol).unwrap();
             let ps = pubsub.get(*asset_no).unwrap();
             ps.send(
@@ -233,17 +191,10 @@ impl<MD> LiveBotBuilder<MD> {
         Ok(LiveBot {
             id,
             pubsub,
-            depth,
-            orders,
-            state,
-            assets: self.instruments,
-            asset_name_to_no,
-            trade,
-            last_trades_capacity: self.last_trades_capacity,
+            instruments: self.instruments,
+            symbol_to_inst_no: asset_name_to_no,
             error_handler: self.error_handler,
             order_hook: self.order_hook,
-            last_feed_latency,
-            last_order_latency,
         })
     }
 }
@@ -253,28 +204,30 @@ impl<MD> LiveBotBuilder<MD> {
 /// Provides the same interface as the backtesters in [`backtest`](`crate::backtest`).
 ///
 /// ```
-/// use hftbacktest::{live::LiveBot, prelude::HashMapMarketDepth};
+/// use hftbacktest::{live::{Instrument, LiveBot}, prelude::HashMapMarketDepth};
+///
+/// let tick_size = 0.1;
+/// let lot_size = 1.0;
 ///
 /// let mut hbt = LiveBot::builder()
-///     .add("connector_name", "symbol", tick_size, lot_size)
-///     .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
+///     .add(Instrument::new(
+///         "connector_name",
+///         "symbol",
+///         tick_size,
+///         lot_size,
+///         HashMapMarketDepth::new(tick_size, lot_size),
+///         0
+///     ))
 ///     .build()
 ///     .unwrap();
 /// ```
 pub struct LiveBot<MD> {
     id: u64,
     pubsub: PubSubList,
-    depth: Vec<MD>,
-    orders: Vec<HashMap<OrderId, Order>>,
-    trade: Vec<Vec<Event>>,
-    last_trades_capacity: usize,
-    assets: Vec<(String, Instrument)>,
-    asset_name_to_no: HashMap<String, usize>,
+    instruments: Vec<Instrument<MD>>,
+    symbol_to_inst_no: HashMap<String, usize>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
-    last_feed_latency: Vec<Option<(i64, i64)>>,
-    last_order_latency: Vec<Option<(i64, i64, i64)>>,
-    state: Vec<StateValues>,
 }
 
 impl<MD> LiveBot<MD>
@@ -284,11 +237,10 @@ where
     /// Builder to construct [`LiveBot`] instances.
     pub fn builder() -> LiveBotBuilder<MD> {
         LiveBotBuilder {
+            id: generate_random_id(),
             instruments: Vec::new(),
             error_handler: None,
             order_hook: None,
-            depth_builder: None,
-            last_trades_capacity: 0,
         }
     }
 
@@ -298,52 +250,29 @@ where
         wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BotError> {
         match ev {
-            // LiveEvent::FeedBatch { symbol, events } => {
-            //     let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
-            //         return Ok(false);
-            //     };
-            //     for event in events {
-            //         *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
-            //             Some((event.exch_ts, event.local_ts));
-            //         if event.is(LOCAL_BID_DEPTH_EVENT) {
-            //             let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-            //             depth.update_bid_depth(event.px, event.qty, event.exch_ts);
-            //         } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
-            //             let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-            //             depth.update_ask_depth(event.px, event.qty, event.exch_ts);
-            //         } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
-            //             && self.last_trades_capacity > 0
-            //         {
-            //             let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-            //             trade.push(event);
-            //         }
-            //     }
-            //     if WAIT_NEXT_FEED {
-            //         return Ok(true);
-            //     }
-            // }
             LiveEvent::Feed { symbol, event } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+                let Some(&asset_no) = self.symbol_to_inst_no.get(&symbol) else {
                     return Ok(false);
                 };
 
-                *unsafe { self.last_feed_latency.get_unchecked_mut(asset_no) } =
-                    Some((event.exch_ts, event.local_ts));
+                let instrument = unsafe { self.instruments.get_unchecked_mut(asset_no) };
+                instrument.last_feed_latency = Some((event.exch_ts, event.local_ts));
                 if event.is(LOCAL_BID_DEPTH_EVENT) {
-                    let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                    depth.update_bid_depth(event.px, event.qty, event.exch_ts);
+                    instrument
+                        .depth
+                        .update_bid_depth(event.px, event.qty, event.exch_ts);
                 } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
-                    let depth = unsafe { self.depth.get_unchecked_mut(asset_no) };
-                    depth.update_ask_depth(event.px, event.qty, event.exch_ts);
-                } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
-                    && self.last_trades_capacity > 0
-                {
-                    let trade = unsafe { self.trade.get_unchecked_mut(asset_no) };
-                    trade.push(event);
+                    instrument
+                        .depth
+                        .update_ask_depth(event.px, event.qty, event.exch_ts);
+                } else if event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT) {
+                    if instrument.last_trades.capacity() > 0 {
+                        instrument.last_trades.push(event);
+                    }
                 }
             }
             LiveEvent::Order { symbol, order } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+                let Some(&asset_no) = self.symbol_to_inst_no.get(&symbol) else {
                     return Ok(false);
                 };
 
@@ -356,17 +285,13 @@ where
                     } if wait_order_id == order.order_id && wait_order_asset_no == asset_no => true,
                     _ => false,
                 };
-                *unsafe { self.last_order_latency.get_unchecked_mut(asset_no) } = Some((
+                let instrument = unsafe { self.instruments.get_unchecked_mut(asset_no) };
+                instrument.last_order_latency = Some((
                     order.local_timestamp,
                     order.exch_timestamp,
                     Utc::now().timestamp_nanos_opt().unwrap(),
                 ));
-                match self
-                    .orders
-                    .get_mut(asset_no)
-                    .ok_or(BotError::AssetNotFound)?
-                    .entry(order.order_id)
-                {
+                match instrument.orders.entry(order.order_id) {
                     Entry::Occupied(mut entry) => {
                         let ex_order = entry.get_mut();
                         if let Some(hook) = self.order_hook.as_mut() {
@@ -392,11 +317,13 @@ where
                 }
             }
             LiveEvent::Position { symbol, qty } => {
-                let Some(&asset_no) = self.asset_name_to_no.get(&symbol) else {
+                let Some(&asset_no) = self.symbol_to_inst_no.get(&symbol) else {
                     return Ok(false);
                 };
 
-                unsafe { self.state.get_unchecked_mut(asset_no) }.position = qty;
+                unsafe { self.instruments.get_unchecked_mut(asset_no) }
+                    .state
+                    .position = qty;
             }
             LiveEvent::Error(error) => {
                 if let Some(handler) = self.error_handler.as_mut() {
@@ -472,16 +399,15 @@ where
         wait: bool,
         side: Side,
     ) -> Result<bool, BotError> {
-        let orders = self
-            .orders
+        let instrument = self
+            .instruments
             .get_mut(asset_no)
-            .ok_or(BotError::AssetNotFound)?;
-        if orders.contains_key(&order_id) {
+            .ok_or(BotError::InstrumentNotFound)?;
+        if instrument.orders.contains_key(&order_id) {
             return Err(BotError::OrderIdExist);
         }
-        let (_name, asset) = self.assets.get(asset_no).unwrap();
-        let symbol = asset.symbol.clone();
-        let tick_size = asset.tick_size;
+        let symbol = instrument.symbol.clone();
+        let tick_size = instrument.tick_size;
         let order = Order {
             order_id,
             price_tick: (price / tick_size).round() as i64,
@@ -502,7 +428,7 @@ where
             maker: false,
         };
         let order_id = order.order_id;
-        orders.insert(order_id, order.clone());
+        instrument.orders.insert(order_id, order.clone());
 
         self.pubsub
             .send(asset_no, Request::Order { symbol, order })?;
@@ -528,7 +454,7 @@ where
 
     #[inline]
     fn num_assets(&self) -> usize {
-        self.state.len()
+        self.instruments.len()
     }
 
     #[inline]
@@ -540,27 +466,39 @@ where
     fn state_values(&self, asset_no: usize) -> &StateValues {
         // todo: implement the missing fields. Trade values need to be changed to a rolling manner,
         //       unlike the current Python implementation, to support live trading.
-        self.state.get(asset_no).unwrap()
+        &self.instruments.get(asset_no).unwrap().state
     }
 
     #[inline]
     fn depth(&self, asset_no: usize) -> &MD {
-        self.depth.get(asset_no).unwrap()
+        &self.instruments.get(asset_no).unwrap().depth
     }
 
     #[inline]
     fn last_trades(&self, asset_no: usize) -> &[Event] {
-        self.trade.get(asset_no).unwrap().as_slice()
+        self.instruments
+            .get(asset_no)
+            .unwrap()
+            .last_trades
+            .as_slice()
     }
 
     fn clear_last_trades(&mut self, asset_no: Option<usize>) {
         match asset_no {
             Some(asset_no) => {
-                self.trade.get_mut(asset_no).unwrap().clear();
+                self.instruments
+                    .get_mut(asset_no)
+                    .unwrap()
+                    .last_trades
+                    .clear();
             }
             None => {
-                for asset_no in 0..self.trade.len() {
-                    self.trade.get_mut(asset_no).unwrap().clear();
+                for asset_no in 0..self.instruments.len() {
+                    self.instruments
+                        .get_mut(asset_no)
+                        .unwrap()
+                        .last_trades
+                        .clear();
                 }
             }
         }
@@ -568,7 +506,7 @@ where
 
     #[inline]
     fn orders(&self, asset_no: usize) -> &HashMap<OrderId, Order> {
-        self.orders.get(asset_no).unwrap()
+        &self.instruments.get(asset_no).unwrap().orders
     }
 
     #[inline]
@@ -642,13 +580,15 @@ where
         order_id: OrderId,
         wait: bool,
     ) -> Result<bool, Self::Error> {
-        let (_name, asset) = self.assets.get(asset_no).ok_or(BotError::AssetNotFound)?;
-        let symbol = asset.symbol.clone();
-        let orders = self
-            .orders
+        let instrument = self
+            .instruments
             .get_mut(asset_no)
-            .ok_or(BotError::AssetNotFound)?;
-        let order = orders.get_mut(&order_id).ok_or(BotError::OrderNotFound)?;
+            .ok_or(BotError::InstrumentNotFound)?;
+        let symbol = instrument.symbol.clone();
+        let order = instrument
+            .orders
+            .get_mut(&order_id)
+            .ok_or(BotError::OrderNotFound)?;
         if !order.cancellable() {
             return Err(BotError::InvalidOrderStatus);
         }
@@ -673,14 +613,14 @@ where
     #[inline]
     fn clear_inactive_orders(&mut self, asset_no: Option<usize>) {
         match asset_no {
-            Some(an) => {
-                if let Some(orders) = self.orders.get_mut(an) {
-                    orders.retain(|_, order| order.active());
+            Some(inst_no) => {
+                if let Some(instrument) = self.instruments.get_mut(inst_no) {
+                    instrument.orders.retain(|_, order| order.active());
                 }
             }
             None => {
-                for orders in self.orders.iter_mut() {
-                    orders.retain(|_, order| order.active());
+                for instrument in self.instruments.iter_mut() {
+                    instrument.orders.retain(|_, order| order.active());
                 }
             }
         }
@@ -724,10 +664,10 @@ where
     }
 
     fn feed_latency(&self, asset_no: usize) -> Option<(i64, i64)> {
-        *self.last_feed_latency.get(asset_no).unwrap()
+        self.instruments.get(asset_no).unwrap().last_feed_latency
     }
 
     fn order_latency(&self, asset_no: usize) -> Option<(i64, i64, i64)> {
-        *self.last_order_latency.get(asset_no).unwrap()
+        self.instruments.get(asset_no).unwrap().last_order_latency
     }
 }

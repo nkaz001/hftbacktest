@@ -302,7 +302,10 @@ impl Channel for PubSubList {
     }
 
     fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError> {
-        let publisher = self.pubsub.get(asset_no).ok_or(BotError::AssetNotFound)?;
+        let publisher = self
+            .pubsub
+            .get(asset_no)
+            .ok_or(BotError::InstrumentNotFound)?;
         publisher
             .send(TO_ALL, &request)
             .map_err(|err| BotError::Custom(err.to_string()))?;
