@@ -106,7 +106,6 @@ impl IceoryxBuilder {
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
         Ok(IceoryxReceiver {
-            _sub_factory: sub_factory,
             subscriber,
             _t_marker: Default::default(),
         })
@@ -147,7 +146,7 @@ impl IceoryxBuilder {
             .map_err(|error| PubSubError::BuildError(error.to_string()))?;
 
         Ok(IceoryxSender {
-            _pub_factory: pub_factory,
+            //_pub_factory: pub_factory,
             publisher,
             _t_marker: Default::default(),
         })
@@ -155,8 +154,6 @@ impl IceoryxBuilder {
 }
 
 pub struct IceoryxSender<T> {
-    // Unfortunately, the publisher's lifetime seems to be tied to the factory.
-    _pub_factory: PortFactory<ipc::Service, [u8], CustomHeader>,
     publisher: Publisher<ipc::Service, [u8], CustomHeader>,
     _t_marker: PhantomData<T>,
 }
@@ -182,8 +179,6 @@ where
 }
 
 pub struct IceoryxReceiver<T> {
-    // Unfortunately, the subscriber's lifetime seems to be tied to the factory.
-    _sub_factory: PortFactory<ipc::Service, [u8], CustomHeader>,
     subscriber: Subscriber<ipc::Service, [u8], CustomHeader>,
     _t_marker: PhantomData<T>,
 }
