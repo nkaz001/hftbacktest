@@ -71,6 +71,12 @@ pub struct LiveBotBuilder<MD> {
     order_hook: Option<OrderRecvHook>,
 }
 
+impl<MD> Default for LiveBotBuilder<MD> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<MD> LiveBotBuilder<MD> {
     /// Constructs a builder to construct [`LiveBot`] instances.
     pub fn new() -> Self {
