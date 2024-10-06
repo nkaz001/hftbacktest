@@ -23,7 +23,7 @@ use crate::{
         ordermanager::{OrderExt, SharedOrderManager},
         BybitError,
     },
-    connector::PublishMessage,
+    connector::PublishEvent,
     utils::{generate_rand_string, sign_hmac_sha256},
 };
 
@@ -36,7 +36,7 @@ pub struct OrderOp {
 pub struct TradeStream {
     api_key: String,
     secret: String,
-    ev_tx: UnboundedSender<PublishMessage>,
+    ev_tx: UnboundedSender<PublishEvent>,
     order_manager: SharedOrderManager,
     order_rx: Receiver<OrderOp>,
 }
@@ -45,7 +45,7 @@ impl TradeStream {
     pub fn new(
         api_key: String,
         secret: String,
-        ev_tx: UnboundedSender<PublishMessage>,
+        ev_tx: UnboundedSender<PublishEvent>,
         order_manager: SharedOrderManager,
         order_rx: Receiver<OrderOp>,
     ) -> Self {
@@ -166,9 +166,10 @@ impl TradeStream {
                     msg: stream.ret_msg.clone(),
                 };
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Error(
-                        LiveError::with(ErrorKind::CriticalConnectionError, error.to_value()),
-                    )))
+                    .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                        ErrorKind::CriticalConnectionError,
+                        error.to_value(),
+                    ))))
                     .unwrap();
                 return Err(error);
             }
@@ -186,22 +187,17 @@ impl TradeStream {
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;
                 let OrderExt { symbol, order } = order_man_.update_submit_fail(order_link_id)?;
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                        symbol,
-                        order,
-                    }))
+                    .send(PublishEvent::LiveEvent(LiveEvent::Order { symbol, order }))
                     .unwrap();
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Error(
-                        LiveError::with(
-                            ErrorKind::OrderError,
-                            BybitError::OrderError {
-                                code: stream.ret_code,
-                                msg: stream.ret_msg.clone(),
-                            }
-                            .to_value(),
-                        ),
-                    )))
+                    .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                        ErrorKind::OrderError,
+                        BybitError::OrderError {
+                            code: stream.ret_code,
+                            msg: stream.ret_msg.clone(),
+                        }
+                        .to_value(),
+                    ))))
                     .unwrap();
             }
         } else if stream.op == "order.cancel" {
@@ -218,22 +214,17 @@ impl TradeStream {
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;
                 let OrderExt { symbol, order } = order_man_.update_cancel_fail(order_link_id)?;
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                        symbol,
-                        order,
-                    }))
+                    .send(PublishEvent::LiveEvent(LiveEvent::Order { symbol, order }))
                     .unwrap();
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Error(
-                        LiveError::with(
-                            ErrorKind::OrderError,
-                            BybitError::OrderError {
-                                code: stream.ret_code,
-                                msg: stream.ret_msg.clone(),
-                            }
-                            .to_value(),
-                        ),
-                    )))
+                    .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                        ErrorKind::OrderError,
+                        BybitError::OrderError {
+                            code: stream.ret_code,
+                            msg: stream.ret_msg.clone(),
+                        }
+                        .to_value(),
+                    ))))
                     .unwrap();
             }
         } else {

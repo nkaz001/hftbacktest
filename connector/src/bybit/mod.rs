@@ -17,7 +17,7 @@ use crate::{
         rest::BybitClient,
         trade_stream::OrderOp,
     },
-    connector::{Connector, ConnectorBuilder, PublishMessage},
+    connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
     utils::{ExponentialBackoff, Retry},
 };
 
@@ -125,7 +125,7 @@ pub struct Bybit {
 }
 
 impl Bybit {
-    fn connect_public_stream(&self, ev_tx: UnboundedSender<PublishMessage>) {
+    fn connect_public_stream(&self, ev_tx: UnboundedSender<PublishEvent>) {
         // Connects to the public stream for the market data.
         let public_url = self.config.public_url.clone();
         let symbol_tx = self.symbol_tx.clone();
@@ -135,9 +135,10 @@ impl Bybit {
                 .error_handler(|error: BybitError| {
                     error!(?error, "An error occurred in the public stream connection.");
                     ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
-                            LiveError::with(ErrorKind::ConnectionInterrupted, error.to_value()),
-                        )))
+                        .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                            ErrorKind::ConnectionInterrupted,
+                            error.to_value(),
+                        ))))
                         .unwrap();
                     Ok(())
                 })
@@ -146,13 +147,14 @@ impl Bybit {
                     if let Err(error) = stream.connect(&public_url).await {
                         error!(?error, "A connection error occurred.");
                         ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Error(
-                                LiveError::with(ErrorKind::ConnectionInterrupted, error.to_value()),
-                            )))
+                            .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                                ErrorKind::ConnectionInterrupted,
+                                error.to_value(),
+                            ))))
                             .unwrap();
                     } else {
                         ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Error(LiveError::new(
+                            .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::new(
                                 ErrorKind::ConnectionInterrupted,
                             ))))
                             .unwrap();
@@ -163,7 +165,7 @@ impl Bybit {
         });
     }
 
-    fn connect_private_stream(&self, ev_tx: UnboundedSender<PublishMessage>) {
+    fn connect_private_stream(&self, ev_tx: UnboundedSender<PublishEvent>) {
         // Connects to the private stream for the position and order data.
         let private_url = self.config.private_url.clone();
         let api_key = self.config.api_key.clone();
@@ -181,9 +183,10 @@ impl Bybit {
                         "An error occurred in the private stream connection."
                     );
                     ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
-                            LiveError::with(ErrorKind::ConnectionInterrupted, error.to_value()),
-                        )))
+                        .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                            ErrorKind::ConnectionInterrupted,
+                            error.to_value(),
+                        ))))
                         .unwrap();
                     Ok(())
                 })
@@ -211,7 +214,7 @@ impl Bybit {
         });
     }
 
-    fn connect_trade_stream(&self, ev_tx: UnboundedSender<PublishMessage>) {
+    fn connect_trade_stream(&self, ev_tx: UnboundedSender<PublishEvent>) {
         let trade_url = self.config.trade_url.clone();
         let api_key = self.config.api_key.clone();
         let secret = self.config.secret.clone();
@@ -223,9 +226,10 @@ impl Bybit {
                 .error_handler(|error: BybitError| {
                     error!(?error, "An error occurred in the trade stream connection.");
                     ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::Error(
-                            LiveError::with(ErrorKind::ConnectionInterrupted, error.to_value()),
-                        )))
+                        .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                            ErrorKind::ConnectionInterrupted,
+                            error.to_value(),
+                        ))))
                         .unwrap();
                     Ok(())
                 })
@@ -272,40 +276,25 @@ impl ConnectorBuilder for Bybit {
 }
 
 impl Connector for Bybit {
-    fn add(&mut self, symbol: String, id: u64, ev_tx: UnboundedSender<PublishMessage>) {
+    fn add(&mut self, symbol: String) {
         let mut symbols = self.symbols.lock().unwrap();
-        if symbols.contains(&symbol) {
-            let order_manager = self.order_manager.lock().unwrap();
-            let orders = order_manager.get_orders(&symbol);
-
-            ev_tx
-                .send(PublishMessage::LiveEventsWithId {
-                    id,
-                    events: orders
-                        .into_iter()
-                        .map(|order| LiveEvent::Order {
-                            symbol: symbol.clone(),
-                            order,
-                        })
-                        .collect(),
-                })
-                .unwrap();
-            ev_tx.send(PublishMessage::EndOfBatch(id)).unwrap();
-        } else {
-            ev_tx.send(PublishMessage::EndOfBatch(id)).unwrap();
-
+        if !symbols.contains(&symbol) {
             symbols.insert(symbol.clone());
             self.symbol_tx.send(symbol).unwrap();
         }
     }
 
-    fn run(&mut self, ev_tx: UnboundedSender<PublishMessage>) {
+    fn order_manager(&self) -> Arc<Mutex<dyn GetOrders + Send + 'static>> {
+        self.order_manager.clone()
+    }
+
+    fn run(&mut self, ev_tx: UnboundedSender<PublishEvent>) {
         self.connect_public_stream(ev_tx.clone());
         self.connect_private_stream(ev_tx.clone());
         self.connect_trade_stream(ev_tx);
     }
 
-    fn submit(&self, asset: String, order: Order, _ev_tx: UnboundedSender<PublishMessage>) {
+    fn submit(&self, asset: String, order: Order, _ev_tx: UnboundedSender<PublishEvent>) {
         let bybit_order = self
             .order_manager
             .lock()
@@ -320,7 +309,7 @@ impl Connector for Bybit {
             .unwrap();
     }
 
-    fn cancel(&self, asset: String, order: Order, _ev_tx: UnboundedSender<PublishMessage>) {
+    fn cancel(&self, asset: String, order: Order, _ev_tx: UnboundedSender<PublishEvent>) {
         let bybit_order = self
             .order_manager
             .lock()

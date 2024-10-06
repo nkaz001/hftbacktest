@@ -12,7 +12,7 @@ use tracing::{debug, error, info};
 use crate::{
     depth::{L2MarketDepth, MarketDepth},
     live::{
-        ipc::{IceoryxPubSubBot, LiveEventExt, PubSubList},
+        ipc::{IceoryxPubSubBot, PubSubList},
         Channel,
         Instrument,
     },
@@ -20,7 +20,6 @@ use crate::{
         Bot,
         BuildError,
         Event,
-        LiveError as ErrorEvent,
         LiveError,
         LiveEvent,
         OrdType,
@@ -58,7 +57,7 @@ pub enum BotError {
     Custom(String),
 }
 
-pub type ErrorHandler = Box<dyn Fn(ErrorEvent) -> Result<(), BotError>>;
+pub type ErrorHandler = Box<dyn Fn(LiveError) -> Result<(), BotError>>;
 pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
 fn generate_random_id() -> u64 {
@@ -129,7 +128,7 @@ impl<MD> LiveBotBuilder<MD> {
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
     pub fn build(self) -> Result<LiveBot<MD>, BuildError> {
         let mut dup = HashSet::new();
-        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEventExt>>> =
+        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEvent>>> =
             HashMap::new();
         let mut pubsub = Vec::new();
         for instrument in self.instruments.iter() {
@@ -330,6 +329,9 @@ where
                     handler(error)?;
                 }
             }
+            LiveEvent::BatchStart | LiveEvent::BatchEnd => {
+                unreachable!();
+            }
         }
         Ok(false)
     }
@@ -342,29 +344,26 @@ where
         let instant = Instant::now();
         let duration = Duration::from_nanos(duration as u64);
         let mut remaining_duration = duration;
-        let mut in_batch = false;
-        let mut receive_wait_resp = false;
+        let mut batch_mode = false;
+        let mut wait_resp_received = false;
 
         loop {
             match self.pubsub.recv_timeout(self.id, remaining_duration) {
-                Ok(LiveEventExt::Normal(ev)) => {
+                Ok(LiveEvent::BatchStart) => {
+                    batch_mode = true;
+                }
+                Ok(LiveEvent::BatchEnd) => {
+                    batch_mode = false;
+                    if wait_resp_received {
+                        return Ok(true);
+                    }
+                }
+                Ok(ev) => {
                     if self.process_event::<WAIT_NEXT_FEED>(ev, wait_order_response)? {
-                        receive_wait_resp = true;
-                        if !in_batch {
+                        wait_resp_received = true;
+                        if !batch_mode {
                             return Ok(true);
                         }
-                    }
-                }
-                Ok(LiveEventExt::Batch(ev)) => {
-                    in_batch = true;
-                    if self.process_event::<WAIT_NEXT_FEED>(ev, wait_order_response)? {
-                        receive_wait_resp = true;
-                    }
-                }
-                Ok(LiveEventExt::EndOfBatch) => {
-                    in_batch = false;
-                    if receive_wait_resp {
-                        return Ok(true);
                     }
                 }
                 Err(BotError::Timeout) => {
@@ -377,7 +376,7 @@ where
                     return Err(error);
                 }
             }
-            if !in_batch {
+            if !batch_mode {
                 let elapsed = instant.elapsed();
                 if elapsed > duration {
                     return Ok(true);

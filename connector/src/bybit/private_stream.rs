@@ -20,14 +20,14 @@ use crate::{
         BybitError,
         SharedSymbolSet,
     },
-    connector::PublishMessage,
+    connector::PublishEvent,
     utils::sign_hmac_sha256,
 };
 
 pub struct PrivateStream {
     api_key: String,
     secret: String,
-    ev_tx: UnboundedSender<PublishMessage>,
+    ev_tx: UnboundedSender<PublishEvent>,
     order_manager: SharedOrderManager,
     symbols: SharedSymbolSet,
     client: BybitClient,
@@ -37,7 +37,7 @@ impl PrivateStream {
     pub fn new(
         api_key: String,
         secret: String,
-        ev_tx: UnboundedSender<PublishMessage>,
+        ev_tx: UnboundedSender<PublishEvent>,
         order_manager: SharedOrderManager,
         symbols: SharedSymbolSet,
         client: BybitClient,
@@ -63,7 +63,7 @@ impl PrivateStream {
             for mut order in orders {
                 order.status = Status::Canceled;
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
+                    .send(PublishEvent::LiveEvent(LiveEvent::Order {
                         symbol: symbol.clone(),
                         order,
                     }))
@@ -83,7 +83,7 @@ impl PrivateStream {
                 .await?;
             position.into_iter().for_each(|position| {
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Position {
+                    .send(PublishEvent::LiveEvent(LiveEvent::Position {
                         symbol: symbol.clone(),
                         qty: position.size,
                     }))
@@ -127,7 +127,7 @@ impl PrivateStream {
                 debug!(?data, "Position");
                 for item in data.data {
                     self.ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::Position {
+                        .send(PublishEvent::LiveEvent(LiveEvent::Position {
                             symbol: item.symbol,
                             qty: item.size,
                         }))
@@ -144,7 +144,7 @@ impl PrivateStream {
                             order,
                         }) => {
                             self.ev_tx
-                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
+                                .send(PublishEvent::LiveEvent(LiveEvent::Order {
                                     symbol: asset,
                                     order,
                                 }))
@@ -166,7 +166,7 @@ impl PrivateStream {
                             order,
                         }) => {
                             self.ev_tx
-                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
+                                .send(PublishEvent::LiveEvent(LiveEvent::Order {
                                     symbol: asset,
                                     order,
                                 }))
@@ -185,10 +185,7 @@ impl PrivateStream {
                     match order_manager.update_order(order_msg) {
                         Ok(OrderExt { symbol, order }) => {
                             self.ev_tx
-                                .send(PublishMessage::LiveEvent(LiveEvent::Order {
-                                    symbol,
-                                    order,
-                                }))
+                                .send(PublishEvent::LiveEvent(LiveEvent::Order { symbol, order }))
                                 .unwrap();
                         }
                         Err(BybitError::PrefixUnmatched) => {

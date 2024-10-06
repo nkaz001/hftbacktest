@@ -11,6 +11,7 @@ use crate::{
         msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
         BybitError,
     },
+    connector::GetOrders,
     utils::{generate_rand_string, RefSymbolOrderId, SymbolOrderId},
 };
 
@@ -214,11 +215,15 @@ impl OrderManager {
         }
         removed_orders
     }
+}
 
-    pub fn get_orders(&self, symbol: &str) -> Vec<Order> {
+impl GetOrders for OrderManager {
+    fn get_orders(&self, symbol: Option<String>) -> Vec<Order> {
         self.orders
             .iter()
-            .filter(|(_, order)| order.symbol == symbol)
+            .filter(|(_, order)| {
+                symbol.as_ref().map(|s| order.symbol == *s).unwrap_or(true) && order.order.active()
+            })
             .map(|(_, order)| &order.order)
             .cloned()
             .collect()

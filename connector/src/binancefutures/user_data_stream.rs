@@ -17,20 +17,20 @@ use crate::{
         BinanceFuturesError,
         SharedSymbolSet,
     },
-    connector::PublishMessage,
+    connector::PublishEvent,
 };
 
 pub struct UserDataStream {
     symbols: SharedSymbolSet,
     client: BinanceFuturesClient,
-    ev_tx: UnboundedSender<PublishMessage>,
+    ev_tx: UnboundedSender<PublishEvent>,
     order_manager: SharedOrderManager,
 }
 
 impl UserDataStream {
     pub fn new(
         client: BinanceFuturesClient,
-        ev_tx: UnboundedSender<PublishMessage>,
+        ev_tx: UnboundedSender<PublishEvent>,
         order_manager: SharedOrderManager,
         symbols: SharedSymbolSet,
     ) -> Self {
@@ -52,7 +52,7 @@ impl UserDataStream {
             for mut order in canceled_orders {
                 order.status = Status::Canceled;
                 self.ev_tx
-                    .send(PublishMessage::LiveEvent(LiveEvent::Order {
+                    .send(PublishEvent::LiveEvent(LiveEvent::Order {
                         symbol: symbol.clone(),
                         order,
                     }))
@@ -68,7 +68,7 @@ impl UserDataStream {
         position_information.into_iter().for_each(|position| {
             symbols.remove(&position.symbol);
             self.ev_tx
-                .send(PublishMessage::LiveEvent(LiveEvent::Position {
+                .send(PublishEvent::LiveEvent(LiveEvent::Position {
                     symbol: position.symbol,
                     qty: position.position_amount,
                 }))
@@ -76,7 +76,7 @@ impl UserDataStream {
         });
         for symbol in symbols {
             self.ev_tx
-                .send(PublishMessage::LiveEvent(LiveEvent::Position {
+                .send(PublishEvent::LiveEvent(LiveEvent::Position {
                     symbol,
                     qty: 0.0,
                 }))
@@ -98,7 +98,7 @@ impl UserDataStream {
             EventStream::AccountUpdate(data) => {
                 for position in data.account.position {
                     self.ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::Position {
+                        .send(PublishEvent::LiveEvent(LiveEvent::Position {
                             symbol: position.symbol,
                             qty: position.position_amount,
                         }))
@@ -110,7 +110,7 @@ impl UserDataStream {
                 match result {
                     Ok(Some(order)) => {
                         self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Order {
+                            .send(PublishEvent::LiveEvent(LiveEvent::Order {
                                 symbol: data.order.symbol,
                                 order,
                             }))

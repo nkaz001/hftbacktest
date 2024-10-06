@@ -3,13 +3,14 @@ use std::{
     fs::read_to_string,
     panic,
     process::exit,
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 
 use clap::Parser;
 use hftbacktest::{
-    live::ipc::{IceoryxBuilder, LiveEventExt, PubSubError, TO_ALL},
+    live::ipc::{IceoryxBuilder, PubSubError, TO_ALL},
     prelude::*,
     types::Request,
 };
@@ -26,7 +27,7 @@ use tracing::error;
 use crate::{
     binancefutures::BinanceFutures,
     bybit::Bybit,
-    connector::{Connector, ConnectorBuilder, PublishMessage},
+    connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
     fuse::FusedHashMapMarketDepth,
 };
 
@@ -41,7 +42,7 @@ mod utils;
 
 fn run_receive_task(
     name: &str,
-    tx: UnboundedSender<PublishMessage>,
+    tx: UnboundedSender<PublishEvent>,
     connector: &mut Box<dyn Connector>,
 ) -> Result<(), PubSubError> {
     let node = NodeBuilder::new()
@@ -72,7 +73,7 @@ fn run_receive_task(
                         },
                         Request::AddInstrument { symbol, tick_size } => {
                             // Makes prepare the publisher thread to also add the instrument.
-                            tx.send(PublishMessage::AddInstrument {
+                            tx.send(PublishEvent::AddInstrument {
                                 id,
                                 symbol: symbol.clone(),
                                 tick_size,
@@ -80,7 +81,7 @@ fn run_receive_task(
                             .unwrap();
                             // Requests to the Connector subscribe to the necessary feeds for the
                             // instrument.
-                            connector.add(symbol, id, tx.clone());
+                            connector.add(symbol);
                         }
                     }
                 }
@@ -95,7 +96,8 @@ fn run_receive_task(
 
 async fn run_publish_task(
     name: &str,
-    mut rx: UnboundedReceiver<PublishMessage>,
+    order_manager: Arc<Mutex<dyn GetOrders>>,
+    mut rx: UnboundedReceiver<PublishEvent>,
 ) -> Result<(), PubSubError> {
     let mut depth = HashMap::new();
     let mut position = HashMap::new();
@@ -103,18 +105,36 @@ async fn run_publish_task(
 
     while let Some(msg) = rx.recv().await {
         match msg {
-            PublishMessage::AddInstrument {
+            PublishEvent::AddInstrument {
                 id,
                 symbol,
                 tick_size,
             } => {
+                // Sends the current state (orders, position, and market depth) to the bot that
+                // requested to add this instrument in batch mode.
+                bot_tx.send(id, &LiveEvent::BatchStart)?;
+
+                for order in order_manager
+                    .lock()
+                    .unwrap()
+                    .get_orders(Some(symbol.clone()))
+                {
+                    bot_tx.send(
+                        id,
+                        &LiveEvent::Order {
+                            symbol: symbol.clone(),
+                            order,
+                        },
+                    )?;
+                }
+
                 if let Some(qty) = position.get(&symbol) {
                     bot_tx.send(
                         id,
-                        &LiveEventExt::Batch(LiveEvent::Position {
+                        &LiveEvent::Position {
                             symbol: symbol.clone(),
                             qty: *qty,
-                        }),
+                        },
                     )?;
                 }
 
@@ -125,10 +145,10 @@ async fn run_publish_task(
                         for event in snapshot {
                             bot_tx.send(
                                 id,
-                                &LiveEventExt::Batch(LiveEvent::Feed {
+                                &LiveEvent::Feed {
                                     symbol: entry.key().clone(),
                                     event,
-                                }),
+                                },
                             )?;
                         }
                     }
@@ -136,28 +156,20 @@ async fn run_publish_task(
                         entry.insert(FusedHashMapMarketDepth::new(tick_size));
                     }
                 }
+
+                bot_tx.send(id, &LiveEvent::BatchEnd)?;
             }
-            PublishMessage::LiveEvent(ev) => {
+            PublishEvent::LiveEvent(ev) => {
                 // The live event will only be published if the result is true.
                 if handle_ev(&ev, &mut depth, &mut position) {
-                    bot_tx.send(TO_ALL, &LiveEventExt::Normal(ev))?;
+                    bot_tx.send(TO_ALL, &ev)?;
                 }
             }
-            PublishMessage::BatchLiveEvent(ev) => {
-                // The live event will only be published if the result is true.
-                if handle_ev(&ev, &mut depth, &mut position) {
-                    bot_tx.send(TO_ALL, &LiveEventExt::Batch(ev))?;
-                }
+            PublishEvent::BatchStart(id) => {
+                bot_tx.send(id, &LiveEvent::BatchStart)?;
             }
-            PublishMessage::LiveEventsWithId { id, events } => {
-                // This occurs when an order or position snapshot needs to be published by adding
-                // the instrument.
-                for ev in events {
-                    bot_tx.send(id, &LiveEventExt::Batch(ev))?;
-                }
-            }
-            PublishMessage::EndOfBatch(id) => {
-                bot_tx.send(id, &LiveEventExt::EndOfBatch)?;
+            PublishEvent::BatchEnd(id) => {
+                bot_tx.send(id, &LiveEvent::BatchEnd)?;
             }
         }
     }
@@ -274,11 +286,12 @@ async fn main() {
     };
 
     let name = args.name.clone();
+    let order_manager = connector.order_manager();
     let handle = thread::spawn(move || {
         let rt = Builder::new_current_thread().enable_all().build().unwrap();
 
         rt.block_on(async move {
-            run_publish_task(&name, pub_rx)
+            run_publish_task(&name, order_manager, pub_rx)
                 .await
                 .map_err(|error: PubSubError| {
                     error!(

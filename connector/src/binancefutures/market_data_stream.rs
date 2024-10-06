@@ -26,13 +26,13 @@ use crate::{
         rest::BinanceFuturesClient,
         BinanceFuturesError,
     },
-    connector::PublishMessage,
+    connector::PublishEvent,
     utils::{generate_rand_string, parse_depth, parse_px_qty_tup},
 };
 
 pub struct MarketDataStream {
     client: BinanceFuturesClient,
-    ev_tx: UnboundedSender<PublishMessage>,
+    ev_tx: UnboundedSender<PublishEvent>,
     symbol_rx: Receiver<String>,
     pending_depth_messages: HashMap<String, Vec<stream::Depth>>,
     prev_u: HashMap<String, i64>,
@@ -43,7 +43,7 @@ pub struct MarketDataStream {
 impl MarketDataStream {
     pub fn new(
         client: BinanceFuturesClient,
-        ev_tx: UnboundedSender<PublishMessage>,
+        ev_tx: UnboundedSender<PublishEvent>,
         symbol_rx: Receiver<String>,
     ) -> Self {
         let (rest_tx, rest_rx) = unbounded_channel::<(String, rest::Depth)>();
@@ -100,10 +100,11 @@ impl MarketDataStream {
 
                 match parse_depth(data.bids, data.asks) {
                     Ok((bids, asks)) => {
-                        // todo: It should be handled as a batch feed.
+                        self.ev_tx.send(PublishEvent::BatchStart(TO_ALL)).unwrap();
+
                         for (px, qty) in bids {
                             self.ev_tx
-                                .send(PublishMessage::BatchLiveEvent(LiveEvent::Feed {
+                                .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                                     symbol: data.symbol.clone(),
                                     event: Event {
                                         ev: LOCAL_BID_DEPTH_EVENT,
@@ -121,7 +122,7 @@ impl MarketDataStream {
 
                         for (px, qty) in asks {
                             self.ev_tx
-                                .send(PublishMessage::BatchLiveEvent(LiveEvent::Feed {
+                                .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                                     symbol: data.symbol.clone(),
                                     event: Event {
                                         ev: LOCAL_ASK_DEPTH_EVENT,
@@ -137,7 +138,7 @@ impl MarketDataStream {
                                 .unwrap();
                         }
 
-                        self.ev_tx.send(PublishMessage::EndOfBatch(TO_ALL)).unwrap();
+                        self.ev_tx.send(PublishEvent::BatchEnd(TO_ALL)).unwrap();
                     }
                     Err(error) => {
                         error!(?error, "Couldn't parse DepthUpdate stream.");
@@ -147,7 +148,7 @@ impl MarketDataStream {
             EventStream::Trade(data) => match parse_px_qty_tup(data.price, data.qty) {
                 Ok((px, qty)) => {
                     self.ev_tx
-                        .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                        .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                             symbol: data.symbol,
                             event: Event {
                                 ev: {
@@ -179,9 +180,11 @@ impl MarketDataStream {
     fn process_snapshot(&self, symbol: String, data: rest::Depth) {
         match parse_depth(data.bids, data.asks) {
             Ok((bids, asks)) => {
+                self.ev_tx.send(PublishEvent::BatchStart(TO_ALL)).unwrap();
+
                 for (px, qty) in bids {
                     self.ev_tx
-                        .send(PublishMessage::BatchLiveEvent(LiveEvent::Feed {
+                        .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                             symbol: symbol.clone(),
                             event: Event {
                                 ev: LOCAL_BID_DEPTH_EVENT,
@@ -199,7 +202,7 @@ impl MarketDataStream {
 
                 for (px, qty) in asks {
                     self.ev_tx
-                        .send(PublishMessage::BatchLiveEvent(LiveEvent::Feed {
+                        .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                             symbol: symbol.clone(),
                             event: Event {
                                 ev: LOCAL_ASK_DEPTH_EVENT,
@@ -215,7 +218,7 @@ impl MarketDataStream {
                         .unwrap();
                 }
 
-                self.ev_tx.send(PublishMessage::EndOfBatch(TO_ALL)).unwrap();
+                self.ev_tx.send(PublishEvent::BatchEnd(TO_ALL)).unwrap();
             }
             Err(error) => {
                 error!(?error, "Couldn't parse Depth response.");

@@ -4,9 +4,8 @@ pub use bot::{BotError, LiveBot, LiveBotBuilder};
 pub use recorder::LoggingRecorder;
 
 use crate::{
-    live::ipc::LiveEventExt,
     prelude::{Request, StateValues},
-    types::{Event, Order, OrderId},
+    types::{Event, LiveEvent, Order, OrderId},
 };
 
 mod bot;
@@ -60,7 +59,7 @@ impl<MD> Instrument<MD> {
 }
 
 pub trait Channel {
-    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEventExt, BotError>;
+    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError>;
 
     fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError>;
 }

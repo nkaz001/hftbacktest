@@ -33,17 +33,17 @@ use crate::{
         msg::{Op, OrderBook, PublicStreamMsg},
         BybitError,
     },
-    connector::PublishMessage,
+    connector::PublishEvent,
     utils::parse_depth,
 };
 
 pub struct PublicStream {
-    ev_tx: UnboundedSender<PublishMessage>,
+    ev_tx: UnboundedSender<PublishEvent>,
     symbol_rx: Receiver<String>,
 }
 
 impl PublicStream {
-    pub fn new(ev_tx: UnboundedSender<PublishMessage>, symbol_rx: Receiver<String>) -> Self {
+    pub fn new(ev_tx: UnboundedSender<PublishEvent>, symbol_rx: Receiver<String>) -> Self {
         Self { ev_tx, symbol_rx }
     }
 
@@ -60,7 +60,7 @@ impl PublicStream {
 
                     for (px, qty) in bids {
                         self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                                 symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_BID_DEPTH_BBO_EVENT,
@@ -78,7 +78,7 @@ impl PublicStream {
 
                     for (px, qty) in asks {
                         self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                                 symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_ASK_DEPTH_BBO_EVENT,
@@ -99,7 +99,7 @@ impl PublicStream {
 
                     for (px, qty) in bids {
                         self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                                 symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_BID_DEPTH_EVENT,
@@ -117,7 +117,7 @@ impl PublicStream {
 
                     for (px, qty) in asks {
                         self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                                 symbol: data.symbol.clone(),
                                 event: Event {
                                     ev: LOCAL_ASK_DEPTH_EVENT,
@@ -136,7 +136,7 @@ impl PublicStream {
                     let data: Vec<msg::Trade> = serde_json::from_value(stream.data)?;
                     for item in data {
                         self.ev_tx
-                            .send(PublishMessage::LiveEvent(LiveEvent::Feed {
+                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                                 symbol: item.symbol.clone(),
                                 event: Event {
                                     ev: {
