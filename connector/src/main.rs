@@ -10,7 +10,7 @@ use std::{
 
 use clap::Parser;
 use hftbacktest::{
-    live::ipc::{IceoryxBuilder, PubSubError, TO_ALL},
+    live::ipc::{ChannelError, IceoryxBuilder, TO_ALL},
     prelude::*,
     types::Request,
 };
@@ -44,10 +44,10 @@ fn run_receive_task(
     name: &str,
     tx: UnboundedSender<PublishEvent>,
     connector: &mut Box<dyn Connector>,
-) -> Result<(), PubSubError> {
+) -> Result<(), ChannelError> {
     let node = NodeBuilder::new()
         .create::<ipc::Service>()
-        .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+        .map_err(|error| ChannelError::BuildError(error.to_string()))?;
     let bot_rx = IceoryxBuilder::new(name).bot(false).receiver()?;
     loop {
         let cycle_time = Duration::from_nanos(1000);
@@ -71,9 +71,13 @@ fn run_receive_task(
                                 error!(?status, "An invalid request was received from the bot.");
                             }
                         },
-                        Request::AddInstrument { symbol, tick_size } => {
+                        Request::RegisterInstrument {
+                            symbol,
+                            tick_size,
+                            lot_size: _,
+                        } => {
                             // Makes prepare the publisher thread to also add the instrument.
-                            tx.send(PublishEvent::AddInstrument {
+                            tx.send(PublishEvent::RegisterInstrument {
                                 id,
                                 symbol: symbol.clone(),
                                 tick_size,
@@ -81,7 +85,7 @@ fn run_receive_task(
                             .unwrap();
                             // Requests to the Connector subscribe to the necessary feeds for the
                             // instrument.
-                            connector.add(symbol);
+                            connector.register(symbol);
                         }
                     }
                 }
@@ -98,14 +102,14 @@ async fn run_publish_task(
     name: &str,
     order_manager: Arc<Mutex<dyn GetOrders>>,
     mut rx: UnboundedReceiver<PublishEvent>,
-) -> Result<(), PubSubError> {
+) -> Result<(), ChannelError> {
     let mut depth = HashMap::new();
     let mut position = HashMap::new();
     let bot_tx = IceoryxBuilder::new(name).bot(false).sender()?;
 
     while let Some(msg) = rx.recv().await {
         match msg {
-            PublishEvent::AddInstrument {
+            PublishEvent::RegisterInstrument {
                 id,
                 symbol,
                 tick_size,
@@ -293,7 +297,7 @@ async fn main() {
         rt.block_on(async move {
             run_publish_task(&name, order_manager, pub_rx)
                 .await
-                .map_err(|error: PubSubError| {
+                .map_err(|error: ChannelError| {
                     error!(
                         ?error,
                         "An error occurred while sending a live event to the bots."

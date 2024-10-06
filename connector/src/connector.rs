@@ -11,7 +11,7 @@ pub enum PublishEvent {
     BatchStart(u64),
     BatchEnd(u64),
     LiveEvent(LiveEvent),
-    AddInstrument {
+    RegisterInstrument {
         id: u64,
         symbol: String,
         tick_size: f64,
@@ -29,8 +29,8 @@ pub trait ConnectorBuilder {
 
 /// Provides an interface for connecting with an exchange or broker for a live bot.
 pub trait Connector {
-    /// Adds an asset to be traded through this connector.
-    fn add(&mut self, symbol: String);
+    /// Registers an instrument to be traded through this connector.
+    fn register(&mut self, symbol: String);
 
     /// Returns an [`OrderManager`].
     fn order_manager(&self) -> Arc<Mutex<dyn GetOrders + Send + 'static>>;

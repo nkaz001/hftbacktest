@@ -12,7 +12,7 @@ use tracing::{debug, error, info};
 use crate::{
     depth::{L2MarketDepth, MarketDepth},
     live::{
-        ipc::{IceoryxPubSubBot, PubSubList},
+        ipc::{IceoryxChannel, IceoryxUnifiedChannel},
         Channel,
         Instrument,
     },
@@ -87,7 +87,7 @@ impl<MD> LiveBotBuilder<MD> {
     /// * `tick_size` - The minimum price fluctuation.
     /// * `lot_size` -  The minimum trade size.
     /// * `depth` -  The market depth.
-    pub fn add(self, instrument: Instrument<MD>) -> Self {
+    pub fn register(self, instrument: Instrument<MD>) -> Self {
         Self {
             instruments: {
                 let mut instruments = self.instruments;
@@ -128,9 +128,9 @@ impl<MD> LiveBotBuilder<MD> {
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
     pub fn build(self) -> Result<LiveBot<MD>, BuildError> {
         let mut dup = HashSet::new();
-        let mut tmp_pubsub: HashMap<String, Rc<IceoryxPubSubBot<Request, LiveEvent>>> =
+        let mut tmp_channel: HashMap<String, Rc<IceoryxChannel<Request, LiveEvent>>> =
             HashMap::new();
-        let mut pubsub = Vec::new();
+        let mut channel_list = Vec::new();
         for instrument in self.instruments.iter() {
             if !dup.insert(format!(
                 "{}/{}",
@@ -142,24 +142,24 @@ impl<MD> LiveBotBuilder<MD> {
                 ))?;
             }
 
-            match tmp_pubsub.entry(instrument.connector_name.clone()) {
+            match tmp_channel.entry(instrument.connector_name.clone()) {
                 Entry::Occupied(entry) => {
-                    let ps = entry.get().clone();
-                    pubsub.push(ps);
+                    let ch = entry.get().clone();
+                    channel_list.push(ch);
                 }
                 Entry::Vacant(entry) => {
-                    let ps = Rc::new(IceoryxPubSubBot::new(&instrument.connector_name)?);
-                    entry.insert(ps.clone());
-                    pubsub.push(ps);
+                    let ch = Rc::new(IceoryxChannel::new(&instrument.connector_name)?);
+                    entry.insert(ch.clone());
+                    channel_list.push(ch);
                 }
             }
         }
 
-        let asset_name_to_no: HashMap<_, _> = self
+        let symbol_to_inst_no: HashMap<_, _> = self
             .instruments
             .iter()
             .enumerate()
-            .map(|(asset_no, instrument)| (instrument.symbol.clone(), asset_no))
+            .map(|(inst_no, instrument)| (instrument.symbol.clone(), inst_no))
             .collect();
 
         let id = self.id;
@@ -170,28 +170,29 @@ impl<MD> LiveBotBuilder<MD> {
             info!(
                 connector_name = instrument.connector_name,
                 symbol = instrument.symbol,
-                "Prepares the instrument."
+                "Registers the instrument."
             );
-            let asset_no = asset_name_to_no.get(&instrument.symbol).unwrap();
-            let ps = pubsub.get(*asset_no).unwrap();
-            ps.send(
+            let inst_no = symbol_to_inst_no.get(&instrument.symbol).unwrap();
+            let ch = channel_list.get(*inst_no).unwrap();
+            ch.send(
                 id,
-                &Request::AddInstrument {
+                &Request::RegisterInstrument {
                     symbol: instrument.symbol.clone(),
                     tick_size: instrument.tick_size,
+                    lot_size: instrument.lot_size,
                 },
             )
             .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
         }
 
-        let pubsub = PubSubList::new(pubsub)
+        let channel = IceoryxUnifiedChannel::new(channel_list)
             .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
 
         Ok(LiveBot {
             id,
-            pubsub,
+            channel,
             instruments: self.instruments,
-            symbol_to_inst_no: asset_name_to_no,
+            symbol_to_inst_no,
             error_handler: self.error_handler,
             order_hook: self.order_hook,
         })
@@ -209,7 +210,7 @@ impl<MD> LiveBotBuilder<MD> {
 /// let lot_size = 1.0;
 ///
 /// let mut hbt = LiveBot::builder()
-///     .add(Instrument::new(
+///     .register(Instrument::new(
 ///         "connector_name",
 ///         "symbol",
 ///         tick_size,
@@ -222,7 +223,7 @@ impl<MD> LiveBotBuilder<MD> {
 /// ```
 pub struct LiveBot<MD> {
     id: u64,
-    pubsub: PubSubList,
+    channel: IceoryxUnifiedChannel,
     instruments: Vec<Instrument<MD>>,
     symbol_to_inst_no: HashMap<String, usize>,
     error_handler: Option<ErrorHandler>,
@@ -264,10 +265,10 @@ where
                     instrument
                         .depth
                         .update_ask_depth(event.px, event.qty, event.exch_ts);
-                } else if event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT) {
-                    if instrument.last_trades.capacity() > 0 {
-                        instrument.last_trades.push(event);
-                    }
+                } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
+                    && instrument.last_trades.capacity() > 0
+                {
+                    instrument.last_trades.push(event);
                 }
             }
             LiveEvent::Order { symbol, order } => {
@@ -348,7 +349,7 @@ where
         let mut wait_resp_received = false;
 
         loop {
-            match self.pubsub.recv_timeout(self.id, remaining_duration) {
+            match self.channel.recv_timeout(self.id, remaining_duration) {
                 Ok(LiveEvent::BatchStart) => {
                     batch_mode = true;
                 }
@@ -429,7 +430,7 @@ where
         let order_id = order.order_id;
         instrument.orders.insert(order_id, order.clone());
 
-        self.pubsub
+        self.channel
             .send(asset_no, Request::Order { symbol, order })?;
 
         if wait {
@@ -594,7 +595,7 @@ where
         order.req = Status::Canceled;
         order.local_timestamp = Utc::now().timestamp_nanos_opt().unwrap();
 
-        self.pubsub.send(
+        self.channel.send(
             asset_no,
             Request::Order {
                 symbol,

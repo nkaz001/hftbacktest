@@ -12,7 +12,7 @@ const ORDER_PREFIX: &str = "prefix";
 
 fn prepare_live() -> LiveBot<HashMapMarketDepth> {
     let mut hbt = LiveBot::builder()
-        .add("binancefutures", "SOLUSDT", 0.001, 1.0)
+        .register("binancefutures", "SOLUSDT", 0.001, 1.0)
         .order_recv_hook(|req, resp| {
             if (req.req == Status::New || req.req == Status::Canceled) && (resp.req == Status::None)
             {

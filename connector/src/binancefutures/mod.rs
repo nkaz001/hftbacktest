@@ -201,7 +201,7 @@ impl ConnectorBuilder for BinanceFutures {
 }
 
 impl Connector for BinanceFutures {
-    fn add(&mut self, symbol: String) {
+    fn register(&mut self, symbol: String) {
         // Binance futures symbols must be lowercase to subscribe to the WebSocket stream.
         let symbol = symbol.to_lowercase();
         let mut symbols = self.symbols.lock().unwrap();

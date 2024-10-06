@@ -11,7 +11,7 @@ const ORDER_PREFIX: &str = "prefix";
 
 fn prepare_live() -> LiveBot<HashMapMarketDepth> {
     let mut hbt = LiveBot::builder()
-        .add("binancefutures", "SOLUSDT", 0.001, 1.0)
+        .register("binancefutures", "SOLUSDT", 0.001, 1.0)
         .error_handler(|error| {
             match error.kind {
                 ErrorKind::ConnectionInterrupted => {

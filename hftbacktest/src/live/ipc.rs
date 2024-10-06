@@ -17,7 +17,6 @@ use iceoryx2::{
         subscriber::{Subscriber, SubscriberReceiveError},
     },
     prelude::{ipc, Node, NodeBuilder, NodeEvent, ServiceName},
-    service::port_factory::publish_subscribe::PortFactory,
 };
 use thiserror::Error;
 
@@ -38,7 +37,7 @@ pub struct CustomHeader {
 }
 
 #[derive(Error, Debug)]
-pub enum PubSubError {
+pub enum ChannelError {
     #[error("BuildError - {0}")]
     BuildError(String),
     #[error("{0:?}")]
@@ -72,13 +71,13 @@ impl IceoryxBuilder {
         Self { bot, ..self }
     }
 
-    pub fn receiver<T>(self) -> Result<IceoryxReceiver<T>, PubSubError> {
+    pub fn receiver<T>(self) -> Result<IceoryxReceiver<T>, ChannelError> {
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            .map_err(|error| ChannelError::BuildError(error.to_string()))?;
         let sub_factory = if self.bot {
             let service_name = ServiceName::new(&format!("{}/ToBot", self.name))
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
                 .subscriber_max_buffer_size(100000)
@@ -86,10 +85,10 @@ impl IceoryxBuilder {
                 .max_subscribers(500)
                 .user_header::<CustomHeader>()
                 .open_or_create()
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?
         } else {
             let service_name = ServiceName::new(&format!("{}/FromBot", self.name))
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
                 .subscriber_max_buffer_size(100000)
@@ -97,13 +96,13 @@ impl IceoryxBuilder {
                 .max_subscribers(1)
                 .user_header::<CustomHeader>()
                 .open_or_create()
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?
         };
 
         let subscriber = sub_factory
             .subscriber_builder()
             .create()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            .map_err(|error| ChannelError::BuildError(error.to_string()))?;
 
         Ok(IceoryxReceiver {
             subscriber,
@@ -111,13 +110,13 @@ impl IceoryxBuilder {
         })
     }
 
-    pub fn sender<T>(self) -> Result<IceoryxSender<T>, PubSubError> {
+    pub fn sender<T>(self) -> Result<IceoryxSender<T>, ChannelError> {
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            .map_err(|error| ChannelError::BuildError(error.to_string()))?;
         let pub_factory = if self.bot {
             let service_name = ServiceName::new(&format!("{}/FromBot", self.name))
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
                 .subscriber_max_buffer_size(100000)
@@ -125,10 +124,10 @@ impl IceoryxBuilder {
                 .max_subscribers(1)
                 .user_header::<CustomHeader>()
                 .open_or_create()
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?
         } else {
             let service_name = ServiceName::new(&format!("{}/ToBot", self.name))
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
                 .subscriber_max_buffer_size(100000)
@@ -136,14 +135,14 @@ impl IceoryxBuilder {
                 .max_subscribers(500)
                 .user_header::<CustomHeader>()
                 .open_or_create()
-                .map_err(|error| PubSubError::BuildError(error.to_string()))?
+                .map_err(|error| ChannelError::BuildError(error.to_string()))?
         };
 
         let publisher = pub_factory
             .publisher_builder()
             .max_slice_len(MAX_PAYLOAD_SIZE)
             .create()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            .map_err(|error| ChannelError::BuildError(error.to_string()))?;
 
         Ok(IceoryxSender {
             //_pub_factory: pub_factory,
@@ -162,7 +161,7 @@ impl<T> IceoryxSender<T>
 where
     T: Encode,
 {
-    pub fn send(&self, id: u64, data: &T) -> Result<(), PubSubError> {
+    pub fn send(&self, id: u64, data: &T) -> Result<(), ChannelError> {
         let sample = self.publisher.loan_slice_uninit(MAX_PAYLOAD_SIZE)?;
         let mut sample = unsafe { sample.assume_init() };
 
@@ -187,7 +186,7 @@ impl<T> IceoryxReceiver<T>
 where
     T: Decode,
 {
-    pub fn receive(&self) -> Result<Option<(u64, T)>, PubSubError> {
+    pub fn receive(&self) -> Result<Option<(u64, T)>, ChannelError> {
         match self.subscriber.receive()? {
             None => Ok(None),
             Some(sample) => {
@@ -203,12 +202,12 @@ where
     }
 }
 
-pub struct IceoryxPubSubBot<S, R> {
+pub struct IceoryxChannel<S, R> {
     publisher: IceoryxSender<S>,
     subscriber: IceoryxReceiver<R>,
 }
 
-impl<S, R> IceoryxPubSubBot<S, R>
+impl<S, R> IceoryxChannel<S, R>
 where
     S: Encode,
     R: Decode,
@@ -223,36 +222,38 @@ where
         })
     }
 
-    pub fn send(&self, id: u64, data: &S) -> Result<(), PubSubError> {
+    pub fn send(&self, id: u64, data: &S) -> Result<(), ChannelError> {
         self.publisher.send(id, data)
     }
 
-    pub fn receive(&self) -> Result<Option<(u64, R)>, PubSubError> {
+    pub fn receive(&self) -> Result<Option<(u64, R)>, ChannelError> {
         self.subscriber.receive()
     }
 }
 
-pub struct PubSubList {
-    pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEvent>>>,
-    pubsub_i: usize,
+pub struct IceoryxUnifiedChannel {
+    channel: Vec<Rc<IceoryxChannel<Request, LiveEvent>>>,
+    ch_i: usize,
     node: Node<ipc::Service>,
 }
 
-impl PubSubList {
-    pub fn new(pubsub: Vec<Rc<IceoryxPubSubBot<Request, LiveEvent>>>) -> Result<Self, PubSubError> {
-        assert!(!pubsub.is_empty());
+impl IceoryxUnifiedChannel {
+    pub fn new(
+        channel_list: Vec<Rc<IceoryxChannel<Request, LiveEvent>>>,
+    ) -> Result<Self, ChannelError> {
+        assert!(!channel_list.is_empty());
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
-            .map_err(|error| PubSubError::BuildError(error.to_string()))?;
+            .map_err(|error| ChannelError::BuildError(error.to_string()))?;
         Ok(Self {
-            pubsub,
-            pubsub_i: 0,
+            channel: channel_list,
+            ch_i: 0,
             node,
         })
     }
 }
 
-impl Channel for PubSubList {
+impl Channel for IceoryxUnifiedChannel {
     fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError> {
         let instant = Instant::now();
         loop {
@@ -264,14 +265,14 @@ impl Channel for PubSubList {
             // todo: this needs to retrieve Iox2Event without waiting.
             match self.node.wait(Duration::from_nanos(1)) {
                 NodeEvent::Tick => {
-                    let pubsub = unsafe { self.pubsub.get_unchecked(self.pubsub_i) };
+                    let ch = unsafe { self.channel.get_unchecked(self.ch_i) };
 
-                    self.pubsub_i += 1;
-                    if self.pubsub_i == self.pubsub.len() {
-                        self.pubsub_i = 0;
+                    self.ch_i += 1;
+                    if self.ch_i == self.channel.len() {
+                        self.ch_i = 0;
                     }
 
-                    if let Some((dst_id, ev)) = pubsub
+                    if let Some((dst_id, ev)) = ch
                         .receive()
                         .map_err(|err| BotError::Custom(err.to_string()))?
                     {
@@ -289,7 +290,7 @@ impl Channel for PubSubList {
 
     fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError> {
         let publisher = self
-            .pubsub
+            .channel
             .get(asset_no)
             .ok_or(BotError::InstrumentNotFound)?;
         publisher

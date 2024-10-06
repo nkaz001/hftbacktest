@@ -10,7 +10,7 @@ const ORDER_PREFIX: &str = "prefix";
 
 fn prepare_live() -> LiveBot<HashMapMarketDepth> {
     let mut hbt = LiveBot::builder()
-        .add("binancefutures", "1000SHIBUSDT", 0.000001, 1.0)
+        .register("binancefutures", "1000SHIBUSDT", 0.000001, 1.0)
         .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
         .build()
         .unwrap();

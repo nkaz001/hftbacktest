@@ -276,7 +276,7 @@ impl ConnectorBuilder for Bybit {
 }
 
 impl Connector for Bybit {
-    fn add(&mut self, symbol: String) {
+    fn register(&mut self, symbol: String) {
         let mut symbols = self.symbols.lock().unwrap();
         if !symbols.contains(&symbol) {
             symbols.insert(symbol.clone());

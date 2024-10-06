@@ -58,8 +58,14 @@ impl<MD> Instrument<MD> {
     }
 }
 
+/// Provides the IPC communication methods.
 pub trait Channel {
+    /// Attempts to receive a [`LiveEvent`] from all registered connectors until the specified
+    /// `timeout` duration is reached.
+    /// If the ID of the received message does not match the provided ID, the message will be
+    /// ignored and this will attempt to receive a [`LiveEvent`] again until the timeout is reached.
     fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError>;
 
+    /// Sends a [`Request`] to the connector corresponding to the `asset_no`.
     fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError>;
 }

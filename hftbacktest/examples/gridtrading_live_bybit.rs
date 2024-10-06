@@ -11,7 +11,7 @@ const ORDER_PREFIX: &str = "prefix";
 
 fn prepare_live() -> LiveBot<HashMapMarketDepth> {
     let mut hbt = LiveBot::builder()
-        .add("bybit-futures", "BTCUSDT", 0.1, 0.001)
+        .register("bybit-futures", "BTCUSDT", 0.1, 0.001)
         .depth(|asset| HashMapMarketDepth::new(asset.tick_size, asset.lot_size))
         .error_handler(|error| {
             match error.kind {

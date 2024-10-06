@@ -708,7 +708,11 @@ pub enum Request {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
     Order { symbol: String, order: Order },
     /// A request to add an instrument for trading.
-    AddInstrument { symbol: String, tick_size: f64 },
+    RegisterInstrument {
+        symbol: String,
+        tick_size: f64,
+        lot_size: f64,
+    },
 }
 
 /// Provides state values.
