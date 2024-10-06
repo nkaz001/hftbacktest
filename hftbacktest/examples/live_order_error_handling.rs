@@ -1,6 +1,13 @@
 use algo::gridtrading;
 use hftbacktest::{
-    live::{BotError, LiveBot, LoggingRecorder},
+    live::{
+        ipc::iceoryx::IceoryxUnifiedChannel,
+        BotError,
+        Instrument,
+        LiveBot,
+        LiveBotBuilder,
+        LoggingRecorder,
+    },
     prelude::{Bot, ErrorKind, HashMapMarketDepth, Value},
 };
 use tracing::error;
@@ -9,9 +16,16 @@ mod algo;
 
 const ORDER_PREFIX: &str = "prefix";
 
-fn prepare_live() -> LiveBot<HashMapMarketDepth> {
-    let mut hbt = LiveBot::builder()
-        .register("binancefutures", "SOLUSDT", 0.001, 1.0)
+fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
+    let mut hbt = LiveBotBuilder::new()
+        .register(Instrument::new(
+            "binancefutures",
+            "SOLUSDT",
+            0.001,
+            1.0,
+            HashMapMarketDepth::new(0.001, 1.0),
+            0,
+        ))
         .error_handler(|error| {
             match error.kind {
                 ErrorKind::ConnectionInterrupted => {
