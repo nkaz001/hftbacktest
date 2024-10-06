@@ -10,9 +10,11 @@ use std::{
 
 use clap::Parser;
 use hftbacktest::{
-    live::ipc::{ChannelError, IceoryxBuilder, TO_ALL},
+    live::ipc::{
+        iceoryx::{ChannelError, IceoryxBuilder},
+        TO_ALL,
+    },
     prelude::*,
-    types::Request,
 };
 use iceoryx2::{
     node::NodeBuilder,
@@ -55,7 +57,7 @@ fn run_receive_task(
             NodeEvent::Tick => {
                 while let Some((id, ev)) = bot_rx.receive()? {
                     match ev {
-                        Request::Order {
+                        LiveRequest::Order {
                             symbol: asset,
                             order,
                         } => match order.req {
@@ -71,7 +73,7 @@ fn run_receive_task(
                                 error!(?status, "An invalid request was received from the bot.");
                             }
                         },
-                        Request::RegisterInstrument {
+                        LiveRequest::RegisterInstrument {
                             symbol,
                             tick_size,
                             lot_size: _,

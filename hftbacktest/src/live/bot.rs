@@ -1,6 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    rc::Rc,
+    collections::{hash_map::Entry, HashMap},
     time::{Duration, Instant},
 };
 
@@ -11,22 +10,18 @@ use tracing::{debug, error, info};
 
 use crate::{
     depth::{L2MarketDepth, MarketDepth},
-    live::{
-        ipc::{IceoryxChannel, IceoryxUnifiedChannel},
-        Channel,
-        Instrument,
-    },
+    live::{ipc::Channel, Instrument},
     types::{
         Bot,
         BuildError,
         Event,
         LiveError,
         LiveEvent,
+        LiveRequest,
         OrdType,
         Order,
         OrderId,
         OrderRequest,
-        Request,
         Side,
         StateValues,
         Status,
@@ -77,16 +72,17 @@ pub struct LiveBotBuilder<MD> {
 }
 
 impl<MD> LiveBotBuilder<MD> {
-    /// Adds an instrument.
-    ///
-    /// * `name` - Name of the [`Connector`], which is registered by
-    ///            [`register()`](`LiveBotBuilder::register()`), through which this asset will be
-    ///            traded.
-    /// * `symbol` - Symbol of the asset. You need to check with the [`Connector`] which symbology
-    ///              is used.
-    /// * `tick_size` - The minimum price fluctuation.
-    /// * `lot_size` -  The minimum trade size.
-    /// * `depth` -  The market depth.
+    /// Constructs a builder to construct [`LiveBot`] instances.
+    pub fn new() -> Self {
+        Self {
+            id: generate_random_id(),
+            instruments: Default::default(),
+            error_handler: None,
+            order_hook: None,
+        }
+    }
+
+    /// Registers an instrument.
     pub fn register(self, instrument: Instrument<MD>) -> Self {
         Self {
             instruments: {
@@ -126,73 +122,38 @@ impl<MD> LiveBotBuilder<MD> {
     }
 
     /// Builds a live [`LiveBot`] based on the registered connectors and assets.
-    pub fn build(self) -> Result<LiveBot<MD>, BuildError> {
-        let mut dup = HashSet::new();
-        let mut tmp_channel: HashMap<String, Rc<IceoryxChannel<Request, LiveEvent>>> =
-            HashMap::new();
-        let mut channel_list = Vec::new();
-        for instrument in self.instruments.iter() {
-            if !dup.insert(format!(
-                "{}/{}",
-                instrument.connector_name, instrument.symbol
-            )) {
-                Err(BuildError::Duplicate(
-                    instrument.connector_name.clone(),
-                    instrument.symbol.clone(),
-                ))?;
-            }
-
-            match tmp_channel.entry(instrument.connector_name.clone()) {
-                Entry::Occupied(entry) => {
-                    let ch = entry.get().clone();
-                    channel_list.push(ch);
-                }
-                Entry::Vacant(entry) => {
-                    let ch = Rc::new(IceoryxChannel::new(&instrument.connector_name)?);
-                    entry.insert(ch.clone());
-                    channel_list.push(ch);
-                }
-            }
-        }
-
-        let symbol_to_inst_no: HashMap<_, _> = self
-            .instruments
-            .iter()
-            .enumerate()
-            .map(|(inst_no, instrument)| (instrument.symbol.clone(), inst_no))
-            .collect();
-
+    pub fn build<CH>(self) -> Result<LiveBot<CH, MD>, BuildError>
+    where
+        CH: Channel,
+    {
         let id = self.id;
+        let mut channel = CH::build(&self.instruments)?;
 
         // Requests to prepare a given asset for trading.
         // The Connector will send the current orders on this asset.
-        for instrument in &self.instruments {
+        for (inst_no, instrument) in self.instruments.iter().enumerate() {
             info!(
                 connector_name = instrument.connector_name,
                 symbol = instrument.symbol,
                 "Registers the instrument."
             );
-            let inst_no = symbol_to_inst_no.get(&instrument.symbol).unwrap();
-            let ch = channel_list.get(*inst_no).unwrap();
-            ch.send(
-                id,
-                &Request::RegisterInstrument {
-                    symbol: instrument.symbol.clone(),
-                    tick_size: instrument.tick_size,
-                    lot_size: instrument.lot_size,
-                },
-            )
-            .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
+            channel
+                .send(
+                    id,
+                    inst_no,
+                    LiveRequest::RegisterInstrument {
+                        symbol: instrument.symbol.clone(),
+                        tick_size: instrument.tick_size,
+                        lot_size: instrument.lot_size,
+                    },
+                )
+                .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
         }
-
-        let channel = IceoryxUnifiedChannel::new(channel_list)
-            .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
 
         Ok(LiveBot {
             id,
             channel,
             instruments: self.instruments,
-            symbol_to_inst_no,
             error_handler: self.error_handler,
             order_hook: self.order_hook,
         })
@@ -221,41 +182,28 @@ impl<MD> LiveBotBuilder<MD> {
 ///     .build()
 ///     .unwrap();
 /// ```
-pub struct LiveBot<MD> {
+pub struct LiveBot<CH, MD> {
     id: u64,
-    channel: IceoryxUnifiedChannel,
+    channel: CH,
     instruments: Vec<Instrument<MD>>,
-    symbol_to_inst_no: HashMap<String, usize>,
     error_handler: Option<ErrorHandler>,
     order_hook: Option<OrderRecvHook>,
 }
 
-impl<MD> LiveBot<MD>
+impl<CH, MD> LiveBot<CH, MD>
 where
+    CH: Channel,
     MD: MarketDepth + L2MarketDepth,
 {
-    /// Builder to construct [`LiveBot`] instances.
-    pub fn builder() -> LiveBotBuilder<MD> {
-        LiveBotBuilder {
-            id: generate_random_id(),
-            instruments: Vec::new(),
-            error_handler: None,
-            order_hook: None,
-        }
-    }
-
     fn process_event<const WAIT_NEXT_FEED: bool>(
         &mut self,
+        inst_no: usize,
         ev: LiveEvent,
         wait_order_response: WaitOrderResponse,
     ) -> Result<bool, BotError> {
         match ev {
-            LiveEvent::Feed { symbol, event } => {
-                let Some(&asset_no) = self.symbol_to_inst_no.get(&symbol) else {
-                    return Ok(false);
-                };
-
-                let instrument = unsafe { self.instruments.get_unchecked_mut(asset_no) };
+            LiveEvent::Feed { event, .. } => {
+                let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
                 instrument.last_feed_latency = Some((event.exch_ts, event.local_ts));
                 if event.is(LOCAL_BID_DEPTH_EVENT) {
                     instrument
@@ -271,21 +219,17 @@ where
                     instrument.last_trades.push(event);
                 }
             }
-            LiveEvent::Order { symbol, order } => {
-                let Some(&asset_no) = self.symbol_to_inst_no.get(&symbol) else {
-                    return Ok(false);
-                };
-
-                debug!(%asset_no, ?order, "Event::Order");
+            LiveEvent::Order { order, .. } => {
+                debug!(%inst_no, ?order, "Event::Order");
                 let received_order_resp = match wait_order_response {
                     WaitOrderResponse::Any => true,
                     WaitOrderResponse::Specified {
                         asset_no: wait_order_asset_no,
                         order_id: wait_order_id,
-                    } if wait_order_id == order.order_id && wait_order_asset_no == asset_no => true,
+                    } if wait_order_id == order.order_id && wait_order_asset_no == inst_no => true,
                     _ => false,
                 };
-                let instrument = unsafe { self.instruments.get_unchecked_mut(asset_no) };
+                let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
                 instrument.last_order_latency = Some((
                     order.local_timestamp,
                     order.exch_timestamp,
@@ -316,12 +260,8 @@ where
                     return Ok(true);
                 }
             }
-            LiveEvent::Position { symbol, qty } => {
-                let Some(&asset_no) = self.symbol_to_inst_no.get(&symbol) else {
-                    return Ok(false);
-                };
-
-                unsafe { self.instruments.get_unchecked_mut(asset_no) }
+            LiveEvent::Position { qty, .. } => {
+                unsafe { self.instruments.get_unchecked_mut(inst_no) }
                     .state
                     .position = qty;
             }
@@ -350,17 +290,17 @@ where
 
         loop {
             match self.channel.recv_timeout(self.id, remaining_duration) {
-                Ok(LiveEvent::BatchStart) => {
+                Ok((_, LiveEvent::BatchStart)) => {
                     batch_mode = true;
                 }
-                Ok(LiveEvent::BatchEnd) => {
+                Ok((_, LiveEvent::BatchEnd)) => {
                     batch_mode = false;
                     if wait_resp_received {
                         return Ok(true);
                     }
                 }
-                Ok(ev) => {
-                    if self.process_event::<WAIT_NEXT_FEED>(ev, wait_order_response)? {
+                Ok((inst_no, ev)) => {
+                    if self.process_event::<WAIT_NEXT_FEED>(inst_no, ev, wait_order_response)? {
                         wait_resp_received = true;
                         if !batch_mode {
                             return Ok(true);
@@ -431,7 +371,7 @@ where
         instrument.orders.insert(order_id, order.clone());
 
         self.channel
-            .send(asset_no, Request::Order { symbol, order })?;
+            .send(self.id, asset_no, LiveRequest::Order { symbol, order })?;
 
         if wait {
             // fixme: timeout should be specified by the argument.
@@ -441,8 +381,9 @@ where
     }
 }
 
-impl<MD> Bot<MD> for LiveBot<MD>
+impl<CH, MD> Bot<MD> for LiveBot<CH, MD>
 where
+    CH: Channel,
     MD: MarketDepth + L2MarketDepth,
 {
     type Error = BotError;
@@ -596,8 +537,9 @@ where
         order.local_timestamp = Utc::now().timestamp_nanos_opt().unwrap();
 
         self.channel.send(
+            self.id,
             asset_no,
-            Request::Order {
+            LiveRequest::Order {
                 symbol,
                 order: order.clone(),
             },

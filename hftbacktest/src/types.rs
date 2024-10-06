@@ -704,7 +704,7 @@ impl Encode for Order {
 
 /// An asynchronous request to [`Connector`](`crate::connector::Connector`).
 #[derive(Clone, Debug, Encode, Decode)]
-pub enum Request {
+pub enum LiveRequest {
     /// An order request, a tuple consisting of an asset number and an [`Order`].
     Order { symbol: String, order: Order },
     /// A request to add an instrument for trading.

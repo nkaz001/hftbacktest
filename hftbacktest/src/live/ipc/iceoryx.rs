@@ -1,4 +1,5 @@
 use std::{
+    collections::{hash_map::Entry, HashMap},
     marker::PhantomData,
     rc::Rc,
     string::FromUtf8Error,
@@ -21,13 +22,14 @@ use iceoryx2::{
 use thiserror::Error;
 
 use crate::{
-    live::{BotError, Channel},
-    prelude::{LiveEvent, Request},
+    live::{ipc::Channel, BotError, Instrument},
+    prelude::{LiveEvent, LiveRequest},
+    types::BuildError,
 };
 
-pub const TO_ALL: u64 = 0;
-
 const MAX_PAYLOAD_SIZE: usize = 512;
+const MAX_BOTS_PER_CONNECTOR: usize = 500;
+const CHANNEL_BUFFER_SIZE: usize = 100000;
 
 #[derive(Default, Debug)]
 #[repr(C)]
@@ -75,14 +77,15 @@ impl IceoryxBuilder {
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
             .map_err(|error| ChannelError::BuildError(error.to_string()))?;
+
         let sub_factory = if self.bot {
             let service_name = ServiceName::new(&format!("{}/ToBot", self.name))
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
-                .subscriber_max_buffer_size(100000)
+                .subscriber_max_buffer_size(CHANNEL_BUFFER_SIZE)
                 .max_publishers(1)
-                .max_subscribers(500)
+                .max_subscribers(MAX_BOTS_PER_CONNECTOR)
                 .user_header::<CustomHeader>()
                 .open_or_create()
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?
@@ -91,8 +94,8 @@ impl IceoryxBuilder {
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
-                .subscriber_max_buffer_size(100000)
-                .max_publishers(500)
+                .subscriber_max_buffer_size(CHANNEL_BUFFER_SIZE)
+                .max_publishers(MAX_BOTS_PER_CONNECTOR)
                 .max_subscribers(1)
                 .user_header::<CustomHeader>()
                 .open_or_create()
@@ -114,6 +117,7 @@ impl IceoryxBuilder {
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
             .map_err(|error| ChannelError::BuildError(error.to_string()))?;
+
         let pub_factory = if self.bot {
             let service_name = ServiceName::new(&format!("{}/FromBot", self.name))
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?;
@@ -145,7 +149,6 @@ impl IceoryxBuilder {
             .map_err(|error| ChannelError::BuildError(error.to_string()))?;
 
         Ok(IceoryxSender {
-            //_pub_factory: pub_factory,
             publisher,
             _t_marker: Default::default(),
         })
@@ -205,6 +208,7 @@ where
 pub struct IceoryxChannel<S, R> {
     publisher: IceoryxSender<S>,
     subscriber: IceoryxReceiver<R>,
+    symbol_to_inst_no: HashMap<String, usize>,
 }
 
 impl<S, R> IceoryxChannel<S, R>
@@ -212,14 +216,23 @@ where
     S: Encode,
     R: Decode,
 {
-    pub fn new(name: &str) -> Result<Self, anyhow::Error> {
+    pub fn new(name: &str) -> Result<Self, ChannelError> {
         let publisher = IceoryxBuilder::new(name).sender()?;
         let subscriber = IceoryxBuilder::new(name).receiver()?;
 
         Ok(Self {
             publisher,
             subscriber,
+            symbol_to_inst_no: Default::default(),
         })
+    }
+
+    pub fn register(&mut self, inst_no: usize, symbol: &str) -> bool {
+        if self.symbol_to_inst_no.contains_key(symbol) {
+            return false;
+        }
+        self.symbol_to_inst_no.insert(symbol.to_string(), inst_no);
+        true
     }
 
     pub fn send(&self, id: u64, data: &S) -> Result<(), ChannelError> {
@@ -232,21 +245,36 @@ where
 }
 
 pub struct IceoryxUnifiedChannel {
-    channel: Vec<Rc<IceoryxChannel<Request, LiveEvent>>>,
+    channel: Vec<Rc<IceoryxChannel<LiveRequest, LiveEvent>>>,
+    unique_channel: Vec<Rc<IceoryxChannel<LiveRequest, LiveEvent>>>,
     ch_i: usize,
     node: Node<ipc::Service>,
 }
 
 impl IceoryxUnifiedChannel {
     pub fn new(
-        channel_list: Vec<Rc<IceoryxChannel<Request, LiveEvent>>>,
+        channel: Vec<Rc<IceoryxChannel<LiveRequest, LiveEvent>>>,
     ) -> Result<Self, ChannelError> {
-        assert!(!channel_list.is_empty());
+        assert!(!channel.is_empty());
+
+        let unique_channel = {
+            let mut unique_vec = Vec::new();
+
+            for item in &channel {
+                if !unique_vec.iter().any(|x| Rc::ptr_eq(x, item)) {
+                    unique_vec.push(item.clone());
+                }
+            }
+
+            unique_vec
+        };
+
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
             .map_err(|error| ChannelError::BuildError(error.to_string()))?;
         Ok(Self {
-            channel: channel_list,
+            channel,
+            unique_channel,
             ch_i: 0,
             node,
         })
@@ -254,7 +282,46 @@ impl IceoryxUnifiedChannel {
 }
 
 impl Channel for IceoryxUnifiedChannel {
-    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<LiveEvent, BotError> {
+    fn build<MD>(instruments: &[Instrument<MD>]) -> Result<Self, BuildError>
+    where
+        Self: Sized,
+    {
+        let mut channel: HashMap<String, IceoryxChannel<LiveRequest, LiveEvent>> = HashMap::new();
+        for (inst_no, instrument) in instruments.iter().enumerate() {
+            match channel.entry(instrument.connector_name.clone()) {
+                Entry::Occupied(mut entry) => {
+                    let ch = entry.get_mut();
+                    if !ch.register(inst_no, &instrument.symbol) {
+                        return Err(BuildError::Duplicate(
+                            instrument.connector_name.clone(),
+                            instrument.symbol.clone(),
+                        ));
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    let mut ch = IceoryxChannel::new(&instrument.connector_name)
+                        .map_err(|error| BuildError::Error(anyhow::Error::from(error)))?;
+                    if !ch.register(inst_no, &instrument.symbol) {
+                        return Err(BuildError::Duplicate(
+                            instrument.connector_name.clone(),
+                            instrument.symbol.clone(),
+                        ));
+                    }
+                    entry.insert(ch);
+                }
+            }
+        }
+        let channel: HashMap<_, _> = channel.into_iter().map(|(k, v)| (k, Rc::new(v))).collect();
+        let channel_list: Vec<_> = instruments
+            .iter()
+            .map(|i| channel.get(&i.connector_name).unwrap().clone())
+            .collect();
+
+        IceoryxUnifiedChannel::new(channel_list)
+            .map_err(|error| BuildError::Error(anyhow::Error::from(error)))
+    }
+
+    fn recv_timeout(&mut self, id: u64, timeout: Duration) -> Result<(usize, LiveEvent), BotError> {
         let instant = Instant::now();
         loop {
             let elapsed = instant.elapsed();
@@ -265,10 +332,10 @@ impl Channel for IceoryxUnifiedChannel {
             // todo: this needs to retrieve Iox2Event without waiting.
             match self.node.wait(Duration::from_nanos(1)) {
                 NodeEvent::Tick => {
-                    let ch = unsafe { self.channel.get_unchecked(self.ch_i) };
+                    let ch = unsafe { self.unique_channel.get_unchecked(self.ch_i) };
 
                     self.ch_i += 1;
-                    if self.ch_i == self.channel.len() {
+                    if self.ch_i == self.unique_channel.len() {
                         self.ch_i = 0;
                     }
 
@@ -277,7 +344,21 @@ impl Channel for IceoryxUnifiedChannel {
                         .map_err(|err| BotError::Custom(err.to_string()))?
                     {
                         if dst_id == 0 || dst_id == id {
-                            return Ok(ev);
+                            match &ev {
+                                LiveEvent::BatchStart
+                                | LiveEvent::BatchEnd
+                                | LiveEvent::Error(_) => {
+                                    // todo: it may cause incorrect usage.
+                                    return Ok((0, ev));
+                                }
+                                LiveEvent::Feed { symbol, .. }
+                                | LiveEvent::Order { symbol, .. }
+                                | LiveEvent::Position { symbol, .. } => {
+                                    if let Some(inst_no) = ch.symbol_to_inst_no.get(symbol) {
+                                        return Ok((*inst_no, ev));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -288,13 +369,11 @@ impl Channel for IceoryxUnifiedChannel {
         }
     }
 
-    fn send(&mut self, asset_no: usize, request: Request) -> Result<(), BotError> {
-        let publisher = self
-            .channel
-            .get(asset_no)
-            .ok_or(BotError::InstrumentNotFound)?;
-        publisher
-            .send(TO_ALL, &request)
+    fn send(&mut self, id: u64, inst_no: usize, request: LiveRequest) -> Result<(), BotError> {
+        self.channel
+            .get(inst_no)
+            .ok_or(BotError::InstrumentNotFound)?
+            .send(id, &request)
             .map_err(|err| BotError::Custom(err.to_string()))?;
         Ok(())
     }
