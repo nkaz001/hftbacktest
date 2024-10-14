@@ -42,6 +42,11 @@ mod connector;
 mod fuse;
 mod utils;
 
+struct Position {
+    qty: f64,
+    exch_ts: i64,
+}
+
 fn run_receive_task(
     name: &str,
     tx: UnboundedSender<PublishEvent>,
@@ -106,7 +111,7 @@ async fn run_publish_task(
     mut rx: UnboundedReceiver<PublishEvent>,
 ) -> Result<(), ChannelError> {
     let mut depth = HashMap::new();
-    let mut position = HashMap::new();
+    let mut position: HashMap<String, Position> = HashMap::new();
     let bot_tx = IceoryxBuilder::new(name).bot(false).sender()?;
 
     while let Some(msg) = rx.recv().await {
@@ -120,11 +125,7 @@ async fn run_publish_task(
                 // requested to add this instrument in batch mode.
                 bot_tx.send(id, &LiveEvent::BatchStart)?;
 
-                for order in order_manager
-                    .lock()
-                    .unwrap()
-                    .get_orders(Some(symbol.clone()))
-                {
+                for order in order_manager.lock().unwrap().orders(Some(symbol.clone())) {
                     bot_tx.send(
                         id,
                         &LiveEvent::Order {
@@ -134,12 +135,13 @@ async fn run_publish_task(
                     )?;
                 }
 
-                if let Some(qty) = position.get(&symbol) {
+                if let Some(position) = position.get(&symbol) {
                     bot_tx.send(
                         id,
                         &LiveEvent::Position {
                             symbol: symbol.clone(),
-                            qty: *qty,
+                            qty: position.qty,
+                            exch_ts: position.exch_ts,
                         },
                     )?;
                 }
@@ -193,32 +195,74 @@ async fn run_publish_task(
 fn handle_ev(
     ev: &LiveEvent,
     depth: &mut HashMap<String, FusedHashMapMarketDepth>,
-    position: &mut HashMap<String, f64>,
+    position: &mut HashMap<String, Position>,
 ) -> bool {
     match ev {
         LiveEvent::Feed { symbol, event } => {
             if event.is(BUY_EVENT | DEPTH_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_bid_depth(event.px, event.qty, event.exch_ts);
             } else if event.is(SELL_EVENT | DEPTH_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_ask_depth(event.px, event.qty, event.exch_ts);
             } else if event.is(BUY_EVENT | DEPTH_BBO_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_best_bid(event.px, event.qty, event.exch_ts);
             } else if event.is(SELL_EVENT | DEPTH_BBO_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 return depth_.update_best_ask(event.px, event.qty, event.exch_ts);
             } else if event.is(DEPTH_CLEAR_EVENT) {
-                let depth_ = depth.get_mut(symbol).unwrap();
+                let depth_ = {
+                    match depth.get_mut(symbol) {
+                        Some(d) => d,
+                        None => return false,
+                    }
+                };
                 depth_.clear_depth(Side::None, 0.0);
             }
         }
-        LiveEvent::Position { symbol, qty } => {
+        LiveEvent::Position {
+            symbol,
+            qty,
+            exch_ts,
+        } => {
             if position.contains_key(symbol) {
-                *position.get_mut(symbol).unwrap() = *qty;
+                let position = position.get_mut(symbol).unwrap();
+                return if *exch_ts >= position.exch_ts {
+                    position.qty = *qty;
+                    true
+                } else {
+                    false
+                };
             } else {
-                position.insert(symbol.clone(), *qty);
+                position.insert(
+                    symbol.clone(),
+                    Position {
+                        qty: *qty,
+                        exch_ts: *exch_ts,
+                    },
+                );
+                return true;
             }
         }
         _ => {}

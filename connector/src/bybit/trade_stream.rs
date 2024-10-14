@@ -96,7 +96,7 @@ impl TradeStream {
                                 format!(
                                     "{}/{}",
                                     order.bybit_order.order_link_id.clone(),
-                                    generate_rand_string(16),
+                                    generate_rand_string(8),
                                 )
                             };
                             let op = TradeOp {
@@ -181,7 +181,10 @@ impl TradeStream {
                 10429: System level frequency protection
                 20006: reqId is duplicated
                 10016: 1. internal server error; 2. Service is restarting
-                10019: ws trade service is restarting, do not accept new request, but the request in the process is not affected. You can build new connection to be routed to normal service
+                10019: ws trade service is restarting, do not accept new request,
+                       but the request in the process is not affected.
+                       You can build new connection to be routed to normal service
+                10001: Param error
                  */
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;
@@ -208,7 +211,10 @@ impl TradeStream {
                 10429: System level frequency protection
                 20006: reqId is duplicated
                 10016: 1. internal server error; 2. Service is restarting
-                10019: ws trade service is restarting, do not accept new request, but the request in the process is not affected. You can build new connection to be routed to normal service
+                10019: ws trade service is restarting, do not accept new request,
+                       but the request in the process is not affected.
+                       You can build new connection to be routed to normal service
+                10001: Param error
                  */
                 let mut order_man_ = self.order_manager.lock().unwrap();
                 let order_link_id = req_id.split('/').next().ok_or(BybitError::InvalidReqId)?;

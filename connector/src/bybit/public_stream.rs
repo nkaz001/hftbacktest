@@ -25,7 +25,7 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message},
 };
-use tracing::{error, info};
+use tracing::{debug, error};
 
 use crate::{
     bybit::{
@@ -51,7 +51,7 @@ impl PublicStream {
         let stream = serde_json::from_str::<PublicStreamMsg>(text)?;
         match stream {
             PublicStreamMsg::Op(resp) => {
-                info!(?resp, "Op");
+                debug!(?resp, "Op");
             }
             PublicStreamMsg::Topic(stream) => {
                 if stream.topic.starts_with("orderbook.1") {

@@ -307,9 +307,11 @@ pub struct Position {
     #[serde(rename = "sessionAvgPrice")]
     pub session_avg_price: String,
     #[serde(rename = "createdTime")]
-    pub created_time: String,
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub created_time: i64,
     #[serde(rename = "updatedTime")]
-    pub updated_time: String,
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub updated_time: i64,
     #[serde(rename = "tpslMode")]
     pub tpsl_mode: String,
     #[serde(rename = "liqPrice", default)]

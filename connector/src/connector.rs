@@ -52,7 +52,7 @@ pub trait Connector {
     fn cancel(&self, symbol: String, order: Order, tx: UnboundedSender<PublishEvent>);
 }
 
-/// Provides `get_orders` method to get the current working orders.
+/// Provides `orders` method to get the current working orders.
 pub trait GetOrders {
-    fn get_orders(&self, symbol: Option<String>) -> Vec<Order>;
+    fn orders(&self, symbol: Option<String>) -> Vec<Order>;
 }

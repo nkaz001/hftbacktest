@@ -174,6 +174,7 @@ impl Bybit {
         let order_manager = self.order_manager.clone();
         let instruments = self.symbols.clone();
         let client = self.client.clone();
+        let symbol_tx = self.symbol_tx.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -191,23 +192,28 @@ impl Bybit {
                     Ok(())
                 })
                 .retry(|| async {
-                    let stream = private_stream::PrivateStream::new(
+                    let mut stream = private_stream::PrivateStream::new(
                         api_key.clone(),
                         secret.clone(),
                         ev_tx.clone(),
                         order_manager.clone(),
                         instruments.clone(),
+                        category.clone(),
                         client.clone(),
+                        symbol_tx.subscribe(),
                     );
 
-                    // Cancel all orders before connecting to the stream in order to start with the
-                    // clean state.
-                    stream.cancel_all(&category).await?;
-
-                    // Fetches the initial states such as positions and open orders.
-                    stream.get_all_position(&category).await?;
+                    // // todo: fix the operation order.
+                    //
+                    // // Cancel all orders before connecting to the stream in order to start with the
+                    // // clean state.
+                    // stream.cancel_all(&category).await?;
+                    //
+                    // // Fetches the initial states such as positions and open orders.
+                    // stream.get_all_position(&category).await?;
 
                     stream.connect(&private_url).await?;
+
                     Ok(())
                 })
                 .await;
@@ -294,33 +300,54 @@ impl Connector for Bybit {
         self.connect_trade_stream(ev_tx);
     }
 
-    fn submit(&self, asset: String, order: Order, _ev_tx: UnboundedSender<PublishEvent>) {
-        let bybit_order = self
+    fn submit(&self, asset: String, order: Order, ev_tx: UnboundedSender<PublishEvent>) {
+        match self
             .order_manager
             .lock()
             .unwrap()
             .new_order(&asset, &self.config.category, order)
-            .unwrap();
-        self.order_tx
-            .send(OrderOp {
-                op: "order.create",
-                bybit_order,
-            })
-            .unwrap();
+        {
+            Ok(bybit_order) => {
+                self.order_tx
+                    .send(OrderOp {
+                        op: "order.create",
+                        bybit_order,
+                    })
+                    .unwrap();
+            }
+            Err(error) => {
+                ev_tx
+                    .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                        ErrorKind::OrderError,
+                        error.to_value(),
+                    ))))
+                    .unwrap();
+            }
+        }
     }
 
-    fn cancel(&self, asset: String, order: Order, _ev_tx: UnboundedSender<PublishEvent>) {
-        let bybit_order = self
-            .order_manager
-            .lock()
-            .unwrap()
-            .cancel_order(&asset, &self.config.category, order.order_id)
-            .unwrap();
-        self.order_tx
-            .send(OrderOp {
-                op: "order.cancel",
-                bybit_order,
-            })
-            .unwrap();
+    fn cancel(&self, asset: String, order: Order, ev_tx: UnboundedSender<PublishEvent>) {
+        match self.order_manager.lock().unwrap().cancel_order(
+            &asset,
+            &self.config.category,
+            order.order_id,
+        ) {
+            Ok(bybit_order) => {
+                self.order_tx
+                    .send(OrderOp {
+                        op: "order.cancel",
+                        bybit_order,
+                    })
+                    .unwrap();
+            }
+            Err(error) => {
+                ev_tx
+                    .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                        ErrorKind::OrderError,
+                        error.to_value(),
+                    ))))
+                    .unwrap();
+            }
+        }
     }
 }

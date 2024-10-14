@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use hashbrown::{hash_map::Entry, HashMap};
+use hashbrown::HashMap;
 use hftbacktest::{
     prelude::get_precision,
     types::{OrdType, Order, OrderId, Side, Status, TimeInForce},
@@ -136,17 +136,25 @@ impl OrderManager {
             }),
             order_link_id: order_link_id.clone(),
         };
-        match self.orders.entry(order_link_id) {
-            Entry::Occupied(_) => {
-                return Err(BybitError::OrderAlreadyExist);
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(OrderExt {
-                    symbol: symbol.to_string(),
-                    order,
-                });
-            }
+
+        let symbol_order_id = SymbolOrderId::new(symbol.to_string(), order.order_id);
+        if self.order_id_map.contains_key(&symbol_order_id) {
+            return Err(BybitError::OrderAlreadyExist);
         }
+
+        if self.orders.contains_key(&order_link_id) {
+            return Err(BybitError::OrderAlreadyExist);
+        }
+
+        self.order_id_map
+            .insert(symbol_order_id, order_link_id.clone());
+        self.orders.insert(
+            order_link_id,
+            OrderExt {
+                symbol: symbol.to_string(),
+                order,
+            },
+        );
         Ok(bybit_order)
     }
 
@@ -195,30 +203,29 @@ impl OrderManager {
         Ok(order_info)
     }
 
-    pub fn clear_orders(&mut self, symbol: &str) -> Vec<Order> {
-        let removed_order_ids: Vec<_> = self
-            .orders
-            .iter()
-            .filter(|(_, order)| order.symbol == symbol)
-            .map(|(id, _)| id)
-            .cloned()
-            .collect();
+    pub fn cancel_all(&mut self, symbol: &str) -> Vec<Order> {
+        let mut removed_order_ids = Vec::new();
+        for (order_link_id, order_ext) in &mut self.orders {
+            if order_ext.symbol != symbol {
+                continue;
+            }
 
-        let mut removed_orders = Vec::new();
-        for order_id in removed_order_ids {
-            let removed_order = self.orders.remove(&order_id).unwrap();
-            self.order_id_map.remove(&RefSymbolOrderId::new(
-                &removed_order.symbol,
-                removed_order.order.order_id,
-            ));
-            removed_orders.push(removed_order.order);
+            order_ext.order.status = Status::Canceled;
+
+            self.order_id_map
+                .remove(&RefSymbolOrderId::new(symbol, order_ext.order.order_id));
+            removed_order_ids.push(order_link_id.clone());
         }
-        removed_orders
+
+        removed_order_ids
+            .iter()
+            .map(|id| self.orders.remove(id).unwrap().order)
+            .collect()
     }
 }
 
 impl GetOrders for OrderManager {
-    fn get_orders(&self, symbol: Option<String>) -> Vec<Order> {
+    fn orders(&self, symbol: Option<String>) -> Vec<Order> {
         self.orders
             .iter()
             .filter(|(_, order)| {

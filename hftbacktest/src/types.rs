@@ -140,9 +140,19 @@ pub enum ErrorKind {
 pub enum LiveEvent {
     BatchStart,
     BatchEnd,
-    Feed { symbol: String, event: Event },
-    Order { symbol: String, order: Order },
-    Position { symbol: String, qty: f64 },
+    Feed {
+        symbol: String,
+        event: Event,
+    },
+    Order {
+        symbol: String,
+        order: Order,
+    },
+    Position {
+        symbol: String,
+        qty: f64,
+        exch_ts: i64,
+    },
     Error(LiveError),
 }
 
