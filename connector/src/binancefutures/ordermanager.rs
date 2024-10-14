@@ -241,7 +241,6 @@ impl OrderManager {
     pub fn prepare_client_order_id(&mut self, symbol: String, order: Order) -> Option<String> {
         let symbol_order_id = SymbolOrderId::new(symbol.clone(), order.order_id);
         if self.order_id_map.contains_key(&symbol_order_id) {
-            println!("symbol order id duplicate");
             return None;
         }
 
@@ -336,7 +335,7 @@ impl OrderManager {
 }
 
 impl GetOrders for OrderManager {
-    fn get_orders(&self, symbol: Option<String>) -> Vec<Order> {
+    fn orders(&self, symbol: Option<String>) -> Vec<Order> {
         self.orders
             .iter()
             .filter(|(_, order)| {

@@ -139,6 +139,7 @@ impl BinanceFutures {
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
         let instruments = self.symbols.clone();
+        let symbol_tx = self.symbol_tx.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -161,14 +162,8 @@ impl BinanceFutures {
                         ev_tx.clone(),
                         order_manager.clone(),
                         instruments.clone(),
+                        symbol_tx.subscribe(),
                     );
-
-                    // Cancel all orders before connecting to the stream in order to start with the
-                    // clean state.
-                    stream.cancel_all().await?;
-
-                    // Fetches the initial states such as positions and open orders.
-                    stream.get_position_information().await?;
 
                     let listen_key = stream.get_listen_key().await?;
 

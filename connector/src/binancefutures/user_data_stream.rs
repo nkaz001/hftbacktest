@@ -2,7 +2,14 @@ use std::{collections::HashSet, time::Duration};
 
 use futures_util::{SinkExt, StreamExt};
 use hftbacktest::prelude::*;
-use tokio::{select, sync::mpsc::UnboundedSender, time};
+use tokio::{
+    select,
+    sync::{
+        broadcast::{error::RecvError, Receiver},
+        mpsc::UnboundedSender,
+    },
+    time,
+};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message},
@@ -25,6 +32,7 @@ pub struct UserDataStream {
     client: BinanceFuturesClient,
     ev_tx: UnboundedSender<PublishEvent>,
     order_manager: SharedOrderManager,
+    symbol_rx: Receiver<String>,
 }
 
 impl UserDataStream {
@@ -33,56 +41,15 @@ impl UserDataStream {
         ev_tx: UnboundedSender<PublishEvent>,
         order_manager: SharedOrderManager,
         symbols: SharedSymbolSet,
+        symbol_rx: Receiver<String>,
     ) -> Self {
         Self {
             symbols,
             client,
             ev_tx,
             order_manager,
+            symbol_rx,
         }
-    }
-
-    pub async fn cancel_all(&self) -> Result<(), BinanceFuturesError> {
-        let symbols: Vec<_> = self.symbols.lock().unwrap().iter().cloned().collect();
-        for symbol in symbols {
-            // todo: rate-limit throttling.
-            self.client.cancel_all_orders(&symbol).await?;
-            let mut order_manager = self.order_manager.lock().unwrap();
-            let canceled_orders = order_manager.cancel_all_from_rest(&symbol);
-            for mut order in canceled_orders {
-                order.status = Status::Canceled;
-                self.ev_tx
-                    .send(PublishEvent::LiveEvent(LiveEvent::Order {
-                        symbol: symbol.clone(),
-                        order,
-                    }))
-                    .unwrap();
-            }
-        }
-        Ok(())
-    }
-
-    pub async fn get_position_information(&self) -> Result<(), BinanceFuturesError> {
-        let position_information = self.client.get_position_information().await?;
-        let mut symbols: HashSet<_> = self.symbols.lock().unwrap().iter().cloned().collect();
-        position_information.into_iter().for_each(|position| {
-            symbols.remove(&position.symbol);
-            self.ev_tx
-                .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                    symbol: position.symbol,
-                    qty: position.position_amount,
-                }))
-                .unwrap();
-        });
-        for symbol in symbols {
-            self.ev_tx
-                .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                    symbol,
-                    qty: 0.0,
-                }))
-                .unwrap();
-        }
-        Ok(())
     }
 
     pub async fn get_listen_key(&self) -> Result<String, BinanceFuturesError> {
@@ -101,13 +68,13 @@ impl UserDataStream {
                         .send(PublishEvent::LiveEvent(LiveEvent::Position {
                             symbol: position.symbol,
                             qty: position.position_amount,
+                            exch_ts: data.transaction_time * 1_000_000,
                         }))
                         .unwrap();
                 }
             }
             EventStream::OrderTradeUpdate(data) => {
-                let result = self.order_manager.lock().unwrap().update_from_ws(&data);
-                match result {
+                match self.order_manager.lock().unwrap().update_from_ws(&data) {
                     Ok(Some(order)) => {
                         self.ev_tx
                             .send(PublishEvent::LiveEvent(LiveEvent::Order {
@@ -140,6 +107,36 @@ impl UserDataStream {
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
         let mut interval = time::interval(Duration::from_secs(60 * 30));
+
+        let symbols: HashSet<_> = self.symbols.lock().unwrap().iter().cloned().collect();
+        let client = self.client.clone();
+        let order_manager = self.order_manager.clone();
+        let ev_tx = self.ev_tx.clone();
+
+        tokio::spawn(async move {
+            // Cancel all orders before connecting to the stream in order to start with the
+            // clean state.
+            for symbol in &symbols {
+                if let Err(error) = cancel_all(
+                    client.clone(),
+                    symbol.clone(),
+                    order_manager.clone(),
+                    ev_tx.clone(),
+                )
+                .await
+                {
+                    error!(?error, %symbol, "Couldn't cancel all orders.");
+                }
+            }
+
+            // Fetches the initial states such as positions and open orders.
+            if let Err(error) =
+                get_position_information(client.clone(), symbols, ev_tx.clone()).await
+            {
+                error!(?error, "Couldn't get position information.");
+            }
+        });
+
         loop {
             select! {
                 _ = interval.tick() => {
@@ -153,6 +150,32 @@ impl UserDataStream {
                             error!(?error, "Failed keepalive user data stream.");
                         }
                     });
+                }
+                msg = self.symbol_rx.recv() => {
+                    match msg {
+                        Ok(symbol) => {
+                            let client = self.client.clone();
+                            let order_manager = self.order_manager.clone();
+                            let ev_tx = self.ev_tx.clone();
+
+                            tokio::spawn(async move {
+                                if let Err(error) = cancel_all(
+                                    client.clone(),
+                                    symbol.clone(),
+                                    order_manager.clone(),
+                                    ev_tx.clone()
+                                ).await {
+                                    error!(?error, %symbol, "Couldn't cancel all orders.");
+                                }
+                            });
+                        }
+                        Err(RecvError::Closed) => {
+                            return Ok(());
+                        }
+                        Err(RecvError::Lagged(num)) => {
+                            error!("{num} subscription requests were missed.");
+                        }
+                    }
                 }
                 message = read.next() => match message {
                     Some(Ok(Message::Text(text))) => {
@@ -189,4 +212,53 @@ impl UserDataStream {
             }
         }
     }
+}
+
+pub async fn cancel_all(
+    client: BinanceFuturesClient,
+    symbol: String,
+    order_manager: SharedOrderManager,
+    ev_tx: UnboundedSender<PublishEvent>,
+) -> Result<(), BinanceFuturesError> {
+    // todo: rate-limit throttling.
+    client.cancel_all_orders(&symbol).await?;
+    let orders = order_manager.lock().unwrap().cancel_all_from_rest(&symbol);
+    for order in orders {
+        ev_tx
+            .send(PublishEvent::LiveEvent(LiveEvent::Order {
+                symbol: symbol.clone(),
+                order,
+            }))
+            .unwrap();
+    }
+    Ok(())
+}
+
+pub async fn get_position_information(
+    client: BinanceFuturesClient,
+    mut symbols: HashSet<String>,
+    ev_tx: UnboundedSender<PublishEvent>,
+) -> Result<(), BinanceFuturesError> {
+    // todo: rate-limit throttling.
+    let position_information = client.get_position_information().await?;
+    position_information.into_iter().for_each(|position| {
+        symbols.remove(&position.symbol);
+        ev_tx
+            .send(PublishEvent::LiveEvent(LiveEvent::Position {
+                symbol: position.symbol,
+                qty: position.position_amount,
+                exch_ts: position.update_time * 1_000_000,
+            }))
+            .unwrap();
+    });
+    for symbol in symbols {
+        ev_tx
+            .send(PublishEvent::LiveEvent(LiveEvent::Position {
+                symbol,
+                qty: 0.0,
+                exch_ts: 0,
+            }))
+            .unwrap();
+    }
+    Ok(())
 }
