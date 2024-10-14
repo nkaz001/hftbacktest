@@ -11,7 +11,9 @@ Please report any issues you encounter by submitting them to the Issues.**
 Supported exchanges include:
 
 * Binance Futures (Tested on the Testnet)
+  - The symbol should be in lowercase.
 * Bybit Futures (Under development)
+  - The symbol should be in uppercase.
 
 ## Getting Started
 
