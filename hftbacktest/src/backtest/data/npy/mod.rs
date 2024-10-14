@@ -248,6 +248,28 @@ pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> std::i
     read_npy(&mut file, size)
 }
 
+pub fn write_npy_header<W: Write, T: NpyDTyped>(write: &mut W, len: usize) -> std::io::Result<()> {
+    let descr = T::descr();
+    let header = NpyHeader {
+        descr,
+        fortran_order: false,
+        shape: vec![len],
+    };
+
+    write.write_all(b"\x93NUMPY\x01\x00")?;
+    let header_str = header.to_string_padding();
+    let len = header_str.len() as u16;
+    write.write_all(&len.to_le_bytes())?;
+    write.write_all(header_str.as_bytes())?;
+
+    Ok(())
+}
+
+pub fn write_npy_data<W: Write, T: NpyDTyped>(write: &mut W, data: &[T]) -> std::io::Result<()> {
+    write.write_all(vec_as_bytes(data))?;
+    Ok(())
+}
+
 pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &[T]) -> std::io::Result<()> {
     let descr = T::descr();
     let header = NpyHeader {
