@@ -87,8 +87,7 @@ impl Converter {
                 let timestamp: i64 = timestamp_str.parse()?;
                 let events = self.process(timestamp, json_str)?;
                 counter += events.len();
-
-                let _ = write_npy_data(output, events.as_slice());
+                write_npy_data(output, events.as_slice())?;
             } else {
                 eprintln!("Error: line format incorrect: {}", line);
             }
