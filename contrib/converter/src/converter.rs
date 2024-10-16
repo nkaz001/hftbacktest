@@ -1,7 +1,7 @@
 use flate2::read::GzDecoder;
 use hftbacktest::types::Event;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter};
 
 use hftbacktest::backtest::data::write_npy_data;
 
@@ -75,7 +75,7 @@ impl Converter {
     pub fn process_file(
         &mut self,
         input: BufReader<GzDecoder<File>>,
-        output: &mut File,
+        output: &mut BufWriter<File>,
     ) -> Result<usize, Box<dyn std::error::Error>> {
         let mut counter: usize = 0;
         for line in input.lines() {
