@@ -4,8 +4,9 @@ members = [
   "hftbacktest",
   "hftbacktest-derive",
   "py-hftbacktest",
-  "collector"
-, "connector"]
+  "collector", 
+  "connector",
+  "contrib/converter"]
 
 [profile.dev]
 opt-level = 0
