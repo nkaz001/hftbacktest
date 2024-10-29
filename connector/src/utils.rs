@@ -23,7 +23,7 @@ use crate::bybit::BybitError;
 struct I64Visitor;
 
 impl<'de> Visitor<'de> for I64Visitor {
-    type Value = i64;
+    type Value = Option<i64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a string containing an i64 number")
@@ -33,7 +33,11 @@ impl<'de> Visitor<'de> for I64Visitor {
     where
         E: de::Error,
     {
-        s.parse::<i64>().map_err(Error::custom)
+        if s.is_empty() {
+            Ok(Some(0))
+        } else {
+            Ok(Some(s.parse::<i64>().map_err(Error::custom)?))
+        }
     }
 }
 
@@ -57,24 +61,14 @@ impl<'de> Visitor<'de> for OptionF64Visitor {
     where
         D: Deserializer<'de>,
     {
-        match deserializer.deserialize_str(F64Visitor) {
-            Ok(num) => Ok(Some(num)),
-            Err(e) => {
-                // fixme: dirty
-                if format!("{e:?}").starts_with("Error(\"cannot parse float from empty string\"") {
-                    Ok(None)
-                } else {
-                    Err(e)
-                }
-            }
-        }
+        deserializer.deserialize_str(F64Visitor)
     }
 }
 
 struct F64Visitor;
 
 impl<'de> Visitor<'de> for F64Visitor {
-    type Value = f64;
+    type Value = Option<f64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a string containing an f64 number")
@@ -84,7 +78,11 @@ impl<'de> Visitor<'de> for F64Visitor {
     where
         E: de::Error,
     {
-        s.parse::<f64>().map_err(Error::custom)
+        if s.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(s.parse::<f64>().map_err(Error::custom)?))
+        }
     }
 }
 
@@ -92,14 +90,18 @@ pub fn from_str_to_i64<'de, D>(deserializer: D) -> Result<i64, D::Error>
 where
     D: Deserializer<'de>,
 {
-    deserializer.deserialize_str(I64Visitor)
+    deserializer
+        .deserialize_str(I64Visitor)
+        .map(|value| value.unwrap_or(0))
 }
 
 pub fn from_str_to_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
     D: Deserializer<'de>,
 {
-    deserializer.deserialize_str(F64Visitor)
+    deserializer
+        .deserialize_str(F64Visitor)
+        .map(|value| value.unwrap_or(0.0))
 }
 
 pub fn from_str_to_f64_opt<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
