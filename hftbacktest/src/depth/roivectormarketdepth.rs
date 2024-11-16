@@ -261,10 +261,22 @@ impl L2MarketDepth for ROIVectorMarketDepth {
                             }
                         }
                     }
+                    let low_bid_tick = if self.low_bid_tick == INVALID_MAX {
+                        self.roi_lb
+                    } else {
+                        self.low_bid_tick
+                    };
+                    let clear_upto = if clear_upto - 1 < self.roi_lb {
+                        self.roi_lb
+                    } else if clear_upto - 1 > self.roi_ub {
+                        self.roi_ub
+                    } else {
+                        clear_upto - 1
+                    };
                     self.best_bid_tick = depth_below(
                         &self.bid_depth,
-                        clear_upto - 1,
-                        self.low_bid_tick,
+                        clear_upto,
+                        low_bid_tick,
                         self.roi_lb,
                         self.roi_ub,
                     );
@@ -288,10 +300,22 @@ impl L2MarketDepth for ROIVectorMarketDepth {
                             }
                         }
                     }
+                    let high_ask_tick = if self.high_ask_tick == INVALID_MIN {
+                        self.roi_ub
+                    } else {
+                        self.high_ask_tick
+                    };
+                    let clear_upto = if clear_upto + 1 < self.roi_lb {
+                        self.roi_lb
+                    } else if clear_upto + 1 > self.roi_ub {
+                        self.roi_ub
+                    } else {
+                        clear_upto + 1
+                    };
                     self.best_ask_tick = depth_above(
                         &self.ask_depth,
-                        clear_upto + 1,
-                        self.high_ask_tick,
+                        clear_upto,
+                        high_ask_tick,
                         self.roi_lb,
                         self.roi_ub,
                     );
