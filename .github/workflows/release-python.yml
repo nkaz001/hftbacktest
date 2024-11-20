@@ -46,7 +46,8 @@ jobs:
         run: |
           python3 -m ensurepip
           sudo apt-get update
-          sudo apt-get install -y pkg-config openssl libssl-dev clang clang-dev
+          sudo apt-get install -y pkg-config openssl libssl-dev clang
+          clang --version
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
