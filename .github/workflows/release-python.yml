@@ -52,6 +52,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           rust-toolchain: ${{ env.RUST_VERSION }}
+          before-script-linux: sudo apt-get install -y clang
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
           # sccache: 'true'
           manylinux: 2_24
@@ -88,6 +89,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           rust-toolchain: ${{ env.RUST_VERSION }}
+          before-script-linux: sudo apt-get install -y clang
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
           sccache: 'true'
           manylinux: musllinux_1_2
