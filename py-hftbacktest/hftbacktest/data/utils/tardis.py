@@ -1,3 +1,5 @@
+import gzip
+
 import polars as pl
 from typing import List, Optional, Literal
 
@@ -37,6 +39,28 @@ depth_cols = [
     'price',
     'amount'
 ]
+
+trade_schema = {
+    'exchange': pl.String,
+    'symbol': pl.String,
+    'timestamp': pl.Int64,
+    'local_timestamp': pl.Int64,
+    'id': pl.UInt64,
+    'side': pl.String,
+    'price': pl.Float64,
+    'amount': pl.Float64,
+}
+
+depth_schema = {
+    'exchange': pl.String,
+    'symbol': pl.String,
+    'timestamp': pl.Int64,
+    'local_timestamp': pl.Int64,
+    'is_snapshot': pl.Boolean,
+    'side': pl.String,
+    'price': pl.Float64,
+    'amount': pl.Float64,
+}
 
 
 def convert(
@@ -84,7 +108,32 @@ def convert(
 
     for file in input_files:
         print('Reading %s' % file)
-        df = pl.read_csv(file)
+
+        schema = None
+        if 'trades' in file:
+            schema = trade_schema
+        elif 'incremental_book_L2' in file:
+            schema = depth_schema
+        else:
+            # Attempts to infer the file type using its header.
+            try:
+                if file.endswith('.gz'):
+                    with gzip.open(file) as f:
+                        line = f.readline()
+                        header = line.decode().strip().split(',')
+                else:
+                    with open(file) as f:
+                        line = f.readline()
+                        header = line.strip().split(',')
+                if header == trade_cols:
+                    schema = trade_schema
+                elif header == depth_cols:
+                    schema = depth_schema
+            except:
+                # Fails to infer the file type; let Polars infer the schema.
+                pass
+
+        df = pl.read_csv(file, schema=schema)
         if df.columns == trade_cols:
             arr = (
                 df.with_columns(
