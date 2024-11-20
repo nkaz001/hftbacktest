@@ -114,6 +114,7 @@ pub struct BacktestAsset {
 }
 
 unsafe impl Send for BacktestAsset {}
+unsafe impl Sync for BacktestAsset {}
 
 #[pymethods]
 impl BacktestAsset {

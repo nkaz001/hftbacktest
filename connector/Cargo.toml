@@ -12,7 +12,7 @@ bybit = []
 hftbacktest = { path = "../hftbacktest", version = "0.4.0" }
 tracing = "0.1.40"
 anyhow = "1.0.79"
-thiserror = "1.0.57"
+thiserror = "2.0.3"
 bincode = "2.0.0-rc.3"
 chrono = { version = "0.4.33" }
 serde = { version = "1.0.196", features = ["derive"] }
