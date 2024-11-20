@@ -2,6 +2,8 @@ use std::{ffi::c_void, mem::size_of, ptr::slice_from_raw_parts_mut};
 
 pub use backtest::*;
 pub use depth::*;
+#[cfg(feature = "live")]
+use hftbacktest::live::{Instrument, LiveBotBuilder};
 use hftbacktest::{
     backtest::{
         assettype::{InverseAsset, LinearAsset},
@@ -38,18 +40,19 @@ use hftbacktest::{
         Backtest,
         DataSource,
     },
-    // live::{Instrument, LiveBotBuilder},
     prelude::{ApplySnapshot, Event, HashMapMarketDepth, ROIVectorMarketDepth},
 };
 use hftbacktest_derive::build_asset;
 pub use order::*;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-// use crate::live::{HashMapMarketDepthLiveBot, ROIVectorMarketDepthLiveBot};
+#[cfg(feature = "live")]
+use crate::live::{HashMapMarketDepthLiveBot, ROIVectorMarketDepthLiveBot};
 
 mod backtest;
 mod depth;
-//mod live;
+#[cfg(feature = "live")]
+mod live;
 mod order;
 
 #[derive(Clone)]
@@ -454,8 +457,10 @@ impl BacktestAsset {
 fn _hftbacktest(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(build_hashmap_backtest, m)?)?;
     m.add_function(wrap_pyfunction!(build_roivec_backtest, m)?)?;
-    // m.add_function(wrap_pyfunction!(build_hashmap_livebot, m)?)?;
-    // m.add_function(wrap_pyfunction!(build_roivec_livebot, m)?)?;
+    #[cfg(feature = "live")]
+    m.add_function(wrap_pyfunction!(build_hashmap_livebot, m)?)?;
+    #[cfg(feature = "live")]
+    m.add_function(wrap_pyfunction!(build_roivec_livebot, m)?)?;
     m.add_class::<BacktestAsset>()?;
     m.add_class::<LiveInstrument>()?;
     Ok(())
@@ -657,52 +662,54 @@ impl LiveInstrument {
         slf
     }
 }
-//
-// #[pyfunction]
-// pub fn build_hashmap_livebot(instruments: Vec<PyRefMut<LiveInstrument>>) -> PyResult<usize> {
-//     let mut builder = LiveBotBuilder::new();
-//     for instrument in instruments {
-//         builder = builder.register(Instrument::new(
-//             &instrument.connector_name,
-//             &instrument.symbol,
-//             instrument.tick_size,
-//             instrument.lot_size,
-//             HashMapMarketDepth::new(instrument.tick_size, instrument.lot_size),
-//             instrument.last_trades_cap,
-//         ));
-//     }
-//     let hbt: HashMapMarketDepthLiveBot = builder
-//         .error_handler(|_error| Ok(()))
-//         .order_recv_hook(|_prev, _new| Ok(()))
-//         .build()
-//         .unwrap();
-//
-//     Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
-// }
-//
-// #[pyfunction]
-// pub fn build_roivec_livebot(instruments: Vec<PyRefMut<LiveInstrument>>) -> PyResult<usize> {
-//     let mut builder = LiveBotBuilder::new();
-//     for instrument in instruments {
-//         builder = builder.register(Instrument::new(
-//             &instrument.connector_name,
-//             &instrument.symbol,
-//             instrument.tick_size,
-//             instrument.lot_size,
-//             ROIVectorMarketDepth::new(
-//                 instrument.tick_size,
-//                 instrument.lot_size,
-//                 instrument.roi_lb,
-//                 instrument.roi_ub,
-//             ),
-//             instrument.last_trades_cap,
-//         ));
-//     }
-//     let hbt: ROIVectorMarketDepthLiveBot = builder
-//         .error_handler(|_error| Ok(()))
-//         .order_recv_hook(|_prev, _new| Ok(()))
-//         .build()
-//         .unwrap();
-//
-//     Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
-// }
+
+#[cfg(feature = "live")]
+#[pyfunction]
+pub fn build_hashmap_livebot(instruments: Vec<PyRefMut<LiveInstrument>>) -> PyResult<usize> {
+    let mut builder = LiveBotBuilder::new();
+    for instrument in instruments {
+        builder = builder.register(Instrument::new(
+            &instrument.connector_name,
+            &instrument.symbol,
+            instrument.tick_size,
+            instrument.lot_size,
+            HashMapMarketDepth::new(instrument.tick_size, instrument.lot_size),
+            instrument.last_trades_cap,
+        ));
+    }
+    let hbt: HashMapMarketDepthLiveBot = builder
+        .error_handler(|_error| Ok(()))
+        .order_recv_hook(|_prev, _new| Ok(()))
+        .build()
+        .unwrap();
+
+    Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
+}
+
+#[cfg(feature = "live")]
+#[pyfunction]
+pub fn build_roivec_livebot(instruments: Vec<PyRefMut<LiveInstrument>>) -> PyResult<usize> {
+    let mut builder = LiveBotBuilder::new();
+    for instrument in instruments {
+        builder = builder.register(Instrument::new(
+            &instrument.connector_name,
+            &instrument.symbol,
+            instrument.tick_size,
+            instrument.lot_size,
+            ROIVectorMarketDepth::new(
+                instrument.tick_size,
+                instrument.lot_size,
+                instrument.roi_lb,
+                instrument.roi_ub,
+            ),
+            instrument.last_trades_cap,
+        ));
+    }
+    let hbt: ROIVectorMarketDepthLiveBot = builder
+        .error_handler(|_error| Ok(()))
+        .order_recv_hook(|_prev, _new| Ok(()))
+        .build()
+        .unwrap();
+
+    Ok(Box::into_raw(Box::new(hbt)) as *mut c_void as usize)
+}

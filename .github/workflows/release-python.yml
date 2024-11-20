@@ -88,8 +88,8 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           rust-toolchain: ${{ env.RUST_VERSION }}
-          before-script-linux: .github/workflows/install_deps.sh
-          args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
+#          before-script-linux: .github/workflows/install_deps.sh
+          args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter --features live
 #          sccache: 'true'
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -121,7 +121,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           rust-toolchain: ${{ env.RUST_VERSION }}
-          args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
+          args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter --features live
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -153,7 +153,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           rust-toolchain: ${{ env.RUST_VERSION }}
-          args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
+          args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter --features live
           sccache: 'true'
       - name: Upload wheels
         uses: actions/upload-artifact@v4

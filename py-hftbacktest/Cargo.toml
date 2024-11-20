@@ -7,6 +7,10 @@ edition = "2021"
 name = "hftbacktest"
 crate-type = ["cdylib"]
 
+[features]
+default = []
+live = ["hftbacktest/live"]
+
 [dependencies]
 pyo3 = { version = "0.23.1", features = ["extension-module"] }
 hftbacktest = { path = "../hftbacktest", default-features = false, features = ["backtest"] }
