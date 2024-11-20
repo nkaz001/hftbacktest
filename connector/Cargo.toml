@@ -9,7 +9,7 @@ binancefutures = []
 bybit = []
 
 [dependencies]
-hftbacktest = { path = "../hftbacktest", version = "0.4.0" }
+hftbacktest = { path = "../hftbacktest" }
 tracing = "0.1.40"
 anyhow = "1.0.79"
 thiserror = "2.0.3"
