@@ -59,7 +59,14 @@ impl From<BinanceFuturesError> for Value {
         match value {
             BinanceFuturesError::InstrumentNotFound => Value::String(value.to_string()),
             BinanceFuturesError::InvalidRequest => Value::String(value.to_string()),
-            BinanceFuturesError::ReqError(error) => error.into(),
+            BinanceFuturesError::ReqError(error) => {
+                let mut map = HashMap::new();
+                if let Some(code) = error.status() {
+                    map.insert("status_code".to_string(), Value::String(code.to_string()));
+                }
+                map.insert("msg".to_string(), Value::String(error.to_string()));
+                Value::Map(map)
+            }
             BinanceFuturesError::OrderError { code, msg } => Value::Map({
                 let mut map = HashMap::new();
                 map.insert("code".to_string(), Value::Int(code));
