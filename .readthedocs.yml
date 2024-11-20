@@ -10,10 +10,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-#    rust: "1.80.1"
   commands:
-    - asdf install rust 1.81.0
-    - asdf global rust 1.81.0
+    - asdf install rust 1.82.0
+    - asdf global rust 1.82.0
     - cp examples/*.ipynb docs/tutorials
     - python -mvirtualenv $READTHEDOCS_VIRTUALENV_PATH
     - python -m pip install --upgrade --no-cache-dir pip setuptools
