@@ -52,7 +52,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           rust-toolchain: ${{ env.RUST_VERSION }}
-          before-script-linux: sudo apt-get install -y clang
+          before-script-linux: .github/workflows/install_deps.sh
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
           # sccache: 'true'
           manylinux: 2_24

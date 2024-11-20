@@ -84,7 +84,33 @@ def convert(
 
     for file in input_files:
         print('Reading %s' % file)
-        df = pl.read_csv(file)
+        if 'trades' in file:
+            schema = {
+                'exchange': pl.String,
+                'symbol': pl.String,
+                'timestamp': pl.Int64,
+                'local_timestamp': pl.Int64,
+                'id': pl.UInt64,
+                'side': pl.String,
+                'price': pl.Float64,
+                'amount': pl.Float64,
+            }
+            df = pl.read_csv(file, schema=schema)
+        elif 'incremental_book_L2' in file:
+            schema = {
+                'exchange': pl.String,
+                'symbol': pl.String,
+                'timestamp': pl.Int64,
+                'local_timestamp': pl.Int64,
+                'is_snapshot': pl.Boolean,
+                'side': pl.String,
+                'price': pl.Float64,
+                'amount': pl.Float64,
+            }
+            df = pl.read_csv(file, schema=schema)
+        else:
+            df = pl.read_csv(file)
+
         if df.columns == trade_cols:
             arr = (
                 df.with_columns(
