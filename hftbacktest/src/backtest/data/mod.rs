@@ -1,4 +1,5 @@
 mod npy;
+mod parquet;
 mod reader;
 
 use std::{
