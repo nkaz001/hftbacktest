@@ -35,8 +35,8 @@ classifiers = [
 Repository = "https://github.com/nkaz001/hftbacktest"
 
 [project.optional-dependencies]
-numpy = ["numpy ~= 1.26, < 2"]
-numba = ["numba ~= 0.59"]
+numpy = ["numpy ~= 2.0"]
+numba = ["numba ~= 0.60"]
 polars = ["polars"]
 holoviews = ["holoviews"]
 matplotlib = ["matplotlib"]
