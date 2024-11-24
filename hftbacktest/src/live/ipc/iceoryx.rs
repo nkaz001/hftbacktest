@@ -22,14 +22,17 @@ use iceoryx2::{
 use thiserror::Error;
 
 use crate::{
-    live::{ipc::Channel, BotError, Instrument},
+    live::{
+        ipc::{
+            config::{ChannelConfig, MAX_PAYLOAD_SIZE},
+            Channel,
+        },
+        BotError,
+        Instrument,
+    },
     prelude::{LiveEvent, LiveRequest},
     types::BuildError,
 };
-
-const MAX_PAYLOAD_SIZE: usize = 512;
-const MAX_BOTS_PER_CONNECTOR: usize = 500;
-const CHANNEL_BUFFER_SIZE: usize = 100000;
 
 #[derive(Default, Debug)]
 #[repr(C)]
@@ -74,6 +77,7 @@ impl IceoryxBuilder {
     }
 
     pub fn receiver<T>(self) -> Result<IceoryxReceiver<T>, ChannelError> {
+        let config = ChannelConfig::load_config();
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
             .map_err(|error| ChannelError::BuildError(error.to_string()))?;
@@ -83,9 +87,9 @@ impl IceoryxBuilder {
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
-                .subscriber_max_buffer_size(CHANNEL_BUFFER_SIZE)
+                .subscriber_max_buffer_size(config.buffer_size)
                 .max_publishers(1)
-                .max_subscribers(MAX_BOTS_PER_CONNECTOR)
+                .max_subscribers(config.max_bots)
                 .user_header::<CustomHeader>()
                 .open_or_create()
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?
@@ -94,8 +98,8 @@ impl IceoryxBuilder {
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
-                .subscriber_max_buffer_size(CHANNEL_BUFFER_SIZE)
-                .max_publishers(MAX_BOTS_PER_CONNECTOR)
+                .subscriber_max_buffer_size(config.buffer_size)
+                .max_publishers(config.max_bots)
                 .max_subscribers(1)
                 .user_header::<CustomHeader>()
                 .open_or_create()
@@ -114,6 +118,7 @@ impl IceoryxBuilder {
     }
 
     pub fn sender<T>(self) -> Result<IceoryxSender<T>, ChannelError> {
+        let config = ChannelConfig::load_config();
         let node = NodeBuilder::new()
             .create::<ipc::Service>()
             .map_err(|error| ChannelError::BuildError(error.to_string()))?;
@@ -123,8 +128,8 @@ impl IceoryxBuilder {
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
-                .subscriber_max_buffer_size(100000)
-                .max_publishers(500)
+                .subscriber_max_buffer_size(config.buffer_size)
+                .max_publishers(config.max_bots)
                 .max_subscribers(1)
                 .user_header::<CustomHeader>()
                 .open_or_create()
@@ -134,9 +139,9 @@ impl IceoryxBuilder {
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?;
             node.service_builder(&service_name)
                 .publish_subscribe::<[u8]>()
-                .subscriber_max_buffer_size(100000)
+                .subscriber_max_buffer_size(config.buffer_size)
                 .max_publishers(1)
-                .max_subscribers(500)
+                .max_subscribers(config.max_bots)
                 .user_header::<CustomHeader>()
                 .open_or_create()
                 .map_err(|error| ChannelError::BuildError(error.to_string()))?

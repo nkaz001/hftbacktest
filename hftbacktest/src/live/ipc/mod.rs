@@ -6,6 +6,7 @@ use crate::{
     types::{LiveEvent, LiveRequest},
 };
 
+mod config;
 pub mod iceoryx;
 
 pub const TO_ALL: u64 = 0;
