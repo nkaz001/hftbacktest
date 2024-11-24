@@ -2,7 +2,7 @@ import os.path
 from datetime import datetime, timedelta
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from hftbacktest import EXCH_EVENT, LOCAL_EVENT
 from numba import njit
 
@@ -46,20 +46,24 @@ def generate_order_latency_nb(data, order_latency, mul_entry, offset_entry, mul_
 
 def generate_order_latency(feed_file, output_file=None, mul_entry=1, offset_entry=0, mul_resp=1, offset_resp=0):
     data = np.load(feed_file)['data']
-    df = pd.DataFrame(data)
-    df = df[(df['ev'] & EXCH_EVENT == EXCH_EVENT) | (df['ev'] & LOCAL_EVENT == LOCAL_EVENT)]
-    s = (df['local_ts'] / 1_000_000_000).astype(int)
-    df = df.groupby(s).last()
-    data = df.to_records(index=False)
+    df = pl.DataFrame(data)
+
+    df = df.filter(
+        (pl.col('ev') & EXCH_EVENT == EXCH_EVENT) & (pl.col('ev') & LOCAL_EVENT == LOCAL_EVENT)
+    ).with_columns(
+        pl.col('local_ts').alias('ts')
+    ).group_by_dynamic(
+        'ts', every='1000000000i'
+    ).agg(
+        pl.col('exch_ts').last(),
+        pl.col('local_ts').last()
+    ).drop('ts')
+
+    data = df.to_numpy(structured=True)
 
     order_latency = np.zeros(
         len(data),
-        dtype=[
-            ('req_ts', '<i8'),
-            ('exch_ts', '<i8'),
-            ('resp_ts', '<i8'),
-            ('_padding', '<i8')
-        ]
+        dtype=[('req_ts', 'i8'), ('exch_ts', 'i8'), ('resp_ts', 'i8'), ('_padding', 'i8')]
     )
     generate_order_latency_nb(data, order_latency, mul_entry, offset_entry, mul_resp, offset_resp)
 
