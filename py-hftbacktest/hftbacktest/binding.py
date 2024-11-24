@@ -28,6 +28,8 @@ from .order import order_dtype, Order, Order_
 from .state import StateValues, StateValues_
 from .types import event_dtype, state_values_dtype, EVENT_ARRAY
 
+LIVE_FEATURE = 'build_hashmap_livebot' in dir(_hftbacktest)
+
 lib = CDLL(_hftbacktest.__file__)
 
 hashmapdepth_best_bid_tick = lib.hashmapdepth_best_bid_tick
@@ -1310,7 +1312,7 @@ class ROIVectorMarketDepthBacktest:
 
 ROIVectorMarketDepthBacktest_ = jitclass(ROIVectorMarketDepthBacktest)
 
-try:
+if LIVE_FEATURE:
     hashmaplive_elapse = lib.hashmaplive_elapse
     hashmaplive_elapse.restype = c_int64
     hashmaplive_elapse.argtypes = [c_void_p, c_uint64]
@@ -2144,6 +2146,3 @@ try:
 
 
     ROIVectorMarketDepthLiveBot_ = jitclass(ROIVectorMarketDepthLiveBot)
-
-except:
-    pass

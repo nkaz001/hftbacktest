@@ -59,8 +59,9 @@ try:
         ROIVectorMarketDepthLiveBot_,
         ROIVectorMarketDepthLiveBot as ROIVectorMarketDepthLiveBot_TypeHint,
     )
+    LIVE_FEATURE = True
 except:
-    pass
+    LIVE_FEATURE = False
 
 __all__ = (
     'BacktestAsset',
@@ -217,7 +218,7 @@ def ROIVectorMarketDepthBacktest(
     return ROIVectorMarketDepthBacktest_(ptr)
 
 
-try:
+if LIVE_FEATURE:
     def ROIVectorMarketDepthLiveBot(
             assets: List[LiveInstrument]
     ) -> ROIVectorMarketDepthLiveBot_TypeHint:
@@ -232,6 +233,3 @@ try:
         """
         ptr = build_roivec_livebot(assets)
         return ROIVectorMarketDepthLiveBot_(ptr)
-
-except:
-    pass
