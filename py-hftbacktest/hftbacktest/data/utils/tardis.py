@@ -18,34 +18,13 @@ from ...types import (
     event_dtype
 )
 
-trade_cols = [
-    'exchange',
-    'symbol',
-    'timestamp',
-    'local_timestamp',
-    'id',
-    'side',
-    'price',
-    'amount'
-]
-
-depth_cols = [
-    'exchange',
-    'symbol',
-    'timestamp',
-    'local_timestamp',
-    'is_snapshot',
-    'side',
-    'price',
-    'amount'
-]
 
 trade_schema = {
     'exchange': pl.String,
     'symbol': pl.String,
     'timestamp': pl.Int64,
     'local_timestamp': pl.Int64,
-    'id': pl.UInt64,
+    'id': pl.String,
     'side': pl.String,
     'price': pl.Float64,
     'amount': pl.Float64,
@@ -125,16 +104,16 @@ def convert(
                     with open(file) as f:
                         line = f.readline()
                         header = line.strip().split(',')
-                if header == trade_cols:
+                if header == list(trade_schema.keys()):
                     schema = trade_schema
-                elif header == depth_cols:
+                elif header == list(depth_schema.keys()):
                     schema = depth_schema
             except:
                 # Fails to infer the file type; let Polars infer the schema.
                 pass
 
         df = pl.read_csv(file, schema=schema)
-        if df.columns == trade_cols:
+        if df.columns == list(trade_schema.keys()):
             arr = (
                 df.with_columns(
                     pl.when(pl.col('side') == 'buy')
@@ -171,7 +150,7 @@ def convert(
             )
             tmp[row_num:row_num + len(arr)] = arr[:]
             row_num += len(arr)
-        elif df.columns == depth_cols:
+        elif df.columns == list(depth_schema.keys()):
             arr = (
                 df.with_columns(
                     (pl.col('timestamp') * 1000)
