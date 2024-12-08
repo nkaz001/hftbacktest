@@ -59,6 +59,19 @@ where
         }
     }
 
+    pub fn from_data(data: &[D]) -> Self {
+        let byte_len = size_of::<D>() * data.len();
+        let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_len) };
+
+        unsafe {
+            let mut dest_data_ptr = DataPtr::new(byte_len);
+            let mut dest_data = dest_data_ptr.ptr.as_mut().expect("data ptr is null");
+
+            dest_data.copy_from_slice(bytes);
+            Self::from_data_ptr(dest_data_ptr, 0)
+        }
+    }
+
     /// Constructs `Data` from [`DataPtr`] with the specified offset.
     ///
     /// # Safety

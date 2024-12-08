@@ -294,7 +294,6 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             }
 
                             let local: Box<dyn LocalProcessor<#marketdepth>> = Box::new(#local_ident::new(
-                                reader.clone(),
                                 market_depth,
                                 State::new(asset_type.clone(), fee_model.clone()),
                                 latency_model.clone(),
@@ -318,7 +317,6 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                             let queue_model = #qm_construct;
 
                             let exch: Box<dyn Processor> = Box::new(#exch_ident::new(
-                                reader,
                                 market_depth,
                                 State::new(asset_type, fee_model.clone()),
                                 latency_model,
@@ -329,7 +327,8 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
 
                             Asset {
                                 local,
-                                exch
+                                exch,
+                                reader
                             }
                         },
                     });
