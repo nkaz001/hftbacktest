@@ -120,10 +120,10 @@ def convert_snapshot(
 
     ss_bid = ss_bid[:ss_bid_rn]
     ss_ask = ss_ask[:ss_ask_rn]
-    snapshot = np.zeros(len(ss_bid) + len(ss_ask), event_dtype)
+    snapshot = np.empty(len(ss_bid) + len(ss_ask), event_dtype)
 
-    snapshot += [cols for cols in sorted(ss_bid, key=lambda v: -float(v[4]))]
-    snapshot += [cols for cols in sorted(ss_ask, key=lambda v: float(v[4]))]
+    snapshot[:len(ss_bid)] = sorted(ss_bid, key=lambda v: -float(v[4]))
+    snapshot[len(ss_bid):len(ss_bid)+len(ss_ask)] = sorted(ss_ask, key=lambda v: float(v[4]))
 
     if output_filename is not None:
         np.savez(output_filename, data=snapshot)
@@ -271,7 +271,7 @@ def convert(
             qty = float(row[qty_col])
 
             # Insert TRADE_EVENT
-            tmp[row_num] = [
+            tmp[row_num] = (
                 TRADE_EVENT | (SELL_EVENT if row[side_col] else BUY_EVENT),  # trade initiator's side
                 exch_ts,
                 local_ts,
@@ -280,7 +280,7 @@ def convert(
                 0,
                 0,
                 0
-            ]
+            )
             row_num += 1
     tmp = tmp[:row_num]
 
