@@ -1,12 +1,8 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    mem,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::{Data, Reader},
         models::{FeeModel, LatencyModel},
         order::OrderBus,
         proc::{LocalProcessor, Processor},
@@ -43,9 +39,6 @@ where
     MD: MarketDepth,
     FM: FeeModel,
 {
-    reader: Reader<Event>,
-    data: Data<Event>,
-    row_num: usize,
     orders: HashMap<OrderId, Order>,
     orders_to: OrderBus,
     orders_from: OrderBus,
@@ -66,7 +59,6 @@ where
 {
     /// Constructs an instance of `Local`.
     pub fn new(
-        reader: Reader<Event>,
         depth: MD,
         state: State<AT, FM>,
         order_latency: LM,
@@ -75,9 +67,6 @@ where
         orders_from: OrderBus,
     ) -> Self {
         Self {
-            reader,
-            data: Data::empty(),
-            row_num: 0,
             orders: Default::default(),
             orders_to,
             orders_from,
@@ -248,20 +237,11 @@ where
     MD: MarketDepth + L2MarketDepth,
     FM: FeeModel,
 {
-    fn initialize_data(&mut self) -> Result<i64, BacktestError> {
-        self.data = self.reader.next_data()?;
-        for rn in 0..self.data.len() {
-            if self.data[rn].is(LOCAL_EVENT) {
-                self.row_num = rn;
-                let tmp = self.data[rn].local_ts;
-                return Ok(tmp);
-            }
-        }
-        Err(BacktestError::EndOfData)
+    fn time_seen(&self, event: &Event) -> Option<i64> {
+        event.is(LOCAL_EVENT).then(|| event.local_ts)
     }
 
-    fn process_data(&mut self) -> Result<(i64, i64), BacktestError> {
-        let ev = &self.data[self.row_num];
+    fn process(&mut self, ev: &Event) -> Result<(), BacktestError> {
         // Processes a depth event
         if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::Buy, ev.px);
@@ -282,26 +262,7 @@ where
         // Stores the current feed latency
         self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
 
-        // Checks
-        let mut next_ts = 0;
-        for rn in (self.row_num + 1)..self.data.len() {
-            if self.data[rn].is(LOCAL_EVENT) {
-                self.row_num = rn;
-                next_ts = self.data[rn].local_ts;
-                break;
-            }
-        }
-
-        if next_ts <= 0 {
-            let next_data = self.reader.next_data()?;
-            let next_row = &next_data[0];
-            next_ts = next_row.local_ts;
-            let data = mem::replace(&mut self.data, next_data);
-            self.reader.release(data);
-            self.row_num = 0;
-        }
-
-        Ok((next_ts, i64::MAX))
+        Ok(())
     }
 
     fn process_recv_order(

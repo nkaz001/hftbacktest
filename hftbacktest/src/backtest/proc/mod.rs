@@ -86,16 +86,42 @@ where
     fn order_latency(&self) -> Option<(i64, i64, i64)>;
 }
 
+impl<P: Processor + ?Sized> Processor for Box<P> {
+    fn time_seen(&self, event: &Event) -> Option<i64> {
+        P::time_seen(self, event)
+    }
+
+    fn process(&mut self, event: &Event) -> Result<(), BacktestError> {
+        P::process(self, event)
+    }
+
+    fn process_recv_order(
+        &mut self,
+        timestamp: i64,
+        wait_resp_order_id: Option<OrderId>,
+    ) -> Result<bool, BacktestError> {
+        P::process_recv_order(self, timestamp, wait_resp_order_id)
+    }
+
+    fn earliest_recv_order_timestamp(&self) -> i64 {
+        P::earliest_recv_order_timestamp(self)
+    }
+
+    fn earliest_send_order_timestamp(&self) -> i64 {
+        P::earliest_send_order_timestamp(self)
+    }
+}
 /// Processes the historical feed data and the order interaction.
 pub trait Processor {
-    /// Prepares to process the data. This is invoked when the backtesting is initiated.
-    /// If successful, returns the timestamp of the first event.
-    fn initialize_data(&mut self) -> Result<i64, BacktestError>;
+    /// The time of an event as seen by this [Processor]. For a local event processor this will
+    /// be the timestamp an event was seen at locally, and for an exchange processor this will
+    /// be the timestamp an event was generated at on the exchange.
+    ///
+    /// `None` should be returned if this processor wouldn't have seen this event (i.e. it only occurred remotely).
+    fn time_seen(&self, event: &Event) -> Option<i64>;
 
-    /// Processes the data. This is invoked when the backtesting time reaches the timestamp of the
-    /// event to be processed in the data.
-    /// If successful, returns the timestamp of the next event.
-    fn process_data(&mut self) -> Result<(i64, i64), BacktestError>;
+    /// Process an event and advance the state of this processor.
+    fn process(&mut self, event: &Event) -> Result<(), BacktestError>;
 
     /// Processes an order upon receipt. This is invoked when the backtesting time reaches the order
     /// receipt timestamp.
