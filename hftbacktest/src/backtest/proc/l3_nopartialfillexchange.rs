@@ -1,9 +1,6 @@
-use std::mem;
-
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::{Data, Reader},
         models::{FeeModel, L3QueueModel, LatencyModel},
         order::OrderBus,
         proc::Processor,
@@ -364,7 +361,7 @@ where
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     fn time_seen(&self, event: &Event) -> Option<i64> {
-        event.is(EXCH_EVENT).then(|| event.exch_ts)
+        event.is(EXCH_EVENT).then_some(event.exch_ts)
     }
 
     fn process(&mut self, event: &Event) -> Result<(), BacktestError> {
@@ -390,8 +387,7 @@ where
             let (prev_best_bid_tick, best_bid_tick) =
                 self.depth
                     .add_buy_order(event.order_id, event.px, event.qty, event.exch_ts)?;
-            self.queue_model
-                .add_market_feed_order(&event, &self.depth)?;
+            self.queue_model.add_market_feed_order(event, &self.depth)?;
             if best_bid_tick > prev_best_bid_tick {
                 self.fill_ask_orders_by_crossing(prev_best_bid_tick, best_bid_tick, event.exch_ts)?;
             }
@@ -399,8 +395,7 @@ where
             let (prev_best_ask_tick, best_ask_tick) =
                 self.depth
                     .add_sell_order(event.order_id, event.px, event.qty, event.exch_ts)?;
-            self.queue_model
-                .add_market_feed_order(&event, &self.depth)?;
+            self.queue_model.add_market_feed_order(event, &self.depth)?;
             if best_ask_tick < prev_best_ask_tick {
                 self.fill_bid_orders_by_crossing(prev_best_ask_tick, best_ask_tick, event.exch_ts)?;
             }
@@ -409,7 +404,7 @@ where
                 self.depth
                     .modify_order(event.order_id, event.px, event.qty, event.exch_ts)?;
             self.queue_model
-                .modify_market_feed_order(event.order_id, &event, &self.depth)?;
+                .modify_market_feed_order(event.order_id, event, &self.depth)?;
             if side == Side::Buy {
                 if best_tick > prev_best_tick {
                     self.fill_ask_orders_by_crossing(prev_best_tick, best_tick, event.exch_ts)?;
@@ -427,7 +422,7 @@ where
             if event.is(BUY_EVENT) || event.is(SELL_EVENT) {
                 let filled = self.queue_model.fill_market_feed_order::<false>(
                     event.order_id,
-                    &event,
+                    event,
                     &self.depth,
                 )?;
                 let timestamp = event.exch_ts;

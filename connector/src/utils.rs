@@ -22,7 +22,7 @@ use crate::bybit::BybitError;
 
 struct I64Visitor;
 
-impl<'de> Visitor<'de> for I64Visitor {
+impl Visitor<'_> for I64Visitor {
     type Value = Option<i64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -67,7 +67,7 @@ impl<'de> Visitor<'de> for OptionF64Visitor {
 
 struct F64Visitor;
 
-impl<'de> Visitor<'de> for F64Visitor {
+impl Visitor<'_> for F64Visitor {
     type Value = Option<f64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

@@ -2,14 +2,12 @@ use std::{
     cell::RefCell,
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    mem,
     rc::Rc,
 };
 
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::{Data, Reader},
         models::{FeeModel, LatencyModel, QueueModel},
         order::OrderBus,
         proc::Processor,
@@ -655,7 +653,7 @@ where
     FM: FeeModel,
 {
     fn time_seen(&self, event: &Event) -> Option<i64> {
-        event.is(EXCH_EVENT).then(|| event.exch_ts)
+        event.is(EXCH_EVENT).then_some(event.exch_ts)
     }
 
     fn process(&mut self, event: &Event) -> Result<(), BacktestError> {

@@ -1,12 +1,8 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    mem,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
     backtest::{
         assettype::AssetType,
-        data::{Data, Reader},
         models::{FeeModel, LatencyModel},
         order::OrderBus,
         proc::{LocalProcessor, Processor},
@@ -244,7 +240,7 @@ where
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     fn time_seen(&self, event: &Event) -> Option<i64> {
-        event.is(LOCAL_EVENT).then(|| event.local_ts)
+        event.is(LOCAL_EVENT).then_some(event.local_ts)
     }
 
     fn process(&mut self, ev: &Event) -> Result<(), BacktestError> {
