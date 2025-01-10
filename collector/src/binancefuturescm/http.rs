@@ -10,7 +10,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{client::IntoClientRequest, Bytes, Message, Utf8Bytes},
 };
 use tracing::{error, warn};
 
@@ -53,7 +53,7 @@ pub async fn fetch_depth_snapshot(symbol: &str) -> Result<String, reqwest::Error
 
 pub async fn connect(
     url: &str,
-    ws_tx: UnboundedSender<(DateTime<Utc>, String)>,
+    ws_tx: UnboundedSender<(DateTime<Utc>, Utf8Bytes)>,
 ) -> Result<(), anyhow::Error> {
     let request = url.into_client_request()?;
     let (ws_stream, _) = connect_async(request).await?;
@@ -62,7 +62,7 @@ pub async fn connect(
 
     tokio::spawn(async move {
         while rx.recv().await.is_some() {
-            if write.send(Message::Pong(Vec::new())).await.is_err() {
+            if write.send(Message::Pong(Bytes::default())).await.is_err() {
                 return;
             }
         }
@@ -103,7 +103,7 @@ pub async fn connect(
 pub async fn keep_connection(
     streams: Vec<String>,
     symbol_list: Vec<String>,
-    ws_tx: UnboundedSender<(DateTime<Utc>, String)>,
+    ws_tx: UnboundedSender<(DateTime<Utc>, Utf8Bytes)>,
 ) {
     let mut error_count = 0;
     loop {

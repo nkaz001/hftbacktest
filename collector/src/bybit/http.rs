@@ -13,14 +13,14 @@ use tokio::{
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{client::IntoClientRequest, Bytes, Message, Utf8Bytes},
 };
 use tracing::{error, warn};
 
 pub async fn connect(
     url: &str,
     topics: Vec<String>,
-    ws_tx: UnboundedSender<(DateTime<Utc>, String)>,
+    ws_tx: UnboundedSender<(DateTime<Utc>, Utf8Bytes)>,
 ) -> Result<(), anyhow::Error> {
     let request = url.into_client_request()?;
     let (ws_stream, _) = connect_async(request).await?;
@@ -28,14 +28,17 @@ pub async fn connect(
     let (tx, mut rx) = unbounded_channel::<()>();
 
     write
-        .send(Message::Text(format!(
-            r#"{{"req_id": "subscribe", "op": "subscribe", "args": [{}]}}"#,
-            topics
-                .iter()
-                .map(|s| format!("\"{s}\""))
-                .collect::<Vec<_>>()
-                .join(",")
-        )))
+        .send(Message::Text(
+            format!(
+                r#"{{"req_id": "subscribe", "op": "subscribe", "args": [{}]}}"#,
+                topics
+                    .iter()
+                    .map(|s| format!("\"{s}\""))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+            .into(),
+        ))
         .await?;
 
     tokio::spawn(async move {
@@ -45,7 +48,7 @@ pub async fn connect(
                 result = rx.recv() => {
                     match result {
                         Some(_) => {
-                            if write.send(Message::Pong(Vec::new())).await.is_err() {
+                            if write.send(Message::Pong(Bytes::default())).await.is_err() {
                                 return;
                             }
                         }
@@ -56,7 +59,7 @@ pub async fn connect(
                 }
                 _ = ping_interval.tick() => {
                     if write.send(
-                        Message::Text(r#"{"req_id": "ping", "op": "ping"}"#.to_string())
+                        Message::Text(r#"{"req_id": "ping", "op": "ping"}"#.into())
                     ).await.is_err() {
                         return;
                     }
@@ -100,7 +103,7 @@ pub async fn connect(
 pub async fn keep_connection(
     topics: Vec<String>,
     symbol_list: Vec<String>,
-    ws_tx: UnboundedSender<(DateTime<Utc>, String)>,
+    ws_tx: UnboundedSender<(DateTime<Utc>, Utf8Bytes)>,
 ) {
     let mut error_count = 0;
     loop {

@@ -14,7 +14,7 @@ use tokio::{
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{client::IntoClientRequest, Bytes, Message},
     MaybeTlsStream,
     WebSocketStream,
 };
@@ -90,7 +90,7 @@ impl PrivateStream {
                             ],
                         };
                         let s = serde_json::to_string(&op).unwrap();
-                        write.send(Message::Text(s)).await?;
+                        write.send(Message::Text(s.into())).await?;
                     } else {
                         return Err(BybitError::AuthError {
                             msg: resp.ret_msg.unwrap(),
@@ -258,7 +258,7 @@ impl PrivateStream {
             args: vec![self.api_key.clone(), expires.to_string(), signature],
         };
         let s = serde_json::to_string(&op).unwrap();
-        write.send(Message::Text(s)).await?;
+        write.send(Message::Text(s.into())).await?;
 
         loop {
             select! {
@@ -269,7 +269,7 @@ impl PrivateStream {
                         args: vec![]
                     };
                     let s = serde_json::to_string(&op).unwrap();
-                    write.send(Message::Text(s)).await?;
+                    write.send(Message::Text(s.into())).await?;
                 }
                 msg = self.symbol_rx.recv() => {
                     match msg {
@@ -337,7 +337,7 @@ impl PrivateStream {
                             }
                         }
                         Some(Ok(Message::Ping(_))) => {
-                            write.send(Message::Pong(Vec::new())).await?;
+                            write.send(Message::Pong(Bytes::default())).await?;
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(

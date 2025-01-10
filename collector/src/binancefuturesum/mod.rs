@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 pub use http::{fetch_depth_snapshot, keep_connection};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio_tungstenite::tungstenite::Utf8Bytes;
 use tracing::{error, warn};
 
 use crate::{error::ConnectorError, throttler::Throttler};
@@ -13,10 +14,10 @@ fn handle(
     prev_u_map: &mut HashMap<String, i64>,
     writer_tx: &UnboundedSender<(DateTime<Utc>, String, String)>,
     recv_time: DateTime<Utc>,
-    data: String,
+    data: Utf8Bytes,
     throttler: &Throttler,
 ) -> Result<(), ConnectorError> {
-    let j: serde_json::Value = serde_json::from_str(&data)?;
+    let j: serde_json::Value = serde_json::from_str(data.as_str())?;
     if let Some(j_data) = j.get("data") {
         if let Some(j_symbol) = j_data
             .as_object()
@@ -70,7 +71,7 @@ fn handle(
                 }
                 *prev_u_map.entry(symbol.to_string()).or_insert(0) = u;
             }
-            let _ = writer_tx.send((recv_time, symbol.to_string(), data));
+            let _ = writer_tx.send((recv_time, symbol.to_string(), data.to_string()));
         }
     }
     Ok(())

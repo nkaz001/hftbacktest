@@ -275,7 +275,7 @@ impl MarketDataStream {
                                 "{symbol}@depth@0ms"
                             ],
                             "id": "{id}"
-                        }}"#))).await?;
+                        }}"#).into())).await?;
                     }
                     Err(RecvError::Closed) => {
                         return Ok(());

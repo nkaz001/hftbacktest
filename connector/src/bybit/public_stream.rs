@@ -23,7 +23,7 @@ use tokio::{
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{client::IntoClientRequest, Bytes, Message},
 };
 use tracing::{debug, error};
 
@@ -180,7 +180,7 @@ impl PublicStream {
                         args: vec![]
                     };
                     let s = serde_json::to_string(&op).unwrap();
-                    write.send(Message::Text(s)).await?;
+                    write.send(Message::Text(s.into())).await?;
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
@@ -200,7 +200,7 @@ impl PublicStream {
                             args,
                         };
                         let s = serde_json::to_string(&op).unwrap();
-                        write.send(Message::Text(s)).await?;
+                        write.send(Message::Text(s.into())).await?;
                     }
                     Err(RecvError::Closed) => {
                         return Ok(());
@@ -217,7 +217,7 @@ impl PublicStream {
                             }
                         }
                         Some(Ok(Message::Ping(_))) => {
-                            write.send(Message::Pong(Vec::new())).await?;
+                            write.send(Message::Pong(Bytes::default())).await?;
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(
