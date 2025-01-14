@@ -98,6 +98,13 @@ impl UserDataStream {
                     }
                 }
             }
+            EventStream::TradeLite(_data) => {
+                // Since this message does not include the order status, additional logic is
+                // required to fully utilize it. To reduce latency— which first needs to be
+                // measured—a new logic must be implemented to reconstruct the order status and open
+                // position by using the last filled quantity and reconciling it with data from the
+                // ORDER_TRADE_UPDATE message.
+            }
         }
         Ok(())
     }

@@ -26,6 +26,8 @@ pub enum EventStream {
     Trade(Trade),
     #[serde(rename = "ORDER_TRADE_UPDATE")]
     OrderTradeUpdate(OrderTradeUpdate),
+    #[serde(rename = "TRADE_LITE")]
+    TradeLite(TradeLite),
     #[serde(rename = "ACCOUNT_UPDATE")]
     AccountUpdate(AccountUpdate),
     #[serde(rename = "listenKeyExpired")]
@@ -75,6 +77,40 @@ pub struct Trade {
     pub type_: String,
     #[serde(rename = "m")]
     pub is_the_buyer_the_market_maker: bool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TradeLite {
+    #[serde(rename = "E")]
+    pub event_time: i64,
+    #[serde(rename = "T")]
+    pub transaction_time: i64,
+    #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
+    pub symbol: String,
+    #[serde(rename = "q")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub qty: f64,
+    #[serde(rename = "p")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub price: f64,
+    #[serde(rename = "m")]
+    pub is_this_trade_the_market_maker: bool,
+    #[serde(rename = "c")]
+    pub client_order_id: String,
+    #[serde(rename = "S")]
+    #[serde(deserialize_with = "from_str_to_side")]
+    pub side: Side,
+    #[serde(rename = "L")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub last_filled_price: f64,
+    #[serde(rename = "l")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub last_filled_qty: f64,
+    #[serde(rename = "t")]
+    pub trade_id: i64,
+    #[serde(rename = "i")]
+    pub order_id: i64,
 }
 
 #[derive(Deserialize, Debug)]
