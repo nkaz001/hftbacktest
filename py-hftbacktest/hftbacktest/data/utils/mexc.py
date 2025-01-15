@@ -75,7 +75,7 @@ def convert(
                     vol = bid.get("v")
                     if vol == 0:
                         tmp[row_num] = (
-                            DEPTH_CLEAR_EVENT | BUY_EVENT,
+                            DEPTH_EVENT | BUY_EVENT,
                             exch_ts,
                             float(local_ts),
                             bid.get("p"),
@@ -102,7 +102,7 @@ def convert(
                     vol = ask.get("v")
                     if vol == 0:
                         tmp[row_num] = (
-                            DEPTH_CLEAR_EVENT | SELL_EVENT,
+                            DEPTH_EVENT | SELL_EVENT,
                             exch_ts,
                             float(local_ts),
                             ask.get("p"),
