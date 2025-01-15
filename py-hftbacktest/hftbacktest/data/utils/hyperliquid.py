@@ -22,11 +22,11 @@ def convert(
         input_filename: str,
         tick_size: float,
         lot_size: float,
+        num_levels: float,
         output_filename: Optional[str] = None,
         base_latency: float = 0,
         buffer_size: int = 100_000_000,
         exch_ts_multiplier: float = 1e6,
-
 ) -> NDArray:
     r"""
     Converts raw Hyperliquid feed stream file into a format compatible with HftBacktest.
@@ -56,7 +56,7 @@ def convert(
     tmp = np.empty(buffer_size, event_dtype)
     row_num = 0
     timestamp_slice = 19
-    diff = DiffOrderBookSnapshot(len(bids), tick_size, lot_size)
+    diff = DiffOrderBookSnapshot(num_levels, tick_size, lot_size)
     took_first_snapshot = False
 
     with gzip.open(input_filename, 'r') as f:
