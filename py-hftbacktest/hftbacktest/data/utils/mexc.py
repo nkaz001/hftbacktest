@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 
 from ...types import (
     DEPTH_EVENT,
-    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
     TRADE_EVENT,
     BUY_EVENT,
     SELL_EVENT,
@@ -124,6 +124,38 @@ def convert(
                             0
                         )
                         row_num += 1
+
+            elif dataset.startswith("spot@public.limit.depth.v3.api"):
+                depth_chg = message.get("d")
+                bids = depth_chg.get("bids", [])
+                asks = depth_chg.get("asks", [])
+                for bid in bids:
+                    vol = bid.get("v")
+                    tmp[row_num] = (
+                        DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
+                        exch_ts,
+                        float(local_ts),
+                        bid.get("p"),
+                        bid.get("v"),
+                        0,
+                        0,
+                        0
+                    )
+                    row_num += 1
+        
+                for ask in asks:
+                    vol = ask.get("v")
+                    tmp[row_num] = (
+                        DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
+                        exch_ts,
+                        float(local_ts),
+                        ask.get("p"),
+                        ask.get("v"),
+                        0,
+                        0,
+                        0
+                    )
+                    row_num += 1
 
             elif dataset.startswith("spot@public.deals.v3.api"):
                 trade_data = message.get("d")
