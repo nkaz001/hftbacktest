@@ -40,7 +40,7 @@ class Ret(Metric):
         self.book_size = book_size
 
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
-        equity = df['equity_wo_fee'] - df['fee']
+        equity = (df['equity_wo_fee'] - df['fee']).drop_nans()
         pnl = equity[-1] - equity[0]
 
         if self.book_size is not None:
@@ -99,7 +99,7 @@ class SR(Metric):
         c = get_num_samples_per_day(df['timestamp']) * self.trading_days_per_year
 
         with np.errstate(divide='ignore'):
-            return {self.name: np.divide(pnl.mean(), pnl.std()) * np.sqrt(c)}
+            return {self.name: np.divide(pnl.drop_nans().mean(), pnl.drop_nans().std()) * np.sqrt(c)}
 
 
 class Sortino(Metric):
@@ -125,9 +125,9 @@ class Sortino(Metric):
         pnl = equity.diff()
         c = get_num_samples_per_day(df['timestamp']) * self.trading_days_per_year
 
-        dr = np.sqrt((np.minimum(0, pnl) ** 2).mean())
+        dr = np.sqrt((np.minimum(0, pnl) ** 2).drop_nans().mean())
         with np.errstate(divide='ignore'):
-            return {self.name: np.divide(pnl.mean(), dr) * np.sqrt(c)}
+            return {self.name: np.divide(pnl.drop_nans().mean(), dr) * np.sqrt(c)}
 
 
 class ReturnOverMDD(Metric):
