@@ -794,10 +794,10 @@ where
                     }
                     match ev.kind {
                         EventIntentKind::LocalData => {
-                            let proc = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next_row().and_then(|row| {
-                                proc.processor.process(&proc.data[row])?;
-                                proc.advance()
+                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            let next = local.next_row().and_then(|row| {
+                                local.processor.process(&local.data[row])?;
+                                local.advance()
                             });
 
                             match next {
@@ -835,10 +835,10 @@ where
                             );
                         }
                         EventIntentKind::ExchData => {
-                            let proc = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next_row().and_then(|row| {
-                                proc.processor.process(&proc.data[row])?;
-                                proc.advance()
+                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            let next = exch.next_row().and_then(|row| {
+                                exch.processor.process(&exch.data[row])?;
+                                exch.advance()
                             });
 
                             match next {
@@ -854,7 +854,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                proc.earliest_send_order_timestamp(),
+                                exch.earliest_send_order_timestamp(),
                             );
                         }
                         EventIntentKind::ExchOrder => {
@@ -1281,10 +1281,10 @@ where
                     }
                     match ev.kind {
                         EventIntentKind::LocalData => {
-                            let proc = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next_row().and_then(|row| {
-                                proc.processor.process(&proc.data[row])?;
-                                proc.advance()
+                            let local = unsafe { self.local.get_unchecked_mut(ev.asset_no) };
+                            let next = local.next_row().and_then(|row| {
+                                local.processor.process(&local.data[row])?;
+                                local.advance()
                             });
 
                             match next {
@@ -1322,10 +1322,10 @@ where
                             );
                         }
                         EventIntentKind::ExchData => {
-                            let proc = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
-                            let next = proc.next_row().and_then(|row| {
-                                proc.processor.process(&proc.data[row])?;
-                                proc.advance()
+                            let exch = unsafe { self.exch.get_unchecked_mut(ev.asset_no) };
+                            let next = exch.next_row().and_then(|row| {
+                                exch.processor.process(&exch.data[row])?;
+                                exch.advance()
                             });
 
                             match next {
@@ -1341,7 +1341,7 @@ where
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
-                                proc.earliest_send_order_timestamp(),
+                                exch.earliest_send_order_timestamp(),
                             );
                         }
                         EventIntentKind::ExchOrder => {
