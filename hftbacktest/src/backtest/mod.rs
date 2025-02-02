@@ -864,6 +864,10 @@ where
                                 ev.asset_no,
                                 exch.earliest_recv_order_timestamp(),
                             );
+                            self.evs.update_local_order(
+                                ev.asset_no,
+                                exch.earliest_send_order_timestamp(),
+                            );
                         }
                     }
                 }
