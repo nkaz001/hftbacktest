@@ -1629,10 +1629,10 @@ mod test {
                 ProbQueueModel,
                 TradingValueFeeModel,
             },
-            AssetBuilder,
             Backtest,
             DataSource,
             ExchangeKind::NoPartialFillExchange,
+            L2AssetBuilder,
         },
         depth::HashMapMarketDepth,
         prelude::{Bot, Event},
@@ -1686,7 +1686,7 @@ mod test {
 
         let mut backtester = Backtest::builder()
             .add_asset(
-                AssetBuilder::default()
+                L2AssetBuilder::default()
                     .data(vec![DataSource::Data(data)])
                     .latency_model(ConstantLatency::new(50, 50))
                     .asset_type(LinearAsset::new(1.0))
