@@ -360,7 +360,7 @@ where
     FM: FeeModel,
     BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
-    fn time_seen(&self, event: &Event) -> Option<i64> {
+    fn event_seen_timestamp(&self, event: &Event) -> Option<i64> {
         event.is(EXCH_EVENT).then_some(event.exch_ts)
     }
 
