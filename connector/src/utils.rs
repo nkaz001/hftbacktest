@@ -9,7 +9,7 @@ use std::{
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, KeyInit, Mac};
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::{thread_rng, Rng};
 use serde::{
     de,
     de::{Error, Visitor},
@@ -297,10 +297,15 @@ impl Equivalent<SymbolOrderId> for RefSymbolOrderId<'_> {
 }
 
 pub fn generate_rand_string(length: usize) -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(length)
-        .map(char::from)
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                             abcdefghijklmnopqrstuvwxyz\
+                             0123456789";
+    let mut rng = thread_rng();
+    (0..length)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
         .collect()
 }
 
