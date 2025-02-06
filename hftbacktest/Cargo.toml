@@ -1,6 +1,6 @@
 [package]
 name = "hftbacktest"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = ["nkaz001 <nkaz001@protonmail.com>"]
 license = "MIT"
@@ -16,7 +16,7 @@ keywords = [
     "hft"
 ]
 categories = ["finance", "mathematics", "science", "algorithms", "simulation"]
-rust-version = "1.84"
+rust-version = "1.84.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
