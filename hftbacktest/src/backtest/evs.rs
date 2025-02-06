@@ -24,8 +24,6 @@ pub enum EventIntentKind {
 /// Manages the event timestamps to determine the next event to be processed.
 pub struct EventSet {
     timestamp: AlignedArray<i64, CACHE_LINE_SIZE>,
-    invalid: usize,
-    num_assets: usize,
 }
 
 impl EventSet {
@@ -38,18 +36,11 @@ impl EventSet {
         for i in 0..(num_assets * 4) {
             timestamp[i] = i64::MAX;
         }
-        Self {
-            timestamp,
-            invalid: 0,
-            num_assets,
-        }
+        Self { timestamp }
     }
 
     /// Returns the next event to be processed, which has the earliest timestamp.
     pub fn next(&self) -> Option<EventIntent> {
-        if self.invalid == self.num_assets * 2 {
-            return None;
-        }
         let mut evst_no = 0;
         let mut timestamp = unsafe { *self.timestamp.get_unchecked(0) };
         for (i, &ev_timestamp) in self.timestamp[1..].iter().enumerate() {
@@ -57,6 +48,10 @@ impl EventSet {
                 timestamp = ev_timestamp;
                 evst_no = i + 1;
             }
+        }
+        // Returns None if no valid events are found.
+        if timestamp == i64::MAX {
+            return None;
         }
         let asset_no = evst_no >> 2;
         let ty = unsafe { mem::transmute::<usize, EventIntentKind>(evst_no & 3) };
@@ -97,7 +92,6 @@ impl EventSet {
     fn invalidate(&mut self, evst_no: usize) {
         let item = unsafe { self.timestamp.get_unchecked_mut(evst_no) };
         *item = i64::MAX;
-        self.invalid += 1;
     }
 
     #[inline]
