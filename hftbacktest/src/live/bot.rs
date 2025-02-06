@@ -57,10 +57,10 @@ pub type OrderRecvHook = Box<dyn Fn(&Order, &Order) -> Result<(), BotError>>;
 
 fn generate_random_id() -> u64 {
     // Initialize the random number generator
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // Generate a random u64 value
-    rng.gen::<u64>()
+    rng.random::<u64>()
 }
 
 /// Live [`LiveBot`] builder.

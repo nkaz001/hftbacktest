@@ -463,7 +463,6 @@ impl L1MarketDepth for FusedHashMapMarketDepth {
         timestamp: i64,
     ) -> (i64, i64, i64, f64, f64, i64) {
         let price_tick = (px / self.tick_size).round() as i64;
-        let qty_lot = (qty / self.lot_size).round() as i64;
         let prev_best_ask_tick = self.best_ask_tick;
         let prev_qty;
         match self.ask_depth.entry(price_tick) {

@@ -9,7 +9,7 @@ use std::{
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, KeyInit, Mac};
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use serde::{
     de,
     de::{Error, Visitor},
@@ -300,10 +300,10 @@ pub fn generate_rand_string(length: usize) -> String {
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                              abcdefghijklmnopqrstuvwxyz\
                              0123456789";
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     (0..length)
         .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
+            let idx = rng.random_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect()
