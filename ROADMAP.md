@@ -22,7 +22,7 @@
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
-* [X] Support external connectors through IPC for multiple bots via a unified connection. (WIP: ``branch: ipc (PR-129)``)
+* [X] Support external connectors through IPC for multiple bots via a unified connection.
   [<img src="https://raw.githubusercontent.com/nkaz001/hftbacktest/master/docs/images/arch.png">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
   * https://github.com/eclipse-iceoryx/iceoryx2
 
@@ -38,6 +38,7 @@
   * https://bybit-exchange.github.io/docs/v5/intro
 * [ ] OKX
   * https://www.okx.com/docs-v5/en/
+* [ ] Hyperliquid
 * [ ] Coinbase
 * [ ] Kraken
 * [ ] CDC
