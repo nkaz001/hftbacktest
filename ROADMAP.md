@@ -56,7 +56,7 @@
 * [ ] Integrate with Telegram
 
 ## Examples
-* [ ] Market making example using ARMA, ARIMA, or GARCH on the underlying asset.
+* [X] Market making example using ARMA, ARIMA, or GARCH on the underlying asset.
 * [ ] Example using different skew profiles for inventory management.
 * [ ] Example demonstrating latency-aware actions.
 * [ ] Example demonstrating the volume clock/event clock using `wait_next_feed`.
