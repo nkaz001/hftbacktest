@@ -61,6 +61,6 @@
 * [ ] Example demonstrating latency-aware actions.
 * [ ] Example demonstrating the volume clock/event clock using `wait_next_feed`.
 * [ ] Example demonstrating the cross-market market-making.
-* [ ] Market making with alpha from the perspectives of statistical arbitrage and optimal execution.
+* [X] Market making with alpha from the perspectives of statistical arbitrage and optimal execution.
 * [X] Queue-position-based market making for large-tick assets.
 * [X] Update the existing examples to align with version 2.0.0.
