@@ -19,6 +19,7 @@
 * [X] Add fee model: fee per trading value (current), fee per trading quantity, fee per trade, and different fees based on the direction. (@roykim98)
 * [X] Parallel loading: Load the next data set while backtesting is in progress.
 * [ ] Add a modify order feature.
+* [ ] Allow different latencies for placing, modifying, and canceling orders, as well as order responses, fills, and position feeds.
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
