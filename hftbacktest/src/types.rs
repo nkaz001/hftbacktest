@@ -400,6 +400,7 @@ pub enum Status {
     Canceled = 4,
     PartiallyFilled = 5,
     Rejected = 6,
+    Replaced = 7,
     /// This occurs when the [`Connector`](`crate::connector::Connector`) receives an order status
     /// value that does not have a corresponding enum value.
     Unsupported = 255,
