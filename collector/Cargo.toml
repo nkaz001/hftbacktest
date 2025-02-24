@@ -16,8 +16,8 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = [] }
 anyhow = "1.0.79"
 reqwest = { version = "0.12.4", features = ["json"] }
-sha2 = "0.11.0-pre.3"
-hmac = "0.13.0-pre.3"
+sha2 = "0.10.8"
+hmac = "0.12.1"
 thiserror = "2.0.3"
 flate2 = "1.0.28"
 clap = { version = "4.5.4", features = ["derive"] }

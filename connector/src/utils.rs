@@ -8,7 +8,7 @@ use std::{
 
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
-use hmac::{Hmac, KeyInit, Mac};
+use hmac::{Hmac, Mac};
 use rand::Rng;
 use serde::{
     de,
