@@ -534,7 +534,10 @@ where
             let mut order_borrowed = self.orders.borrow_mut();
             let exch_order = order_borrowed.get_mut(&order.order_id);
             let exch_order = exch_order.unwrap();
+
             exch_order.qty = order.qty;
+            exch_order.exch_timestamp = timestamp;
+            order.exch_timestamp = timestamp;
         }
         Ok(())
     }
