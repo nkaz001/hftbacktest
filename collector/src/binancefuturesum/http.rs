@@ -7,10 +7,10 @@ use std::{
 use anyhow::Error;
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Bytes, Message, Utf8Bytes},
+    tungstenite::{Bytes, Message, Utf8Bytes, client::IntoClientRequest},
 };
 use tracing::{error, warn};
 

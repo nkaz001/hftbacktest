@@ -3,8 +3,8 @@ use serde::Deserialize;
 
 use crate::{
     bybit::{
-        msg::{Position, RestResponse},
         BybitError,
+        msg::{Position, RestResponse},
     },
     utils::sign_hmac_sha256,
 };

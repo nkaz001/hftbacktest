@@ -5,7 +5,7 @@ use std::{
     fmt::{Debug, Formatter, Pointer},
     mem::{forget, size_of},
     ops::{Deref, DerefMut, Index, IndexMut},
-    ptr::{slice_from_raw_parts_mut, NonNull},
+    ptr::{NonNull, slice_from_raw_parts_mut},
     slice::SliceIndex,
 };
 
@@ -99,7 +99,7 @@ impl<T, const ALIGNMENT: usize> AlignedArray<T, ALIGNMENT> {
     /// The fat pointer must originate from [`AlignedArray::into_raw`].
     pub unsafe fn from_raw(ptr: *mut [T]) -> Self {
         Self {
-            ptr: NonNull::new_unchecked(ptr),
+            ptr: unsafe { NonNull::new_unchecked(ptr) },
             len: ptr.len(),
         }
     }

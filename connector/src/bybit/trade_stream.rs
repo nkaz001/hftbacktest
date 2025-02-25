@@ -6,22 +6,22 @@ use hftbacktest::types::{ErrorKind, LiveError, LiveEvent};
 use tokio::{
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
+        broadcast::{Receiver, error::RecvError},
         mpsc::UnboundedSender,
     },
     time,
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Bytes, Message},
+    tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 use tracing::{error, info};
 
 use crate::{
     bybit::{
+        BybitError,
         msg::{Op, Order, TradeOp, TradeStreamMsg},
         ordermanager::{OrderExt, SharedOrderManager},
-        BybitError,
     },
     connector::PublishEvent,
     utils::{generate_rand_string, sign_hmac_sha256},

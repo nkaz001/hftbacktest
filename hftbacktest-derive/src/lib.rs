@@ -4,15 +4,15 @@ use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{
     self,
-    braced,
-    bracketed,
-    parse::{Parse, ParseStream},
-    parse_macro_input,
     Data,
     DeriveInput,
     Error,
     Fields,
     Token,
+    braced,
+    bracketed,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
 };
 
 #[proc_macro_derive(NpyDTyped)]

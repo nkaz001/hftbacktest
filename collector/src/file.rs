@@ -1,12 +1,12 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     fs::File,
     io,
     io::Write,
 };
 
 use chrono::{DateTime, NaiveDate, Utc};
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 use tracing::info;
 
 pub struct RotatingFile {

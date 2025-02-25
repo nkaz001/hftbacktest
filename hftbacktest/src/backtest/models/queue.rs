@@ -1,23 +1,23 @@
 use std::{
     any::Any,
-    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     marker::PhantomData,
 };
 
 use crate::{
     backtest::BacktestError,
-    depth::{MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::{INVALID_MAX, INVALID_MIN, MarketDepth},
     types::{
         AnyClone,
+        BUY_EVENT,
         Event,
         OrdType,
         Order,
         OrderId,
+        SELL_EVENT,
         Side,
         Status,
         TimeInForce,
-        BUY_EVENT,
-        SELL_EVENT,
     },
 };
 
@@ -1120,7 +1120,7 @@ where
 #[cfg(test)]
 mod l3_tests {
     use crate::{
-        backtest::{models::L3FIFOQueueModel, L3QueueModel},
+        backtest::{L3QueueModel, models::L3FIFOQueueModel},
         prelude::{
             Event,
             HashMapMarketDepth,

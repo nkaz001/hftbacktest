@@ -4,14 +4,14 @@ use std::{
 };
 
 use nom::{
+    IResult,
     branch::alt,
     bytes::complete::{escaped, tag, take_while, take_while1},
     character::complete::{char, digit1, one_of},
     combinator::{cut, map, opt, value},
-    error::{context, ContextError, ParseError},
+    error::{ContextError, ParseError, context},
     multi::separated_list0,
     sequence::{delimited, preceded, separated_pair, terminated},
-    IResult,
 };
 
 #[derive(PartialEq, Eq, Debug, Clone)]

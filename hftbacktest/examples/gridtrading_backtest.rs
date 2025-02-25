@@ -1,8 +1,11 @@
 use algo::gridtrading;
 use hftbacktest::{
     backtest::{
+        Backtest,
+        ExchangeKind,
+        L2AssetBuilder,
         assettype::LinearAsset,
-        data::{read_npz_file, DataSource},
+        data::{DataSource, read_npz_file},
         models::{
             CommonFees,
             IntpOrderLatency,
@@ -11,9 +14,6 @@ use hftbacktest::{
             TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
-        Backtest,
-        ExchangeKind,
-        L2AssetBuilder,
     },
     prelude::{ApplySnapshot, Bot, HashMapMarketDepth},
 };

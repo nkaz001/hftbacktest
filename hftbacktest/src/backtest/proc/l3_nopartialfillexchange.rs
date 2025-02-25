@@ -1,21 +1,15 @@
 use crate::{
     backtest::{
+        BacktestError,
         assettype::AssetType,
         models::{FeeModel, L3QueueModel, LatencyModel},
         order::OrderBus,
         proc::Processor,
         state::State,
-        BacktestError,
     },
     depth::L3MarketDepth,
     prelude::OrdType,
     types::{
-        Event,
-        Order,
-        OrderId,
-        Side,
-        Status,
-        TimeInForce,
         BUY_EVENT,
         EXCH_ASK_ADD_ORDER_EVENT,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
@@ -26,7 +20,13 @@ use crate::{
         EXCH_EVENT,
         EXCH_FILL_EVENT,
         EXCH_MODIFY_ORDER_EVENT,
+        Event,
+        Order,
+        OrderId,
         SELL_EVENT,
+        Side,
+        Status,
+        TimeInForce,
     },
 };
 

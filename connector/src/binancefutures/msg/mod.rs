@@ -1,8 +1,8 @@
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
-    de::{Error, Unexpected},
     Deserialize,
     Deserializer,
+    de::{Error, Unexpected},
 };
 
 #[allow(dead_code)]

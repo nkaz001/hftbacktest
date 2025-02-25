@@ -7,11 +7,11 @@ use tracing::error;
 
 use crate::{
     binancefutures::{
-        msg::{rest::OrderResponse, stream::OrderTradeUpdate},
         BinanceFuturesError,
+        msg::{rest::OrderResponse, stream::OrderTradeUpdate},
     },
     connector::GetOrders,
-    utils::{generate_rand_string, RefSymbolOrderId, SymbolOrderId},
+    utils::{RefSymbolOrderId, SymbolOrderId, generate_rand_string},
 };
 
 #[derive(Debug)]
@@ -117,7 +117,9 @@ impl OrderManager {
             }
             BinanceFuturesError::OrderError { code: -1008, .. } => {
                 // Server is currently overloaded with other requests. Please try again in a few minutes.
-                error!("Server is currently overloaded with other requests. Please try again in a few minutes.");
+                error!(
+                    "Server is currently overloaded with other requests. Please try again in a few minutes."
+                );
             }
             BinanceFuturesError::OrderError { code: -2019, .. } => {
                 // Margin is insufficient.

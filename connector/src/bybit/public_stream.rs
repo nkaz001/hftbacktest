@@ -4,34 +4,34 @@ use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use hftbacktest::prelude::{
     Event,
-    LiveEvent,
-    Side,
     LOCAL_ASK_DEPTH_BBO_EVENT,
     LOCAL_ASK_DEPTH_EVENT,
     LOCAL_BID_DEPTH_BBO_EVENT,
     LOCAL_BID_DEPTH_EVENT,
     LOCAL_BUY_TRADE_EVENT,
     LOCAL_SELL_TRADE_EVENT,
+    LiveEvent,
+    Side,
 };
 use tokio::{
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
+        broadcast::{Receiver, error::RecvError},
         mpsc::UnboundedSender,
     },
     time,
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Bytes, Message},
+    tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 use tracing::{debug, error};
 
 use crate::{
     bybit::{
+        BybitError,
         msg,
         msg::{Op, OrderBook, PublicStreamMsg},
-        BybitError,
     },
     connector::PublishEvent,
     utils::parse_depth,

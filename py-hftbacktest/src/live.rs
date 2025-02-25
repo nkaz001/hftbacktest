@@ -4,7 +4,7 @@ use std::{collections::HashMap, mem};
 
 use hftbacktest::{
     depth::{HashMapMarketDepth, ROIVectorMarketDepth},
-    live::{ipc::iceoryx::IceoryxUnifiedChannel, BotError, LiveBot},
+    live::{BotError, LiveBot, ipc::iceoryx::IceoryxUnifiedChannel},
     prelude::{Bot, Event, Order, StateValues},
     types::{OrdType, TimeInForce},
 };
@@ -12,13 +12,13 @@ use hftbacktest::{
 pub type HashMapMarketDepthLiveBot = LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth>;
 pub type ROIVectorMarketDepthLiveBot = LiveBot<IceoryxUnifiedChannel, ROIVectorMarketDepth>;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_current_timestamp(hbt_ptr: *const HashMapMarketDepthLiveBot) -> i64 {
     let hbt = unsafe { &*hbt_ptr };
     hbt.current_timestamp()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_depth(
     hbt_ptr: *const HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -28,7 +28,7 @@ pub extern "C" fn hashmaplive_depth(
     depth as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_last_trades(
     hbt_ptr: *const HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -42,7 +42,7 @@ pub extern "C" fn hashmaplive_last_trades(
     trade.as_ptr() as *mut _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_position(
     hbt_ptr: *const HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -51,7 +51,7 @@ pub extern "C" fn hashmaplive_position(
     hbt.position(asset_no)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_close(hbt_ptr: *mut HashMapMarketDepthLiveBot) -> i64 {
     let mut hbt = unsafe { Box::from_raw(hbt_ptr) };
     match hbt.close() {
@@ -66,7 +66,7 @@ pub extern "C" fn hashmaplive_close(hbt_ptr: *mut HashMapMarketDepthLiveBot) -> 
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_elapse(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     duration: i64,
@@ -85,7 +85,7 @@ pub extern "C" fn hashmaplive_elapse(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_elapse_bt(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     duration: i64,
@@ -104,13 +104,13 @@ pub extern "C" fn hashmaplive_elapse_bt(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_num_assets(hbt_ptr: *const HashMapMarketDepthLiveBot) -> usize {
     let hbt = unsafe { &*hbt_ptr };
     hbt.num_assets()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_wait_order_response(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -131,7 +131,7 @@ pub extern "C" fn hashmaplive_wait_order_response(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_wait_next_feed(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     include_resp: bool,
@@ -151,7 +151,7 @@ pub extern "C" fn hashmaplive_wait_next_feed(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_submit_buy_order(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -185,7 +185,7 @@ pub extern "C" fn hashmaplive_submit_buy_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_submit_sell_order(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -218,7 +218,7 @@ pub extern "C" fn hashmaplive_submit_sell_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_cancel(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -239,7 +239,7 @@ pub extern "C" fn hashmaplive_cancel(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_clear_last_trades(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -252,7 +252,7 @@ pub extern "C" fn hashmaplive_clear_last_trades(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_clear_inactive_orders(
     hbt_ptr: *mut HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -265,7 +265,7 @@ pub extern "C" fn hashmaplive_clear_inactive_orders(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_orders(
     hbt_ptr: *const HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -274,7 +274,7 @@ pub extern "C" fn hashmaplive_orders(
     hbt.orders(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_state_values(
     hbt_ptr: *const HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -283,7 +283,7 @@ pub extern "C" fn hashmaplive_state_values(
     hbt.state_values(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_feed_latency(
     hbt_ptr: *const HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -303,7 +303,7 @@ pub extern "C" fn hashmaplive_feed_latency(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_order_latency(
     hbt_ptr: *const HashMapMarketDepthLiveBot,
     asset_no: usize,
@@ -325,13 +325,13 @@ pub extern "C" fn hashmaplive_order_latency(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_current_timestamp(hbt_ptr: *const ROIVectorMarketDepthLiveBot) -> i64 {
     let hbt = unsafe { &*hbt_ptr };
     hbt.current_timestamp()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_depth(
     hbt_ptr: *const ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -341,7 +341,7 @@ pub extern "C" fn roiveclive_depth(
     depth as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_last_trades(
     hbt_ptr: *const ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -355,7 +355,7 @@ pub extern "C" fn roiveclive_last_trades(
     trade.as_ptr() as *mut _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_position(
     hbt_ptr: *const ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -364,7 +364,7 @@ pub extern "C" fn roiveclive_position(
     hbt.position(asset_no)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_close(hbt_ptr: *mut ROIVectorMarketDepthLiveBot) -> i64 {
     let mut hbt = unsafe { Box::from_raw(hbt_ptr) };
     match hbt.close() {
@@ -379,7 +379,7 @@ pub extern "C" fn roiveclive_close(hbt_ptr: *mut ROIVectorMarketDepthLiveBot) ->
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_elapse(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     duration: i64,
@@ -398,7 +398,7 @@ pub extern "C" fn roiveclive_elapse(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_elapse_bt(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     duration: i64,
@@ -417,13 +417,13 @@ pub extern "C" fn roiveclive_elapse_bt(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_num_assets(hbt_ptr: *const ROIVectorMarketDepthLiveBot) -> usize {
     let hbt = unsafe { &*hbt_ptr };
     hbt.num_assets()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_wait_order_response(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -444,7 +444,7 @@ pub extern "C" fn roiveclive_wait_order_response(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_wait_next_feed(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     include_resp: bool,
@@ -464,7 +464,7 @@ pub extern "C" fn roiveclive_wait_next_feed(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_submit_buy_order(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -498,7 +498,7 @@ pub extern "C" fn roiveclive_submit_buy_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_submit_sell_order(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -531,7 +531,7 @@ pub extern "C" fn roiveclive_submit_sell_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_cancel(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -552,7 +552,7 @@ pub extern "C" fn roiveclive_cancel(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_clear_last_trades(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -565,7 +565,7 @@ pub extern "C" fn roiveclive_clear_last_trades(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_clear_inactive_orders(
     hbt_ptr: *mut ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -578,7 +578,7 @@ pub extern "C" fn roiveclive_clear_inactive_orders(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_orders(
     hbt_ptr: *const ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -587,7 +587,7 @@ pub extern "C" fn roiveclive_orders(
     hbt.orders(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_state_values(
     hbt_ptr: *const ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -596,7 +596,7 @@ pub extern "C" fn roiveclive_state_values(
     hbt.state_values(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_feed_latency(
     hbt_ptr: *const ROIVectorMarketDepthLiveBot,
     asset_no: usize,
@@ -616,7 +616,7 @@ pub extern "C" fn roiveclive_feed_latency(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roiveclive_order_latency(
     hbt_ptr: *const ROIVectorMarketDepthLiveBot,
     asset_no: usize,

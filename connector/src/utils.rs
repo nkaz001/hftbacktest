@@ -11,10 +11,10 @@ use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, Mac};
 use rand::Rng;
 use serde::{
-    de,
-    de::{Error, Visitor},
     Deserialize,
     Deserializer,
+    de,
+    de::{Error, Visitor},
 };
 use sha2::Sha256;
 

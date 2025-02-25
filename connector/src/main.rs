@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     fs::read_to_string,
     panic,
     process::exit,
@@ -11,15 +11,15 @@ use std::{
 use clap::Parser;
 use hftbacktest::{
     live::ipc::{
-        iceoryx::{ChannelError, IceoryxBuilder},
         TO_ALL,
+        iceoryx::{ChannelError, IceoryxBuilder},
     },
     prelude::*,
 };
 use iceoryx2::{node::NodeBuilder, prelude::ipc};
 use tokio::{
     runtime::Builder,
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
 };
 use tracing::error;
 

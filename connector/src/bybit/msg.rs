@@ -2,11 +2,11 @@ use std::{collections::HashMap, fmt, fmt::Debug};
 
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
-    de,
-    de::{Error, Unexpected, Visitor},
     Deserialize,
     Deserializer,
     Serialize,
+    de,
+    de::{Error, Unexpected, Visitor},
 };
 
 use crate::utils::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64};

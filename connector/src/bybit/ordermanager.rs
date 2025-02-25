@@ -8,11 +8,11 @@ use hftbacktest::{
 
 use crate::{
     bybit::{
-        msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
         BybitError,
+        msg::{Execution, FastExecution, Order as BybitOrder, PrivateOrder},
     },
     connector::GetOrders,
-    utils::{generate_rand_string, RefSymbolOrderId, SymbolOrderId},
+    utils::{RefSymbolOrderId, SymbolOrderId, generate_rand_string},
 };
 
 pub type SharedOrderManager = Arc<Mutex<OrderManager>>;

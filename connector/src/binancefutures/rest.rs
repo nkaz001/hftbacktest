@@ -5,11 +5,11 @@ use serde::Deserialize;
 use super::msg::{rest, rest::PositionInformationV2};
 use crate::{
     binancefutures::{
+        BinanceFuturesError,
         msg::{
             rest::{OrderResponse, OrderResponseResult},
             stream::ListenKey,
         },
-        BinanceFuturesError,
     },
     utils::sign_hmac_sha256,
 };

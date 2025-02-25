@@ -34,8 +34,8 @@ use crate::{
         Side,
         StateValues,
         TimeInForce,
-        WaitOrderResponse,
         UNTIL_END_OF_DATA,
+        WaitOrderResponse,
     },
     types::{BuildError, Event},
 };
@@ -1628,6 +1628,10 @@ mod test {
 
     use crate::{
         backtest::{
+            Backtest,
+            DataSource,
+            ExchangeKind::NoPartialFillExchange,
+            L2AssetBuilder,
             assettype::LinearAsset,
             data::Data,
             models::{
@@ -1637,10 +1641,6 @@ mod test {
                 ProbQueueModel,
                 TradingValueFeeModel,
             },
-            Backtest,
-            DataSource,
-            ExchangeKind::NoPartialFillExchange,
-            L2AssetBuilder,
         },
         depth::HashMapMarketDepth,
         prelude::{Bot, Event},

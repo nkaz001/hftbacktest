@@ -1,12 +1,12 @@
 use algo::gridtrading;
 use hftbacktest::{
     live::{
-        ipc::iceoryx::IceoryxUnifiedChannel,
         BotError,
         Instrument,
         LiveBot,
         LiveBotBuilder,
         LoggingRecorder,
+        ipc::iceoryx::IceoryxUnifiedChannel,
     },
     prelude::{Bot, ErrorKind, HashMapMarketDepth, Value},
 };

@@ -7,22 +7,16 @@ use std::{
 
 use crate::{
     backtest::{
+        BacktestError,
         assettype::AssetType,
         models::{FeeModel, LatencyModel, QueueModel},
         order::OrderBus,
         proc::Processor,
         state::State,
-        BacktestError,
     },
-    depth::{L2MarketDepth, MarketDepth, INVALID_MAX, INVALID_MIN},
+    depth::{INVALID_MAX, INVALID_MIN, L2MarketDepth, MarketDepth},
     prelude::OrdType,
     types::{
-        Event,
-        Order,
-        OrderId,
-        Side,
-        Status,
-        TimeInForce,
         EXCH_ASK_DEPTH_CLEAR_EVENT,
         EXCH_ASK_DEPTH_EVENT,
         EXCH_ASK_DEPTH_SNAPSHOT_EVENT,
@@ -33,6 +27,12 @@ use crate::{
         EXCH_DEPTH_CLEAR_EVENT,
         EXCH_EVENT,
         EXCH_SELL_TRADE_EVENT,
+        Event,
+        Order,
+        OrderId,
+        Side,
+        Status,
+        TimeInForce,
     },
 };
 

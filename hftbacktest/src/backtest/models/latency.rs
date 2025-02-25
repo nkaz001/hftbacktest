@@ -4,8 +4,8 @@ use hftbacktest_derive::NpyDTyped;
 
 use crate::{
     backtest::{
-        data::{Data, DataPreprocess, DataSource, Reader, POD},
         BacktestError,
+        data::{Data, DataPreprocess, DataSource, POD, Reader},
     },
     types::Order,
 };

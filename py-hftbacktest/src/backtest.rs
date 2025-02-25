@@ -12,13 +12,13 @@ use hftbacktest::{
 type HashMapMarketDepthBacktest = Backtest<HashMapMarketDepth>;
 type ROIVectorMarketDepthBacktest = Backtest<ROIVectorMarketDepth>;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_current_timestamp(hbt_ptr: *const HashMapMarketDepthBacktest) -> i64 {
     let hbt = unsafe { &*hbt_ptr };
     hbt.current_timestamp()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_depth(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -28,7 +28,7 @@ pub extern "C" fn hashmapbt_depth(
     depth as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_last_trades(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -42,7 +42,7 @@ pub extern "C" fn hashmapbt_last_trades(
     trade.as_ptr() as *mut _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_position(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -51,7 +51,7 @@ pub extern "C" fn hashmapbt_position(
     hbt.position(asset_no)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_close(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i64 {
     let mut hbt = unsafe { Box::from_raw(hbt_ptr) };
     match hbt.close() {
@@ -66,7 +66,7 @@ pub extern "C" fn hashmapbt_close(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_elapse(hbt_ptr: *mut HashMapMarketDepthBacktest, duration: i64) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse(duration) {
@@ -82,7 +82,7 @@ pub extern "C" fn hashmapbt_elapse(hbt_ptr: *mut HashMapMarketDepthBacktest, dur
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_elapse_bt(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     duration: i64,
@@ -101,13 +101,13 @@ pub extern "C" fn hashmapbt_elapse_bt(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_num_assets(hbt_ptr: *const HashMapMarketDepthBacktest) -> usize {
     let hbt = unsafe { &*hbt_ptr };
     hbt.num_assets()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_wait_order_response(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -128,7 +128,7 @@ pub extern "C" fn hashmapbt_wait_order_response(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_wait_next_feed(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     include_resp: bool,
@@ -148,7 +148,7 @@ pub extern "C" fn hashmapbt_wait_next_feed(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_submit_buy_order(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -182,7 +182,7 @@ pub extern "C" fn hashmapbt_submit_buy_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_submit_sell_order(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -215,7 +215,7 @@ pub extern "C" fn hashmapbt_submit_sell_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_cancel(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -236,7 +236,7 @@ pub extern "C" fn hashmapbt_cancel(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_clear_last_trades(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -249,7 +249,7 @@ pub extern "C" fn hashmapbt_clear_last_trades(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_clear_inactive_orders(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -262,7 +262,7 @@ pub extern "C" fn hashmapbt_clear_inactive_orders(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_orders(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -271,7 +271,7 @@ pub extern "C" fn hashmapbt_orders(
     hbt.orders(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_state_values(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -280,7 +280,7 @@ pub extern "C" fn hashmapbt_state_values(
     hbt.state_values(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_feed_latency(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -300,7 +300,7 @@ pub extern "C" fn hashmapbt_feed_latency(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_order_latency(
     hbt_ptr: *const HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -322,7 +322,7 @@ pub extern "C" fn hashmapbt_order_latency(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_goto_end(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.goto_end() {
@@ -338,13 +338,13 @@ pub extern "C" fn hashmapbt_goto_end(hbt_ptr: *mut HashMapMarketDepthBacktest) -
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_current_timestamp(hbt_ptr: *const ROIVectorMarketDepthBacktest) -> i64 {
     let hbt = unsafe { &*hbt_ptr };
     hbt.current_timestamp()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_depth(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -354,7 +354,7 @@ pub extern "C" fn roivecbt_depth(
     depth as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_last_trades(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -368,7 +368,7 @@ pub extern "C" fn roivecbt_last_trades(
     trade.as_ptr() as *mut _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_position(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -377,7 +377,7 @@ pub extern "C" fn roivecbt_position(
     hbt.position(asset_no)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_close(hbt_ptr: *mut ROIVectorMarketDepthBacktest) -> i64 {
     let mut hbt = unsafe { Box::from_raw(hbt_ptr) };
     match hbt.close() {
@@ -392,7 +392,7 @@ pub extern "C" fn roivecbt_close(hbt_ptr: *mut ROIVectorMarketDepthBacktest) -> 
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_elapse(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     duration: i64,
@@ -411,7 +411,7 @@ pub extern "C" fn roivecbt_elapse(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_elapse_bt(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     duration: i64,
@@ -430,13 +430,13 @@ pub extern "C" fn roivecbt_elapse_bt(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_num_assets(hbt_ptr: *const ROIVectorMarketDepthBacktest) -> usize {
     let hbt = unsafe { &*hbt_ptr };
     hbt.num_assets()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_wait_order_response(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -457,7 +457,7 @@ pub extern "C" fn roivecbt_wait_order_response(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_wait_next_feed(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     include_resp: bool,
@@ -477,7 +477,7 @@ pub extern "C" fn roivecbt_wait_next_feed(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_submit_buy_order(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -511,7 +511,7 @@ pub extern "C" fn roivecbt_submit_buy_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_submit_sell_order(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -544,7 +544,7 @@ pub extern "C" fn roivecbt_submit_sell_order(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_cancel(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -565,7 +565,7 @@ pub extern "C" fn roivecbt_cancel(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_clear_last_trades(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -578,7 +578,7 @@ pub extern "C" fn roivecbt_clear_last_trades(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_clear_inactive_orders(
     hbt_ptr: *mut ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -591,7 +591,7 @@ pub extern "C" fn roivecbt_clear_inactive_orders(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_orders(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -600,7 +600,7 @@ pub extern "C" fn roivecbt_orders(
     hbt.orders(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_state_values(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -609,7 +609,7 @@ pub extern "C" fn roivecbt_state_values(
     hbt.state_values(asset_no) as *const _
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_feed_latency(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,
@@ -629,7 +629,7 @@ pub extern "C" fn roivecbt_feed_latency(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn roivecbt_order_latency(
     hbt_ptr: *const ROIVectorMarketDepthBacktest,
     asset_no: usize,

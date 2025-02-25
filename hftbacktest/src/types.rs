@@ -6,12 +6,12 @@ use std::{
 
 use anyhow::Error;
 use bincode::{
-    de::{BorrowDecoder, Decoder},
-    enc::Encoder,
-    error::{DecodeError, EncodeError},
     BorrowDecode,
     Decode,
     Encode,
+    de::{BorrowDecoder, Decoder},
+    enc::Encoder,
+    error::{DecodeError, EncodeError},
 };
 use dyn_clone::DynClone;
 use hftbacktest_derive::NpyDTyped;
@@ -950,8 +950,8 @@ mod tests {
     use crate::{
         prelude::LOCAL_EVENT,
         types::{
-            Event,
             BUY_EVENT,
+            Event,
             LOCAL_BID_DEPTH_CLEAR_EVENT,
             LOCAL_BID_DEPTH_EVENT,
             LOCAL_BID_DEPTH_SNAPSHOT_EVENT,

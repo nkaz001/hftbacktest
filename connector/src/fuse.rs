@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use hftbacktest::{
-    prelude::{Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, INVALID_MAX, INVALID_MIN, LOCAL_EVENT},
-    types::{Event, BUY_EVENT, SELL_EVENT},
+    prelude::{DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, INVALID_MAX, INVALID_MIN, LOCAL_EVENT, Side},
+    types::{BUY_EVENT, Event, SELL_EVENT},
 };
 
 pub struct QtyTimestamp {
@@ -186,7 +186,7 @@ impl FusedHashMapMarketDepth {
         let mut bid_depth = self
             .bid_depth
             .iter()
-            .filter(|(&px_tick, _)| px_tick <= self.best_bid_tick)
+            .filter(|&(&px_tick, _)| px_tick <= self.best_bid_tick)
             .map(|(&px_tick, depth)| (px_tick, depth))
             .collect::<Vec<_>>();
         bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
@@ -207,7 +207,7 @@ impl FusedHashMapMarketDepth {
         let mut ask_depth = self
             .ask_depth
             .iter()
-            .filter(|(&px_tick, _)| px_tick >= self.best_ask_tick)
+            .filter(|&(&px_tick, _)| px_tick >= self.best_ask_tick)
             .map(|(&px_tick, depth)| (px_tick, depth))
             .collect::<Vec<_>>();
         ask_depth.sort_by(|a, b| a.0.cmp(&b.0));

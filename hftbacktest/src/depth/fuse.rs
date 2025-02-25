@@ -1,10 +1,10 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 
-use super::{ApplySnapshot, L1MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
+use super::{ApplySnapshot, INVALID_MAX, INVALID_MIN, L1MarketDepth, L3Order, MarketDepth};
 use crate::{
-    backtest::{data::Data, BacktestError},
-    prelude::{L2MarketDepth, Side, DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, LOCAL_EVENT},
-    types::{Event, OrderId, BUY_EVENT, SELL_EVENT},
+    backtest::{BacktestError, data::Data},
+    prelude::{DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, L2MarketDepth, LOCAL_EVENT, Side},
+    types::{BUY_EVENT, Event, OrderId, SELL_EVENT},
 };
 
 pub struct QtyTimestamp {
@@ -510,7 +510,7 @@ impl L1MarketDepth for FusedHashMapMarketDepth {
 
 #[cfg(test)]
 mod tests {
-    use crate::depth::{fuse::FusedHashMapMarketDepth, L1MarketDepth, L2MarketDepth, MarketDepth};
+    use crate::depth::{L1MarketDepth, L2MarketDepth, MarketDepth, fuse::FusedHashMapMarketDepth};
 
     #[test]
     fn test_update_bid_depth() {

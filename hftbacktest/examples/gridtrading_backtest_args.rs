@@ -2,6 +2,10 @@ use algo::gridtrading;
 use clap::Parser;
 use hftbacktest::{
     backtest::{
+        Backtest,
+        DataSource,
+        ExchangeKind,
+        L2AssetBuilder,
         assettype::LinearAsset,
         data::read_npz_file,
         models::{
@@ -12,10 +16,6 @@ use hftbacktest::{
             TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
-        Backtest,
-        DataSource,
-        ExchangeKind,
-        L2AssetBuilder,
     },
     prelude::{ApplySnapshot, Bot, HashMapMarketDepth},
 };

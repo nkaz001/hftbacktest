@@ -5,10 +5,10 @@ use std::{
 };
 
 use hftbacktest_derive::NpyDTyped;
-use zip::{write::SimpleFileOptions, ZipWriter};
+use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    backtest::data::{write_npy, POD},
+    backtest::data::{POD, write_npy},
     depth::MarketDepth,
     types::{Bot, Recorder},
 };

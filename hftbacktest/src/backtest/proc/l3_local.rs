@@ -1,24 +1,17 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 
 use crate::{
     backtest::{
+        BacktestError,
         assettype::AssetType,
         models::{FeeModel, LatencyModel},
         order::OrderBus,
         proc::{LocalProcessor, Processor},
         state::State,
-        BacktestError,
     },
     depth::L3MarketDepth,
     types::{
         Event,
-        OrdType,
-        Order,
-        OrderId,
-        Side,
-        StateValues,
-        Status,
-        TimeInForce,
         LOCAL_ASK_ADD_ORDER_EVENT,
         LOCAL_ASK_DEPTH_CLEAR_EVENT,
         LOCAL_BID_ADD_ORDER_EVENT,
@@ -28,6 +21,13 @@ use crate::{
         LOCAL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
         LOCAL_TRADE_EVENT,
+        OrdType,
+        Order,
+        OrderId,
+        Side,
+        StateValues,
+        Status,
+        TimeInForce,
     },
 };
 

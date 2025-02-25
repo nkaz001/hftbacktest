@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     time::{Duration, Instant},
 };
 
@@ -10,11 +10,15 @@ use tracing::{debug, error, info};
 
 use crate::{
     depth::{L2MarketDepth, MarketDepth},
-    live::{ipc::Channel, Instrument},
+    live::{Instrument, ipc::Channel},
     types::{
         Bot,
         BuildError,
         Event,
+        LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_BID_DEPTH_EVENT,
+        LOCAL_BUY_TRADE_EVENT,
+        LOCAL_SELL_TRADE_EVENT,
         LiveError,
         LiveEvent,
         LiveRequest,
@@ -27,10 +31,6 @@ use crate::{
         Status,
         TimeInForce,
         WaitOrderResponse,
-        LOCAL_ASK_DEPTH_EVENT,
-        LOCAL_BID_DEPTH_EVENT,
-        LOCAL_BUY_TRADE_EVENT,
-        LOCAL_SELL_TRADE_EVENT,
     },
 };
 

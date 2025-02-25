@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     marker::PhantomData,
     rc::Rc,
     string::FromUtf8Error,
@@ -7,28 +7,28 @@ use std::{
 };
 
 use bincode::{
-    config,
-    error::{DecodeError, EncodeError},
     Decode,
     Encode,
+    config,
+    error::{DecodeError, EncodeError},
 };
 use iceoryx2::{
     port::{
         publisher::{Publisher, PublisherLoanError, PublisherSendError},
         subscriber::{Subscriber, SubscriberReceiveError},
     },
-    prelude::{ipc, Node, NodeBuilder, ServiceName},
+    prelude::{Node, NodeBuilder, ServiceName, ipc},
 };
 use thiserror::Error;
 
 use crate::{
     live::{
-        ipc::{
-            config::{ChannelConfig, MAX_PAYLOAD_SIZE},
-            Channel,
-        },
         BotError,
         Instrument,
+        ipc::{
+            Channel,
+            config::{ChannelConfig, MAX_PAYLOAD_SIZE},
+        },
     },
     prelude::{LiveEvent, LiveRequest},
     types::BuildError,

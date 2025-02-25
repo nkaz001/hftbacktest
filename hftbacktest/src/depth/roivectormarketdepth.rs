@@ -1,10 +1,10 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 
-use super::{ApplySnapshot, L3MarketDepth, L3Order, MarketDepth, INVALID_MAX, INVALID_MIN};
+use super::{ApplySnapshot, INVALID_MAX, INVALID_MIN, L3MarketDepth, L3Order, MarketDepth};
 use crate::{
-    backtest::{data::Data, BacktestError},
+    backtest::{BacktestError, data::Data},
     prelude::{L2MarketDepth, OrderId, Side},
-    types::{Event, BUY_EVENT, SELL_EVENT},
+    types::{BUY_EVENT, Event, SELL_EVENT},
 };
 
 /// L2/L3 market depth implementation based on a vector within the range of interest.
@@ -754,7 +754,7 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 #[cfg(test)]
 mod tests {
     use crate::{
-        depth::{L3MarketDepth, MarketDepth, ROIVectorMarketDepth, INVALID_MAX, INVALID_MIN},
+        depth::{INVALID_MAX, INVALID_MIN, L3MarketDepth, MarketDepth, ROIVectorMarketDepth},
         types::Side,
     };
 

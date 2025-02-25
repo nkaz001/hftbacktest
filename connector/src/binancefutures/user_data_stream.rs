@@ -5,24 +5,24 @@ use hftbacktest::prelude::*;
 use tokio::{
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
+        broadcast::{Receiver, error::RecvError},
         mpsc::UnboundedSender,
     },
     time,
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{Message, client::IntoClientRequest},
 };
 use tracing::{debug, error};
 
 use crate::{
     binancefutures::{
+        BinanceFuturesError,
+        SharedSymbolSet,
         msg::stream::{EventStream, Stream},
         ordermanager::SharedOrderManager,
         rest::BinanceFuturesClient,
-        BinanceFuturesError,
-        SharedSymbolSet,
     },
     connector::PublishEvent,
 };

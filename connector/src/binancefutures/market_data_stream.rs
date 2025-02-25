@@ -6,25 +6,25 @@ use hftbacktest::{live::ipc::TO_ALL, prelude::*};
 use tokio::{
     select,
     sync::{
-        broadcast::{error::RecvError, Receiver},
-        mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+        broadcast::{Receiver, error::RecvError},
+        mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     },
 };
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{client::IntoClientRequest, Message},
+    tungstenite::{Message, client::IntoClientRequest},
 };
 use tracing::{debug, error};
 
 use crate::{
     binancefutures::{
+        BinanceFuturesError,
         msg::{
             rest,
             stream,
             stream::{EventStream, Stream},
         },
         rest::BinanceFuturesClient,
-        BinanceFuturesError,
     },
     connector::PublishEvent,
     utils::{generate_rand_string, parse_depth, parse_px_qty_tup},

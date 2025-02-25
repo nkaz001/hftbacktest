@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    backtest::data::{npy::parser::Value, Data, DataPtr, POD},
+    backtest::data::{Data, DataPtr, POD, npy::parser::Value},
     utils::CACHE_LINE_SIZE,
 };
 
@@ -90,7 +90,7 @@ impl NpyHeader {
                                 return Err(Error::new(
                                     ErrorKind::InvalidData,
                                     "list entry must contain 2 items".to_string(),
-                                ))
+                                ));
                             }
                         }
                     }
@@ -107,7 +107,7 @@ impl NpyHeader {
                     return Err(Error::new(
                         ErrorKind::InvalidData,
                         "must be a list".to_string(),
-                    ))
+                    ));
                 }
             }
         }

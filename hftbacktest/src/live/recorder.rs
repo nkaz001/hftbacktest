@@ -1,10 +1,10 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 
 use tracing::info;
 
 use crate::{
     depth::MarketDepth,
-    prelude::{get_precision, Bot},
+    prelude::{Bot, get_precision},
     types::{Recorder, StateValues},
 };
 

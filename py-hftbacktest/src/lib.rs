@@ -6,8 +6,11 @@ pub use depth::*;
 use hftbacktest::live::{Instrument, LiveBotBuilder};
 use hftbacktest::{
     backtest::{
+        Asset,
+        Backtest,
+        DataSource,
         assettype::{InverseAsset, LinearAsset},
-        data::{read_npz_file, Data, DataPtr, FeedLatencyAdjustment, Reader},
+        data::{Data, DataPtr, FeedLatencyAdjustment, Reader, read_npz_file},
         models::{
             CommonFees,
             ConstantLatency,
@@ -36,9 +39,6 @@ use hftbacktest::{
             Processor,
         },
         state::State,
-        Asset,
-        Backtest,
-        DataSource,
     },
     prelude::{ApplySnapshot, Event, HashMapMarketDepth, ROIVectorMarketDepth},
 };
