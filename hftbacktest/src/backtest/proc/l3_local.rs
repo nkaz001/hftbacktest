@@ -162,6 +162,51 @@ where
         Ok(())
     }
 
+    fn modify(
+        &mut self,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        current_timestamp: i64,
+    ) -> Result<(), BacktestError> {
+        let order = self
+            .orders
+            .get_mut(&order_id)
+            .ok_or(BacktestError::OrderNotFound)?;
+
+        if order.req != Status::None {
+            return Err(BacktestError::OrderRequestInProcess);
+        }
+
+        let orig_price_tick = order.price_tick;
+        let orig_qty = order.qty;
+
+        let price_tick = (price / self.depth.tick_size()).round() as i64;
+        order.price_tick = price_tick;
+        order.qty = qty;
+
+        order.req = Status::Replaced;
+        order.local_timestamp = current_timestamp;
+
+        let order_entry_latency = self.order_latency.entry(current_timestamp, order);
+        // Negative latency indicates that the order is rejected for technical reasons, and its
+        // value represents the latency that the local experiences when receiving the rejection
+        // notification.
+        if order_entry_latency < 0 {
+            // Rejects the order.
+            let mut order_ = order.clone();
+            order_.req = Status::Rejected;
+            order_.price_tick = orig_price_tick;
+            order_.qty = orig_qty;
+            let rej_recv_timestamp = current_timestamp - order_entry_latency;
+            self.orders_from.append(order_, rej_recv_timestamp);
+        } else {
+            let exch_recv_timestamp = current_timestamp + order_entry_latency;
+            self.orders_to.append(order.clone(), exch_recv_timestamp);
+        }
+        Ok(())
+    }
+
     fn cancel(&mut self, order_id: OrderId, current_timestamp: i64) -> Result<(), BacktestError> {
         let order = self
             .orders

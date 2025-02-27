@@ -1025,6 +1025,27 @@ where
     }
 
     #[inline]
+    fn modify(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        let local = self.local.get_mut(asset_no).unwrap();
+        local.modify(order_id, price, qty, self.cur_ts)?;
+
+        if wait {
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified { asset_no, order_id },
+            );
+        }
+        Ok(true)
+    }
+
+    #[inline]
     fn cancel(
         &mut self,
         asset_no: usize,
@@ -1508,6 +1529,27 @@ where
                     asset_no,
                     order_id: order.order_id,
                 },
+            );
+        }
+        Ok(true)
+    }
+
+    #[inline]
+    fn modify(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        let local = self.local.get_mut(asset_no).unwrap();
+        local.modify(order_id, price, qty, self.cur_ts)?;
+
+        if wait {
+            return self.goto::<false>(
+                UNTIL_END_OF_DATA,
+                WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
         Ok(true)

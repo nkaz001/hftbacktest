@@ -49,7 +49,21 @@ where
         current_timestamp: i64,
     ) -> Result<(), BacktestError>;
 
-    /// Cancels the specified order.
+    /// Modifies an open order.
+    ///
+    /// * `order_id` - Order ID to modify.
+    /// * `price` - Order price.
+    /// * `qty` - Quantity to buy.
+    /// * `current_timestamp` - The current backtesting timestamp.
+    fn modify(
+        &mut self,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        current_timestamp: i64,
+    ) -> Result<(), BacktestError>;
+
+    /// Cancels an open order.
     ///
     /// * `order_id` - Order ID to cancel.
     /// * `current_timestamp` - The current backtesting timestamp.

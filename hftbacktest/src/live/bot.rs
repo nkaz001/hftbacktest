@@ -521,6 +521,18 @@ where
     }
 
     #[inline]
+    fn modify(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        wait: bool,
+    ) -> Result<bool, Self::Error> {
+        todo!();
+    }
+
+    #[inline]
     fn cancel(
         &mut self,
         asset_no: usize,

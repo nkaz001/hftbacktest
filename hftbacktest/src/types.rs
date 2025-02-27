@@ -815,10 +815,10 @@ where
     /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
     ///                     See to the exchange model for details.
     ///
-    ///  * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
-    ///                   the exchange model for details.
+    /// * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
+    ///                  the exchange model for details.
     ///
-    ///  * `wait` - If true, wait until the order placement response is received.
+    /// * `wait` - If true, wait until the order placement response is received.
     #[allow(clippy::too_many_arguments)]
     fn submit_buy_order(
         &mut self,
@@ -841,10 +841,10 @@ where
     /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
     ///                     See to the exchange model for details.
     ///
-    ///  * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
-    ///                   the exchange model for details.
+    /// * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
+    ///                  the exchange model for details.
     ///
-    ///  * `wait` - If true, wait until the order placement response is received.
+    /// * `wait` - If true, wait until the order placement response is received.
     #[allow(clippy::too_many_arguments)]
     fn submit_sell_order(
         &mut self,
@@ -865,7 +865,23 @@ where
         wait: bool,
     ) -> Result<bool, Self::Error>;
 
-    /// Cancels the specified order.
+    /// Modifies an open order.
+    ///
+    /// * `asset_no` - Asset number at which this command will be executed.
+    /// * `order_id` - Order ID to modify.
+    /// * `price` - Order price.
+    /// * `qty` - Quantity to buy.
+    /// * `wait` - If true, wait until the order modification response is received.
+    fn modify(
+        &mut self,
+        asset_no: usize,
+        order_id: OrderId,
+        price: f64,
+        qty: f64,
+        wait: bool,
+    ) -> Result<bool, Self::Error>;
+
+    /// Cancels an open order.
     ///
     /// * `asset_no` - Asset number at which this command will be executed.
     /// * `order_id` - Order ID to cancel.
