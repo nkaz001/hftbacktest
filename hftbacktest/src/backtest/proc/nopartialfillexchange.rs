@@ -122,18 +122,19 @@ where
         mut order: Order,
         recv_timestamp: i64,
     ) -> Result<(), BacktestError> {
-        order.req = Status::None;
-
         // Processes a new order.
         if order.req == Status::New {
+            order.req = Status::None;
             self.ack_new(&mut order, recv_timestamp)?;
         }
         // Processes a cancel order.
         else if order.req == Status::Canceled {
+            order.req = Status::None;
             self.ack_cancel(&mut order, recv_timestamp)?;
         }
         // Processes a modify order.
         else if order.req == Status::Replaced {
+            order.req = Status::None;
             self.ack_modify::<false>(&mut order, recv_timestamp)?;
         } else {
             return Err(BacktestError::InvalidOrderRequest);
