@@ -26,6 +26,7 @@
 * [X] Support external connectors through IPC for multiple bots via a unified connection.
   [<img src="https://raw.githubusercontent.com/nkaz001/hftbacktest/master/docs/images/arch.png">](https://github.com/nkaz001/hftbacktest/tree/master/docs/images/arch.png?raw=true)
   * https://github.com/eclipse-iceoryx/iceoryx2
+* [ ] Add a TCP-based communication to support remote connections and the Python version.
 
 ### Connector
 * [ ] Implement Binance Futures Websocket Order APIs; currently, REST APIs are used for submitting orders.
@@ -65,3 +66,4 @@
 * [X] Market making with alpha from the perspectives of statistical arbitrage and optimal execution.
 * [X] Queue-position-based market making for large-tick assets.
 * [X] Update the existing examples to align with version 2.0.0.
+* [ ] Example Gymnasium implementation using hftbacktest.
