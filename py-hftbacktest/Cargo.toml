@@ -12,6 +12,6 @@ default = []
 live = ["hftbacktest/live"]
 
 [dependencies]
-pyo3 = { version = "0.23.5", features = ["extension-module"] }
+pyo3 = { version = "0.24", features = ["extension-module"] }
 hftbacktest = { path = "../hftbacktest", default-features = false, features = ["backtest"] }
 hftbacktest-derive = { path = "../hftbacktest-derive" }

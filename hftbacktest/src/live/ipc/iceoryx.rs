@@ -192,7 +192,7 @@ pub struct IceoryxReceiver<T> {
 
 impl<T> IceoryxReceiver<T>
 where
-    T: Decode,
+    T: Decode<()>,
 {
     pub fn receive(&self) -> Result<Option<(u64, T)>, ChannelError> {
         match self.subscriber.receive()? {
@@ -219,7 +219,7 @@ pub struct IceoryxChannel<S, R> {
 impl<S, R> IceoryxChannel<S, R>
 where
     S: Encode,
-    R: Decode,
+    R: Decode<()>,
 {
     pub fn new(name: &str) -> Result<Self, ChannelError> {
         let publisher = IceoryxBuilder::new(name).sender()?;

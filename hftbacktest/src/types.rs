@@ -631,7 +631,7 @@ impl Debug for Order {
     }
 }
 
-impl Decode for Order {
+impl<Context> Decode<Context> for Order {
     fn decode<D: Decoder>(decoder: &mut D) -> Result<Self, DecodeError> {
         Ok(Self {
             qty: Decode::decode(decoder)?,
@@ -655,7 +655,7 @@ impl Decode for Order {
     }
 }
 
-impl<'de> BorrowDecode<'de> for Order {
+impl<'de, Context> BorrowDecode<'de, Context> for Order {
     fn borrow_decode<D: BorrowDecoder<'de>>(decoder: &mut D) -> Result<Self, DecodeError> {
         Ok(Self {
             qty: Decode::decode(decoder)?,
