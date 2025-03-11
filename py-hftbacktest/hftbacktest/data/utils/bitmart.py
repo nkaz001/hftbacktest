@@ -1,5 +1,6 @@
 import gzip
 import json
+import datetime
 from typing import Optional, Literal
 
 import numpy as np
@@ -50,6 +51,8 @@ def convert(
     Returns:
         Converted data compatible with HftBacktest.
     """
+    timestamp_mul = 1000000  # Multiplier to convert ms to ns
+    
     tmp = np.empty(buffer_size, event_dtype)
     row_num = 0
     with gzip.open(input_filename, 'r') as f:
@@ -58,165 +61,176 @@ def convert(
             if not line:
                 break
 
-            # Find the first space which separates timestamp from JSON data
-            space_index = line.find(b' ')
-            if space_index == -1:
-                continue  # Skip malformed lines
+            try:
+                # Find the first space which separates timestamp from JSON data
+                space_index = line.find(b' ')
+                if space_index == -1:
+                    continue  # Skip malformed lines
 
-            local_timestamp = int(line[:space_index])
-            message = json.loads(line[space_index + 1:])
-            
-            # Check if the message has data field
-            if 'data' not in message:
-                continue
+                local_timestamp = int(line[:space_index])
+                message = json.loads(line[space_index + 1:])
                 
-            data = message['data']
-            group = message.get('group', '')
-            
-            # Process depth data (snapshot or update)
-            if 'symbol' in data and ('bids' in data or 'asks' in data):
-                ms_t = data.get('ms_t', 0)  # BitMart exchange timestamp in milliseconds
-                exch_timestamp = int(ms_t) * 1000  # Convert to nanoseconds
-                
-                # Process bids
-                if 'bids' in data:
-                    for bid in data['bids']:
-                        price = bid['price']
-                        qty = bid['vol']
-                        
-                        # For updates, volume of 0 means to remove the price level
-                        event_type = DEPTH_EVENT
-                        if data.get('type') == 'snapshot':
-                            event_type = DEPTH_SNAPSHOT_EVENT
-                            
-                        tmp[row_num] = (
-                            event_type | BUY_EVENT,
-                            exch_timestamp,
-                            local_timestamp,
-                            float(price),
-                            float(qty),
-                            0,
-                            0,
-                            0
-                        )
-                        row_num += 1
-                
-                # Process asks
-                if 'asks' in data:
-                    for ask in data['asks']:
-                        price = ask['price']
-                        qty = ask['vol']
-                        
-                        # For updates, volume of 0 means to remove the price level
-                        event_type = DEPTH_EVENT
-                        if data.get('type') == 'snapshot':
-                            event_type = DEPTH_SNAPSHOT_EVENT
-                            
-                        tmp[row_num] = (
-                            event_type | SELL_EVENT,
-                            exch_timestamp,
-                            local_timestamp,
-                            float(price),
-                            float(qty),
-                            0,
-                            0,
-                            0
-                        )
-                        row_num += 1
-                
-                # For snapshots, add depth clear events before processing
-                if data.get('type') == 'snapshot':
-                    # We need to add these *before* the snapshot data, so we'll shift the data
-                    # Find the lowest and highest prices from the snapshot
-                    if 'bids' in data and data['bids']:
-                        bid_prices = [float(bid['price']) for bid in data['bids']]
-                        bid_clear_upto = max(bid_prices)
-                        
-                        # Shift data to make room for clear event
-                        for i in range(row_num - len(data['bids']), row_num):
-                            tmp[i + 1] = tmp[i]
-                            
-                        # Insert the clear event
-                        tmp[row_num - len(data['bids'])] = (
-                            DEPTH_CLEAR_EVENT | BUY_EVENT,
-                            exch_timestamp,
-                            local_timestamp,
-                            bid_clear_upto,
-                            0,
-                            0,
-                            0,
-                            0
-                        )
-                        row_num += 1
+                # Check if the message has data field
+                if 'data' not in message:
+                    continue
                     
-                    if 'asks' in data and data['asks']:
-                        ask_prices = [float(ask['price']) for ask in data['asks']]
-                        ask_clear_upto = max(ask_prices)
+                data = message['data']
+                group = message.get('group', '')
+                
+                # Process depth data (snapshot or update)
+                if 'symbol' in data and ('bids' in data or 'asks' in data):
+                    ms_t = data.get('ms_t', 0)  # BitMart exchange timestamp in milliseconds
+                    exch_timestamp = int(ms_t) * timestamp_mul  # Convert to nanoseconds
+
+                    # For snapshots, add depth clear events before processing
+                    if data.get('type') == 'snapshot':
+                        # We need to add these *before* the snapshot data
+                        if 'bids' in data and data['bids']:
+                            bid_prices = [float(bid['price']) for bid in data['bids']]
+                            # For bids, the clear should be up to the lowest price (max price for comparison)
+                            bid_clear_upto = min(bid_prices)
+                                
+                            # Insert the clear event
+                            tmp[row_num] = (
+                                DEPTH_CLEAR_EVENT | BUY_EVENT,
+                                exch_timestamp,
+                                local_timestamp,
+                                bid_clear_upto,
+                                0,
+                                0,
+                                0,
+                                0
+                            )
+                            row_num += 1
                         
-                        # Calculate how many bid entries we have
-                        bid_count = len(data.get('bids', []))
-                        
-                        # Shift data to make room for clear event
-                        for i in range(row_num - len(data['asks']), row_num):
-                            tmp[i + 1] = tmp[i]
+                        if 'asks' in data and data['asks']:
+                            ask_prices = [float(ask['price']) for ask in data['asks']]
+                            # For asks, the clear should be up to the highest price (min price for comparison)
+                            ask_clear_upto = max(ask_prices)
+                                
+                            # Insert the clear event
+                            tmp[row_num] = (
+                                DEPTH_CLEAR_EVENT | SELL_EVENT,
+                                exch_timestamp,
+                                local_timestamp,
+                                ask_clear_upto,
+                                0,
+                                0,
+                                0,
+                                0
+                            )
+                            row_num += 1
+                    
+                    # Process bids
+                    if 'bids' in data:
+                        for bid in data['bids']:
+                            price = bid['price']
+                            qty = bid['vol']
                             
-                        # Insert the clear event
-                        tmp[row_num - len(data['asks'])] = (
-                            DEPTH_CLEAR_EVENT | SELL_EVENT,
-                            exch_timestamp,
-                            local_timestamp,
-                            ask_clear_upto,
-                            0,
-                            0,
-                            0,
-                            0
-                        )
-                        row_num += 1
-            
-            # Process trade data
-            elif isinstance(data, list) and 'futures/trade' in group:
-                for trade in data:
-                    if 'deal_price' in trade and 'deal_vol' in trade:
-                        # Parse timestamp from created_at field
-                        # The format is "2025-03-10T18:17:14.656686827Z"
-                        created_at = trade.get('created_at', '')
-                        if '.' in created_at:
-                            # Extract nanoseconds part
-                            timestamp_parts = created_at.split('.')
-                            if len(timestamp_parts) > 1:
-                                nanos_str = timestamp_parts[1].rstrip('Z')
-                                # Convert to Unix timestamp in nanoseconds (approximate)
-                                # For simplicity, we'll use local_timestamp as it's close enough
-                                exch_timestamp = local_timestamp
+                            # For updates, volume of 0 means to remove the price level
+                            event_type = DEPTH_EVENT
+                            if data.get('type') == 'snapshot':
+                                event_type = DEPTH_SNAPSHOT_EVENT
+                                
+                            tmp[row_num] = (
+                                event_type | BUY_EVENT,
+                                exch_timestamp,
+                                local_timestamp,
+                                float(price),
+                                float(qty),
+                                0,
+                                0,
+                                0
+                            )
+                            row_num += 1
+                    
+                    # Process asks
+                    if 'asks' in data:
+                        for ask in data['asks']:
+                            price = ask['price']
+                            qty = ask['vol']
+                            
+                            # For updates, volume of 0 means to remove the price level
+                            event_type = DEPTH_EVENT
+                            if data.get('type') == 'snapshot':
+                                event_type = DEPTH_SNAPSHOT_EVENT
+                                
+                            tmp[row_num] = (
+                                event_type | SELL_EVENT,
+                                exch_timestamp,
+                                local_timestamp,
+                                float(price),
+                                float(qty),
+                                0,
+                                0,
+                                0
+                            )
+                            row_num += 1
+                
+                # Process trade data
+                elif isinstance(data, list) and 'futures/trade' in group:
+                    for trade in data:
+                        if 'deal_price' in trade and 'deal_vol' in trade:
+                            # Parse timestamp from created_at field
+                            created_at = trade.get('created_at', '')
+                            if created_at:
+                                try:
+                                    # Format: "2025-03-10T18:17:14.656686827Z"
+                                    # Convert to nanoseconds
+                                    dt = datetime.datetime.strptime(created_at.split('.')[0], "%Y-%m-%dT%H:%M:%S")
+                                    # Set to UTC
+                                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                                    nanos_part = created_at.split('.')[1].rstrip('Z')
+                                    nanos = int(nanos_part.ljust(9, '0')[:9])  # Ensure 9 digits for nanos
+                                    
+                                    # Convert to Unix timestamp in nanoseconds
+                                    exch_timestamp = int(dt.timestamp()) * 1000000000 + nanos
+                                except (ValueError, IndexError):
+                                    # Fallback to ms_t if available, otherwise use local_timestamp
+                                    exch_timestamp = int(trade.get('ms_t', local_timestamp // 1000)) * timestamp_mul
                             else:
-                                exch_timestamp = local_timestamp
-                        else:
-                            exch_timestamp = local_timestamp
-                        
-                        price = trade['deal_price']
-                        qty = trade['deal_vol']
-                        
-                        # Determine trade side
-                        # way=1 for buy, way=2 for sell (m=true means buyer is maker)
-                        is_buyer_maker = trade.get('m', False)
-                        way = trade.get('way', 0)
-                        
-                        # In BitMart, 'way' indicates the taker's direction:
-                        # way=1: taker is buyer, way=2: taker is seller
-                        # We need to convert this to BUY_EVENT or SELL_EVENT
-                        side_event = SELL_EVENT if way == 1 else BUY_EVENT
-                        
-                        tmp[row_num] = (
-                            TRADE_EVENT | side_event,
-                            exch_timestamp,
-                            local_timestamp,
-                            float(price),
-                            float(qty),
-                            0,
-                            0,
-                            0
-                        )
-                        row_num += 1
+                                # Fallback to ms_t if available, otherwise use local_timestamp
+                                exch_timestamp = int(trade.get('ms_t', local_timestamp // 1000)) * timestamp_mul
+                            
+                            price = trade['deal_price']
+                            qty = trade['deal_vol']
+                            
+                            # Determine trade side using the 'way' and 'm' fields
+                            way = trade.get('way', 0)
+                            is_buyer_maker = trade.get('m', False)
+                            
+                            # BitMart way field meanings:
+                            # 1 = buy_open_long sell_open_short
+                            # 2 = buy_open_long sell_close_long
+                            # 3 = buy_close_short sell_open_short
+                            # 4 = buy_close_short sell_close_long
+                            # 5 = sell_open_short buy_open_long
+                            # 6 = sell_open_short buy_close_short
+                            # 7 = sell_close_long buy_open_long
+                            # 8 = sell_close_long buy_close_short
+                            
+                            # The 'm' field: true is "buyer is maker", false is "seller is maker"
+                            # For HftBacktest, we need to indicate the initiator's side (the taker)
+                            
+                            # Determine the taker side based on is_buyer_maker
+                            # If buyer is maker (m=true), then seller is taker -> SELL_EVENT
+                            # If seller is maker (m=false), then buyer is taker -> BUY_EVENT
+                            side_event = SELL_EVENT if is_buyer_maker else BUY_EVENT
+                            
+                            tmp[row_num] = (
+                                TRADE_EVENT | side_event,
+                                exch_timestamp,
+                                local_timestamp,
+                                float(price),
+                                float(qty),
+                                0,
+                                0,
+                                0
+                            )
+                            row_num += 1
+            except (json.JSONDecodeError, ValueError, KeyError, IndexError) as e:
+                print(f"Error processing line: {e}")
+                continue
 
     # Truncate the buffer to the actual number of rows used
     tmp = tmp[:row_num]
