@@ -37,7 +37,7 @@ pub struct BacktestRecorder {
 impl Recorder for BacktestRecorder {
     type Error = Error;
 
-    fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
+    fn record<MD, I>(&mut self, hbt: &I) -> Result<(), Self::Error>
     where
         MD: MarketDepth,
         I: Bot<MD>,
