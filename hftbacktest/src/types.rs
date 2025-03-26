@@ -955,7 +955,7 @@ pub trait Recorder {
     type Error;
 
     /// Records the current [`StateValues`].
-    fn record<MD, I>(&mut self, hbt: &mut I) -> Result<(), Self::Error>
+    fn record<MD, I>(&mut self, hbt: &I) -> Result<(), Self::Error>
     where
         I: Bot<MD>,
         MD: MarketDepth;
