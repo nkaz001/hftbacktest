@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Error, Write},
+    io::{Error, Write, BufWriter},
     path::Path,
 };
 
@@ -91,37 +91,33 @@ impl BacktestRecorder {
         P: AsRef<Path>,
     {
         let prefix = prefix.as_ref();
+        let base_path = path.as_ref();
+
+        // Buffer output to reduce frequent file I/O
         for (asset_no, values) in self.values.iter().enumerate() {
-            let file_path = path.as_ref().join(format!("{prefix}{asset_no}.csv"));
-            let mut file = File::create(file_path)?;
-            writeln!(
-                file,
-                "timestamp,balance,position,fee,trading_volume,trading_value,num_trades,price",
+            let file_path = base_path.join(format!("{prefix}{asset_no}.csv"));
+            // Use BufWriter for buffered writing
+            let mut file = BufWriter::new(File::create(file_path)?);
+
+            // Write header
+            file.write_all(
+                b"timestamp,balance,position,fee,trading_volume,trading_value,num_trades,price\n",
             )?;
-            for Record {
-                timestamp,
-                balance,
-                position,
-                fee,
-                trading_volume,
-                trading_value,
-                num_trades,
-                price: mid_price,
-            } in values
-            {
-                writeln!(
-                    file,
-                    "{},{},{},{},{},{},{},{}",
-                    timestamp,
-                    balance,
-                    position,
-                    fee,
-                    trading_volume,
-                    trading_value,
-                    num_trades,
-                    mid_price,
-                )?;
-            }
+
+            // Write records
+            for record in values {
+                let line = format!(
+                    "{},{},{},{},{},{},{},{}\n",
+                    record.timestamp,
+                    record.balance,
+                    record.position,
+                    record.fee,
+                    record.trading_volume,
+                    record.trading_value,
+                    record.num_trades,
+                    record.price,
+                );
+                file.write_all(line.as_bytes())?;
         }
         Ok(())
     }
