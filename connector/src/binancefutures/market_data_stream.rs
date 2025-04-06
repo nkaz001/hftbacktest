@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
@@ -9,12 +12,13 @@ use tokio::{
         broadcast::{Receiver, error::RecvError},
         mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     },
+    time,
 };
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{Message, client::IntoClientRequest},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::{
     binancefutures::{
@@ -259,11 +263,19 @@ impl MarketDataStream {
         let request = url.into_client_request()?;
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
+        let mut ping_checker = time::interval(Duration::from_secs(10));
+        let mut last_ping = Instant::now();
 
         loop {
             select! {
                 Some((symbol, data)) = self.rest_rx.recv() => {
                     self.process_snapshot(symbol, data);
+                }
+                _ = ping_checker.tick() => {
+                    if last_ping.elapsed() > Duration::from_secs(300) {
+                        warn!("Ping timeout.");
+                        return Err(BinanceFuturesError::ConnectionInterrupted);
+                    }
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
@@ -300,6 +312,7 @@ impl MarketDataStream {
                     }
                     Some(Ok(Message::Ping(data))) => {
                         write.send(Message::Pong(data)).await?;
+                        last_ping = Instant::now();
                     }
                     Some(Ok(Message::Close(close_frame))) => {
                         return Err(BinanceFuturesError::ConnectionAbort(
