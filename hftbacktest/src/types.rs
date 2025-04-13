@@ -829,7 +829,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<ElapseResult, Self::Error>;
 
     /// Places a sell order.
     ///
@@ -855,7 +855,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<ElapseResult, Self::Error>;
 
     /// Places an order.
     fn submit_order(
@@ -863,7 +863,7 @@ where
         asset_no: usize,
         order: OrderRequest,
         wait: bool,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<ElapseResult, Self::Error>;
 
     /// Modifies an open order.
     ///
@@ -879,7 +879,7 @@ where
         price: f64,
         qty: f64,
         wait: bool,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<ElapseResult, Self::Error>;
 
     /// Cancels an open order.
     ///
@@ -891,7 +891,7 @@ where
         asset_no: usize,
         order_id: OrderId,
         wait: bool,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<ElapseResult, Self::Error>;
 
     /// Clears inactive orders from the local orders whose status is neither [`Status::New`] nor
     /// [`Status::PartiallyFilled`].
@@ -903,14 +903,14 @@ where
         asset_no: usize,
         order_id: OrderId,
         timeout: i64,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<ElapseResult, Self::Error>;
 
     /// Wait until the next feed is received, or until timeout.
     fn wait_next_feed(
         &mut self,
         include_order_resp: bool,
         timeout: i64,
-    ) -> Result<bool, Self::Error>;
+    ) -> Result<ElapseResult, Self::Error>;
 
     /// Elapses the specified duration.
     ///
@@ -921,7 +921,7 @@ where
     /// Returns:
     ///   `Ok(true)` if the method reaches the specified timestamp within the data. If the end of
     ///   the data is reached before the specified timestamp, it returns `Ok(false)`.
-    fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error>;
+    fn elapse(&mut self, duration: i64) -> Result<ElapseResult, Self::Error>;
 
     /// Elapses time only in backtesting. In live mode, it is ignored.
     ///
@@ -936,7 +936,7 @@ where
     /// Returns:
     ///   `Ok(true)` if the method reaches the specified timestamp within the data. If the end of
     ///   the data is reached before the specified timestamp, it returns `Ok(false)`.
-    fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error>;
+    fn elapse_bt(&mut self, duration: i64) -> Result<ElapseResult, Self::Error>;
 
     /// Closes this backtester or bot.
     fn close(&mut self) -> Result<(), Self::Error>;
@@ -959,6 +959,29 @@ pub trait Recorder {
     where
         I: Bot<MD>,
         MD: MarketDepth;
+}
+
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub enum ElapseResult {
+    KeepGoing,
+    EndOfData,
+    MarketFeed,
+    OrderResponse,
+}
+
+pub trait BotEventHandler {
+    fn on_market_data(&mut self, ev: &Event);
+
+    fn on_order_response(&mut self, order: &Order);
+}
+
+#[derive(Default, Debug)]
+pub struct NoOpBotEventHandler();
+
+impl BotEventHandler for NoOpBotEventHandler {
+    fn on_market_data(&mut self, _ev: &Event) {}
+
+    fn on_order_response(&mut self, _order: &Order) {}
 }
 
 #[cfg(test)]

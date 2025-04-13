@@ -5,7 +5,7 @@ use std::{collections::HashMap, mem};
 use hftbacktest::{
     backtest::{Backtest, BacktestError},
     depth::{HashMapMarketDepth, ROIVectorMarketDepth},
-    prelude::{Bot, Event, Order, StateValues},
+    prelude::{Bot, ElapseResult, Event, Order, StateValues},
     types::{OrdType, TimeInForce},
 };
 
@@ -70,8 +70,10 @@ pub extern "C" fn hashmapbt_close(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i
 pub extern "C" fn hashmapbt_elapse(hbt_ptr: *mut HashMapMarketDepthBacktest, duration: i64) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse(duration) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -89,8 +91,10 @@ pub extern "C" fn hashmapbt_elapse_bt(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse_bt(duration) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -116,8 +120,10 @@ pub extern "C" fn hashmapbt_wait_order_response(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -136,8 +142,10 @@ pub extern "C" fn hashmapbt_wait_next_feed(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -170,8 +178,10 @@ pub extern "C" fn hashmapbt_submit_buy_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -203,8 +213,10 @@ pub extern "C" fn hashmapbt_submit_sell_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -224,8 +236,10 @@ pub extern "C" fn hashmapbt_cancel(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.cancel(asset_no, order_id, wait) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -326,8 +340,10 @@ pub extern "C" fn hashmapbt_order_latency(
 pub extern "C" fn hashmapbt_goto_end(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.goto_end() {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -399,8 +415,10 @@ pub extern "C" fn roivecbt_elapse(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse(duration) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -418,8 +436,10 @@ pub extern "C" fn roivecbt_elapse_bt(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse_bt(duration) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -445,8 +465,10 @@ pub extern "C" fn roivecbt_wait_order_response(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -465,8 +487,10 @@ pub extern "C" fn roivecbt_wait_next_feed(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -499,8 +523,10 @@ pub extern "C" fn roivecbt_submit_buy_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -532,8 +558,10 @@ pub extern "C" fn roivecbt_submit_sell_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
@@ -553,8 +581,10 @@ pub extern "C" fn roivecbt_cancel(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.cancel(asset_no, order_id, wait) {
-        Ok(true) => 0,
-        Ok(false) => 1,
+        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
         Err(BacktestError::OrderIdExist) => 10,
         Err(BacktestError::OrderRequestInProcess) => 11,
         Err(BacktestError::OrderNotFound) => 12,
