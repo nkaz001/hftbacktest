@@ -20,7 +20,7 @@ use crate::{
         data::{Data, FeedLatencyAdjustment, NpyDTyped},
         evs::{EventIntentKind, EventSet},
         models::{LatencyModel, QueueModel},
-        order::OrderBus,
+        order::order_bus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         state::State,
     },
@@ -268,9 +268,6 @@ where
                 .map_err(|err| BuildError::Error(err.into()))?
         };
 
-        let ob_local_to_exch = OrderBus::new();
-        let ob_exch_to_local = OrderBus::new();
-
         let create_depth = self
             .depth_builder
             .as_ref()
@@ -288,19 +285,15 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
+        let (order_e2l, order_l2e) = order_bus(order_latency);
+
         let local = Local::new(
             create_depth(),
             State::new(asset_type, fee_model),
-            order_latency,
             self.last_trades_cap,
-            ob_local_to_exch.clone(),
-            ob_exch_to_local.clone(),
+            order_l2e,
         );
 
-        let order_latency = self
-            .latency_model
-            .clone()
-            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
         let queue_model = self
             .queue_model
             .ok_or(BuildError::BuilderIncomplete("queue_model"))?;
@@ -318,10 +311,8 @@ where
                 let exch = NoPartialFillExchange::new(
                     create_depth(),
                     State::new(asset_type, fee_model),
-                    order_latency,
                     queue_model,
-                    ob_exch_to_local,
-                    ob_local_to_exch,
+                    order_e2l,
                 );
 
                 Ok(Asset {
@@ -334,10 +325,8 @@ where
                 let exch = PartialFillExchange::new(
                     create_depth(),
                     State::new(asset_type, fee_model),
-                    order_latency,
                     queue_model,
-                    ob_exch_to_local,
-                    ob_local_to_exch,
+                    order_e2l,
                 );
 
                 Ok(Asset {
@@ -501,9 +490,6 @@ where
                 .map_err(|err| BuildError::Error(err.into()))?
         };
 
-        let ob_local_to_exch = OrderBus::new();
-        let ob_exch_to_local = OrderBus::new();
-
         let create_depth = self
             .depth_builder
             .as_ref()
@@ -521,19 +507,15 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
+        let (order_e2l, order_l2e) = order_bus(order_latency);
+
         let local = L3Local::new(
             create_depth(),
             State::new(asset_type, fee_model),
-            order_latency,
             self.last_trades_cap,
-            ob_local_to_exch.clone(),
-            ob_exch_to_local.clone(),
+            order_l2e,
         );
 
-        let order_latency = self
-            .latency_model
-            .clone()
-            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
         let queue_model = self
             .queue_model
             .ok_or(BuildError::BuilderIncomplete("queue_model"))?;
@@ -551,10 +533,8 @@ where
                 let exch = L3NoPartialFillExchange::new(
                     create_depth(),
                     State::new(asset_type, fee_model),
-                    order_latency,
                     queue_model,
-                    ob_exch_to_local,
-                    ob_local_to_exch,
+                    order_e2l,
                 );
 
                 Ok(Asset {

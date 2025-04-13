@@ -28,7 +28,7 @@ use hftbacktest::{
             TradingQtyFeeModel,
             TradingValueFeeModel,
         },
-        order::OrderBus,
+        order::order_bus,
         proc::{
             L3Local,
             L3NoPartialFillExchange,
