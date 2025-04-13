@@ -67,6 +67,7 @@ impl OrderBus {
     }
 }
 
+/// Provides a bidirectional order bus connecting the exchange to the local.
 pub struct ExchToLocal<LM> {
     to_exch: OrderBus,
     to_local: OrderBus,
@@ -77,28 +78,31 @@ impl<LM> ExchToLocal<LM>
 where
     LM: LatencyModel,
 {
+    /// Returns the timestamp of the earliest order to be received by the exchange from the local.
+    pub fn earliest_recv_order_timestamp(&self) -> Option<i64> {
+        self.to_exch.earliest_timestamp()
+    }
+
+    /// Returns the timestamp of the earliest order sent from the exchange to the local.
+    pub fn earliest_send_order_timestamp(&self) -> Option<i64> {
+        self.to_local.earliest_timestamp()
+    }
+
+    /// Responds to the local with the order processed by the exchange.
     pub fn respond(&mut self, order: Order) {
         let local_recv_timestamp =
             order.exch_timestamp + self.order_latency.response(order.exch_timestamp, &order);
         self.to_local.append(order, local_recv_timestamp);
     }
 
-    /// Returns the timestamp of the earliest order to be received by the local from the exchange.
-    pub fn earliest_recv_order_timestamp(&self) -> Option<i64> {
-        self.to_exch.earliest_timestamp()
-    }
-
-    /// Returns the timestamp of the earliest order in the bus.
-    pub fn earliest_send_order_timestamp(&self) -> Option<i64> {
-        self.to_local.earliest_timestamp()
-    }
-
-    pub fn receive(&mut self, ts: i64) -> Option<Order> {
+    /// Receives the order request from the local, which is expected to be received at
+    /// `receipt_timestamp`.
+    pub fn receive(&mut self, receipt_timestamp: i64) -> Option<Order> {
         if let Some(timestamp) = self.to_exch.earliest_timestamp() {
-            if timestamp == ts {
+            if timestamp == receipt_timestamp {
                 self.to_exch.pop_front().map(|(order, _)| order)
             } else {
-                assert!(timestamp > ts);
+                assert!(timestamp > receipt_timestamp);
                 None
             }
         } else {
@@ -107,6 +111,7 @@ where
     }
 }
 
+/// Provides a bidirectional order bus connecting the local to the exchange.
 pub struct LocalToExch<LM> {
     to_exch: OrderBus,
     to_local: OrderBus,
@@ -117,6 +122,20 @@ impl<LM> LocalToExch<LM>
 where
     LM: LatencyModel,
 {
+    /// Returns the timestamp of the earliest order to be received by the local from the exchange.
+    pub fn earliest_recv_order_timestamp(&self) -> Option<i64> {
+        self.to_local.earliest_timestamp()
+    }
+
+    /// Returns the timestamp of the earliest order sent from the local to the exchange.
+    pub fn earliest_send_order_timestamp(&self) -> Option<i64> {
+        self.to_exch.earliest_timestamp()
+    }
+
+    /// Sends the order request to the exchange.
+    /// If it is rejected before reaching the matching engine (as reflected in the order latency
+    /// information), `reject` is invoked and the rejection response is appended to the local order
+    /// bus.
     pub fn request<F>(&mut self, mut order: Order, mut reject: F)
     where
         F: FnMut(&mut Order),
@@ -136,22 +155,14 @@ where
         }
     }
 
-    /// Returns the timestamp of the earliest order to be received by the exchange from the local.
-    pub fn earliest_recv_order_timestamp(&self) -> Option<i64> {
-        self.to_local.earliest_timestamp()
-    }
-
-    /// Returns the timestamp of the earliest order in the bus.
-    pub fn earliest_send_order_timestamp(&self) -> Option<i64> {
-        self.to_exch.earliest_timestamp()
-    }
-
-    pub fn receive(&mut self, ts: i64) -> Option<Order> {
+    /// Receives the order response from the exchange, which is expected to be received at
+    /// `receipt_timestamp`.
+    pub fn receive(&mut self, receipt_timestamp: i64) -> Option<Order> {
         if let Some(timestamp) = self.to_local.earliest_timestamp() {
-            if timestamp == ts {
+            if timestamp == receipt_timestamp {
                 self.to_local.pop_front().map(|(order, _)| order)
             } else {
-                assert!(timestamp > ts);
+                assert!(timestamp > receipt_timestamp);
                 None
             }
         } else {
@@ -160,6 +171,7 @@ where
     }
 }
 
+/// Creates bidirectional order buses with the order latency model.
 pub fn order_bus<LM>(order_latency: LM) -> (ExchToLocal<LM>, LocalToExch<LM>)
 where
     LM: LatencyModel + Clone,
