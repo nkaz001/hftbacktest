@@ -584,6 +584,19 @@ impl Order {
     /// Updates this order with the given order. This is used only by the processor in backtesting
     /// or by a bot in live trading.
     pub fn update(&mut self, order: &Order) {
+        //assert!(order.exch_timestamp >= self.exch_timestamp);
+        if order.exch_timestamp < self.exch_timestamp {
+            println!(
+                "Warning: Perhaps an inaccurate order response update occurs: an order previously \
+                updated by a later exchange timestamp is updated by an earlier one. \
+                This issue is primarily caused by incorrect or inconsistent timestamp ordering \
+                across the files.\n \
+                order={:?}, \
+                response={:?}",
+                &self, &order
+            );
+        }
+
         self.qty = order.qty;
         self.leaves_qty = order.leaves_qty;
         self.price_tick = order.price_tick;
@@ -591,7 +604,6 @@ impl Order {
         self.side = order.side;
         self.time_in_force = order.time_in_force;
 
-        assert!(order.exch_timestamp >= self.exch_timestamp);
         if order.exch_timestamp > 0 {
             self.exch_timestamp = order.exch_timestamp;
         }
