@@ -982,18 +982,34 @@ pub enum ElapseResult {
 }
 
 pub trait BotEventHandler {
-    fn on_market_data(&mut self, ev: &Event);
+    fn on_market_data<B, MD>(&mut self, bot: &mut B, ev: &Event)
+    where
+        B: Bot<MD>,
+        MD: MarketDepth;
 
-    fn on_order_response(&mut self, order: &Order);
+    fn on_order_response<B, MD>(&mut self, bot: &mut B, order: &Order)
+    where
+        B: Bot<MD>,
+        MD: MarketDepth;
 }
 
 #[derive(Default, Debug)]
 pub struct NoOpBotEventHandler();
 
 impl BotEventHandler for NoOpBotEventHandler {
-    fn on_market_data(&mut self, _ev: &Event) {}
+    fn on_market_data<B, MD>(&mut self, _bot: &mut B, _ev: &Event)
+    where
+        B: Bot<MD>,
+        MD: MarketDepth,
+    {
+    }
 
-    fn on_order_response(&mut self, _order: &Order) {}
+    fn on_order_response<B, MD>(&mut self, _bot: &mut B, _order: &Order)
+    where
+        B: Bot<MD>,
+        MD: MarketDepth,
+    {
+    }
 }
 
 #[cfg(test)]
