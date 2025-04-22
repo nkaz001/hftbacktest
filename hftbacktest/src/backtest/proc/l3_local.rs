@@ -11,6 +11,7 @@ use crate::{
     },
     depth::L3MarketDepth,
     types::{
+        BotEventHandler,
         Event,
         LOCAL_ASK_ADD_ORDER_EVENT,
         LOCAL_ASK_DEPTH_CLEAR_EVENT,
@@ -21,6 +22,7 @@ use crate::{
         LOCAL_EVENT,
         LOCAL_MODIFY_ORDER_EVENT,
         LOCAL_TRADE_EVENT,
+        NoOpBotEventHandler,
         OrdType,
         Order,
         OrderId,
@@ -54,6 +56,7 @@ where
     LM: LatencyModel,
     MD: L3MarketDepth,
     FM: FeeModel,
+    BacktestError: From<<MD as L3MarketDepth>::Error>,
 {
     /// Constructs an instance of `L3Local`.
     pub fn new(
@@ -71,6 +74,113 @@ where
             last_feed_latency: None,
             last_order_latency: None,
         }
+    }
+
+    fn process_<const USE_HANDLER: bool, Handler>(
+        &mut self,
+        ev: &Event,
+        handler: &mut Handler,
+    ) -> Result<(), BacktestError>
+    where
+        Handler: BotEventHandler,
+    {
+        // Processes a depth event
+        if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_orders(Side::Buy);
+        } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_orders(Side::Sell);
+        } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_orders(Side::None);
+        } else if ev.is(LOCAL_BID_ADD_ORDER_EVENT) {
+            self.depth
+                .add_buy_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;
+        } else if ev.is(LOCAL_ASK_ADD_ORDER_EVENT) {
+            self.depth
+                .add_sell_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;
+        } else if ev.is(LOCAL_MODIFY_ORDER_EVENT) {
+            self.depth
+                .modify_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;
+        } else if ev.is(LOCAL_CANCEL_ORDER_EVENT) {
+            self.depth.delete_order(ev.order_id, ev.local_ts)?;
+        }
+        // Processes a trade event
+        else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
+            self.trades.push(ev.clone());
+        }
+
+        // Stores the current feed latency
+        self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
+
+        if USE_HANDLER {
+            handler.on_market_data(self, ev);
+        }
+
+        Ok(())
+    }
+
+    fn process_recv_order_<const USE_HANDLER: bool, Handler>(
+        &mut self,
+        timestamp: i64,
+        wait_resp_order_id: Option<OrderId>,
+        handler: &mut Handler,
+    ) -> Result<bool, BacktestError>
+    where
+        Handler: BotEventHandler,
+    {
+        // Processes the order part.
+        let mut wait_resp_order_received = false;
+        while let Some(order) = self.order_l2e.receive(timestamp) {
+            // Updates the order latency only if it has a valid exchange timestamp. When the
+            // order is rejected before it reaches the matching engine, it has no exchange
+            // timestamp. This situation occurs in crypto exchanges.
+            if order.exch_timestamp > 0 {
+                self.last_order_latency =
+                    Some((order.local_timestamp, order.exch_timestamp, timestamp));
+            }
+
+            if let Some(wait_resp_order_id) = wait_resp_order_id {
+                if order.order_id == wait_resp_order_id {
+                    wait_resp_order_received = true;
+                }
+            }
+
+            // Processes receiving order response.
+            if order.status == Status::Filled {
+                self.state.apply_fill(&order);
+            }
+            // Applies the received order response to the local orders.
+            match self.orders.entry(order.order_id) {
+                Entry::Occupied(mut entry) => {
+                    let local_order = entry.get_mut();
+                    if order.req == Status::Rejected {
+                        if order.local_timestamp == local_order.local_timestamp {
+                            if local_order.req == Status::New {
+                                local_order.req = Status::None;
+                                local_order.status = Status::Expired;
+                            } else {
+                                local_order.req = Status::None;
+                            }
+                        }
+                    } else {
+                        local_order.update(&order);
+                    }
+                    if USE_HANDLER {
+                        handler.on_order_response(self, &order)
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    if order.req != Status::Rejected {
+                        if !USE_HANDLER {
+                            entry.insert(order);
+                        } else {
+                            entry.insert(order.clone());
+                            handler.on_order_response(self, &order)
+                        }
+                    }
+                }
+            }
+        }
+        Ok(wait_resp_order_received)
     }
 }
 
@@ -226,34 +336,7 @@ where
     }
 
     fn process(&mut self, ev: &Event) -> Result<(), BacktestError> {
-        // Processes a depth event
-        if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_orders(Side::Buy);
-        } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_orders(Side::Sell);
-        } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_orders(Side::None);
-        } else if ev.is(LOCAL_BID_ADD_ORDER_EVENT) {
-            self.depth
-                .add_buy_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;
-        } else if ev.is(LOCAL_ASK_ADD_ORDER_EVENT) {
-            self.depth
-                .add_sell_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;
-        } else if ev.is(LOCAL_MODIFY_ORDER_EVENT) {
-            self.depth
-                .modify_order(ev.order_id, ev.px, ev.qty, ev.local_ts)?;
-        } else if ev.is(LOCAL_CANCEL_ORDER_EVENT) {
-            self.depth.delete_order(ev.order_id, ev.local_ts)?;
-        }
-        // Processes a trade event
-        else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
-            self.trades.push(ev.clone());
-        }
-
-        // Stores the current feed latency
-        self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
-
-        Ok(())
+        self.process_::<false, NoOpBotEventHandler>(ev, &mut Default::default())
     }
 
     fn process_recv_order(
@@ -261,52 +344,11 @@ where
         timestamp: i64,
         wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
-        // Processes the order part.
-        let mut wait_resp_order_received = false;
-        while let Some(order) = self.order_l2e.receive(timestamp) {
-            // Updates the order latency only if it has a valid exchange timestamp. When the
-            // order is rejected before it reaches the matching engine, it has no exchange
-            // timestamp. This situation occurs in crypto exchanges.
-            if order.exch_timestamp > 0 {
-                self.last_order_latency =
-                    Some((order.local_timestamp, order.exch_timestamp, timestamp));
-            }
-
-            if let Some(wait_resp_order_id) = wait_resp_order_id {
-                if order.order_id == wait_resp_order_id {
-                    wait_resp_order_received = true;
-                }
-            }
-
-            // Processes receiving order response.
-            if order.status == Status::Filled {
-                self.state.apply_fill(&order);
-            }
-            // Applies the received order response to the local orders.
-            match self.orders.entry(order.order_id) {
-                Entry::Occupied(mut entry) => {
-                    let local_order = entry.get_mut();
-                    if order.req == Status::Rejected {
-                        if order.local_timestamp == local_order.local_timestamp {
-                            if local_order.req == Status::New {
-                                local_order.req = Status::None;
-                                local_order.status = Status::Expired;
-                            } else {
-                                local_order.req = Status::None;
-                            }
-                        }
-                    } else {
-                        local_order.update(&order);
-                    }
-                }
-                Entry::Vacant(entry) => {
-                    if order.req != Status::Rejected {
-                        entry.insert(order);
-                    }
-                }
-            }
-        }
-        Ok(wait_resp_order_received)
+        self.process_recv_order_::<false, NoOpBotEventHandler>(
+            timestamp,
+            wait_resp_order_id,
+            &mut Default::default(),
+        )
     }
 
     fn earliest_recv_order_timestamp(&self) -> i64 {

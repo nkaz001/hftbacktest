@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    vec,
-};
+use std::collections::{HashMap, hash_map::Entry};
 
 use crate::{
     backtest::{
@@ -25,6 +22,7 @@ use crate::{
         LOCAL_DEPTH_CLEAR_EVENT,
         LOCAL_EVENT,
         LOCAL_TRADE_EVENT,
+        NoOpBotEventHandler,
         OrdType,
         Order,
         OrderId,
@@ -50,14 +48,13 @@ where
     trades: Vec<Event>,
     last_feed_latency: Option<(i64, i64)>,
     last_order_latency: Option<(i64, i64, i64)>,
-    resp_order_ids: Vec<u64>,
 }
 
 impl<AT, LM, MD, FM> Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
-    MD: MarketDepth,
+    MD: MarketDepth + L2MarketDepth,
     FM: FeeModel,
 {
     /// Constructs an instance of `Local`.
@@ -75,21 +72,55 @@ where
             trades: Vec::with_capacity(last_trades_cap),
             last_feed_latency: None,
             last_order_latency: None,
-            resp_order_ids: Vec::new(),
         }
     }
 
-    fn process_recv_order_<const COLLECT_ORDER_IDS: bool>(
+    fn process_<const USE_HANDLER: bool, Handler>(
+        &mut self,
+        ev: &Event,
+        handler: &mut Handler,
+    ) -> Result<(), BacktestError>
+    where
+        Handler: BotEventHandler,
+    {
+        // Processes a depth event
+        if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(Side::Buy, ev.px);
+        } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(Side::Sell, ev.px);
+        } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
+            self.depth.clear_depth(Side::None, 0.0);
+        } else if ev.is(LOCAL_BID_DEPTH_EVENT) || ev.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT) {
+            self.depth.update_bid_depth(ev.px, ev.qty, ev.local_ts);
+        } else if ev.is(LOCAL_ASK_DEPTH_EVENT) || ev.is(LOCAL_ASK_DEPTH_SNAPSHOT_EVENT) {
+            self.depth.update_ask_depth(ev.px, ev.qty, ev.local_ts);
+        }
+        // Processes a trade event
+        else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
+            self.trades.push(ev.clone());
+        }
+
+        // Stores the current feed latency
+        self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
+
+        if USE_HANDLER {
+            handler.on_market_data(self, ev);
+        }
+
+        Ok(())
+    }
+
+    fn process_recv_order_<const USE_HANDLER: bool, Handler>(
         &mut self,
         timestamp: i64,
         wait_resp_order_id: Option<OrderId>,
-    ) -> Result<bool, BacktestError> {
+        handler: &mut Handler,
+    ) -> Result<bool, BacktestError>
+    where
+        Handler: BotEventHandler,
+    {
         let mut wait_resp_order_received = false;
         while let Some(order) = self.order_l2e.receive(timestamp) {
-            if COLLECT_ORDER_IDS {
-                self.resp_order_ids.push(order.order_id);
-            }
-
             // Updates the order latency only if it has a valid exchange timestamp. When the
             // order is rejected before it reaches the matching engine, it has no exchange
             // timestamp. This situation occurs in crypto exchanges.
@@ -124,19 +155,23 @@ where
                     } else {
                         local_order.update(&order);
                     }
+                    if USE_HANDLER {
+                        handler.on_order_response(self, &order)
+                    }
                 }
                 Entry::Vacant(entry) => {
                     if order.req != Status::Rejected {
-                        entry.insert(order);
+                        if !USE_HANDLER {
+                            entry.insert(order);
+                        } else {
+                            entry.insert(order.clone());
+                            handler.on_order_response(self, &order)
+                        }
                     }
                 }
             }
         }
         Ok(wait_resp_order_received)
-    }
-
-    pub fn clear_resp_order_ids(&mut self) {
-        self.resp_order_ids.clear();
     }
 }
 
@@ -290,27 +325,7 @@ where
     }
 
     fn process(&mut self, ev: &Event) -> Result<(), BacktestError> {
-        // Processes a depth event
-        if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::Buy, ev.px);
-        } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::Sell, ev.px);
-        } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
-            self.depth.clear_depth(Side::None, 0.0);
-        } else if ev.is(LOCAL_BID_DEPTH_EVENT) || ev.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT) {
-            self.depth.update_bid_depth(ev.px, ev.qty, ev.local_ts);
-        } else if ev.is(LOCAL_ASK_DEPTH_EVENT) || ev.is(LOCAL_ASK_DEPTH_SNAPSHOT_EVENT) {
-            self.depth.update_ask_depth(ev.px, ev.qty, ev.local_ts);
-        }
-        // Processes a trade event
-        else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
-            self.trades.push(ev.clone());
-        }
-
-        // Stores the current feed latency
-        self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
-
-        Ok(())
+        self.process_::<false, NoOpBotEventHandler>(ev, &mut Default::default())
     }
 
     fn process_recv_order(
@@ -318,7 +333,11 @@ where
         timestamp: i64,
         wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
-        self.process_recv_order_::<false>(timestamp, wait_resp_order_id)
+        self.process_recv_order_::<false, NoOpBotEventHandler>(
+            timestamp,
+            wait_resp_order_id,
+            &mut Default::default(),
+        )
     }
 
     fn earliest_recv_order_timestamp(&self) -> i64 {

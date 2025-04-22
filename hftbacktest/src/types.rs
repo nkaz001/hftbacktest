@@ -17,7 +17,10 @@ use dyn_clone::DynClone;
 use hftbacktest_derive::NpyDTyped;
 use thiserror::Error;
 
-use crate::{backtest::data::POD, depth::MarketDepth};
+use crate::{
+    backtest::{data::POD, proc::LocalProcessor},
+    depth::MarketDepth,
+};
 
 #[derive(Clone, Debug, Decode, Encode)]
 pub enum Value {
@@ -975,7 +978,7 @@ pub trait Recorder {
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ElapseResult {
-    KeepGoing,
+    Ok,
     EndOfData,
     MarketFeed,
     OrderResponse,
@@ -984,29 +987,29 @@ pub enum ElapseResult {
 pub trait BotEventHandler {
     fn on_market_data<B, MD>(&mut self, bot: &mut B, ev: &Event)
     where
-        B: Bot<MD>,
+        B: LocalProcessor<MD>,
         MD: MarketDepth;
 
     fn on_order_response<B, MD>(&mut self, bot: &mut B, order: &Order)
     where
-        B: Bot<MD>,
+        B: LocalProcessor<MD>,
         MD: MarketDepth;
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct NoOpBotEventHandler();
 
 impl BotEventHandler for NoOpBotEventHandler {
     fn on_market_data<B, MD>(&mut self, _bot: &mut B, _ev: &Event)
     where
-        B: Bot<MD>,
+        B: LocalProcessor<MD>,
         MD: MarketDepth,
     {
     }
 
     fn on_order_response<B, MD>(&mut self, _bot: &mut B, _order: &Order)
     where
-        B: Bot<MD>,
+        B: LocalProcessor<MD>,
         MD: MarketDepth,
     {
     }

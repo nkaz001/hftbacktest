@@ -284,7 +284,7 @@ where
                 unreachable!();
             }
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     fn elapse_<const WAIT_NEXT_FEED: bool>(
@@ -306,12 +306,12 @@ where
                 Ok((_, LiveEvent::BatchEnd)) => {
                     batch_mode = false;
                     if wait_resp_received {
-                        return Ok(ElapseResult::KeepGoing);
+                        return Ok(ElapseResult::Ok);
                     }
                 }
                 Ok((inst_no, ev)) => {
                     match self.process_event::<WAIT_NEXT_FEED>(inst_no, ev, wait_order_response)? {
-                        ElapseResult::KeepGoing => {
+                        ElapseResult::Ok => {
                             wait_resp_received = true;
                         }
                         ElapseResult::EndOfData => {
@@ -320,14 +320,14 @@ where
                         ElapseResult::MarketFeed => {
                             wait_resp_received = true;
                             if !batch_mode {
-                                return Ok(ElapseResult::KeepGoing);
+                                return Ok(ElapseResult::Ok);
                             }
                         }
                         ElapseResult::OrderResponse => return Ok(ElapseResult::OrderResponse),
                     }
                 }
                 Err(BotError::Timeout) => {
-                    return Ok(ElapseResult::KeepGoing);
+                    return Ok(ElapseResult::Ok);
                 }
                 Err(BotError::Interrupted) => {
                     return Ok(ElapseResult::EndOfData);
@@ -339,7 +339,7 @@ where
             if !batch_mode {
                 let elapsed = instant.elapsed();
                 if elapsed > duration {
-                    return Ok(ElapseResult::KeepGoing);
+                    return Ok(ElapseResult::Ok);
                 }
                 remaining_duration = duration - elapsed;
             }
@@ -396,7 +396,7 @@ where
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 }
 
@@ -580,7 +580,7 @@ where
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -629,7 +629,7 @@ where
 
     #[inline]
     fn elapse_bt(&mut self, _duration: i64) -> Result<ElapseResult, Self::Error> {
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     fn close(&mut self) -> Result<(), Self::Error> {
