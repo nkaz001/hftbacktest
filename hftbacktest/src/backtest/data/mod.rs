@@ -171,9 +171,9 @@ impl DataPtr {
     }
 
     #[inline]
-    pub fn at(&self, index: usize) -> *const u8 {
+    pub unsafe fn at(&self, index: usize) -> *const u8 {
         let ptr = self.ptr as *const u8;
-        unsafe { ptr.add(index) }
+        ptr.add(index)
     }
 }
 
