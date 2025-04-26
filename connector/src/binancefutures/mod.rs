@@ -17,7 +17,7 @@ use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::{broadcast, broadcast::Sender, mpsc::UnboundedSender};
 use tokio_tungstenite::tungstenite;
-use tracing::{error, warn};
+use tracing::{debug, error, warn};
 
 use crate::{
     binancefutures::{
@@ -134,7 +134,9 @@ impl BinanceFutures {
                         ev_tx.clone(),
                         symbol_tx.subscribe(),
                     );
+                    debug!("Connecting to the market data stream...");
                     stream.connect(&base_url).await?;
+                    debug!("The market data stream connection is permanently closed.");
                     Ok(())
                 })
                 .await;
@@ -172,9 +174,12 @@ impl BinanceFutures {
                         symbol_tx.subscribe(),
                     );
 
+                    debug!("Requesting the listen key for the user data stream...");
                     let listen_key = stream.get_listen_key().await?;
 
+                    debug!("Connecting to the user data stream...");
                     stream.connect(&format!("{base_url}/{listen_key}")).await?;
+                    debug!("The user data stream connection is permanently closed.");
                     Ok(())
                 })
                 .await;
