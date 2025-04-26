@@ -284,7 +284,7 @@ where
                 unreachable!();
             }
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     fn elapse_<const WAIT_NEXT_FEED: bool>(
@@ -305,14 +305,16 @@ where
                 }
                 Ok((_, LiveEvent::BatchEnd)) => {
                     batch_mode = false;
+                    // If batch event processing ends and the waiting response has already been
+                    // received, return immediately without checking the elapsed time.
                     if wait_resp_received {
-                        return Ok(ElapseResult::KeepGoing);
+                        return Ok(ElapseResult::Ok);
                     }
                 }
                 Ok((inst_no, ev)) => {
                     match self.process_event::<WAIT_NEXT_FEED>(inst_no, ev, wait_order_response)? {
-                        ElapseResult::KeepGoing => {
-                            wait_resp_received = true;
+                        ElapseResult::Ok => {
+                            // Keeps receiving events until the elapsed time is reached.
                         }
                         ElapseResult::EndOfData => {
                             unreachable!()
@@ -320,14 +322,19 @@ where
                         ElapseResult::MarketFeed => {
                             wait_resp_received = true;
                             if !batch_mode {
-                                return Ok(ElapseResult::KeepGoing);
+                                return Ok(ElapseResult::MarketFeed);
                             }
                         }
-                        ElapseResult::OrderResponse => return Ok(ElapseResult::OrderResponse),
+                        ElapseResult::OrderResponse => {
+                            wait_resp_received = true;
+                            if !batch_mode {
+                                return Ok(ElapseResult::OrderResponse);
+                            }
+                        }
                     }
                 }
                 Err(BotError::Timeout) => {
-                    return Ok(ElapseResult::KeepGoing);
+                    return Ok(ElapseResult::Ok);
                 }
                 Err(BotError::Interrupted) => {
                     return Ok(ElapseResult::EndOfData);
@@ -336,13 +343,16 @@ where
                     return Err(error);
                 }
             }
+
+            let elapsed = instant.elapsed();
+            // While processing events in batch mode, all events in a batch should be processed
+            // together without interruption.
             if !batch_mode {
-                let elapsed = instant.elapsed();
                 if elapsed > duration {
-                    return Ok(ElapseResult::KeepGoing);
+                    return Ok(ElapseResult::Ok);
                 }
-                remaining_duration = duration - elapsed;
             }
+            remaining_duration = (duration - elapsed).max(Duration::from_micros(1));
         }
     }
 
@@ -396,7 +406,7 @@ where
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 }
 
@@ -580,7 +590,7 @@ where
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -629,7 +639,7 @@ where
 
     #[inline]
     fn elapse_bt(&mut self, _duration: i64) -> Result<ElapseResult, Self::Error> {
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     fn close(&mut self) -> Result<(), Self::Error> {

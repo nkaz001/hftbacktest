@@ -73,7 +73,7 @@ pub extern "C" fn hashmaplive_elapse(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse(duration) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -94,7 +94,7 @@ pub extern "C" fn hashmaplive_elapse_bt(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse_bt(duration) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -123,7 +123,7 @@ pub extern "C" fn hashmaplive_wait_order_response(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -145,7 +145,7 @@ pub extern "C" fn hashmaplive_wait_next_feed(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -181,7 +181,7 @@ pub extern "C" fn hashmaplive_submit_buy_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -216,7 +216,7 @@ pub extern "C" fn hashmaplive_submit_sell_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -239,7 +239,7 @@ pub extern "C" fn hashmaplive_cancel(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.cancel(asset_no, order_id, wait) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -400,7 +400,7 @@ pub extern "C" fn roiveclive_elapse(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse(duration) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -421,7 +421,7 @@ pub extern "C" fn roiveclive_elapse_bt(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.elapse_bt(duration) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -450,7 +450,7 @@ pub extern "C" fn roiveclive_wait_order_response(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -472,7 +472,7 @@ pub extern "C" fn roiveclive_wait_next_feed(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -508,7 +508,7 @@ pub extern "C" fn roiveclive_submit_buy_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -543,7 +543,7 @@ pub extern "C" fn roiveclive_submit_sell_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,
@@ -566,7 +566,7 @@ pub extern "C" fn roiveclive_cancel(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     match hbt.cancel(asset_no, order_id, wait) {
-        Ok(ElapseResult::KeepGoing) => 0,
+        Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
         Ok(ElapseResult::OrderResponse) => 3,

@@ -758,7 +758,7 @@ where
         timestamp: i64,
         wait_order_response: WaitOrderResponse,
     ) -> Result<ElapseResult, BacktestError> {
-        let mut result = ElapseResult::KeepGoing;
+        let mut result = ElapseResult::Ok;
         let mut timestamp = timestamp;
         for (asset_no, local) in self.local.iter().enumerate() {
             self.evs
@@ -946,7 +946,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -977,7 +977,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     fn submit_order(
@@ -1006,7 +1006,7 @@ where
                 },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1027,7 +1027,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1046,7 +1046,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1271,7 +1271,7 @@ where
         timestamp: i64,
         wait_order_response: WaitOrderResponse,
     ) -> Result<ElapseResult, BacktestError> {
-        let mut result = ElapseResult::KeepGoing;
+        let mut result = ElapseResult::Ok;
         let mut timestamp = timestamp;
         for (asset_no, local) in self.local.iter().enumerate() {
             self.evs
@@ -1461,7 +1461,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1492,7 +1492,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     fn submit_order(
@@ -1521,7 +1521,7 @@ where
                 },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1542,7 +1542,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1561,7 +1561,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(ElapseResult::KeepGoing)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]

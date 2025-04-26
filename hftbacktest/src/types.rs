@@ -975,7 +975,7 @@ pub trait Recorder {
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum ElapseResult {
-    KeepGoing,
+    Ok,
     EndOfData,
     MarketFeed,
     OrderResponse,
