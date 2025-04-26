@@ -28,3 +28,7 @@ Backtester
 .. autoclass:: hftbacktest.order.Order()
    :members:
    :member-order: bysource
+
+.. autoclass:: hftbacktest.state.StateValues()
+   :members:
+   :member-order: bysource
