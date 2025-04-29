@@ -228,6 +228,31 @@ pub extern "C" fn hashmapbt_submit_sell_order(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hashmapbt_modify(
+    hbt_ptr: *mut HashMapMarketDepthBacktest,
+    asset_no: usize,
+    order_id: u64,
+    price: f64,
+    qty: f64,
+    wait: bool,
+) -> i64 {
+    let hbt = unsafe { &mut *hbt_ptr };
+    match hbt.modify(asset_no, order_id, price, qty, wait) {
+        Ok(ElapseResult::Ok) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_cancel(
     hbt_ptr: *mut HashMapMarketDepthBacktest,
     asset_no: usize,
@@ -558,6 +583,31 @@ pub extern "C" fn roivecbt_submit_sell_order(
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
     ) {
+        Ok(ElapseResult::Ok) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(_)) => 100,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn roivecbt_modify(
+    hbt_ptr: *mut ROIVectorMarketDepthBacktest,
+    asset_no: usize,
+    order_id: u64,
+    price: f64,
+    qty: f64,
+    wait: bool,
+) -> i64 {
+    let hbt = unsafe { &mut *hbt_ptr };
+    match hbt.modify(asset_no, order_id, price, qty, wait) {
         Ok(ElapseResult::Ok) => 0,
         Ok(ElapseResult::EndOfData) => 1,
         Ok(ElapseResult::MarketFeed) => 2,
