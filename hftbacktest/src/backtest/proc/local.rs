@@ -6,7 +6,7 @@ use crate::{
         assettype::AssetType,
         models::{FeeModel, LatencyModel},
         order::LocalToExch,
-        proc::{LocalProcessor, Processor},
+        proc::{EventHandlerProcessor, LocalProcessor, Processor},
         state::State,
     },
     depth::{L2MarketDepth, MarketDepth},
@@ -338,6 +338,44 @@ where
             wait_resp_order_id,
             &mut Default::default(),
         )
+    }
+
+    fn earliest_recv_order_timestamp(&self) -> i64 {
+        self.order_l2e
+            .earliest_recv_order_timestamp()
+            .unwrap_or(i64::MAX)
+    }
+
+    fn earliest_send_order_timestamp(&self) -> i64 {
+        self.order_l2e
+            .earliest_send_order_timestamp()
+            .unwrap_or(i64::MAX)
+    }
+}
+
+impl<AT, LM, MD, FM, Handler> EventHandlerProcessor<Handler> for Local<AT, LM, MD, FM>
+where
+    AT: AssetType,
+    LM: LatencyModel,
+    MD: MarketDepth + L2MarketDepth,
+    FM: FeeModel,
+    Handler: BotEventHandler,
+{
+    fn event_seen_timestamp(&self, event: &Event) -> Option<i64> {
+        event.is(LOCAL_EVENT).then_some(event.local_ts)
+    }
+
+    fn process(&mut self, ev: &Event, handler: &mut Handler) -> Result<(), BacktestError> {
+        self.process_::<false, Handler>(ev, handler)
+    }
+
+    fn process_recv_order(
+        &mut self,
+        timestamp: i64,
+        wait_resp_order_id: Option<OrderId>,
+        handler: &mut Handler,
+    ) -> Result<bool, BacktestError> {
+        self.process_recv_order_::<false, Handler>(timestamp, wait_resp_order_id, handler)
     }
 
     fn earliest_recv_order_timestamp(&self) -> i64 {

@@ -18,7 +18,7 @@ pub use l3_nopartialfillexchange::L3NoPartialFillExchange;
 use crate::{
     backtest::BacktestError,
     depth::MarketDepth,
-    prelude::{Event, OrdType, Order, OrderId, Side, StateValues, TimeInForce},
+    prelude::{BotEventHandler, Event, OrdType, Order, OrderId, Side, StateValues, TimeInForce},
 };
 
 /// Provides local-specific interaction.
@@ -125,6 +125,7 @@ impl<P: Processor + ?Sized> Processor for Box<P> {
         P::earliest_send_order_timestamp(self)
     }
 }
+
 /// Processes the historical feed data and the order interaction.
 pub trait Processor {
     /// The time of an event as seen by this [Processor]. For a local event processor this will
@@ -145,6 +146,70 @@ pub trait Processor {
         &mut self,
         timestamp: i64,
         wait_resp_order_id: Option<OrderId>,
+    ) -> Result<bool, BacktestError>;
+
+    /// Returns the foremost timestamp at which an order is to be received by this processor.
+    fn earliest_recv_order_timestamp(&self) -> i64;
+
+    /// Returns the foremost timestamp at which an order sent by this processor is to be received by
+    /// the corresponding processor.
+    fn earliest_send_order_timestamp(&self) -> i64;
+}
+
+impl<Handler: BotEventHandler, P: EventHandlerProcessor<Handler> + ?Sized>
+    EventHandlerProcessor<Handler> for Box<P>
+{
+    fn event_seen_timestamp(&self, event: &Event) -> Option<i64> {
+        P::event_seen_timestamp(self, event)
+    }
+
+    fn process(&mut self, event: &Event, handler: &mut Handler) -> Result<(), BacktestError> {
+        P::process(self, event, handler)
+    }
+
+    fn process_recv_order(
+        &mut self,
+        timestamp: i64,
+        wait_resp_order_id: Option<OrderId>,
+        handler: &mut Handler,
+    ) -> Result<bool, BacktestError> {
+        P::process_recv_order(self, timestamp, wait_resp_order_id, handler)
+    }
+
+    fn earliest_recv_order_timestamp(&self) -> i64 {
+        P::earliest_recv_order_timestamp(self)
+    }
+
+    fn earliest_send_order_timestamp(&self) -> i64 {
+        P::earliest_send_order_timestamp(self)
+    }
+}
+
+/// Processes the historical feed data and the order interaction.
+pub trait EventHandlerProcessor<Handler>
+where
+    Handler: BotEventHandler,
+{
+    /// The time of an event as seen by this [crate::backtest::proc::EventHandlerProcessor].
+    /// For a local event processor this will
+    /// be the timestamp an event was seen at locally, and for an exchange processor this will
+    /// be the timestamp an event was generated at on the exchange.
+    ///
+    /// `None` should be returned if this processor wouldn't have seen this event (i.e. it only
+    /// occurred remotely).
+    fn event_seen_timestamp(&self, event: &Event) -> Option<i64>;
+
+    /// Process an event and advance the state of this processor.
+    fn process(&mut self, ev: &Event, handler: &mut Handler) -> Result<(), BacktestError>;
+
+    /// Processes an order upon receipt. This is invoked when the backtesting time reaches the order
+    /// receipt timestamp.
+    /// Returns Ok(true) if the order with `wait_resp_order_id` is received and processed.
+    fn process_recv_order(
+        &mut self,
+        timestamp: i64,
+        wait_resp_order_id: Option<OrderId>,
+        handler: &mut Handler,
     ) -> Result<bool, BacktestError>;
 
     /// Returns the foremost timestamp at which an order is to be received by this processor.
