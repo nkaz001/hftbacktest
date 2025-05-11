@@ -5,7 +5,7 @@ use crate::{
         BacktestError,
         assettype::AssetType,
         models::{FeeModel, LatencyModel},
-        order::OrderBus,
+        order::LocalToExch,
         proc::{LocalProcessor, Processor},
         state::State,
     },
@@ -40,11 +40,9 @@ where
     FM: FeeModel,
 {
     orders: HashMap<OrderId, Order>,
-    orders_to: OrderBus,
-    orders_from: OrderBus,
+    order_l2e: LocalToExch<LM>,
     depth: MD,
     state: State<AT, FM>,
-    order_latency: LM,
     trades: Vec<Event>,
     last_feed_latency: Option<(i64, i64)>,
     last_order_latency: Option<(i64, i64, i64)>,
@@ -61,52 +59,18 @@ where
     pub fn new(
         depth: MD,
         state: State<AT, FM>,
-        order_latency: LM,
         trade_len: usize,
-        orders_to: OrderBus,
-        orders_from: OrderBus,
+        order_l2e: LocalToExch<LM>,
     ) -> Self {
         Self {
             orders: Default::default(),
-            orders_to,
-            orders_from,
+            order_l2e,
             depth,
             state,
-            order_latency,
             trades: Vec::with_capacity(trade_len),
             last_feed_latency: None,
             last_order_latency: None,
         }
-    }
-
-    fn process_recv_order_(&mut self, order: Order) -> Result<(), BacktestError> {
-        if order.status == Status::Filled {
-            self.state.apply_fill(&order);
-        }
-        // Applies the received order response to the local orders.
-        match self.orders.entry(order.order_id) {
-            Entry::Occupied(mut entry) => {
-                let local_order = entry.get_mut();
-                if order.req == Status::Rejected {
-                    if order.local_timestamp == local_order.local_timestamp {
-                        if local_order.req == Status::New {
-                            local_order.req = Status::None;
-                            local_order.status = Status::Expired;
-                        } else {
-                            local_order.req = Status::None;
-                        }
-                    }
-                } else {
-                    local_order.update(&order);
-                }
-            }
-            Entry::Vacant(entry) => {
-                if order.req != Status::Rejected {
-                    entry.insert(order);
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -146,19 +110,10 @@ where
         order.local_timestamp = current_timestamp;
         self.orders.insert(order.order_id, order.clone());
 
-        let order_entry_latency = self.order_latency.entry(current_timestamp, &order);
-        // Negative latency indicates that the order is rejected for technical reasons, and its
-        // value represents the latency that the local experiences when receiving the rejection
-        // notification.
-        if order_entry_latency < 0 {
-            // Rejects the order.
+        self.order_l2e.request(order, |order| {
             order.req = Status::Rejected;
-            let rej_recv_timestamp = current_timestamp - order_entry_latency;
-            self.orders_from.append(order, rej_recv_timestamp);
-        } else {
-            let exch_recv_timestamp = current_timestamp + order_entry_latency;
-            self.orders_to.append(order, exch_recv_timestamp);
-        }
+        });
+
         Ok(())
     }
 
@@ -188,22 +143,12 @@ where
         order.req = Status::Replaced;
         order.local_timestamp = current_timestamp;
 
-        let order_entry_latency = self.order_latency.entry(current_timestamp, order);
-        // Negative latency indicates that the order is rejected for technical reasons, and its
-        // value represents the latency that the local experiences when receiving the rejection
-        // notification.
-        if order_entry_latency < 0 {
-            // Rejects the order.
-            let mut order_ = order.clone();
-            order_.req = Status::Rejected;
-            order_.price_tick = orig_price_tick;
-            order_.qty = orig_qty;
-            let rej_recv_timestamp = current_timestamp - order_entry_latency;
-            self.orders_from.append(order_, rej_recv_timestamp);
-        } else {
-            let exch_recv_timestamp = current_timestamp + order_entry_latency;
-            self.orders_to.append(order.clone(), exch_recv_timestamp);
-        }
+        self.order_l2e.request(order.clone(), |order| {
+            order.req = Status::Rejected;
+            order.price_tick = orig_price_tick;
+            order.qty = orig_qty;
+        });
+
         Ok(())
     }
 
@@ -218,20 +163,12 @@ where
         }
 
         order.req = Status::Canceled;
-        let order_entry_latency = self.order_latency.entry(current_timestamp, order);
-        // Negative latency indicates that the order is rejected for technical reasons, and its
-        // value represents the latency that the local experiences when receiving the rejection
-        // notification.
-        if order_entry_latency < 0 {
-            // Rejects the order.
-            let mut order_ = order.clone();
-            order_.req = Status::Rejected;
-            let rej_recv_timestamp = current_timestamp - order_entry_latency;
-            self.orders_from.append(order_, rej_recv_timestamp);
-        } else {
-            let exch_recv_timestamp = current_timestamp + order_entry_latency;
-            self.orders_to.append(order.clone(), exch_recv_timestamp);
-        }
+        order.local_timestamp = current_timestamp;
+
+        self.order_l2e.request(order.clone(), |order| {
+            order.req = Status::Rejected;
+        });
+
         Ok(())
     }
 
@@ -326,39 +263,61 @@ where
     ) -> Result<bool, BacktestError> {
         // Processes the order part.
         let mut wait_resp_order_received = false;
-        while !self.orders_from.is_empty() {
-            let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
-            if timestamp == recv_timestamp {
-                let (order, _) = self.orders_from.pop_front().unwrap();
+        while let Some(order) = self.order_l2e.receive(timestamp) {
+            // Updates the order latency only if it has a valid exchange timestamp. When the
+            // order is rejected before it reaches the matching engine, it has no exchange
+            // timestamp. This situation occurs in crypto exchanges.
+            if order.exch_timestamp > 0 {
+                self.last_order_latency =
+                    Some((order.local_timestamp, order.exch_timestamp, timestamp));
+            }
 
-                // Updates the order latency only if it has a valid exchange timestamp. When the
-                // order is rejected before it reaches the matching engine, it has no exchange
-                // timestamp. This situation occurs in crypto exchanges.
-                if order.exch_timestamp > 0 {
-                    self.last_order_latency =
-                        Some((order.local_timestamp, order.exch_timestamp, recv_timestamp));
+            if let Some(wait_resp_order_id) = wait_resp_order_id {
+                if order.order_id == wait_resp_order_id {
+                    wait_resp_order_received = true;
                 }
+            }
 
-                if let Some(wait_resp_order_id) = wait_resp_order_id {
-                    if order.order_id == wait_resp_order_id {
-                        wait_resp_order_received = true;
+            // Processes receiving order response.
+            if order.status == Status::Filled {
+                self.state.apply_fill(&order);
+            }
+            // Applies the received order response to the local orders.
+            match self.orders.entry(order.order_id) {
+                Entry::Occupied(mut entry) => {
+                    let local_order = entry.get_mut();
+                    if order.req == Status::Rejected {
+                        if order.local_timestamp == local_order.local_timestamp {
+                            if local_order.req == Status::New {
+                                local_order.req = Status::None;
+                                local_order.status = Status::Expired;
+                            } else {
+                                local_order.req = Status::None;
+                            }
+                        }
+                    } else {
+                        local_order.update(&order);
                     }
                 }
-
-                self.process_recv_order_(order)?;
-            } else {
-                assert!(recv_timestamp > timestamp);
-                break;
+                Entry::Vacant(entry) => {
+                    if order.req != Status::Rejected {
+                        entry.insert(order);
+                    }
+                }
             }
         }
         Ok(wait_resp_order_received)
     }
 
     fn earliest_recv_order_timestamp(&self) -> i64 {
-        self.orders_from.earliest_timestamp().unwrap_or(i64::MAX)
+        self.order_l2e
+            .earliest_recv_order_timestamp()
+            .unwrap_or(i64::MAX)
     }
 
     fn earliest_send_order_timestamp(&self) -> i64 {
-        self.orders_to.earliest_timestamp().unwrap_or(i64::MAX)
+        self.order_l2e
+            .earliest_send_order_timestamp()
+            .unwrap_or(i64::MAX)
     }
 }

@@ -7,7 +7,11 @@ use std::{
 use anyhow::Error;
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use tokio::{
+    select,
+    sync::mpsc::{UnboundedSender, unbounded_channel},
+    time::interval,
+};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{Bytes, Message, Utf8Bytes, client::IntoClientRequest},
@@ -57,42 +61,63 @@ pub async fn connect(
     let request = url.into_client_request()?;
     let (ws_stream, _) = connect_async(request).await?;
     let (mut write, mut read) = ws_stream.split();
-    let (tx, mut rx) = unbounded_channel::<()>();
+    let (tx, mut rx) = unbounded_channel::<Bytes>();
 
     tokio::spawn(async move {
-        while rx.recv().await.is_some() {
-            if write.send(Message::Pong(Bytes::default())).await.is_err() {
+        while let Some(data) = rx.recv().await {
+            if write.send(Message::Pong(data)).await.is_err() {
+                let _ = write.close().await;
                 return;
             }
         }
     });
 
+    let mut last_ping = Instant::now();
+    let mut checker = interval(Duration::from_secs(5));
+
     loop {
-        match read.next().await {
-            Some(Ok(Message::Text(text))) => {
-                let recv_time = Utc::now();
-                if ws_tx.send((recv_time, text)).is_err() {
+        select! {
+            msg = read.next() => match msg {
+                Some(Ok(Message::Text(text))) => {
+                    let recv_time = Utc::now();
+                    if ws_tx.send((recv_time, text)).is_err() {
+                        break;
+                    }
+                }
+                Some(Ok(Message::Binary(_))) => {}
+                Some(Ok(Message::Ping(data))) => {
+                    if tx.send(data).is_err() {
+                        return Err(Error::from(io::Error::new(
+                            ErrorKind::ConnectionAborted,
+                            "closed",
+                        )));
+                    }
+                    last_ping = Instant::now();
+                }
+                Some(Ok(Message::Pong(_))) => {}
+                Some(Ok(Message::Close(close_frame))) => {
+                    warn!(?close_frame, "closed");
+                    return Err(Error::from(io::Error::new(
+                        ErrorKind::ConnectionAborted,
+                        "closed",
+                    )));
+                }
+                Some(Ok(Message::Frame(_))) => {}
+                Some(Err(e)) => {
+                    return Err(Error::from(e));
+                }
+                None => {
                     break;
                 }
-            }
-            Some(Ok(Message::Binary(_))) => {}
-            Some(Ok(Message::Ping(_))) => {
-                tx.send(()).unwrap();
-            }
-            Some(Ok(Message::Pong(_))) => {}
-            Some(Ok(Message::Close(close_frame))) => {
-                warn!(?close_frame, "closed");
-                return Err(Error::from(io::Error::new(
-                    ErrorKind::ConnectionAborted,
-                    "closed",
-                )));
-            }
-            Some(Ok(Message::Frame(_))) => {}
-            Some(Err(e)) => {
-                return Err(Error::from(e));
-            }
-            None => {
-                break;
+            },
+            _ = checker.tick() => {
+                if last_ping.elapsed() > Duration::from_secs(30) {
+                    warn!("Ping timeout.");
+                    return Err(Error::from(io::Error::new(
+                        ErrorKind::TimedOut,
+                        "Ping",
+                    )));
+                }
             }
         }
     }

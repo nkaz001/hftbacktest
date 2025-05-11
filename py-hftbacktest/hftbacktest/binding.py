@@ -540,6 +540,10 @@ hashmapbt_submit_sell_order.argtypes = [
     c_bool
 ]
 
+hashmapbt_modify = lib.hashmapbt_modify
+hashmapbt_modify.restype = c_int64
+hashmapbt_modify.argtypes = [c_void_p, c_uint64, c_uint64, c_double, c_double, c_bool]
+
 hashmapbt_cancel = lib.hashmapbt_cancel
 hashmapbt_cancel.restype = c_int64
 hashmapbt_cancel.argtypes = [c_void_p, c_uint64, c_uint64, c_bool]
@@ -748,6 +752,24 @@ class HashMapMarketDepthBacktest:
         """
         return hashmapbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
+    def modify(self, asset_no: uint64, order_id: uint64, price: float, qty: float, wait: bool) -> int64:
+        """
+        Modifies the specified order.
+
+        Args:
+            asset_no: Asset number at which this command will be executed.
+            order_id: Order ID to modify.
+            price: Order price.
+            qty: Order quantity.
+            wait: If `True`, wait until the order cancel response is received.
+
+        Returns:
+            * `0` when it successfully modifies an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
+        """
+        return hashmapbt_modify(self.ptr, asset_no, order_id, price, qty, wait)
+
     def cancel(self, asset_no: uint64, order_id: uint64, wait: bool) -> int64:
         """
         Cancels the specified order.
@@ -805,8 +827,10 @@ class HashMapMarketDepthBacktest:
                      However, unit should be the same as the data’s timestamp unit.
 
         Returns:
-            * `0` when it receives a feed or an order response, or reaches the timeout.
+            * `0` when it reaches the timeout.
             * `1` when it reaches the end of the data.
+            * `2` when it receives a market feed.
+            * `3` when it receives an order response if `include_order_resp` is `True`.
             * Otherwise, an error occurred.
         """
         return hashmapbt_wait_next_feed(self.ptr, include_order_resp, timeout)
@@ -962,6 +986,10 @@ roivecbt_submit_sell_order.argtypes = [
     c_uint8,
     c_bool
 ]
+
+roivecbt_modify = lib.roivecbt_modify
+roivecbt_modify.restype = c_int64
+roivecbt_modify.argtypes = [c_void_p, c_uint64, c_uint64, c_double, c_double, c_bool]
 
 roivecbt_cancel = lib.roivecbt_cancel
 roivecbt_cancel.restype = c_int64
@@ -1167,6 +1195,24 @@ class ROIVectorMarketDepthBacktest:
         """
         return roivecbt_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
+    def modify(self, asset_no: uint64, order_id: uint64, price: float, qty: float, wait: bool) -> int64:
+        """
+        Modifies the specified order.
+
+        Args:
+            asset_no: Asset number at which this command will be executed.
+            order_id: Order ID to modify.
+            price: Order price.
+            qty: Order quantity.
+            wait: If `True`, wait until the order cancel response is received.
+
+        Returns:
+            * `0` when it successfully modifies an order.
+            * `1` when it reaches the end of the data, if `wait` is `True`.
+            * Otherwise, an error occurred.
+        """
+        return roivecbt_modify(self.ptr, asset_no, order_id, price, qty, wait)
+
     def cancel(self, asset_no: uint64, order_id: uint64, wait: bool) -> int64:
         """
         Cancels the specified order.
@@ -1224,8 +1270,10 @@ class ROIVectorMarketDepthBacktest:
                      However, unit should be the same as the data’s timestamp unit.
 
         Returns:
-            * `0` when it receives a feed or an order response, or reaches the timeout.
+            * `0` when it reaches the timeout.
             * `1` when it reaches the end of the data.
+            * `2` when it receives a market feed.
+            * `3` when it receives an order response if `include_order_resp` is `True`.
             * Otherwise, an error occurred.
         """
         return roivecbt_wait_next_feed(self.ptr, include_order_resp, timeout)
@@ -1378,6 +1426,10 @@ if LIVE_FEATURE:
         c_uint8,
         c_bool
     ]
+
+    hashmaplive_modify = lib.hashmaplive_modify
+    hashmaplive_modify.restype = c_int64
+    hashmaplive_modify.argtypes = [c_void_p, c_uint64, c_uint64, c_double, c_double, c_bool]
 
     hashmaplive_cancel = lib.hashmaplive_cancel
     hashmaplive_cancel.restype = c_int64
@@ -1583,6 +1635,24 @@ if LIVE_FEATURE:
             """
             return hashmaplive_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
+        def modify(self, asset_no: uint64, order_id: uint64, price: float, qty: float, wait: bool) -> int64:
+            """
+            Modifies the specified order.
+
+            Args:
+                asset_no: Asset number at which this command will be executed.
+                order_id: Order ID to modify.
+                price: Order price.
+                qty: Order quantity.
+                wait: If `True`, wait until the order cancel response is received.
+
+            Returns:
+                * `0` when it successfully modifies an order.
+                * `1` when it reaches the end of the data, if `wait` is `True`.
+                * Otherwise, an error occurred.
+            """
+            return hashmaplive_modify(self.ptr, asset_no, order_id, price, qty, wait)
+
         def cancel(self, asset_no: uint64, order_id: uint64, wait: bool) -> int64:
             """
             Cancels the specified order.
@@ -1634,14 +1704,16 @@ if LIVE_FEATURE:
             Waits until the next feed is received, or until timeout.
 
             Args:
-                include_order_resp: If set to `True`, it will return when any order response is received, in addition to the
-                                    next feed.
+                include_order_resp: If set to `True`, it will return when any order response is received, in addition to
+                                    the next feed.
                 timeout: Timeout for waiting for the next feed or an order response. Nanoseconds is the default unit.
                          However, unit should be the same as the data’s timestamp unit.
 
             Returns:
-                * `0` when it receives a feed or an order response, or reaches the timeout.
+                * `0` when it reaches the timeout.
                 * `1` when it reaches the end of the data.
+                * `2` when it receives a market feed.
+                * `3` when it receives an order response if `include_order_resp` is `True`.
                 * Otherwise, an error occurred.
             """
             return hashmaplive_wait_next_feed(self.ptr, include_order_resp, timeout)
@@ -1797,6 +1869,10 @@ if LIVE_FEATURE:
         c_uint8,
         c_bool
     ]
+
+    roiveclive_modify = lib.roiveclive_modify
+    roiveclive_modify.restype = c_int64
+    roiveclive_modify.argtypes = [c_void_p, c_uint64, c_uint64, c_double, c_double, c_bool]
 
     roiveclive_cancel = lib.roiveclive_cancel
     roiveclive_cancel.restype = c_int64
@@ -2002,6 +2078,24 @@ if LIVE_FEATURE:
             """
             return roiveclive_submit_sell_order(self.ptr, asset_no, order_id, price, qty, time_in_force, order_type, wait)
 
+        def modify(self, asset_no: uint64, order_id: uint64, price: float, qty: float, wait: bool) -> int64:
+            """
+            Modifies the specified order.
+
+            Args:
+                asset_no: Asset number at which this command will be executed.
+                order_id: Order ID to modify.
+                price: Order price.
+                qty: Order quantity.
+                wait: If `True`, wait until the order cancel response is received.
+
+            Returns:
+                * `0` when it successfully modifies an order.
+                * `1` when it reaches the end of the data, if `wait` is `True`.
+                * Otherwise, an error occurred.
+            """
+            return roiveclive_modify(self.ptr, asset_no, order_id, price, qty, wait)
+
         def cancel(self, asset_no: uint64, order_id: uint64, wait: bool) -> int64:
             """
             Cancels the specified order.
@@ -2053,14 +2147,16 @@ if LIVE_FEATURE:
             Waits until the next feed is received, or until timeout.
 
             Args:
-                include_order_resp: If set to `True`, it will return when any order response is received, in addition to the
-                                    next feed.
+                include_order_resp: If set to `True`, it will return when any order response is received, in addition to
+                                    the next feed.
                 timeout: Timeout for waiting for the next feed or an order response. Nanoseconds is the default unit.
                          However, unit should be the same as the data’s timestamp unit.
 
             Returns:
-                * `0` when it receives a feed or an order response, or reaches the timeout.
+                * `0` when it reaches the timeout.
                 * `1` when it reaches the end of the data.
+                * `2` when it receives a market feed.
+                * `3` when it receives an order response if `include_order_resp` is `True`.
                 * Otherwise, an error occurred.
             """
             return roiveclive_wait_next_feed(self.ptr, include_order_resp, timeout)

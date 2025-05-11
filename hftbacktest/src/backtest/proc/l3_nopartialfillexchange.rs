@@ -3,7 +3,7 @@ use crate::{
         BacktestError,
         assettype::AssetType,
         models::{FeeModel, L3QueueModel, LatencyModel},
-        order::OrderBus,
+        order::ExchToLocal,
         proc::Processor,
         state::State,
     },
@@ -63,13 +63,10 @@ where
     MD: L3MarketDepth,
     FM: FeeModel,
 {
-    orders_to: OrderBus,
-    orders_from: OrderBus,
-
     depth: MD,
     state: State<AT, FM>,
-    order_latency: LM,
     queue_model: QM,
+    order_e2l: ExchToLocal<LM>,
 }
 
 impl<AT, LM, QM, MD, FM> L3NoPartialFillExchange<AT, LM, QM, MD, FM>
@@ -85,52 +82,15 @@ where
     pub fn new(
         depth: MD,
         state: State<AT, FM>,
-        order_latency: LM,
         queue_model: QM,
-        orders_to: OrderBus,
-        orders_from: OrderBus,
+        order_e2l: ExchToLocal<LM>,
     ) -> Self {
         Self {
-            orders_to,
-            orders_from,
             depth,
             state,
-            order_latency,
             queue_model,
+            order_e2l,
         }
-    }
-
-    fn make_response(&mut self, order: Order, timestamp: i64) {
-        let local_recv_timestamp =
-            order.exch_timestamp + self.order_latency.response(timestamp, &order);
-        self.orders_to.append(order, local_recv_timestamp);
-    }
-
-    fn process_recv_order_(
-        &mut self,
-        mut order: Order,
-        recv_timestamp: i64,
-    ) -> Result<(), BacktestError> {
-        // Processes a new order.
-        if order.req == Status::New {
-            order.req = Status::None;
-            self.ack_new(&mut order, recv_timestamp)?;
-        }
-        // Processes a cancel order.
-        else if order.req == Status::Canceled {
-            order.req = Status::None;
-            self.ack_cancel(&mut order, recv_timestamp)?;
-        }
-        // Processes a modify order.
-        else if order.req == Status::Replaced {
-            order.req = Status::None;
-            self.ack_modify::<false>(&mut order, recv_timestamp)?;
-        } else {
-            return Err(BacktestError::InvalidOrderRequest);
-        }
-        // Makes the response.
-        self.make_response(order, recv_timestamp);
-        Ok(())
     }
 
     fn expired(&mut self, mut order: Order, timestamp: i64) -> Result<(), BacktestError> {
@@ -139,7 +99,7 @@ where
         order.status = Status::Expired;
         order.exch_timestamp = timestamp;
 
-        self.make_response(order, timestamp);
+        self.order_e2l.respond(order);
         Ok(())
     }
 
@@ -172,7 +132,7 @@ where
         self.state.apply_fill(order);
 
         if MAKE_RESPONSE {
-            self.make_response(order.clone(), timestamp);
+            self.order_e2l.respond(order.clone());
         }
         Ok(())
     }
@@ -451,25 +411,39 @@ where
         timestamp: i64,
         _wait_resp_order_id: Option<OrderId>,
     ) -> Result<bool, BacktestError> {
-        // Processes the order part.
-        while !self.orders_from.is_empty() {
-            let recv_timestamp = self.orders_from.earliest_timestamp().unwrap();
-            if timestamp == recv_timestamp {
-                let (order, _) = self.orders_from.pop_front().unwrap();
-                self.process_recv_order_(order, recv_timestamp)?;
-            } else {
-                assert!(recv_timestamp > timestamp);
-                break;
+        while let Some(mut order) = self.order_e2l.receive(timestamp) {
+            // Processes a new order.
+            if order.req == Status::New {
+                order.req = Status::None;
+                self.ack_new(&mut order, timestamp)?;
             }
+            // Processes a cancel order.
+            else if order.req == Status::Canceled {
+                order.req = Status::None;
+                self.ack_cancel(&mut order, timestamp)?;
+            }
+            // Processes a modify order.
+            else if order.req == Status::Replaced {
+                order.req = Status::None;
+                self.ack_modify::<false>(&mut order, timestamp)?;
+            } else {
+                return Err(BacktestError::InvalidOrderRequest);
+            }
+            // Makes the response.
+            self.order_e2l.respond(order);
         }
         Ok(false)
     }
 
     fn earliest_recv_order_timestamp(&self) -> i64 {
-        self.orders_from.earliest_timestamp().unwrap_or(i64::MAX)
+        self.order_e2l
+            .earliest_recv_order_timestamp()
+            .unwrap_or(i64::MAX)
     }
 
     fn earliest_send_order_timestamp(&self) -> i64 {
-        self.orders_to.earliest_timestamp().unwrap_or(i64::MAX)
+        self.order_e2l
+            .earliest_send_order_timestamp()
+            .unwrap_or(i64::MAX)
     }
 }

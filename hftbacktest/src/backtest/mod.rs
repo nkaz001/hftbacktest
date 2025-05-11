@@ -20,7 +20,7 @@ use crate::{
         data::{Data, FeedLatencyAdjustment, NpyDTyped},
         evs::{EventIntentKind, EventSet},
         models::{LatencyModel, QueueModel},
-        order::OrderBus,
+        order::order_bus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         state::State,
     },
@@ -37,7 +37,7 @@ use crate::{
         UNTIL_END_OF_DATA,
         WaitOrderResponse,
     },
-    types::{BuildError, Event},
+    types::{BuildError, ElapseResult, Event},
 };
 
 /// Provides asset types.
@@ -268,9 +268,6 @@ where
                 .map_err(|err| BuildError::Error(err.into()))?
         };
 
-        let ob_local_to_exch = OrderBus::new();
-        let ob_exch_to_local = OrderBus::new();
-
         let create_depth = self
             .depth_builder
             .as_ref()
@@ -288,19 +285,15 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
+        let (order_e2l, order_l2e) = order_bus(order_latency);
+
         let local = Local::new(
             create_depth(),
             State::new(asset_type, fee_model),
-            order_latency,
             self.last_trades_cap,
-            ob_local_to_exch.clone(),
-            ob_exch_to_local.clone(),
+            order_l2e,
         );
 
-        let order_latency = self
-            .latency_model
-            .clone()
-            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
         let queue_model = self
             .queue_model
             .ok_or(BuildError::BuilderIncomplete("queue_model"))?;
@@ -318,10 +311,8 @@ where
                 let exch = NoPartialFillExchange::new(
                     create_depth(),
                     State::new(asset_type, fee_model),
-                    order_latency,
                     queue_model,
-                    ob_exch_to_local,
-                    ob_local_to_exch,
+                    order_e2l,
                 );
 
                 Ok(Asset {
@@ -334,10 +325,8 @@ where
                 let exch = PartialFillExchange::new(
                     create_depth(),
                     State::new(asset_type, fee_model),
-                    order_latency,
                     queue_model,
-                    ob_exch_to_local,
-                    ob_local_to_exch,
+                    order_e2l,
                 );
 
                 Ok(Asset {
@@ -501,9 +490,6 @@ where
                 .map_err(|err| BuildError::Error(err.into()))?
         };
 
-        let ob_local_to_exch = OrderBus::new();
-        let ob_exch_to_local = OrderBus::new();
-
         let create_depth = self
             .depth_builder
             .as_ref()
@@ -521,19 +507,15 @@ where
             .clone()
             .ok_or(BuildError::BuilderIncomplete("fee_model"))?;
 
+        let (order_e2l, order_l2e) = order_bus(order_latency);
+
         let local = L3Local::new(
             create_depth(),
             State::new(asset_type, fee_model),
-            order_latency,
             self.last_trades_cap,
-            ob_local_to_exch.clone(),
-            ob_exch_to_local.clone(),
+            order_l2e,
         );
 
-        let order_latency = self
-            .latency_model
-            .clone()
-            .ok_or(BuildError::BuilderIncomplete("order_latency"))?;
         let queue_model = self
             .queue_model
             .ok_or(BuildError::BuilderIncomplete("queue_model"))?;
@@ -551,10 +533,8 @@ where
                 let exch = L3NoPartialFillExchange::new(
                     create_depth(),
                     State::new(asset_type, fee_model),
-                    order_latency,
                     queue_model,
-                    ob_exch_to_local,
-                    ob_local_to_exch,
+                    order_e2l,
                 );
 
                 Ok(Asset {
@@ -758,7 +738,7 @@ where
         Ok(())
     }
 
-    pub fn goto_end(&mut self) -> Result<bool, BacktestError> {
+    pub fn goto_end(&mut self) -> Result<ElapseResult, BacktestError> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
             match self.evs.next() {
@@ -766,7 +746,7 @@ where
                     self.cur_ts = ev.timestamp;
                 }
                 None => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
             }
         }
@@ -777,7 +757,8 @@ where
         &mut self,
         timestamp: i64,
         wait_order_response: WaitOrderResponse,
-    ) -> Result<bool, BacktestError> {
+    ) -> Result<ElapseResult, BacktestError> {
+        let mut result = ElapseResult::Ok;
         let mut timestamp = timestamp;
         for (asset_no, local) in self.local.iter().enumerate() {
             self.evs
@@ -790,7 +771,7 @@ where
                 Some(ev) => {
                     if ev.timestamp > timestamp {
                         self.cur_ts = timestamp;
-                        return Ok(true);
+                        return Ok(result);
                     }
                     match ev.kind {
                         EventIntentKind::LocalData => {
@@ -813,6 +794,7 @@ where
                             }
                             if WAIT_NEXT_FEED {
                                 timestamp = ev.timestamp;
+                                result = ElapseResult::MarketFeed;
                             }
                         }
                         EventIntentKind::LocalOrder => {
@@ -828,6 +810,9 @@ where
                                 || wait_order_response == WaitOrderResponse::Any
                             {
                                 timestamp = ev.timestamp;
+                                if WAIT_NEXT_FEED {
+                                    result = ElapseResult::OrderResponse;
+                                }
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
@@ -872,7 +857,7 @@ where
                     }
                 }
                 None => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
             }
         }
@@ -943,7 +928,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order_id,
@@ -961,7 +946,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -974,7 +959,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order_id,
@@ -992,7 +977,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     fn submit_order(
@@ -1000,7 +985,7 @@ where
         asset_no: usize,
         order: OrderRequest,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order.order_id,
@@ -1021,7 +1006,7 @@ where
                 },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1032,7 +1017,7 @@ where
         price: f64,
         qty: f64,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.modify(order_id, price, qty, self.cur_ts)?;
 
@@ -1042,7 +1027,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1051,7 +1036,7 @@ where
         asset_no: usize,
         order_id: OrderId,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
 
@@ -1061,7 +1046,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1087,7 +1072,7 @@ where
         asset_no: usize,
         order_id: OrderId,
         timeout: i64,
-    ) -> Result<bool, BacktestError> {
+    ) -> Result<ElapseResult, BacktestError> {
         self.goto::<false>(
             self.cur_ts + timeout,
             WaitOrderResponse::Specified { asset_no, order_id },
@@ -1099,7 +1084,7 @@ where
         &mut self,
         include_order_resp: bool,
         timeout: i64,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
             match self.evs.next() {
@@ -1107,7 +1092,7 @@ where
                     self.cur_ts = ev.timestamp;
                 }
                 None => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
             }
         }
@@ -1119,7 +1104,7 @@ where
     }
 
     #[inline]
-    fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
+    fn elapse(&mut self, duration: i64) -> Result<ElapseResult, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
             match self.evs.next() {
@@ -1127,7 +1112,7 @@ where
                     self.cur_ts = ev.timestamp;
                 }
                 None => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
             }
         }
@@ -1135,7 +1120,7 @@ where
     }
 
     #[inline]
-    fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error> {
+    fn elapse_bt(&mut self, duration: i64) -> Result<ElapseResult, Self::Error> {
         self.elapse(duration)
     }
 
@@ -1285,7 +1270,8 @@ where
         &mut self,
         timestamp: i64,
         wait_order_response: WaitOrderResponse,
-    ) -> Result<bool, BacktestError> {
+    ) -> Result<ElapseResult, BacktestError> {
+        let mut result = ElapseResult::Ok;
         let mut timestamp = timestamp;
         for (asset_no, local) in self.local.iter().enumerate() {
             self.evs
@@ -1298,7 +1284,7 @@ where
                 Some(ev) => {
                     if ev.timestamp > timestamp {
                         self.cur_ts = timestamp;
-                        return Ok(true);
+                        return Ok(result);
                     }
                     match ev.kind {
                         EventIntentKind::LocalData => {
@@ -1321,6 +1307,7 @@ where
                             }
                             if WAIT_NEXT_FEED {
                                 timestamp = ev.timestamp;
+                                result = ElapseResult::MarketFeed;
                             }
                         }
                         EventIntentKind::LocalOrder => {
@@ -1336,6 +1323,9 @@ where
                                 || wait_order_response == WaitOrderResponse::Any
                             {
                                 timestamp = ev.timestamp;
+                                if WAIT_NEXT_FEED {
+                                    result = ElapseResult::OrderResponse;
+                                }
                             }
                             self.evs.update_local_order(
                                 ev.asset_no,
@@ -1380,7 +1370,7 @@ where
                     }
                 }
                 None => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
             }
         }
@@ -1453,7 +1443,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order_id,
@@ -1471,7 +1461,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1484,7 +1474,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order_id,
@@ -1502,7 +1492,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     fn submit_order(
@@ -1510,7 +1500,7 @@ where
         asset_no: usize,
         order: OrderRequest,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order.order_id,
@@ -1531,7 +1521,7 @@ where
                 },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1542,7 +1532,7 @@ where
         price: f64,
         qty: f64,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.modify(order_id, price, qty, self.cur_ts)?;
 
@@ -1552,7 +1542,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1561,7 +1551,7 @@ where
         asset_no: usize,
         order_id: OrderId,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let local = self.local.get_mut(asset_no).unwrap();
         local.cancel(order_id, self.cur_ts)?;
 
@@ -1571,7 +1561,7 @@ where
                 WaitOrderResponse::Specified { asset_no, order_id },
             );
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -1597,7 +1587,7 @@ where
         asset_no: usize,
         order_id: OrderId,
         timeout: i64,
-    ) -> Result<bool, BacktestError> {
+    ) -> Result<ElapseResult, BacktestError> {
         self.goto::<false>(
             self.cur_ts + timeout,
             WaitOrderResponse::Specified { asset_no, order_id },
@@ -1608,7 +1598,7 @@ where
         &mut self,
         include_order_resp: bool,
         timeout: i64,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
             match self.evs.next() {
@@ -1616,7 +1606,7 @@ where
                     self.cur_ts = ev.timestamp;
                 }
                 None => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
             }
         }
@@ -1628,7 +1618,7 @@ where
     }
 
     #[inline]
-    fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
+    fn elapse(&mut self, duration: i64) -> Result<ElapseResult, Self::Error> {
         if self.cur_ts == i64::MAX {
             self.initialize_evs()?;
             match self.evs.next() {
@@ -1636,7 +1626,7 @@ where
                     self.cur_ts = ev.timestamp;
                 }
                 None => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
             }
         }
@@ -1644,7 +1634,7 @@ where
     }
 
     #[inline]
-    fn elapse_bt(&mut self, duration: i64) -> Result<bool, Self::Error> {
+    fn elapse_bt(&mut self, duration: i64) -> Result<ElapseResult, Self::Error> {
         self.elapse(duration)
     }
 

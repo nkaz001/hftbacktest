@@ -87,7 +87,7 @@ __all__ = (
     'EXCH_EVENT',
     'LOCAL_EVENT',
     'EXCH_EVENT',
-    'LOCAL_EVENT'
+    'LOCAL_EVENT',
     'BUY_EVENT',
     'SELL_EVENT',
 

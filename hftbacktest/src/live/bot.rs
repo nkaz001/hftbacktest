@@ -14,6 +14,7 @@ use crate::{
     types::{
         Bot,
         BuildError,
+        ElapseResult,
         Event,
         LOCAL_ASK_DEPTH_EVENT,
         LOCAL_BID_DEPTH_EVENT,
@@ -206,7 +207,7 @@ where
         inst_no: usize,
         ev: LiveEvent,
         wait_order_response: WaitOrderResponse,
-    ) -> Result<bool, BotError> {
+    ) -> Result<ElapseResult, BotError> {
         match ev {
             LiveEvent::Feed { event, .. } => {
                 let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
@@ -223,6 +224,9 @@ where
                     && instrument.last_trades.capacity() > 0
                 {
                     instrument.last_trades.push(event);
+                }
+                if WAIT_NEXT_FEED {
+                    return Ok(ElapseResult::MarketFeed);
                 }
             }
             LiveEvent::Order { order, .. } => {
@@ -263,7 +267,7 @@ where
                     }
                 }
                 if received_order_resp {
-                    return Ok(true);
+                    return Ok(ElapseResult::OrderResponse);
                 }
             }
             LiveEvent::Position { qty, .. } => {
@@ -280,14 +284,14 @@ where
                 unreachable!();
             }
         }
-        Ok(false)
+        Ok(ElapseResult::Ok)
     }
 
     fn elapse_<const WAIT_NEXT_FEED: bool>(
         &mut self,
         duration: i64,
         wait_order_response: WaitOrderResponse,
-    ) -> Result<bool, BotError> {
+    ) -> Result<ElapseResult, BotError> {
         let instant = Instant::now();
         let duration = Duration::from_nanos(duration as u64);
         let mut remaining_duration = duration;
@@ -301,35 +305,54 @@ where
                 }
                 Ok((_, LiveEvent::BatchEnd)) => {
                     batch_mode = false;
+                    // If batch event processing ends and the waiting response has already been
+                    // received, return immediately without checking the elapsed time.
                     if wait_resp_received {
-                        return Ok(true);
+                        return Ok(ElapseResult::Ok);
                     }
                 }
                 Ok((inst_no, ev)) => {
-                    if self.process_event::<WAIT_NEXT_FEED>(inst_no, ev, wait_order_response)? {
-                        wait_resp_received = true;
-                        if !batch_mode {
-                            return Ok(true);
+                    match self.process_event::<WAIT_NEXT_FEED>(inst_no, ev, wait_order_response)? {
+                        ElapseResult::Ok => {
+                            // Keeps receiving events until the elapsed time is reached.
+                        }
+                        ElapseResult::EndOfData => {
+                            unreachable!()
+                        }
+                        ElapseResult::MarketFeed => {
+                            wait_resp_received = true;
+                            if !batch_mode {
+                                return Ok(ElapseResult::MarketFeed);
+                            }
+                        }
+                        ElapseResult::OrderResponse => {
+                            wait_resp_received = true;
+                            if !batch_mode {
+                                return Ok(ElapseResult::OrderResponse);
+                            }
                         }
                     }
                 }
                 Err(BotError::Timeout) => {
-                    return Ok(true);
+                    return Ok(ElapseResult::Ok);
                 }
                 Err(BotError::Interrupted) => {
-                    return Ok(false);
+                    return Ok(ElapseResult::EndOfData);
                 }
                 Err(error) => {
                     return Err(error);
                 }
             }
+
+            let elapsed = instant.elapsed();
+            // While processing events in batch mode, all events in a batch should be processed
+            // together without interruption.
             if !batch_mode {
-                let elapsed = instant.elapsed();
                 if elapsed > duration {
-                    return Ok(true);
+                    return Ok(ElapseResult::Ok);
                 }
-                remaining_duration = duration - elapsed;
             }
+            remaining_duration = (duration - elapsed).max(Duration::from_micros(1));
         }
     }
 
@@ -344,7 +367,7 @@ where
         order_type: OrdType,
         wait: bool,
         side: Side,
-    ) -> Result<bool, BotError> {
+    ) -> Result<ElapseResult, BotError> {
         let instrument = self
             .instruments
             .get_mut(asset_no)
@@ -383,7 +406,7 @@ where
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 }
 
@@ -466,7 +489,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         self.submit_order(
             asset_no,
             order_id,
@@ -489,7 +512,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         self.submit_order(
             asset_no,
             order_id,
@@ -507,7 +530,7 @@ where
         asset_no: usize,
         order: OrderRequest,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         self.submit_order(
             asset_no,
             order.order_id,
@@ -528,7 +551,7 @@ where
         price: f64,
         qty: f64,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         todo!();
     }
 
@@ -538,7 +561,7 @@ where
         asset_no: usize,
         order_id: OrderId,
         wait: bool,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         let instrument = self
             .instruments
             .get_mut(asset_no)
@@ -567,7 +590,7 @@ where
             // fixme: timeout should be specified by the argument.
             return self.wait_order_response(asset_no, order_id, 60_000_000_000);
         }
-        Ok(true)
+        Ok(ElapseResult::Ok)
     }
 
     #[inline]
@@ -592,7 +615,7 @@ where
         asset_no: usize,
         order_id: OrderId,
         timeout: i64,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         self.elapse_::<false>(timeout, WaitOrderResponse::Specified { asset_no, order_id })
     }
 
@@ -601,7 +624,7 @@ where
         &mut self,
         include_order_resp: bool,
         timeout: i64,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<ElapseResult, Self::Error> {
         if include_order_resp {
             self.elapse_::<true>(timeout, WaitOrderResponse::Any)
         } else {
@@ -610,13 +633,13 @@ where
     }
 
     #[inline]
-    fn elapse(&mut self, duration: i64) -> Result<bool, Self::Error> {
+    fn elapse(&mut self, duration: i64) -> Result<ElapseResult, Self::Error> {
         self.elapse_::<false>(duration, WaitOrderResponse::None)
     }
 
     #[inline]
-    fn elapse_bt(&mut self, _duration: i64) -> Result<bool, Self::Error> {
-        Ok(true)
+    fn elapse_bt(&mut self, _duration: i64) -> Result<ElapseResult, Self::Error> {
+        Ok(ElapseResult::Ok)
     }
 
     fn close(&mut self) -> Result<(), Self::Error> {

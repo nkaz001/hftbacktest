@@ -1,4 +1,7 @@
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 
 use futures_util::{SinkExt, StreamExt};
 use hftbacktest::prelude::*;
@@ -14,7 +17,7 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{Message, client::IntoClientRequest},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::{
     binancefutures::{
@@ -114,11 +117,13 @@ impl UserDataStream {
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
         let mut interval = time::interval(Duration::from_secs(60 * 30));
+        let mut ping_checker = time::interval(Duration::from_secs(10));
 
         let symbols: HashSet<_> = self.symbols.lock().unwrap().iter().cloned().collect();
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
         let ev_tx = self.ev_tx.clone();
+        let mut last_ping = Instant::now();
 
         tokio::spawn(async move {
             // Cancel all orders before connecting to the stream in order to start with the
@@ -155,8 +160,15 @@ impl UserDataStream {
                     tokio::spawn(async move {
                         if let Err(error) = client_.keepalive_user_data_stream().await {
                             error!(?error, "Failed keepalive user data stream.");
+                            // todo: reset the connection.
                         }
                     });
+                }
+                _ = ping_checker.tick() => {
+                    if last_ping.elapsed() > Duration::from_secs(300) {
+                        warn!("Ping timeout.");
+                        return Err(BinanceFuturesError::ConnectionInterrupted);
+                    }
                 }
                 msg = self.symbol_rx.recv() => {
                     match msg {
@@ -200,6 +212,7 @@ impl UserDataStream {
                     }
                     Some(Ok(Message::Ping(data))) => {
                         write.send(Message::Pong(data)).await?;
+                        last_ping = Instant::now();
                     }
                     Some(Ok(Message::Close(close_frame))) => {
                         return Err(BinanceFuturesError::ConnectionAbort(
