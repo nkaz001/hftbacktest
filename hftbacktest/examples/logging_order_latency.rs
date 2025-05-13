@@ -1,7 +1,7 @@
 use algo::gridtrading;
 use chrono::Utc;
 use hftbacktest::{
-    live::{LiveBot, LoggingRecorder},
+    live::{LiveBot, LoggingRecorder, ipc::iceoryx::IceoryxUnifiedChannel},
     prelude::{Bot, HashMapMarketDepth, Status},
 };
 use tracing::info;
@@ -10,7 +10,7 @@ mod algo;
 
 const ORDER_PREFIX: &str = "prefix";
 
-fn prepare_live() -> LiveBot<HashMapMarketDepth> {
+fn prepare_live() -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
     let mut hbt = LiveBot::builder()
         .register("binancefutures", "SOLUSDT", 0.001, 1.0)
         .order_recv_hook(|req, resp| {

@@ -25,7 +25,7 @@ where
     let min_grid_step = (min_grid_step / tick_size).round() * tick_size;
     let mut int = 0;
     // Running interval in nanoseconds
-    while hbt.elapse(100_000_000).unwrap() {
+    while ElapseResult::Ok == hbt.elapse(100_000_000).unwrap() {
         int += 1;
         if int % 10 == 0 {
             // Records every 1-sec.
