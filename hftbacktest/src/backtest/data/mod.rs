@@ -170,6 +170,11 @@ impl DataPtr {
         self.ptr.len()
     }
 
+    /// Returns a pointer offset by the given index.
+    ///
+    /// # Safety
+    /// The `index` must be within the bounds of the array referenced by this pointer.
+    /// Accessing an out-of-bounds offset is undefined behavior.
     #[inline]
     pub unsafe fn at(&self, index: usize) -> *const u8 {
         let ptr = self.ptr as *const u8;

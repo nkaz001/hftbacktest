@@ -347,10 +347,8 @@ where
             let elapsed = instant.elapsed();
             // While processing events in batch mode, all events in a batch should be processed
             // together without interruption.
-            if !batch_mode {
-                if elapsed > duration {
-                    return Ok(ElapseResult::Ok);
-                }
+            if !batch_mode && elapsed > duration {
+                return Ok(ElapseResult::Ok);
             }
             remaining_duration = (duration - elapsed).max(Duration::from_micros(1));
         }
