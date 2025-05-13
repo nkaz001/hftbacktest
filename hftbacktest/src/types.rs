@@ -981,21 +981,6 @@ pub enum ElapseResult {
     OrderResponse,
 }
 
-pub trait BotEventHandler {
-    fn on_market_data(&mut self, ev: &Event);
-
-    fn on_order_response(&mut self, order: &Order);
-}
-
-#[derive(Default, Debug)]
-pub struct NoOpBotEventHandler();
-
-impl BotEventHandler for NoOpBotEventHandler {
-    fn on_market_data(&mut self, _ev: &Event) {}
-
-    fn on_order_response(&mut self, _order: &Order) {}
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
