@@ -234,6 +234,9 @@ class Stats:
         ax2_.legend(['Price'])
         ax2.grid()
 
+        display(plt.gcf())
+        plt.close()
+
 class Record(ABC):
     DEFAULT_METRICS = (
         SR,
