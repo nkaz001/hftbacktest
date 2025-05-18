@@ -13,11 +13,8 @@ use bincode::{
     error::{DecodeError, EncodeError},
 };
 use iceoryx2::{
-    port::{
-        publisher::{Publisher, PublisherLoanError, PublisherSendError},
-        subscriber::{Subscriber, SubscriberReceiveError},
-    },
-    prelude::{Node, NodeBuilder, ServiceName, ipc},
+    port::{LoanError, ReceiveError, SendError, publisher::Publisher, subscriber::Subscriber},
+    prelude::{Node, NodeBuilder, ServiceName, ZeroCopySend, ipc},
 };
 use thiserror::Error;
 
@@ -34,7 +31,7 @@ use crate::{
     types::BuildError,
 };
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, ZeroCopySend)]
 #[repr(C)]
 pub struct CustomHeader {
     pub id: u64,
@@ -46,11 +43,11 @@ pub enum ChannelError {
     #[error("BuildError - {0}")]
     BuildError(String),
     #[error("{0:?}")]
-    SubscriberReceive(#[from] SubscriberReceiveError),
+    ReceiveError(#[from] ReceiveError),
     #[error("{0:?}")]
-    PublisherLoan(#[from] PublisherLoanError),
+    LoanError(#[from] LoanError),
     #[error("{0:?}")]
-    PublisherSend(#[from] PublisherSendError),
+    SendError(#[from] SendError),
     #[error("{0:?}")]
     Decode(#[from] DecodeError),
     #[error("{0:?}")]
