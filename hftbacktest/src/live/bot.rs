@@ -350,7 +350,9 @@ where
             if !batch_mode && elapsed > duration {
                 return Ok(ElapseResult::Ok);
             }
-            remaining_duration = (duration - elapsed).max(Duration::from_micros(1));
+            remaining_duration = duration
+                .saturating_sub(elapsed)
+                .max(Duration::from_micros(1));
         }
     }
 
