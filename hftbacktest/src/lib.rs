@@ -23,7 +23,6 @@
 //!
 //! - `backtest`: Enables backtesting features.
 //! - `live`: Enables a live trading bot.
-//! - `unstable_l3`: Enables Level3 Market-By-Order backtesting.
 //! - `unstable_fuse`: Enables the market depth fusion feature, which aggregates different market
 //!                    depth streams to provide the finest granularity and the most frequent,
 //!                    up-to-date market depth information
