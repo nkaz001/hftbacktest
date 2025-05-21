@@ -12,6 +12,25 @@ use hftbacktest::{
 type HashMapMarketDepthBacktest = Backtest<HashMapMarketDepth>;
 type ROIVectorMarketDepthBacktest = Backtest<ROIVectorMarketDepth>;
 
+fn handle_result(result: Result<ElapseResult, BacktestError>) -> i64 {
+    match result {
+        Ok(ElapseResult::Ok) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
+        Err(BacktestError::OrderIdExist) => 10,
+        Err(BacktestError::OrderRequestInProcess) => 11,
+        Err(BacktestError::OrderNotFound) => 12,
+        Err(BacktestError::InvalidOrderRequest) => 13,
+        Err(BacktestError::InvalidOrderStatus) => 14,
+        Err(BacktestError::EndOfData) => 15,
+        Err(BacktestError::DataError(error)) => {
+            println!("BacktestError::DataError: {error:?}");
+            100
+        },
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_current_timestamp(hbt_ptr: *const HashMapMarketDepthBacktest) -> i64 {
     let hbt = unsafe { &*hbt_ptr };
@@ -69,19 +88,7 @@ pub extern "C" fn hashmapbt_close(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i
 #[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_elapse(hbt_ptr: *mut HashMapMarketDepthBacktest, duration: i64) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.elapse(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -90,19 +97,7 @@ pub extern "C" fn hashmapbt_elapse_bt(
     duration: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse_bt(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.elapse_bt(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -119,19 +114,7 @@ pub extern "C" fn hashmapbt_wait_order_response(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.wait_order_response(asset_no, order_id, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -141,19 +124,7 @@ pub extern "C" fn hashmapbt_wait_next_feed(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.wait_next_feed(include_resp, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -169,7 +140,7 @@ pub extern "C" fn hashmapbt_submit_buy_order(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     let tif = unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) };
-    match hbt.submit_buy_order(
+    handle_result(hbt.submit_buy_order(
         asset_no,
         order_id,
         price,
@@ -177,19 +148,7 @@ pub extern "C" fn hashmapbt_submit_buy_order(
         tif,
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -204,7 +163,7 @@ pub extern "C" fn hashmapbt_submit_sell_order(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.submit_sell_order(
+    handle_result(hbt.submit_sell_order(
         asset_no,
         order_id,
         price,
@@ -212,19 +171,7 @@ pub extern "C" fn hashmapbt_submit_sell_order(
         unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) },
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -237,19 +184,7 @@ pub extern "C" fn hashmapbt_modify(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.modify(asset_no, order_id, price, qty, wait) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.modify(asset_no, order_id, price, qty, wait))
 }
 
 #[unsafe(no_mangle)]
@@ -260,19 +195,7 @@ pub extern "C" fn hashmapbt_cancel(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.cancel(asset_no, order_id, wait) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.cancel(asset_no, order_id, wait))
 }
 
 #[unsafe(no_mangle)]
@@ -364,19 +287,7 @@ pub extern "C" fn hashmapbt_order_latency(
 #[unsafe(no_mangle)]
 pub extern "C" fn hashmapbt_goto_end(hbt_ptr: *mut HashMapMarketDepthBacktest) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.goto_end() {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.goto_end())
 }
 
 #[unsafe(no_mangle)]
@@ -439,19 +350,7 @@ pub extern "C" fn roivecbt_elapse(
     duration: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.elapse(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -460,19 +359,7 @@ pub extern "C" fn roivecbt_elapse_bt(
     duration: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse_bt(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.elapse_bt(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -489,19 +376,7 @@ pub extern "C" fn roivecbt_wait_order_response(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.wait_order_response(asset_no, order_id, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -511,19 +386,7 @@ pub extern "C" fn roivecbt_wait_next_feed(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.wait_next_feed(include_resp, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -539,7 +402,7 @@ pub extern "C" fn roivecbt_submit_buy_order(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     let tif = unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) };
-    match hbt.submit_buy_order(
+    handle_result(hbt.submit_buy_order(
         asset_no,
         order_id,
         price,
@@ -547,19 +410,7 @@ pub extern "C" fn roivecbt_submit_buy_order(
         tif,
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -574,7 +425,7 @@ pub extern "C" fn roivecbt_submit_sell_order(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.submit_sell_order(
+    handle_result(hbt.submit_sell_order(
         asset_no,
         order_id,
         price,
@@ -582,19 +433,7 @@ pub extern "C" fn roivecbt_submit_sell_order(
         unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) },
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -607,19 +446,7 @@ pub extern "C" fn roivecbt_modify(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.modify(asset_no, order_id, price, qty, wait) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.modify(asset_no, order_id, price, qty, wait))
 }
 
 #[unsafe(no_mangle)]
@@ -630,19 +457,7 @@ pub extern "C" fn roivecbt_cancel(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.cancel(asset_no, order_id, wait) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BacktestError::OrderIdExist) => 10,
-        Err(BacktestError::OrderRequestInProcess) => 11,
-        Err(BacktestError::OrderNotFound) => 12,
-        Err(BacktestError::InvalidOrderRequest) => 13,
-        Err(BacktestError::InvalidOrderStatus) => 14,
-        Err(BacktestError::EndOfData) => 15,
-        Err(BacktestError::DataError(_)) => 100,
-    }
+    handle_result(hbt.cancel(asset_no, order_id, wait))
 }
 
 #[unsafe(no_mangle)]

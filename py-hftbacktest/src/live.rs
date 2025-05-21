@@ -12,6 +12,25 @@ use hftbacktest::{
 pub type HashMapMarketDepthLiveBot = LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth>;
 pub type ROIVectorMarketDepthLiveBot = LiveBot<IceoryxUnifiedChannel, ROIVectorMarketDepth>;
 
+fn handle_result(result: Result<ElapseResult, BotError>) -> i64 {
+    match result {
+        Ok(ElapseResult::Ok) => 0,
+        Ok(ElapseResult::EndOfData) => 1,
+        Ok(ElapseResult::MarketFeed) => 2,
+        Ok(ElapseResult::OrderResponse) => 3,
+        Err(BotError::OrderIdExist) => 10,
+        Err(BotError::OrderNotFound) => 12,
+        Err(BotError::InvalidOrderStatus) => 14,
+        Err(BotError::InstrumentNotFound) => 16,
+        Err(BotError::Timeout) => 17,
+        Err(BotError::Interrupted) => 18,
+        Err(BotError::Custom(error)) => {
+            println!("BotError::Custom: {error:?}");
+            19
+        },
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn hashmaplive_current_timestamp(hbt_ptr: *const HashMapMarketDepthLiveBot) -> i64 {
     let hbt = unsafe { &*hbt_ptr };
@@ -72,19 +91,7 @@ pub extern "C" fn hashmaplive_elapse(
     duration: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.elapse(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -93,19 +100,7 @@ pub extern "C" fn hashmaplive_elapse_bt(
     duration: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse_bt(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.elapse_bt(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -122,19 +117,7 @@ pub extern "C" fn hashmaplive_wait_order_response(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.wait_order_response(asset_no, order_id, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -144,19 +127,7 @@ pub extern "C" fn hashmaplive_wait_next_feed(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.wait_next_feed(include_resp, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -172,7 +143,7 @@ pub extern "C" fn hashmaplive_submit_buy_order(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     let tif = unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) };
-    match hbt.submit_buy_order(
+    handle_result(hbt.submit_buy_order(
         asset_no,
         order_id,
         price,
@@ -180,19 +151,7 @@ pub extern "C" fn hashmaplive_submit_buy_order(
         tif,
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -207,7 +166,7 @@ pub extern "C" fn hashmaplive_submit_sell_order(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.submit_sell_order(
+    handle_result(hbt.submit_sell_order(
         asset_no,
         order_id,
         price,
@@ -215,19 +174,7 @@ pub extern "C" fn hashmaplive_submit_sell_order(
         unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) },
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -238,19 +185,7 @@ pub extern "C" fn hashmaplive_cancel(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.cancel(asset_no, order_id, wait) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.cancel(asset_no, order_id, wait))
 }
 
 #[unsafe(no_mangle)]
@@ -399,19 +334,7 @@ pub extern "C" fn roiveclive_elapse(
     duration: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.elapse(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -420,19 +343,7 @@ pub extern "C" fn roiveclive_elapse_bt(
     duration: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.elapse_bt(duration) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.elapse_bt(duration))
 }
 
 #[unsafe(no_mangle)]
@@ -449,19 +360,7 @@ pub extern "C" fn roiveclive_wait_order_response(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_order_response(asset_no, order_id, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.wait_order_response(asset_no, order_id, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -471,19 +370,7 @@ pub extern "C" fn roiveclive_wait_next_feed(
     timeout: i64,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.wait_next_feed(include_resp, timeout) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.wait_next_feed(include_resp, timeout))
 }
 
 #[unsafe(no_mangle)]
@@ -499,7 +386,7 @@ pub extern "C" fn roiveclive_submit_buy_order(
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
     let tif = unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) };
-    match hbt.submit_buy_order(
+    handle_result(hbt.submit_buy_order(
         asset_no,
         order_id,
         price,
@@ -507,19 +394,7 @@ pub extern "C" fn roiveclive_submit_buy_order(
         tif,
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -534,7 +409,7 @@ pub extern "C" fn roiveclive_submit_sell_order(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.submit_sell_order(
+    handle_result(hbt.submit_sell_order(
         asset_no,
         order_id,
         price,
@@ -542,19 +417,7 @@ pub extern "C" fn roiveclive_submit_sell_order(
         unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) },
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
-    ) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    ))
 }
 
 #[unsafe(no_mangle)]
@@ -565,19 +428,7 @@ pub extern "C" fn roiveclive_cancel(
     wait: bool,
 ) -> i64 {
     let hbt = unsafe { &mut *hbt_ptr };
-    match hbt.cancel(asset_no, order_id, wait) {
-        Ok(ElapseResult::Ok) => 0,
-        Ok(ElapseResult::EndOfData) => 1,
-        Ok(ElapseResult::MarketFeed) => 2,
-        Ok(ElapseResult::OrderResponse) => 3,
-        Err(BotError::OrderIdExist) => 10,
-        Err(BotError::OrderNotFound) => 12,
-        Err(BotError::InvalidOrderStatus) => 14,
-        Err(BotError::InstrumentNotFound) => 16,
-        Err(BotError::Timeout) => 17,
-        Err(BotError::Interrupted) => 18,
-        Err(BotError::Custom(_)) => 19,
-    }
+    handle_result(hbt.cancel(asset_no, order_id, wait))
 }
 
 #[unsafe(no_mangle)]
