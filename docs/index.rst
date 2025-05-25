@@ -205,7 +205,7 @@ The following items are examples of contributions you can make to this project:
 
 Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROADMAP.md>`_.
 
-.. |python| image:: https://shields.io/badge/python-3.10-blue
+.. |python| image:: https://shields.io/badge/python-3.10+-blue
     :alt: Python Version
     :target: https://www.python.org/
 
@@ -241,7 +241,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
     :target: https://github.com/nkaz001/hftbacktest
     :alt: Github
 
-.. |rustc| image:: https://shields.io/badge/rustc-1.86-blue
+.. |rustc| image:: https://shields.io/badge/rustc-1.87-blue
     :alt: Rust Version
     :target: https://www.rust-lang.org/
 
