@@ -809,7 +809,7 @@ where
     /// Clears the last market trades from the buffer.
     ///
     /// * `asset_no` - Asset number at which this command will be executed. If `None`, all last
-    ///                trades in any assets will be cleared.
+    ///   trades in any assets will be cleared.
     fn clear_last_trades(&mut self, asset_no: Option<usize>);
 
     /// Returns a hash map of order IDs and their corresponding [`Order`]s.
@@ -821,14 +821,14 @@ where
     ///
     /// * `asset_no` - Asset number at which this command will be executed.
     /// * `order_id` - The unique order ID; there should not be any existing order with the same ID
-    ///                on both local and exchange sides.
+    ///   on both local and exchange sides.
     /// * `price` - Order price.
     /// * `qty` - Quantity to buy.
     /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
-    ///                     See to the exchange model for details.
+    ///   See to the exchange model for details.
     ///
     /// * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
-    ///                  the exchange model for details.
+    ///   the exchange model for details.
     ///
     /// * `wait` - If true, wait until the order placement response is received.
     #[allow(clippy::too_many_arguments)]
@@ -847,14 +847,14 @@ where
     ///
     /// * `asset_no` - Asset number at which this command will be executed.
     /// * `order_id` - The unique order ID; there should not be any existing order with the same ID
-    ///                on both local and exchange sides.
+    ///   on both local and exchange sides.
     /// * `price` - Order price.
     /// * `qty` - Quantity to buy.
     /// * `time_in_force` - Available [`TimeInForce`] options vary depending on the exchange model.
-    ///                     See to the exchange model for details.
+    ///   See to the exchange model for details.
     ///
     /// * `order_type` - Available [`OrdType`] options vary depending on the exchange model. See to
-    ///                  the exchange model for details.
+    ///   the exchange model for details.
     ///
     /// * `wait` - If true, wait until the order placement response is received.
     #[allow(clippy::too_many_arguments)]
@@ -928,7 +928,7 @@ where
     ///
     /// Args:
     /// * `duration` - Duration to elapse. Nanoseconds is the default unit. However, unit should be
-    ///                the same as the data's timestamp unit.
+    ///   the same as the data's timestamp unit.
     ///
     /// Returns:
     ///   `Ok(true)` if the method reaches the specified timestamp within the data. If the end of
@@ -943,7 +943,7 @@ where
     ///
     /// Args:
     /// * `duration` - Duration to elapse. Nanoseconds is the default unit. However, unit should be
-    ///                the same as the data's timestamp unit.
+    ///   the same as the data's timestamp unit.
     ///
     /// Returns:
     ///   `Ok(true)` if the method reaches the specified timestamp within the data. If the end of

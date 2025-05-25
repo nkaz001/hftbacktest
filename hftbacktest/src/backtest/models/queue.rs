@@ -1070,13 +1070,11 @@ where
                 self.backtest_orders
                     .retain(|_, (order_side, _)| *order_side != side);
 
-                let expired = self
-                    .bid_queue
+                self.bid_queue
                     .drain()
                     .flat_map(|(_, q)| q)
                     .filter(|order| order.is_backtest_order())
-                    .collect();
-                expired
+                    .collect()
             }
             Side::Sell => {
                 self.mkt_feed_orders
@@ -1084,13 +1082,11 @@ where
                 self.backtest_orders
                     .retain(|_, (order_side, _)| *order_side != side);
 
-                let expired = self
-                    .ask_queue
+                self.ask_queue
                     .drain()
                     .flat_map(|(_, q)| q)
                     .filter(|order| order.is_backtest_order())
-                    .collect();
-                expired
+                    .collect()
             }
             Side::None => {
                 self.mkt_feed_orders.clear();

@@ -28,10 +28,9 @@ pub struct Instrument<MD> {
 
 impl<MD> Instrument<MD> {
     /// * `connector_name` - Name of the [`Connector`], which is registered by
-    ///            [`register()`](`LiveBotBuilder::register()`), through which this asset will be
-    ///            traded.
+    ///   [`register()`](`LiveBotBuilder::register()`), through which this asset will be traded.
     /// * `symbol` - Symbol of the asset. You need to check with the [`Connector`] which symbology
-    ///              is used.
+    ///   is used.
     /// * `tick_size` - The minimum price fluctuation.
     /// * `lot_size` -  The minimum trade size.
     /// * `depth` -  The market depth.

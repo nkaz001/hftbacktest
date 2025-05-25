@@ -24,8 +24,8 @@
 //! - `backtest`: Enables backtesting features.
 //! - `live`: Enables a live trading bot.
 //! - `unstable_fuse`: Enables the market depth fusion feature, which aggregates different market
-//!                    depth streams to provide the finest granularity and the most frequent,
-//!                    up-to-date market depth information
+//!   depth streams to provide the finest granularity and the most frequent, up-to-date market depth
+//!   information
 //!
 
 /// Provides backtesting features.

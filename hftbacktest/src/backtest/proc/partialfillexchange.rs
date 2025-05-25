@@ -40,7 +40,7 @@ use crate::{
 ///
 /// * Support order types: [OrdType::Limit](crate::types::OrdType::Limit)
 /// * Support time-in-force: [`TimeInForce::GTC`], [`TimeInForce::FOK`], [`TimeInForce::IOC`],
-///                          [`TimeInForce::GTX`]
+///   [`TimeInForce::GTX`]
 ///
 /// **Conditions for Full Execution**
 /// Buy order in the order book
