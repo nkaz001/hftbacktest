@@ -19,7 +19,7 @@ feed data. You can also run the live bot using the same algo code.
 * Backtest accounting for both feed and order latency, using provided models or your own custom model.
 * Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 * Backtesting of multi-asset and multi-exchange models
-* Deployment of a live trading bot using the same algorithm code: currently for Binance Futures and Bybit.
+* Deployment of a live trading bot for quick prototyping and testing using the same algorithm code: currently for Binance Futures and Bybit.
 
 ## Getting started
 
