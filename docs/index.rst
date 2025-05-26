@@ -256,6 +256,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    tutorials/Integrating Custom Data
    tutorials/Making Multiple Markets - Introduction
    tutorials/High-Frequency Grid Trading
+   tutorials/High-Frequency Grid Trading - Comparison Across Other Exchanges
    tutorials/Impact of Order Latency
    tutorials/Order Latency Data
    tutorials/GLFT Market Making Model and Grid Trading
