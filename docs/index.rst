@@ -281,6 +281,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    Order Fill <order_fill>
    JIT Compilation Overhead <jit_compilation_overhead>
    Debugging Backtesting and Live Discrepancies <debugging_backtesting_and_live_discrepancies>
+   Market Maker Program <market_maker_program>
 
 .. toctree::
    :maxdepth: 2
