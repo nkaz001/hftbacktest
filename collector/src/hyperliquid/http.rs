@@ -102,31 +102,15 @@ pub async fn keep_connection(
         let subscriptions: Vec<serde_json::Value> = symbol_list
             .iter()
             .flat_map(|symbol| {
-                subscription_types
-                    .iter()
-                    .map(move |sub_type| match sub_type.as_str() {
-                        "trades" => serde_json::json!({
-                            "method": "subscribe",
-                            "subscription": {
-                                "type": "trades",
-                                "coin": symbol
-                            }
-                        }),
-                        "l2Book" => serde_json::json!({
-                            "method": "subscribe",
-                            "subscription": {
-                                "type": "l2Book",
-                                "coin": symbol
-                            }
-                        }),
-                        _ => serde_json::json!({
-                            "method": "subscribe",
-                            "subscription": {
-                                "type": sub_type,
-                                "coin": symbol
-                            }
-                        }),
+                subscription_types.iter().map(move |sub_type| {
+                    serde_json::json!({
+                        "method": "subscribe",
+                        "subscription": {
+                            "type": sub_type,
+                            "coin": symbol
+                        }
                     })
+                })
             })
             .collect();
 
