@@ -12,6 +12,7 @@ mod bybit;
 mod error;
 mod file;
 mod throttler;
+mod bitmart;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -89,6 +90,17 @@ async fn main() -> Result<(), anyhow::Error> {
             .collect();
 
             tokio::spawn(bybit::run_collection(topics, args.symbols, writer_tx))
+        }
+        "bitmart" => {
+            let topics = [
+                "futures/depthIncrease50:$symbol@100ms",
+                "futures/trade:$symbol",
+            ]
+            .iter()
+            .map(|topic| topic.to_string())
+            .collect();
+
+            tokio::spawn(bitmart::run_collection(topics, args.symbols, writer_tx))
         }
         exchange => {
             return Err(anyhow!("{exchange} is not supported."));
