@@ -47,6 +47,7 @@
 * [ ] Databento for the data feed
   * https://databento.com/docs/api-reference-live
 * [ ] Trad-fi
+* [ ] Split the connector into a market data connector and an order management connector.
 
 ### Others
 * [ ] Increase documentation and test coverage.
