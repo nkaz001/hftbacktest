@@ -11,6 +11,7 @@ mod binancefuturesum;
 mod bybit;
 mod error;
 mod file;
+mod hyperliquid;
 mod throttler;
 
 #[derive(Parser, Debug)]
@@ -89,6 +90,18 @@ async fn main() -> Result<(), anyhow::Error> {
             .collect();
 
             tokio::spawn(bybit::run_collection(topics, args.symbols, writer_tx))
+        }
+        "hyperliquid" => {
+            let subscriptions = ["trades", "l2Book"]
+                .iter()
+                .map(|sub| sub.to_string())
+                .collect();
+
+            tokio::spawn(hyperliquid::run_collection(
+                subscriptions,
+                args.symbols,
+                writer_tx,
+            ))
         }
         exchange => {
             return Err(anyhow!("{exchange} is not supported."));
