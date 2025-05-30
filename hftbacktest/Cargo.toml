@@ -43,6 +43,9 @@ iceoryx2 = { version = "0.6.1", optional = true, features = ["logger_tracing"] }
 serde = { version = "1.0.219", optional = true, features = ["derive"] }
 toml = { version = "0.8.22", optional = true }
 hftbacktest-derive = { path = "../hftbacktest-derive", optional = true, version = "0.2.0" }
+aws-config = "1.6.3"
+aws-sdk-s3 = "1.90.0"
+
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.19", features = [] }

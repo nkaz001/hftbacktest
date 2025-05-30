@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Error, ErrorKind, Read, Write},
+    io::{Error, ErrorKind, Read, Write, Cursor},
 };
 
 use crate::{
@@ -164,6 +164,51 @@ fn check_field_consistency(
     }
     Ok(discrepancies)
 }
+fn read_s3_object(s3_path: &str) -> std::io::Result<Vec<u8>> {
+    // Parse S3 path: s3://bucket/key
+    let path_without_prefix = s3_path.strip_prefix("s3://")
+        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "Invalid S3 path format"))?;
+    
+    let parts: Vec<&str> = path_without_prefix.splitn(2, '/').collect();
+    if parts.len() != 2 {
+        return Err(Error::new(ErrorKind::InvalidInput, "Invalid S3 path format"));
+    }
+    
+    let bucket = parts[0];
+    let key = parts[1];
+    
+    // Get AWS profile from environment
+    let profile_name = std::env::var("AWS_PROFILE")
+    .map_err(|_| Error::new(ErrorKind::NotFound, "AWS_PROFILE environment variable not found"))?;
+    
+    // Create runtime 
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to create runtime: {}", e)))?;
+    
+    rt.block_on(async {
+        // Create session with profile 
+        let session = aws_config::from_env()
+            .profile_name(&profile_name)
+            .load()
+            .await;
+        
+        let s3_client = aws_sdk_s3::Client::new(&session);
+        
+        // Get object from S3
+        let response = s3_client
+            .get_object()
+            .bucket(bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, format!("S3 request failed: {}", e)))?;
+        
+        let bytes = response.body.collect().await
+            .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to read response body: {}", e)))?;
+        
+        Ok(bytes.into_bytes().to_vec())
+    })
+}
 
 pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
     reader: &mut R,
@@ -228,24 +273,42 @@ pub fn read_npy<R: Read, D: NpyDTyped + Clone>(
 
 /// Reads a structured array `numpy` file. Currently, it doesn't check if the data structure is the
 /// same as what the file contains. Users should be cautious about this.
+/// Supports S3 paths in format: s3://bucket-name/path/to/file.npy
 pub fn read_npy_file<D: NpyDTyped + Clone>(filepath: &str) -> std::io::Result<Data<D>> {
-    let mut file = File::open(filepath)?;
+    if filepath.starts_with("s3://") {
+        let data = read_s3_object(filepath)?;
+        let size = data.len();
+        let mut cursor = Cursor::new(data);
+        read_npy(&mut cursor, size)
+    } else {
+        let mut file = File::open(filepath)?;
 
-    file.sync_all()?;
-    let size = file.metadata()?.len() as usize;
+        file.sync_all()?;
+        let size = file.metadata()?.len() as usize;
 
-    read_npy(&mut file, size)
+        read_npy(&mut file, size)
+    }
 }
 
 /// Reads a structured array `numpy` zip archived file. Currently, it doesn't check if the data
 /// structure is the same as what the file contains. Users should be cautious about this.
+/// Supports S3 paths in format: s3://bucket-name/path/to/file.npz
 pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> std::io::Result<Data<D>> {
-    let mut archive = zip::ZipArchive::new(File::open(filepath)?)?;
+    if filepath.starts_with("s3://") {
+        let data = read_s3_object(filepath)?;
+        let cursor = Cursor::new(data);
+        let mut archive = zip::ZipArchive::new(cursor)?;
+        let mut file = archive.by_name(&format!("{}.npy", name))?;
+        let size = file.size() as usize;
+        read_npy(&mut file, size)
+    } else {
+        let mut archive = zip::ZipArchive::new(File::open(filepath)?)?;
 
-    let mut file = archive.by_name(&format!("{}.npy", name))?;
-    let size = file.size() as usize;
+        let mut file = archive.by_name(&format!("{}.npy", name))?;
+        let size = file.size() as usize;
 
-    read_npy(&mut file, size)
+        read_npy(&mut file, size)
+    }
 }
 
 pub fn write_npy<W: Write, T: NpyDTyped>(write: &mut W, data: &[T]) -> std::io::Result<()> {
