@@ -224,14 +224,21 @@ class Stats:
 
         ax1.grid()
 
-        ax2.plot(entire_df['timestamp'], entire_df['position'])
+        ax2.plot(entire_df['timestamp'], entire_df['position'], label='Position')
+
         ax2_ = ax2.twinx()
-        ax2_.plot(entire_df['timestamp'], entire_df['price'], 'black', alpha=0.2)
+        ax2_.plot(entire_df['timestamp'], entire_df['price'], 'black', alpha=0.2, label='Price')
+
+        handles, labels = [], []
+        for ax in (ax2, ax2_):
+            h, l = ax.get_legend_handles_labels()
+            handles.extend(h)
+            labels.extend(l)
+
+        ax2.legend(handles, labels, loc='best')
 
         ax2.set_ylabel('Position (Qty)')
         ax2_.set_ylabel('Price')
-        ax2.legend(['Position'])
-        ax2_.legend(['Price'])
         ax2.grid()
 
         display(plt.gcf())
