@@ -16,10 +16,18 @@ use hftbacktest::{
     },
     prelude::*,
 };
-use iceoryx2::{node::NodeBuilder, prelude::ipc};
+use iceoryx2::{
+    node::NodeBuilder,
+    prelude::{SignalHandlingMode, ipc},
+};
 use tokio::{
     runtime::Builder,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+    select,
+    signal,
+    sync::{
+        Notify,
+        mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+    },
 };
 use tracing::error;
 
@@ -50,6 +58,7 @@ fn run_receive_task(
     connector: &mut Box<dyn Connector>,
 ) -> Result<(), ChannelError> {
     let node = NodeBuilder::new()
+        .signal_handling_mode(SignalHandlingMode::Disabled)
         .create::<ipc::Service>()
         .map_err(|error| ChannelError::BuildError(error.to_string()))?;
     let bot_rx = IceoryxBuilder::new(name).bot(false).receiver()?;
@@ -106,75 +115,83 @@ async fn run_publish_task(
     name: &str,
     order_manager: Arc<Mutex<dyn GetOrders>>,
     mut rx: UnboundedReceiver<PublishEvent>,
+    shutdown_signal: Arc<Notify>,
 ) -> Result<(), ChannelError> {
     let mut depth = HashMap::new();
     let mut position: HashMap<String, Position> = HashMap::new();
     let bot_tx = IceoryxBuilder::new(name).bot(false).sender()?;
 
-    while let Some(msg) = rx.recv().await {
-        match msg {
-            PublishEvent::RegisterInstrument {
-                id,
-                symbol,
-                tick_size,
-            } => {
-                // Sends the current state (orders, position, and market depth) to the bot that
-                // requested to add this instrument in batch mode.
-                bot_tx.send(id, &LiveEvent::BatchStart)?;
-
-                for order in order_manager.lock().unwrap().orders(Some(symbol.clone())) {
-                    bot_tx.send(
+    loop {
+        select! {
+            _ = shutdown_signal.notified() => {
+                break;
+            }
+            Some(msg) = rx.recv() => {
+                match msg {
+                    PublishEvent::RegisterInstrument {
                         id,
-                        &LiveEvent::Order {
-                            symbol: symbol.clone(),
-                            order,
-                        },
-                    )?;
-                }
+                        symbol,
+                        tick_size,
+                    } => {
+                        // Sends the current state (orders, position, and market depth) to the bot that
+                        // requested to add this instrument in batch mode.
+                        bot_tx.send(id, &LiveEvent::BatchStart)?;
 
-                if let Some(position) = position.get(&symbol) {
-                    bot_tx.send(
-                        id,
-                        &LiveEvent::Position {
-                            symbol: symbol.clone(),
-                            qty: position.qty,
-                            exch_ts: position.exch_ts,
-                        },
-                    )?;
-                }
-
-                match depth.entry(symbol) {
-                    Entry::Occupied(mut entry) => {
-                        let depth_: &mut FusedHashMapMarketDepth = entry.get_mut();
-                        let snapshot = depth_.snapshot();
-                        for event in snapshot {
+                        for order in order_manager.lock().unwrap().orders(Some(symbol.clone())) {
                             bot_tx.send(
                                 id,
-                                &LiveEvent::Feed {
-                                    symbol: entry.key().clone(),
-                                    event,
+                                &LiveEvent::Order {
+                                    symbol: symbol.clone(),
+                                    order,
                                 },
                             )?;
                         }
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(FusedHashMapMarketDepth::new(tick_size));
-                    }
-                }
 
-                bot_tx.send(id, &LiveEvent::BatchEnd)?;
-            }
-            PublishEvent::LiveEvent(ev) => {
-                // The live event will only be published if the result is true.
-                if handle_ev(&ev, &mut depth, &mut position) {
-                    bot_tx.send(TO_ALL, &ev)?;
+                        if let Some(position) = position.get(&symbol) {
+                            bot_tx.send(
+                                id,
+                                &LiveEvent::Position {
+                                    symbol: symbol.clone(),
+                                    qty: position.qty,
+                                    exch_ts: position.exch_ts,
+                                },
+                            )?;
+                        }
+
+                        match depth.entry(symbol) {
+                            Entry::Occupied(mut entry) => {
+                                let depth_: &mut FusedHashMapMarketDepth = entry.get_mut();
+                                let snapshot = depth_.snapshot();
+                                for event in snapshot {
+                                    bot_tx.send(
+                                        id,
+                                        &LiveEvent::Feed {
+                                            symbol: entry.key().clone(),
+                                            event,
+                                        },
+                                    )?;
+                                }
+                            }
+                            Entry::Vacant(entry) => {
+                                entry.insert(FusedHashMapMarketDepth::new(tick_size));
+                            }
+                        }
+
+                        bot_tx.send(id, &LiveEvent::BatchEnd)?;
+                    }
+                    PublishEvent::LiveEvent(ev) => {
+                        // The live event will only be published if the result is true.
+                        if handle_ev(&ev, &mut depth, &mut position) {
+                            bot_tx.send(TO_ALL, &ev)?;
+                        }
+                    }
+                    PublishEvent::BatchStart(id) => {
+                        bot_tx.send(id, &LiveEvent::BatchStart)?;
+                    }
+                    PublishEvent::BatchEnd(id) => {
+                        bot_tx.send(id, &LiveEvent::BatchEnd)?;
+                    }
                 }
-            }
-            PublishEvent::BatchStart(id) => {
-                bot_tx.send(id, &LiveEvent::BatchStart)?;
-            }
-            PublishEvent::BatchEnd(id) => {
-                bot_tx.send(id, &LiveEvent::BatchEnd)?;
             }
         }
     }
@@ -295,6 +312,30 @@ async fn main() {
 
     tracing_subscriber::fmt::init();
 
+    // Listen for shut down signal and notify publish task.
+    let shutdown_signal = Arc::new(Notify::new());
+    let shutdown_signal_ = shutdown_signal.clone();
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        {
+            // Wait for either SIGINT (CTRL+C) or SIGTERM on Unix.
+            let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
+                .expect("failed to install SIGTERM handler");
+            select! {
+                _ = signal::ctrl_c() => {},
+                _ = sigterm.recv() => {},
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            // Non-Unix platforms only has SIGINT.
+            if let Err(error) = signal::ctrl_c().await {
+                error!(?error, "Couldn't listen for shutdown signal.");
+            }
+        }
+        shutdown_signal_.notify_waiters();
+    });
+
     let (pub_tx, pub_rx) = unbounded_channel();
 
     let config = read_to_string(&args.config)
@@ -338,7 +379,7 @@ async fn main() {
         let rt = Builder::new_current_thread().enable_all().build().unwrap();
 
         rt.block_on(async move {
-            run_publish_task(&name, order_manager, pub_rx)
+            run_publish_task(&name, order_manager, pub_rx, shutdown_signal)
                 .await
                 .map_err(|error: ChannelError| {
                     error!(
