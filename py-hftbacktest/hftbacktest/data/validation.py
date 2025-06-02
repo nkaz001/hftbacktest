@@ -104,7 +104,7 @@ def correct_event_order(
         )):
             # exchange
             sorted_final[out_rn] = sorted_exch
-            sorted_final[out_rn].ev = sorted_final[out_rn].ev | EXCH_EVENT
+            sorted_final[out_rn].ev = sorted_final[out_rn].ev & ~LOCAL_EVENT | EXCH_EVENT
 
             out_rn += 1
             exch_rn += 1
@@ -118,14 +118,14 @@ def correct_event_order(
         )):
             # local
             sorted_final[out_rn] = sorted_local
-            sorted_final[out_rn].ev = sorted_final[out_rn].ev | LOCAL_EVENT
+            sorted_final[out_rn].ev = sorted_final[out_rn].ev & ~EXCH_EVENT | LOCAL_EVENT
 
             out_rn += 1
             local_rn += 1
         elif exch_rn < len(data):
             # exchange
             sorted_final[out_rn] = sorted_exch
-            sorted_final[out_rn].ev = sorted_final[out_rn].ev | EXCH_EVENT
+            sorted_final[out_rn].ev = sorted_final[out_rn].ev & ~LOCAL_EVENT | EXCH_EVENT
 
             out_rn += 1
             exch_rn += 1
