@@ -24,6 +24,7 @@ rust-version = "1.86"
 default = ["backtest", "live"]
 backtest = ["zip", "uuid", "nom", "hftbacktest-derive"]
 live = ["chrono", "tokio", "futures-util", "iceoryx2", "rand", "toml", "serde"]
+s3 = ["aws-config", "aws-sdk-s3", "tokio"]
 unstable_fuse = []
 
 [dependencies]
@@ -43,9 +44,8 @@ iceoryx2 = { version = "0.6.1", optional = true, features = ["logger_tracing"] }
 serde = { version = "1.0.219", optional = true, features = ["derive"] }
 toml = { version = "0.8.22", optional = true }
 hftbacktest-derive = { path = "../hftbacktest-derive", optional = true, version = "0.2.0" }
-aws-config = "1.6.3"
-aws-sdk-s3 = "1.90.0"
-
+aws-config = { version = "1.6.3", optional = true }
+aws-sdk-s3 = { version = "1.90.0", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.19", features = [] }
