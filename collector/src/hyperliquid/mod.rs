@@ -42,6 +42,10 @@ fn handle(
                     .get("coin")
                     .and_then(|c| c.as_str())
                     .ok_or(ConnectorError::FormatError)?,
+                "bbo" => data_obj
+                    .get("coin")
+                    .and_then(|c| c.as_str())
+                    .ok_or(ConnectorError::FormatError)?,
                 _ => {
                     if let Some(coin) = data_obj.get("coin").and_then(|c| c.as_str()) {
                         coin

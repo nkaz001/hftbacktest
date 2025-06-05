@@ -92,7 +92,7 @@ async fn main() -> Result<(), anyhow::Error> {
             tokio::spawn(bybit::run_collection(topics, args.symbols, writer_tx))
         }
         "hyperliquid" => {
-            let subscriptions = ["trades", "l2Book"]
+            let subscriptions = ["trades", "l2Book", "bbo"]
                 .iter()
                 .map(|sub| sub.to_string())
                 .collect();
