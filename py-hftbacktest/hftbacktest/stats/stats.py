@@ -90,7 +90,7 @@ class Stats:
             backend: Specifies which plotting library is used to plot the charts. The default is 'matplotlib'.
         """
         if backend == 'matplotlib':
-            self.plot_matplotlib(price_as_ret)
+            return self.plot_matplotlib(price_as_ret)
         elif backend == 'holoviews':
             return self.plot_holoviews(price_as_ret)
         else:
@@ -242,7 +242,9 @@ class Stats:
         ax2.grid()
 
         display(plt.gcf())
-        plt.close()
+        #plt.close()
+
+        return fig
 
 class Record(ABC):
     DEFAULT_METRICS = (
