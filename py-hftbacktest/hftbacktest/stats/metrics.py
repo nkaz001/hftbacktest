@@ -194,6 +194,13 @@ class MaxDrawdown(Metric):
 
 
 class NumberOfTrades(Metric):
+    """
+    Calculates the total number of trades.
+
+    Parameters:
+        name: Name of this metric. The default value is `NumberOfTrades`.
+    """
+
     def __init__(self, name: str = None):
         self.name = name if name is not None else 'NumberOfTrades'
 
@@ -203,6 +210,13 @@ class NumberOfTrades(Metric):
 
 
 class DailyNumberOfTrades(NumberOfTrades):
+    """
+    Calculates the daily number of trades.
+    
+    Parameters:
+        name: Name of this metric. The default value is `DailyNumberOfTrades`.
+    """
+
     def __init__(self, name: str = None):
         super().__init__(name if name is not None else 'DailyNumberOfTrades')
 
@@ -213,6 +227,13 @@ class DailyNumberOfTrades(NumberOfTrades):
 
 
 class TradingVolume(Metric):
+    """
+    Calculates the total trading volume, defined as the total number of shares or contracts traded.
+
+    Parameters:
+        name: Name of this metric. The default value is `TradingVolume`.
+    """
+
     def __init__(self, name: str = None):
         self.name = name if name is not None else 'TradingVolume'
 
@@ -222,6 +243,13 @@ class TradingVolume(Metric):
 
 
 class DailyTradingVolume(TradingVolume):
+    """
+    Calculates the daily trading volume, defined as the daily number of shares or contracts traded.
+
+    Parameters:
+        name: Name of this metric. The default value is `DailyTradingVolume`.
+    """
+
     def __init__(self, name: str = None):
         super().__init__(name if name is not None else 'DailyTradingVolume')
 
@@ -232,6 +260,15 @@ class DailyTradingVolume(TradingVolume):
 
 
 class TradingValue(Metric):
+    """
+    Calculates total trading value, or total turnover defined as trading value divided by the book size.
+
+    Parameters:
+        name: Name of this metric. The default value is `TradingValue` or `Turnover` if book_size is provided.
+        book_size: If the book size, or capital allocation, is set, the metric is divided by the book size to express it
+                   as a percentage ratio of the book size; otherwise, the metric is in raw units.
+    """
+
     def __init__(self, name: str = None, book_size: float | None = None):
         self.name = (
             name if name is not None else ('TradingValue' if book_size is None else 'Turnover')
@@ -246,6 +283,15 @@ class TradingValue(Metric):
 
 
 class DailyTradingValue(TradingValue):
+    """
+    Calculates daily trading value, or daily turnover defined as daily trading value divided by the book size.
+
+    Parameters:
+        name: Name of this metric. The default value is `DailyTradingValue` or `DailyTurnover` if book_size is provided.
+        book_size: If the book size, or capital allocation, is set, the metric is divided by the book size to express it
+                   as a percentage ratio of the book size; otherwise, the metric is in raw units.
+    """
+
     def __init__(self, name: str = None, book_size: float | None = None):
         super().__init__(
             name if name is not None else ('DailyTradingValue' if book_size is None else 'DailyTurnover'),
@@ -259,6 +305,13 @@ class DailyTradingValue(TradingValue):
 
 
 class MaxPositionValue(Metric):
+    """
+    Calculates the maximum open position value.
+
+    Parameters:
+        name: Name of this metric. The default value is `MaxPositionValue`.
+    """
+
     def __init__(self, name: str = None):
         self.name = name if name is not None else 'MaxPositionValue'
 
@@ -267,6 +320,13 @@ class MaxPositionValue(Metric):
 
 
 class MeanPositionValue(Metric):
+    """
+    Calculates the average open position value.
+
+    Parameters:
+        name: Name of this metric. The default value is `MeanPositionValue`.
+    """
+
     def __init__(self, name: str = None):
         self.name = name if name is not None else 'MeanPositionValue'
 
@@ -275,6 +335,13 @@ class MeanPositionValue(Metric):
 
 
 class MedianPositionValue(Metric):
+    """
+    Calculates the median open position value.
+
+    Parameters:
+        name: Name of this metric. The default value is `MedianPositionValue`.
+    """
+
     def __init__(self, name: str = None):
         self.name = name if name is not None else 'MedianPositionValue'
 
@@ -283,11 +350,19 @@ class MedianPositionValue(Metric):
 
 
 class MaxLeverage(Metric):
+    """
+    Calculates the maximum leverage, defined as the maximum open position value divided by the capital.
+
+    Parameters:
+        name: Name of this metric. The default value is `MaxLeverage`.
+        book_size: Capital allocation.
+    """
+
     def __init__(self, name: str = None, book_size: float = 0.0):
         if book_size <= 0.0:
             warnings.warn('book_size should be positive.', UserWarning)
         self.name = name if name is not None else 'MaxLeverage'
-        self.book_size = book_size
+        self.capital = book_size
 
     def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
-        return {self.name: (df['position'].abs() * df['price']).max() / self.book_size}
+        return {self.name: (df['position'].abs() * df['price']).max() / self.capital}
