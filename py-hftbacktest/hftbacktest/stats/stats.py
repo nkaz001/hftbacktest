@@ -241,8 +241,8 @@ class Stats:
         ax2_.set_ylabel('Price')
         ax2.grid()
 
-        display(plt.gcf())
-        #plt.close()
+        #display(plt.gcf())
+        plt.close()
 
         return fig
 
