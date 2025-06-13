@@ -192,6 +192,7 @@ impl BackoffStrategy for ExponentialBackoff {
         if let Some(reset_interval) = self.reset_interval {
             if self.last_attempt.elapsed() > reset_interval {
                 self.attempts = 0;
+                self.last_delay = None;
             }
         }
 
