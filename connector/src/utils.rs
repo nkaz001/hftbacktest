@@ -181,7 +181,6 @@ pub trait BackoffStrategy {
 
 pub struct ExponentialBackoff {
     last_attempt: Instant,
-    attempts: i32,
     factor: u32,
     last_delay: Option<Duration>,
     reset_interval: Option<Duration>,
@@ -193,7 +192,6 @@ impl Default for ExponentialBackoff {
     fn default() -> Self {
         Self {
             last_attempt: Instant::now(),
-            attempts: 0,
             factor: 2,
             last_delay: None,
             reset_interval: Some(Duration::from_secs(300)),
@@ -207,13 +205,11 @@ impl BackoffStrategy for ExponentialBackoff {
     fn backoff(&mut self) -> Duration {
         if let Some(reset_interval) = self.reset_interval {
             if self.last_attempt.elapsed() > reset_interval {
-                self.attempts = 0;
                 self.last_delay = None;
             }
         }
 
         self.last_attempt = Instant::now();
-        self.attempts += 1;
 
         match self.last_delay {
             None => {
@@ -328,9 +324,14 @@ pub fn generate_rand_string(length: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        thread,
+        time::{Duration, Instant},
+    };
+
     use hashbrown::HashMap;
 
-    use crate::utils::{RefSymbolOrderId, SymbolOrderId};
+    use crate::utils::{BackoffStrategy, ExponentialBackoff, RefSymbolOrderId, SymbolOrderId};
 
     #[test]
     fn equivalent_symbol_order_id() {
@@ -344,5 +345,79 @@ mod tests {
             map.get(&RefSymbolOrderId::new("key1", 1)).unwrap(),
             "value1"
         )
+    }
+
+    #[test]
+    fn test_backoff() {
+        let mut backoff = ExponentialBackoff {
+            last_attempt: Instant::now(),
+            factor: 2,
+            last_delay: None,
+            reset_interval: None,
+            min_delay: Duration::from_millis(0),
+            max_delay: None,
+        };
+
+        let mut value = Duration::from_secs(0);
+        for _ in 0..10 {
+            let new_value = backoff.backoff();
+            assert_eq!(new_value, value * backoff.factor);
+            value = new_value;
+        }
+    }
+
+    #[test]
+    fn test_backoff_min_delay() {
+        let mut backoff = ExponentialBackoff {
+            last_attempt: Instant::now(),
+            factor: 2,
+            last_delay: None,
+            reset_interval: None,
+            min_delay: Duration::from_millis(100),
+            max_delay: None,
+        };
+
+        assert_eq!(backoff.backoff(), backoff.min_delay);
+    }
+
+    #[test]
+    fn test_backoff_max_delay() {
+        let mut backoff = ExponentialBackoff {
+            last_attempt: Instant::now(),
+            factor: 2,
+            last_delay: None,
+            reset_interval: None,
+            min_delay: Duration::from_millis(100),
+            max_delay: Some(Duration::from_secs(1)),
+        };
+
+        for _ in 0..100 {
+            backoff.backoff();
+        }
+        assert_eq!(backoff.backoff(), backoff.max_delay.unwrap());
+    }
+
+    #[test]
+    fn test_backoff_reset_interval() {
+        let mut backoff = ExponentialBackoff {
+            last_attempt: Instant::now(),
+            factor: 2,
+            last_delay: None,
+            reset_interval: Some(Duration::from_secs(5)),
+            min_delay: Duration::from_millis(100),
+            max_delay: Some(Duration::from_secs(1)),
+        };
+
+        for _ in 0..100 {
+            let new_value = backoff.backoff();
+            if new_value == backoff.max_delay.unwrap() {
+                thread::sleep(backoff.reset_interval.unwrap() + Duration::from_millis(100));
+                assert_eq!(backoff.backoff(), backoff.min_delay);
+                return;
+            } else {
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
+        panic!();
     }
 }
