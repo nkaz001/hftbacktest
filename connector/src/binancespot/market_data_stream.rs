@@ -26,7 +26,7 @@ use crate::{
         msg::{
             rest,
             stream,
-            stream::{EventStream, Stream},
+            stream::{MarketEventStream, MarketStream},
         },
         rest::BinanceSpotClient,
     },
@@ -63,9 +63,9 @@ impl MarketDataStream {
         }
     }
 
-    fn process_message(&mut self, stream: EventStream) {
+    fn process_message(&mut self, stream: MarketEventStream) {
         match stream {
-            EventStream::DepthUpdate(data) => {
+            MarketEventStream::DepthUpdate(data) => {
                 let mut prev_u_val = self.prev_u.get_mut(&data.symbol);
                 if prev_u_val.is_none()
                 /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
@@ -150,7 +150,7 @@ impl MarketDataStream {
                     }
                 }
             }
-            EventStream::Trade(data) => match parse_px_qty_tup(data.price, data.quantity) {
+            MarketEventStream::Trade(data) => match parse_px_qty_tup(data.price, data.quantity) {
                 Ok((px, qty)) => {
                     self.ev_tx
                         .send(PublishEvent::LiveEvent(LiveEvent::Feed {
@@ -299,11 +299,11 @@ impl MarketDataStream {
                 },
                 message = read.next() => match message {
                     Some(Ok(Message::Text(text))) => {
-                        match serde_json::from_str::<Stream>(&text) {
-                            Ok(Stream::EventStream(stream)) => {
+                        match serde_json::from_str::<MarketStream>(&text) {
+                            Ok(MarketStream::EventStream(stream)) => {
                                 self.process_message(stream);
                             }
-                            Ok(Stream::Result(result)) => {
+                            Ok(MarketStream::Result(result)) => {
                                 debug!(?result, "Subscription request response is received.");
                             }
                             Err(error) => {
