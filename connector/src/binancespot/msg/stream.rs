@@ -230,7 +230,8 @@ pub struct Balance {
     #[serde(deserialize_with = "to_lowercase")]
     pub asset: String, 
     #[serde(rename = "f")]
-    pub free: String,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub free: f64,
     #[serde(rename = "l")]
     pub locked: String,
 }
@@ -422,4 +423,35 @@ pub struct ListOrder {
     pub order_id: u64, 
     #[serde(rename = "c")]
     pub client_order_id: String, 
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SignRequest {
+    pub id: String,
+    pub method: String,
+    pub params: SignParams,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SignParams {
+    pub api_key: String,
+    pub signature: Option<String>,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserDataRequest {
+    pub id: String,
+    pub method: String,
+    pub params: SignParams,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserStreamSubscribeRequest {
+    pub id: String,
+    pub method: String,
 }
