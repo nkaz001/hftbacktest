@@ -107,7 +107,6 @@ impl UserDataStream {
         let request = url.into_client_request()?;
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
-        let mut interval = time::interval(Duration::from_secs(60 * 30));
         let mut ping_checker = time::interval(Duration::from_secs(10));
 
         let symbols: HashSet<_> = self.symbols.lock().unwrap().iter().cloned().collect();
@@ -162,19 +161,6 @@ impl UserDataStream {
 
         loop {
             select! {
-                // _ = interval.tick() => {
-                //     self.order_manager
-                //         .lock()
-                //         .unwrap()
-                //         .gc();
-                //     let client_ = self.client.clone();
-                //     tokio::spawn(async move {
-                //         if let Err(error) = client_.keepalive_user_data_stream().await {
-                //             error!(?error, "Failed keepalive user data stream.");
-                //             // todo: reset the connection.
-                //         }
-                //     });
-                // }
                 _ = ping_checker.tick() => {
                     if last_ping.elapsed() > Duration::from_secs(300) {
                         warn!("Ping timeout.");

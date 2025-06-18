@@ -66,7 +66,7 @@ impl MarketDataStream {
     fn process_message(&mut self, stream: MarketEventStream) {
         match stream {
             MarketEventStream::DepthUpdate(data) => {
-                let mut prev_u_val = self.prev_u.get_mut(&data.symbol);
+                let prev_u_val = self.prev_u.get_mut(&data.symbol);
                 if prev_u_val.is_none()
                 /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
                 {

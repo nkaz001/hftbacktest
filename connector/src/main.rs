@@ -32,10 +32,7 @@ use tokio::{
 use tracing::error;
 
 use crate::{
-    binancefutures::BinanceFutures,
-    bybit::Bybit,
-    connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
-    fuse::FusedHashMapMarketDepth,
+    binancefutures::BinanceFutures, binancespot::BinanceSpot, bybit::Bybit, connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent}, fuse::FusedHashMapMarketDepth
 };
 
 #[cfg(feature = "binancefutures")]
@@ -368,6 +365,15 @@ async fn main() {
                 .unwrap();
             connector.run(pub_tx.clone());
             Box::new(connector)
+        }
+        "binancespot" => {
+            let mut connector = BinanceSpot::build_from(&config)
+            .map_err(|error| {
+                error!(?error, "Couldn't build the Bybit connector.");
+            })
+            .unwrap();
+            connector.run(pub_tx.clone());
+            Box::new(connector) 
         }
         connector => {
             error!(%connector, "This connector doesn't exist.");

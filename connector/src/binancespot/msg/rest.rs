@@ -1,7 +1,7 @@
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{Deserialize, Serialize};
 use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type};
-use crate::utils::{from_str_to_f64, from_str_to_f64_opt, to_lowercase};
+use crate::utils::{from_str_to_f64, to_lowercase};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
