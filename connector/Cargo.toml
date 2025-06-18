@@ -38,3 +38,4 @@ ed25519-dalek = { version = "2.1.1", features = [
     "pem",
 ] }
 base64 = "0.22.1"
+serde_qs = "0.15.0"

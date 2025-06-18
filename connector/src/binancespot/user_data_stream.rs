@@ -124,7 +124,7 @@ impl UserDataStream {
                 timestamp: get_timestamp(),
             },
         };
-        if let Ok(payload) = serde_json::to_string(&req) {
+        if let Ok(payload) = serde_qs::to_string(&req) {
             let signature = sign_ed25519(&self.client.secret, &payload);
             req.params.signature = Some(signature);
             let _ = write
@@ -211,8 +211,8 @@ impl UserDataStream {
                                     )).await?;
                                 }
                             }
-                            Ok(UserStream::SubscribeResponse(error)) => {
-                                error!(?error, "Subscription request error response is received.");
+                            Ok(UserStream::SubscribeResponse(resp)) => {
+                                debug!(?resp, "Subscription request error response is received.");
                             }
                             Err(error) => {
                                 error!(?error, %text, "Couldn't parse Stream.");

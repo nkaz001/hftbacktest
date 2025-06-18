@@ -91,6 +91,8 @@ pub struct Config {
     api_key: String,
     #[serde(default)]
     secret: String,
+    #[serde(default)]
+    ws_api_url: String,
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;
@@ -142,7 +144,7 @@ impl BinanceSpot {
     }
 
     pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<PublishEvent>) {
-        let base_url = self.config.stream_url.clone();
+        let base_url = self.config.ws_api_url.clone();
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
         let instruments = self.symbols.clone();
