@@ -29,3 +29,13 @@ tracing-subscriber = "0.3.19"
 clap = { version = "4.5.38", features = ["derive"] }
 hashbrown = "0.15.3"
 rand = "0.9.1"
+ed25519-dalek = { version = "2.1.1", features = [
+    "serde",
+    "zeroize",
+    "rand_core",
+    "digest",
+    "pkcs8",
+    "pem",
+] }
+base64 = "0.22.1"
+serde_qs = "0.15.0"

@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::Utc;
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, Mac};
@@ -17,6 +18,10 @@ use serde::{
     de::{Error, Visitor},
 };
 use sha2::Sha256;
+use base64::{engine::general_purpose, Engine as _};
+use ed25519_dalek::pkcs8::DecodePrivateKey;
+use ed25519_dalek::SigningKey;
+use ed25519_dalek::{Signature as Ed25519Signature, Signer};
 
 use crate::bybit::BybitError;
 
@@ -136,6 +141,17 @@ pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {
         write!(&mut tmp, "{:02x}", c).unwrap();
     }
     tmp
+}
+
+pub fn sign_ed25519(private_key: &str, s: &str) -> String {
+    let private_key = SigningKey::from_pkcs8_pem(private_key).unwrap();
+    let signature: Ed25519Signature = private_key.sign(s.as_bytes());
+    let signature = general_purpose::STANDARD.encode(signature.to_bytes());
+    signature
+}
+
+pub fn get_timestamp() -> u64 {
+    Utc::now().timestamp_millis() as u64
 }
 
 pub type PxQty = (f64, f64);
