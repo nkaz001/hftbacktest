@@ -46,9 +46,14 @@ pub enum MarketStream {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum UserStream {
-    EventStream(UserEventStream),
+    EventStream(UserDataEvent),
     AuthResponse(AuthResponse),
     SubscribeResponse(SubscribeResponse),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct UserDataEvent {
+    pub event: UserEventStream,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

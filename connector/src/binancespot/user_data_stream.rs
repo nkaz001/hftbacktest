@@ -197,7 +197,7 @@ impl UserDataStream {
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<UserStream>(&text) {
                             Ok(UserStream::EventStream(stream)) => {
-                                self.process_message(stream)?;
+                                self.process_message(stream.event)?;
                             }
                             Ok(UserStream::AuthResponse(result)) => {
                                 debug!(?result, "Subscription request response is received.");

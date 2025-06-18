@@ -202,7 +202,7 @@ impl BinanceSpotClient {
         body.push_str("&timeInForce=");
         body.push_str(time_in_force.as_ref());
 
-        let resp: OrderResponseResult = self.delete("/api/v3/order", body).await?;
+        let resp: OrderResponseResult = self.post("/api/v3/order", body).await?;
         match resp {
             OrderResponseResult::Ok(resp) => Ok(resp),
             OrderResponseResult::Err(resp) => Err(BinanceSpotError::OrderError {
