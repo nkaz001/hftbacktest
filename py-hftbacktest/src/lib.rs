@@ -44,7 +44,7 @@ use hftbacktest::{
 };
 use hftbacktest_derive::build_asset;
 pub use order::*;
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::{PyValueError, PyDeprecationWarning}, prelude::*, PyTypeInfo, ffi::c_str};
 
 #[cfg(feature = "live")]
 use crate::live::{HashMapMarketDepthLiveBot, ROIVectorMarketDepthLiveBot};
@@ -221,6 +221,8 @@ impl BacktestAsset {
         slf
     }
 
+    /// DEPRECATED: Use `constant_order_latency` instead.
+    ///
     /// Uses `ConstantLatency <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ConstantLatency.html>`_
     /// for the order latency model.
     /// The units of the arguments should match the timestamp units of your data. Nanoseconds are
@@ -230,6 +232,35 @@ impl BacktestAsset {
     ///     entry_latency: order entry latency.
     ///     resp_latency: order response latency.
     pub fn constant_latency(
+        mut slf: PyRefMut<Self>,
+        entry_latency: i64,
+        resp_latency: i64,
+    ) -> PyRefMut<Self> {
+        Python::with_gil(|py| {
+            PyErr::warn(
+                py,
+                &PyDeprecationWarning::type_object(py),
+                c_str!("constant_latency() is deprecated; use constant_order_latency()."),
+                1,
+            )
+        }).unwrap();
+
+        slf.latency_model = LatencyModel::ConstantLatency {
+            entry_latency,
+            resp_latency,
+        };
+        slf
+    }
+
+    /// Uses `ConstantLatency <https://docs.rs/hftbacktest/latest/hftbacktest/backtest/models/struct.ConstantLatency.html>`_
+    /// for the order latency model.
+    /// The units of the arguments should match the timestamp units of your data. Nanoseconds are
+    /// typically used in HftBacktest.
+    ///
+    /// Args:
+    ///     entry_latency: order entry latency.
+    ///     resp_latency: order response latency.
+    pub fn constant_order_latency(
         mut slf: PyRefMut<Self>,
         entry_latency: i64,
         resp_latency: i64,
