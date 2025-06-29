@@ -367,7 +367,10 @@ where
                     LoadDataResult {
                         result: Err(err), ..
                     } => {
-                        return Err(BacktestError::DataError(err));
+                        return Err(BacktestError::DataError(std::io::Error::new(
+                            err.kind(),
+                            format!("Failed to read file '{}': {}", key, err),
+                        )));
                     }
                 }
             }
