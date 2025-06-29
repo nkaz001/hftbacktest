@@ -174,6 +174,7 @@ Tutorials
 * `Market Making with Alpha - Basis <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20Basis.html>`_
 * `Market Making with Alpha - APT <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20APT.html>`_
 * `Queue-Based Market Making in Large Tick Size Assets <https://hftbacktest.readthedocs.io/en/latest/tutorials/Queue-Based%20Market%20Making%20in%20Large%20Tick%20Size%20Assets.html>`_
+* `Fusing Depth Data <https://hftbacktest.readthedocs.io/en/latest/tutorials/Fusing%20Depth%20Data.html>`_
 
 Examples
 ========
