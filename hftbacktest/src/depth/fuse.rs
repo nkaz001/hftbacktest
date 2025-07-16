@@ -1,10 +1,10 @@
 use std::collections::{HashMap, hash_map::Entry};
 
-use super::{ApplySnapshot, INVALID_MAX, INVALID_MIN, L1MarketDepth, L3Order, MarketDepth};
+use tracing::debug;
+
 use crate::{
-    backtest::{BacktestError, data::Data},
-    prelude::{DEPTH_SNAPSHOT_EVENT, EXCH_EVENT, L2MarketDepth, LOCAL_EVENT, Side},
-    types::{BUY_EVENT, Event, OrderId, SELL_EVENT},
+    depth::{INVALID_MAX, INVALID_MIN},
+    types::{BUY_EVENT, DEPTH_EVENT, Event, SELL_EVENT, Side},
 };
 
 pub struct QtyTimestamp {
@@ -18,17 +18,6 @@ impl Default for QtyTimestamp {
     }
 }
 
-/// L2/L3 Market depth implementation based on a hash map.
-///
-/// This is considered more robust than a BTreeMap-based Market Depth when it comes to L2 feed.
-/// This is because in the BTreeMap-based approach, missing depth feeds can lead to incorrect best
-/// bid or ask prices.
-/// Specifically, when the best bid or ask is deleted, it may remain in the BTreeMap due to the
-/// absence of corresponding depth feeds.
-///
-/// In contrast, a HashMap-based Market Depth tracks the latest best bid and ask prices, updating
-/// them accordingly. This allows for natural refresh of market depth, even in cases where there are
-/// missing feeds.
 pub struct FusedHashMapMarketDepth {
     pub tick_size: f64,
     pub lot_size: f64,
@@ -41,7 +30,6 @@ pub struct FusedHashMapMarketDepth {
     pub best_ask_timestamp: i64,
     pub low_bid_tick: i64,
     pub high_ask_tick: i64,
-    pub orders: HashMap<OrderId, L3Order>,
 }
 
 #[inline(always)]
@@ -65,7 +53,7 @@ fn depth_above(depth: &HashMap<i64, QtyTimestamp>, start: i64, end: i64) -> i64 
 }
 
 impl FusedHashMapMarketDepth {
-    /// Constructs an instance of `HashMapMarketDepth`.
+    /// Constructs an instance of `FusedHashMapMarketDepth`.
     pub fn new(tick_size: f64, lot_size: f64) -> Self {
         Self {
             tick_size,
@@ -79,166 +67,240 @@ impl FusedHashMapMarketDepth {
             best_ask_timestamp: 0,
             low_bid_tick: INVALID_MAX,
             high_ask_tick: INVALID_MIN,
-            orders: HashMap::new(),
         }
     }
 
-    fn add(&mut self, order: L3Order) -> Result<(), BacktestError> {
-        let order = match self.orders.entry(order.order_id) {
-            Entry::Occupied(_) => return Err(BacktestError::OrderIdExist),
-            Entry::Vacant(entry) => entry.insert(order),
-        };
-        if order.side == Side::Buy {
-            self.bid_depth.entry(order.price_tick).or_default().qty += order.qty;
+    pub fn update_depth(&mut self, ev: Event) -> Vec<Event> {
+        if ev.is(BUY_EVENT) {
+            self.update_bid_depth(ev)
+        } else if ev.is(SELL_EVENT) {
+            self.update_ask_depth(ev)
         } else {
-            self.ask_depth.entry(order.price_tick).or_default().qty += order.qty;
+            panic!();
         }
-        Ok(())
     }
-}
 
-impl L2MarketDepth for FusedHashMapMarketDepth {
-    fn update_bid_depth(
-        &mut self,
-        price: f64,
-        qty: f64,
-        timestamp: i64,
-    ) -> (i64, i64, i64, f64, f64, i64) {
-        let price_tick = (price / self.tick_size).round() as i64;
-        let qty_lot = (qty / self.lot_size).round() as i64;
-        let prev_best_bid_tick = self.best_bid_tick;
-        let prev_qty;
+    pub fn update_bid_depth(&mut self, ev: Event) -> Vec<Event> {
+        let mut result = Vec::new();
+
+        let price_tick = (ev.px / self.tick_size).round() as i64;
+        let qty_lot = (ev.qty / self.lot_size).round() as i64;
+
+        if (price_tick >= self.best_bid_tick && ev.exch_ts < self.best_bid_timestamp)
+            || (price_tick >= self.best_ask_tick && ev.exch_ts < self.best_ask_timestamp)
+        {
+            debug!(
+                ?ev,
+                best_bid_tick = self.best_bid_tick,
+                best_ask_tick = self.best_ask_tick,
+                best_bid_timestamp = self.best_bid_timestamp,
+                best_ask_timestamp = self.best_ask_timestamp,
+                "update_bid_depth: attempts to update the BBO, but the event is outdated."
+            );
+            return result;
+        }
+
         match self.bid_depth.entry(price_tick) {
             Entry::Occupied(mut entry) => {
-                let QtyTimestamp {
-                    qty: prev_qty_,
-                    ts: prev_timestamp,
-                } = *entry.get();
-                prev_qty = prev_qty_;
-                if timestamp > prev_timestamp {
+                let QtyTimestamp { qty: _, ts } = *entry.get();
+                if ev.exch_ts >= ts {
                     if qty_lot > 0 {
-                        *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
+                        *entry.get_mut() = QtyTimestamp {
+                            qty: ev.qty,
+                            ts: ev.exch_ts,
+                        };
                     } else {
                         entry.remove();
                     }
+                    result.push(ev.clone());
+                } else {
+                    debug!(
+                        ?ev,
+                        ?ts,
+                        "update_bid_depth: attempts to update the price level, \
+                        but the event is outdated."
+                    );
                 }
             }
             Entry::Vacant(entry) => {
-                prev_qty = 0f64;
                 if qty_lot > 0 {
-                    entry.insert(QtyTimestamp { qty, ts: timestamp });
+                    entry.insert(QtyTimestamp {
+                        qty: ev.qty,
+                        ts: ev.exch_ts,
+                    });
+                    result.push(ev.clone());
                 }
             }
         }
 
         if qty_lot == 0 {
-            if price_tick == self.best_bid_tick && timestamp >= self.best_bid_timestamp {
+            if price_tick == self.best_bid_tick {
                 self.best_bid_tick =
                     depth_below(&self.bid_depth, self.best_bid_tick, self.low_bid_tick);
-                self.best_bid_timestamp = timestamp;
+                self.best_bid_timestamp = ev.exch_ts;
                 if self.best_bid_tick == INVALID_MIN {
                     self.low_bid_tick = INVALID_MAX
                 }
+                debug!(
+                    ?ev,
+                    best_bid_tick = self.best_bid_tick,
+                    best_ask_tick = self.best_ask_tick,
+                    "update_bid_depth: The BBO gets updated by deleting the prior BBO."
+                );
             }
         } else {
-            if price_tick >= self.best_bid_tick && timestamp >= self.best_bid_timestamp {
+            if price_tick >= self.best_bid_tick {
                 self.best_bid_tick = price_tick;
-                self.best_bid_timestamp = timestamp;
-                if self.best_bid_tick >= self.best_ask_tick {
-                    if timestamp >= self.best_ask_timestamp {
-                        self.best_ask_tick =
-                            depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
-                        self.best_ask_timestamp = timestamp;
-                    } else {
-                        self.best_bid_tick =
-                            depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
-                        self.best_bid_timestamp = self.best_ask_timestamp;
+                self.best_bid_timestamp = ev.exch_ts;
+
+                if price_tick >= self.best_ask_tick {
+                    let prev_best_ask_tick = self.best_ask_tick;
+                    self.best_ask_tick =
+                        depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
+                    self.best_ask_timestamp = ev.exch_ts;
+
+                    for t in prev_best_ask_tick..self.best_ask_tick {
+                        if self.ask_depth.remove(&t).is_some() {
+                            debug!(
+                                px = t as f64 * self.tick_size,
+                                "update_bid_depth: Ask deletion event is generated \
+                                by the best bid crossing."
+                            );
+                            result.push(Event {
+                                ev: SELL_EVENT | DEPTH_EVENT,
+                                exch_ts: ev.exch_ts,
+                                local_ts: ev.local_ts,
+                                px: t as f64 * self.tick_size,
+                                qty: 0.0,
+                                order_id: 0,
+                                ival: 0,
+                                fval: 0.0,
+                            });
+                        }
                     }
                 }
+                debug!(
+                    best_bid_tick = self.best_bid_tick,
+                    best_ask_tick = self.best_ask_tick,
+                    "update_bid_depth: The BBO gets updated."
+                );
             }
             self.low_bid_tick = self.low_bid_tick.min(price_tick);
         }
-        (
-            price_tick,
-            prev_best_bid_tick,
-            self.best_bid_tick,
-            prev_qty,
-            qty,
-            timestamp,
-        )
+        result
     }
 
-    fn update_ask_depth(
-        &mut self,
-        price: f64,
-        qty: f64,
-        timestamp: i64,
-    ) -> (i64, i64, i64, f64, f64, i64) {
-        let price_tick = (price / self.tick_size).round() as i64;
-        let qty_lot = (qty / self.lot_size).round() as i64;
-        let prev_best_ask_tick = self.best_ask_tick;
-        let prev_qty;
+    pub fn update_ask_depth(&mut self, ev: Event) -> Vec<Event> {
+        let mut result = Vec::new();
+
+        let price_tick = (ev.px / self.tick_size).round() as i64;
+        let qty_lot = (ev.qty / self.lot_size).round() as i64;
+
+        if (price_tick <= self.best_ask_tick && ev.exch_ts < self.best_ask_timestamp)
+            || (price_tick <= self.best_bid_tick && ev.exch_ts < self.best_bid_timestamp)
+        {
+            debug!(
+                price_tick,
+                best_bid_tick = self.best_bid_tick,
+                best_ask_tick = self.best_ask_tick,
+                best_bid_timestamp = self.best_bid_timestamp,
+                best_ask_timestamp = self.best_ask_timestamp,
+                "update_ask_depth: attempts to update the BBO, but the event is outdated."
+            );
+            return result;
+        }
+
         match self.ask_depth.entry(price_tick) {
             Entry::Occupied(mut entry) => {
-                let QtyTimestamp {
-                    qty: prev_qty_,
-                    ts: prev_timestamp,
-                } = *entry.get();
-                prev_qty = prev_qty_;
-                if timestamp > prev_timestamp {
+                let QtyTimestamp { qty: _, ts } = *entry.get();
+                if ev.exch_ts >= ts {
                     if qty_lot > 0 {
-                        *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
+                        *entry.get_mut() = QtyTimestamp {
+                            qty: ev.qty,
+                            ts: ev.exch_ts,
+                        };
                     } else {
                         entry.remove();
                     }
+                    result.push(ev.clone());
+                } else {
+                    debug!(
+                        ?ev,
+                        ?ts,
+                        "update_ask_depth: attempts to update the price level, \
+                        but the event is outdated."
+                    );
                 }
             }
             Entry::Vacant(entry) => {
-                prev_qty = 0f64;
                 if qty_lot > 0 {
-                    entry.insert(QtyTimestamp { qty, ts: timestamp });
+                    entry.insert(QtyTimestamp {
+                        qty: ev.qty,
+                        ts: ev.exch_ts,
+                    });
+                    result.push(ev.clone());
                 }
             }
         }
 
         if qty_lot == 0 {
-            if price_tick == self.best_ask_tick && timestamp >= self.best_ask_timestamp {
+            if price_tick == self.best_ask_tick {
                 self.best_ask_tick =
                     depth_above(&self.ask_depth, self.best_ask_tick, self.high_ask_tick);
-                self.best_ask_timestamp = timestamp;
+                self.best_ask_timestamp = ev.exch_ts;
                 if self.best_ask_tick == INVALID_MAX {
                     self.high_ask_tick = INVALID_MIN
                 }
+                debug!(
+                    ?ev,
+                    best_bid_tick = self.best_bid_tick,
+                    best_ask_tick = self.best_ask_tick,
+                    "update_ask_depth: The BBO gets updated by deleting the prior BBO."
+                );
             }
         } else {
-            if price_tick <= self.best_ask_tick && timestamp >= self.best_ask_timestamp {
+            if price_tick <= self.best_ask_tick {
                 self.best_ask_tick = price_tick;
-                self.best_ask_timestamp = timestamp;
-                if self.best_bid_tick >= self.best_ask_tick {
-                    if timestamp >= self.best_bid_timestamp {
-                        self.best_bid_tick =
-                            depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
-                        self.best_bid_timestamp = timestamp;
-                    } else {
-                        self.best_ask_tick =
-                            depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
-                        self.best_ask_timestamp = self.best_bid_timestamp;
+                self.best_ask_timestamp = ev.exch_ts;
+
+                if price_tick <= self.best_bid_tick {
+                    let prev_best_bid_tick = self.best_bid_tick;
+                    self.best_bid_tick =
+                        depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
+                    self.best_bid_timestamp = ev.exch_ts;
+
+                    for t in (self.best_bid_tick + 1)..(prev_best_bid_tick + 1) {
+                        if self.bid_depth.remove(&t).is_some() {
+                            debug!(
+                                px = t as f64 * self.tick_size,
+                                "update_ask_depth: Bid deletion event is generated \
+                                by the best ask crossing."
+                            );
+                            result.push(Event {
+                                ev: BUY_EVENT | DEPTH_EVENT,
+                                exch_ts: ev.exch_ts,
+                                local_ts: ev.local_ts,
+                                px: t as f64 * self.tick_size,
+                                qty: 0.0,
+                                order_id: 0,
+                                ival: 0,
+                                fval: 0.0,
+                            });
+                        }
                     }
                 }
+                debug!(
+                    best_bid_tick = self.best_bid_tick,
+                    best_ask_tick = self.best_ask_tick,
+                    "update_ask_depth: The BBO gets updated."
+                );
             }
             self.high_ask_tick = self.high_ask_tick.max(price_tick);
         }
-        (
-            price_tick,
-            prev_best_ask_tick,
-            self.best_ask_tick,
-            prev_qty,
-            qty,
-            timestamp,
-        )
+        result
     }
 
-    fn clear_depth(&mut self, side: Side, clear_upto_price: f64) {
+    pub fn clear_depth(&mut self, side: Side, clear_upto_price: f64, timestamp: i64) {
         let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
         if side == Side::Buy {
             if self.best_bid_tick != INVALID_MIN {
@@ -252,6 +314,7 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             if self.best_bid_tick == INVALID_MIN {
                 self.low_bid_tick = INVALID_MAX;
             }
+            self.best_bid_timestamp = timestamp;
         } else if side == Side::Sell {
             if self.best_ask_tick != INVALID_MAX {
                 for t in self.best_ask_tick..(clear_upto + 1) {
@@ -264,6 +327,7 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             if self.best_ask_tick == INVALID_MAX {
                 self.high_ask_tick = INVALID_MIN;
             }
+            self.best_ask_timestamp = timestamp;
         } else {
             self.bid_depth.clear();
             self.ask_depth.clear();
@@ -271,264 +335,323 @@ impl L2MarketDepth for FusedHashMapMarketDepth {
             self.best_ask_tick = INVALID_MAX;
             self.low_bid_tick = INVALID_MAX;
             self.high_ask_tick = INVALID_MIN;
+            self.best_bid_timestamp = timestamp;
+            self.best_ask_timestamp = timestamp;
         }
     }
-}
 
-impl MarketDepth for FusedHashMapMarketDepth {
-    #[inline(always)]
-    fn best_bid(&self) -> f64 {
-        if self.best_bid_tick == INVALID_MIN {
-            f64::NAN
+    pub fn update_best(&mut self, ev: Event) -> Vec<Event> {
+        if ev.is(BUY_EVENT) {
+            self.update_best_bid(ev)
+        } else if ev.is(SELL_EVENT) {
+            self.update_best_ask(ev)
         } else {
-            self.best_bid_tick as f64 * self.tick_size
+            panic!();
         }
     }
 
-    #[inline(always)]
-    fn best_ask(&self) -> f64 {
-        if self.best_ask_tick == INVALID_MAX {
-            f64::NAN
-        } else {
-            self.best_ask_tick as f64 * self.tick_size
+    pub fn update_best_bid(&mut self, ev: Event) -> Vec<Event> {
+        let mut result = Vec::new();
+        let price_tick = (ev.px / self.tick_size).round() as i64;
+
+        if ev.exch_ts < self.best_bid_timestamp
+            || (price_tick >= self.best_ask_tick && ev.exch_ts < self.best_ask_timestamp)
+        {
+            debug!(
+                price_tick,
+                best_bid_tick = self.best_bid_tick,
+                best_ask_tick = self.best_ask_tick,
+                best_bid_timestamp = self.best_bid_timestamp,
+                best_ask_timestamp = self.best_ask_timestamp,
+                "update_best_bid: attempts to update the BBO, but the event is outdated."
+            );
+            return result;
         }
+
+        match self.bid_depth.entry(price_tick) {
+            Entry::Occupied(mut entry) => {
+                let QtyTimestamp { qty, ts: _ } = *entry.get();
+                if price_tick == self.best_bid_tick && ev.qty == qty {
+                    self.best_bid_timestamp = ev.exch_ts;
+                    return result;
+                }
+                *entry.get_mut() = QtyTimestamp {
+                    qty: ev.qty,
+                    ts: ev.exch_ts,
+                };
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(QtyTimestamp {
+                    qty: ev.qty,
+                    ts: ev.exch_ts,
+                });
+            }
+        }
+        result.push(ev.clone());
+
+        let prev_best_bid_tick = self.best_bid_tick;
+        self.best_bid_tick = price_tick;
+        self.best_bid_timestamp = ev.exch_ts;
+
+        if price_tick >= self.best_ask_tick {
+            let prev_best_ask_tick = self.best_ask_tick;
+            self.best_ask_tick =
+                depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
+            self.best_ask_timestamp = ev.exch_ts;
+
+            for t in prev_best_ask_tick..self.best_ask_tick {
+                if self.ask_depth.remove(&t).is_some() {
+                    debug!(
+                        px = t as f64 * self.tick_size,
+                        "update_best_bid: Ask deletion event is generated \
+                        by the best bid crossing."
+                    );
+                    result.push(Event {
+                        ev: SELL_EVENT | DEPTH_EVENT,
+                        exch_ts: ev.exch_ts,
+                        local_ts: ev.local_ts,
+                        px: t as f64 * self.tick_size,
+                        qty: 0.0,
+                        order_id: 0,
+                        ival: 0,
+                        fval: 0.0,
+                    });
+                }
+            }
+        }
+        debug!(
+            best_bid_tick = self.best_bid_tick,
+            best_ask_tick = self.best_ask_tick,
+            "update_best_bid: The BBO gets updated."
+        );
+
+        if self.best_bid_tick < prev_best_bid_tick {
+            for t in (self.best_bid_tick + 1)..(prev_best_bid_tick + 1) {
+                if self.bid_depth.remove(&t).is_some() {
+                    debug!(
+                        px = t as f64 * self.tick_size,
+                        "update_best_bid: Bid deletion event is generated \
+                        by the best bid backoff."
+                    );
+                    result.push(Event {
+                        ev: BUY_EVENT | DEPTH_EVENT,
+                        exch_ts: ev.exch_ts,
+                        local_ts: ev.local_ts,
+                        px: t as f64 * self.tick_size,
+                        qty: 0.0,
+                        order_id: 0,
+                        ival: 0,
+                        fval: 0.0,
+                    });
+                }
+            }
+        }
+        result
     }
 
-    #[inline(always)]
-    fn best_bid_tick(&self) -> i64 {
+    pub fn update_best_ask(&mut self, ev: Event) -> Vec<Event> {
+        let mut result = Vec::new();
+        let price_tick = (ev.px / self.tick_size).round() as i64;
+
+        if ev.exch_ts < self.best_ask_timestamp
+            || (price_tick <= self.best_bid_tick && ev.exch_ts < self.best_bid_timestamp)
+        {
+            debug!(
+                price_tick,
+                best_bid_tick = self.best_bid_tick,
+                best_ask_tick = self.best_ask_tick,
+                best_bid_timestamp = self.best_bid_timestamp,
+                best_ask_timestamp = self.best_ask_timestamp,
+                "update_best_ask: attempts to update the BBO, but the event is outdated."
+            );
+            return result;
+        }
+
+        match self.ask_depth.entry(price_tick) {
+            Entry::Occupied(mut entry) => {
+                let QtyTimestamp { qty, ts: _ } = *entry.get();
+                if price_tick == self.best_ask_tick && ev.qty == qty {
+                    self.best_ask_timestamp = ev.exch_ts;
+                    return result;
+                }
+                *entry.get_mut() = QtyTimestamp {
+                    qty: ev.qty,
+                    ts: ev.exch_ts,
+                };
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(QtyTimestamp {
+                    qty: ev.qty,
+                    ts: ev.exch_ts,
+                });
+            }
+        }
+        result.push(ev.clone());
+
+        let prev_best_ask_tick = self.best_ask_tick;
+        self.best_ask_tick = price_tick;
+        self.best_ask_timestamp = ev.exch_ts;
+
+        if price_tick <= self.best_bid_tick {
+            let prev_best_bid_tick = self.best_bid_tick;
+            self.best_bid_tick =
+                depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
+            self.best_bid_timestamp = ev.exch_ts;
+
+            for t in (self.best_bid_tick + 1)..(prev_best_bid_tick + 1) {
+                if self.bid_depth.remove(&t).is_some() {
+                    debug!(
+                        px = t as f64 * self.tick_size,
+                        "update_best_ask: Bid deletion event is generated \
+                        by the best ask crossing."
+                    );
+                    result.push(Event {
+                        ev: BUY_EVENT | DEPTH_EVENT,
+                        exch_ts: ev.exch_ts,
+                        local_ts: ev.local_ts,
+                        px: t as f64 * self.tick_size,
+                        qty: 0.0,
+                        order_id: 0,
+                        ival: 0,
+                        fval: 0.0,
+                    });
+                }
+            }
+        }
+        debug!(
+            best_bid_tick = self.best_bid_tick,
+            best_ask_tick = self.best_ask_tick,
+            "update_best_ask: The BBO gets updated."
+        );
+
+        if self.best_ask_tick > prev_best_ask_tick {
+            for t in prev_best_ask_tick..self.best_ask_tick {
+                if self.ask_depth.remove(&t).is_some() {
+                    debug!(
+                        px = t as f64 * self.tick_size,
+                        "update_best_ask: Ask deletion event is generated \
+                        by the best ask backoff."
+                    );
+                    result.push(Event {
+                        ev: SELL_EVENT | DEPTH_EVENT,
+                        exch_ts: ev.exch_ts,
+                        local_ts: ev.local_ts,
+                        px: t as f64 * self.tick_size,
+                        qty: 0.0,
+                        order_id: 0,
+                        ival: 0,
+                        fval: 0.0,
+                    });
+                }
+            }
+        }
+        result
+    }
+
+    pub fn best_bid_tick(&self) -> i64 {
         self.best_bid_tick
     }
 
-    #[inline(always)]
-    fn best_ask_tick(&self) -> i64 {
+    pub fn best_ask_tick(&self) -> i64 {
         self.best_ask_tick
     }
 
-    #[inline(always)]
-    fn tick_size(&self) -> f64 {
-        self.tick_size
+    pub fn bid_qty_at_tick(&self, tick: i64) -> f64 {
+        self.bid_depth.get(&tick).map(|v| v.qty).unwrap_or(0.0)
     }
 
-    #[inline(always)]
-    fn lot_size(&self) -> f64 {
-        self.lot_size
-    }
-
-    #[inline(always)]
-    fn bid_qty_at_tick(&self, price_tick: i64) -> f64 {
-        self.bid_depth
-            .get(&price_tick)
-            .unwrap_or(&Default::default())
-            .qty
-    }
-
-    #[inline(always)]
-    fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
-        self.ask_depth
-            .get(&price_tick)
-            .unwrap_or(&Default::default())
-            .qty
-    }
-}
-
-impl ApplySnapshot for FusedHashMapMarketDepth {
-    fn apply_snapshot(&mut self, data: &Data<Event>) {
-        self.best_bid_tick = INVALID_MIN;
-        self.best_ask_tick = INVALID_MAX;
-        self.low_bid_tick = INVALID_MAX;
-        self.high_ask_tick = INVALID_MIN;
-        self.bid_depth.clear();
-        self.ask_depth.clear();
-        for row_num in 0..data.len() {
-            let price = data[row_num].px;
-            let qty = data[row_num].qty;
-            let ts = data[row_num].exch_ts;
-
-            let price_tick = (price / self.tick_size).round() as i64;
-            if data[row_num].ev & BUY_EVENT == BUY_EVENT {
-                self.best_bid_tick = self.best_bid_tick.max(price_tick);
-                self.low_bid_tick = self.low_bid_tick.min(price_tick);
-                *self.bid_depth.entry(price_tick).or_default() = QtyTimestamp { qty, ts };
-            } else if data[row_num].ev & SELL_EVENT == SELL_EVENT {
-                self.best_ask_tick = self.best_ask_tick.min(price_tick);
-                self.high_ask_tick = self.high_ask_tick.max(price_tick);
-                *self.ask_depth.entry(price_tick).or_default() = QtyTimestamp { qty, ts };
-            }
-        }
-    }
-
-    fn snapshot(&self) -> Vec<Event> {
-        let mut events = Vec::new();
-
-        let mut bid_depth = self
-            .bid_depth
-            .iter()
-            .map(|(&px_tick, qty)| (px_tick, qty))
-            .collect::<Vec<_>>();
-        bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
-        for (px_tick, qty) in bid_depth {
-            events.push(Event {
-                ev: EXCH_EVENT | LOCAL_EVENT | BUY_EVENT | DEPTH_SNAPSHOT_EVENT,
-                exch_ts: qty.ts,
-                // todo: it's not a problem now, but it would be better to have valid timestamps.
-                local_ts: 0,
-                px: px_tick as f64 * self.tick_size,
-                qty: qty.qty,
-                order_id: 0,
-                ival: 0,
-                fval: 0.0,
-            });
-        }
-
-        let mut ask_depth = self
-            .ask_depth
-            .iter()
-            .map(|(&px_tick, qty)| (px_tick, qty))
-            .collect::<Vec<_>>();
-        ask_depth.sort_by(|a, b| a.0.cmp(&b.0));
-        for (px_tick, qty) in ask_depth {
-            events.push(Event {
-                ev: EXCH_EVENT | LOCAL_EVENT | SELL_EVENT | DEPTH_SNAPSHOT_EVENT,
-                exch_ts: qty.ts,
-                // todo: it's not a problem now, but it would be better to have valid timestamps.
-                local_ts: 0,
-                px: px_tick as f64 * self.tick_size,
-                qty: qty.qty,
-                order_id: 0,
-                ival: 0,
-                fval: 0.0,
-            });
-        }
-
-        events
-    }
-}
-
-impl L1MarketDepth for FusedHashMapMarketDepth {
-    fn update_best_bid(
-        &mut self,
-        px: f64,
-        qty: f64,
-        timestamp: i64,
-    ) -> (i64, i64, i64, f64, f64, i64) {
-        let price_tick = (px / self.tick_size).round() as i64;
-        let prev_best_bid_tick = self.best_bid_tick;
-        let prev_qty;
-        match self.bid_depth.entry(price_tick) {
-            Entry::Occupied(mut entry) => {
-                let QtyTimestamp {
-                    qty: prev_qty_,
-                    ts: prev_timestamp,
-                } = *entry.get();
-                prev_qty = prev_qty_;
-                if timestamp > prev_timestamp {
-                    *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
-                }
-            }
-            Entry::Vacant(entry) => {
-                prev_qty = 0f64;
-                entry.insert(QtyTimestamp { qty, ts: timestamp });
-            }
-        }
-
-        if timestamp >= self.best_bid_timestamp {
-            self.best_bid_tick = price_tick;
-            self.best_bid_timestamp = timestamp;
-            if self.best_bid_tick >= self.best_ask_tick {
-                if timestamp >= self.best_ask_timestamp {
-                    self.best_ask_tick =
-                        depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
-                    self.best_ask_timestamp = timestamp;
-                } else {
-                    self.best_bid_tick =
-                        depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
-                    self.best_bid_timestamp = self.best_ask_timestamp;
-                }
-            }
-        }
-        (
-            price_tick,
-            prev_best_bid_tick,
-            self.best_bid_tick,
-            prev_qty,
-            qty,
-            timestamp,
-        )
-    }
-
-    fn update_best_ask(
-        &mut self,
-        px: f64,
-        qty: f64,
-        timestamp: i64,
-    ) -> (i64, i64, i64, f64, f64, i64) {
-        let price_tick = (px / self.tick_size).round() as i64;
-        let prev_best_ask_tick = self.best_ask_tick;
-        let prev_qty;
-        match self.ask_depth.entry(price_tick) {
-            Entry::Occupied(mut entry) => {
-                let QtyTimestamp {
-                    qty: prev_qty_,
-                    ts: prev_timestamp,
-                } = *entry.get();
-                prev_qty = prev_qty_;
-                if timestamp > prev_timestamp {
-                    *entry.get_mut() = QtyTimestamp { qty, ts: timestamp };
-                }
-            }
-            Entry::Vacant(entry) => {
-                prev_qty = 0f64;
-                entry.insert(QtyTimestamp { qty, ts: timestamp });
-            }
-        }
-
-        if timestamp >= self.best_ask_timestamp {
-            self.best_ask_tick = price_tick;
-            self.best_ask_timestamp = timestamp;
-            if self.best_bid_tick >= self.best_ask_tick {
-                if timestamp >= self.best_bid_timestamp {
-                    self.best_bid_tick =
-                        depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
-                    self.best_bid_timestamp = timestamp;
-                } else {
-                    self.best_ask_tick =
-                        depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
-                    self.best_ask_timestamp = self.best_bid_timestamp;
-                }
-            }
-        }
-        (
-            price_tick,
-            prev_best_ask_tick,
-            self.best_ask_tick,
-            prev_qty,
-            qty,
-            timestamp,
-        )
+    pub fn ask_qty_at_tick(&self, tick: i64) -> f64 {
+        self.ask_depth.get(&tick).map(|v| v.qty).unwrap_or(0.0)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::depth::{L1MarketDepth, L2MarketDepth, MarketDepth, fuse::FusedHashMapMarketDepth};
+    use crate::{
+        depth::FusedHashMapMarketDepth,
+        types::{BUY_EVENT, DEPTH_EVENT, Event, SELL_EVENT},
+    };
 
     #[test]
     fn test_update_bid_depth() {
         let mut depth = FusedHashMapMarketDepth::new(0.1, 0.01);
 
-        depth.update_bid_depth(10.1, 0.01, 1);
-        depth.update_bid_depth(10.2, 0.02, 1);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.1,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.2,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 102);
-        depth.update_bid_depth(10.2, 0.03, 0);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 10.2,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.bid_qty_at_tick(102), 0.02);
-        depth.update_bid_depth(10.3, 0.03, 0);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 10.3,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 102);
-        depth.update_bid_depth(10.3, 0.03, 2);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.3,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 103);
-        depth.update_bid_depth(10.3, 0.0, 1);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.3,
+            qty: 0.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 103);
         assert_eq!(depth.bid_qty_at_tick(103), 0.03);
-        depth.update_bid_depth(10.3, 0.0, 2);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.3,
+            qty: 0.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 102);
     }
 
@@ -536,19 +659,82 @@ mod tests {
     fn test_update_ask_depth() {
         let mut depth = FusedHashMapMarketDepth::new(0.1, 0.01);
 
-        depth.update_ask_depth(10.2, 0.02, 1);
-        depth.update_ask_depth(10.1, 0.01, 1);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.2,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.1,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_ask_tick(), 101);
-        depth.update_ask_depth(10.1, 0.03, 0);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 10.1,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.ask_qty_at_tick(101), 0.01);
-        depth.update_ask_depth(10.0, 0.03, 0);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 10.0,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_ask_tick(), 101);
-        depth.update_ask_depth(10.0, 0.03, 2);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.0,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_ask_tick(), 100);
-        depth.update_ask_depth(10.0, 0.0, 1);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.0,
+            qty: 0.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_ask_tick(), 100);
         assert_eq!(depth.ask_qty_at_tick(100), 0.03);
-        depth.update_ask_depth(10.0, 0.0, 2);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.0,
+            qty: 0.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_ask_tick(), 101);
     }
 
@@ -556,26 +742,116 @@ mod tests {
     fn test_update_bid_ask_depth_cross() {
         let mut depth = FusedHashMapMarketDepth::new(0.1, 0.01);
 
-        depth.update_bid_depth(10.1, 0.01, 1);
-        depth.update_bid_depth(10.2, 0.02, 1);
-        depth.update_ask_depth(10.3, 0.02, 1);
-        depth.update_ask_depth(10.4, 0.01, 1);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.1,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.2,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.3,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.4,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
 
-        depth.update_ask_depth(10.2, 0.01, 3);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 3,
+            local_ts: 3,
+            px: 10.2,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 101);
         assert_eq!(depth.best_ask_tick(), 102);
 
-        depth.update_bid_depth(10.2, 0.03, 5);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 5,
+            local_ts: 5,
+            px: 10.2,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 102);
         assert_eq!(depth.best_ask_tick(), 103);
 
-        depth.update_ask_depth(10.2, 0.01, 4);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 4,
+            local_ts: 4,
+            px: 10.2,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 102);
         assert_eq!(depth.best_ask_tick(), 103);
-        depth.update_ask_depth(10.2, 0.0, 4);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 4,
+            local_ts: 4,
+            px: 10.2,
+            qty: 0.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
 
-        depth.update_ask_depth(10.3, 0.01, 7);
-        depth.update_bid_depth(10.3, 0.01, 6);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 7,
+            local_ts: 7,
+            px: 10.3,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 6,
+            local_ts: 6,
+            px: 10.3,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 102);
         assert_eq!(depth.best_ask_tick(), 103);
     }
@@ -584,28 +860,127 @@ mod tests {
     fn test_update_best_bid() {
         let mut depth = FusedHashMapMarketDepth::new(0.1, 0.01);
 
-        depth.update_bid_depth(10.1, 0.01, 1);
-        depth.update_bid_depth(10.2, 0.02, 1);
-        depth.update_ask_depth(10.3, 0.02, 1);
-        depth.update_ask_depth(10.4, 0.01, 1);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.1,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.2,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.3,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.4,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
 
-        depth.update_best_bid(10.3, 0.03, 0);
+        depth.update_best_bid(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 10.3,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 102);
-        depth.update_best_bid(10.2, 0.03, 2);
+        depth.update_best_bid(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.2,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.bid_qty_at_tick(102), 0.03);
-        depth.update_best_bid(10.3, 0.01, 3);
+        depth.update_best_bid(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 3,
+            local_ts: 3,
+            px: 10.3,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 103);
         assert_eq!(depth.bid_qty_at_tick(103), 0.01);
         assert_eq!(depth.best_ask_tick(), 104);
 
-        depth.update_bid_depth(10.1, 0.01, 5);
-        depth.update_bid_depth(10.2, 0.02, 5);
-        depth.update_best_bid(10.1, 0.05, 2);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 5,
+            local_ts: 5,
+            px: 10.1,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 5,
+            local_ts: 5,
+            px: 10.2,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_best_bid(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.1,
+            qty: 0.05,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 103);
         assert_eq!(depth.best_ask_tick(), 104);
         assert_eq!(depth.bid_qty_at_tick(101), 0.01);
 
-        depth.update_best_bid(10.1, 0.05, 6);
+        depth.update_best_bid(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 6,
+            local_ts: 6,
+            px: 10.1,
+            qty: 0.05,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 101);
     }
 
@@ -613,28 +988,127 @@ mod tests {
     fn test_update_best_ask() {
         let mut depth = FusedHashMapMarketDepth::new(0.1, 0.01);
 
-        depth.update_bid_depth(10.1, 0.01, 1);
-        depth.update_bid_depth(10.2, 0.02, 1);
-        depth.update_ask_depth(10.3, 0.02, 1);
-        depth.update_ask_depth(10.4, 0.01, 1);
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.1,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.2,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.3,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 10.4,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
 
-        depth.update_best_ask(10.2, 0.03, 0);
+        depth.update_best_ask(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 10.2,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_ask_tick(), 103);
-        depth.update_best_ask(10.3, 0.03, 2);
+        depth.update_best_ask(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.3,
+            qty: 0.03,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.ask_qty_at_tick(103), 0.03);
-        depth.update_best_ask(10.2, 0.01, 3);
+        depth.update_best_ask(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 3,
+            local_ts: 3,
+            px: 10.2,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 101);
         assert_eq!(depth.ask_qty_at_tick(102), 0.01);
         assert_eq!(depth.best_ask_tick(), 102);
 
-        depth.update_ask_depth(10.3, 0.02, 5);
-        depth.update_ask_depth(10.4, 0.01, 5);
-        depth.update_best_ask(10.4, 0.05, 2);
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 5,
+            local_ts: 5,
+            px: 10.3,
+            qty: 0.02,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 5,
+            local_ts: 5,
+            px: 10.4,
+            qty: 0.01,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_best_ask(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 2,
+            local_ts: 2,
+            px: 10.4,
+            qty: 0.05,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_bid_tick(), 101);
         assert_eq!(depth.best_ask_tick(), 102);
         assert_eq!(depth.ask_qty_at_tick(104), 0.01);
 
-        depth.update_best_ask(10.4, 0.05, 6);
+        depth.update_best_ask(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 6,
+            local_ts: 6,
+            px: 10.4,
+            qty: 0.05,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
         assert_eq!(depth.best_ask_tick(), 104);
     }
 }
