@@ -6,7 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
+use ed25519_dalek::{Signature as Ed25519Signature, Signer, SigningKey, pkcs8::DecodePrivateKey};
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, Mac};
@@ -18,10 +20,6 @@ use serde::{
     de::{Error, Visitor},
 };
 use sha2::Sha256;
-use base64::{engine::general_purpose, Engine as _};
-use ed25519_dalek::pkcs8::DecodePrivateKey;
-use ed25519_dalek::SigningKey;
-use ed25519_dalek::{Signature as Ed25519Signature, Signer};
 
 use crate::bybit::BybitError;
 

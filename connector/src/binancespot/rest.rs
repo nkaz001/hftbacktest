@@ -1,9 +1,21 @@
 use chrono::Utc;
 use hftbacktest::types::{OrdType, Side, TimeInForce};
 use serde::Deserialize;
-use super::msg::{rest};
-use crate::{binancespot::{msg::rest::{AccountInfomation, CancelOrderResponse, CancelOrderResponseResult, OrderResponse, OrderResponseResult}, BinanceSpotError}, utils::sign_ed25519};
 
+use super::msg::rest;
+use crate::{
+    binancespot::{
+        BinanceSpotError,
+        msg::rest::{
+            AccountInfomation,
+            CancelOrderResponse,
+            CancelOrderResponseResult,
+            OrderResponse,
+            OrderResponseResult,
+        },
+    },
+    utils::sign_ed25519,
+};
 
 #[derive(Clone)]
 pub struct BinanceSpotClient {
@@ -11,7 +23,7 @@ pub struct BinanceSpotClient {
     url: String,
     pub api_key: String,
     pub secret: String,
-    // pub 
+    // pub
 }
 
 impl BinanceSpotClient {
@@ -150,17 +162,18 @@ impl BinanceSpotClient {
         Ok(resp)
     }
 
-    pub async fn cancel_all_orders(
-        &self,
-        symbol: &str,
-    ) -> Result<(), reqwest::Error> {
+    pub async fn cancel_all_orders(&self, symbol: &str) -> Result<(), reqwest::Error> {
         let _: serde_json::Value = self
             .delete("/api/v3/openOrders", format!("symbol={}", symbol))
             .await?;
         Ok(())
     }
 
-    pub async fn cancel_order(&self, client_order_id: &str, symbol: &str) -> Result<CancelOrderResponse, BinanceSpotError> {
+    pub async fn cancel_order(
+        &self,
+        client_order_id: &str,
+        symbol: &str,
+    ) -> Result<CancelOrderResponse, BinanceSpotError> {
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
         body.push_str(symbol);
@@ -177,14 +190,16 @@ impl BinanceSpotClient {
         }
     }
 
-    pub async fn submit_order(&self, client_order_id: &str,
+    pub async fn submit_order(
+        &self,
+        client_order_id: &str,
         symbol: &str,
         side: Side,
         price: f64,
         price_prec: usize,
         qty: f64,
         order_type: OrdType,
-        time_in_force: TimeInForce
+        time_in_force: TimeInForce,
     ) -> Result<OrderResponse, BinanceSpotError> {
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");

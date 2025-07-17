@@ -44,7 +44,6 @@ pub struct MarketDataStream {
     rest_rx: UnboundedReceiver<(String, rest::Depth)>,
 }
 
-
 impl MarketDataStream {
     pub fn new(
         client: BinanceSpotClient,

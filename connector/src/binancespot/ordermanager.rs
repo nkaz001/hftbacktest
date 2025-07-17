@@ -7,11 +7,11 @@ use tracing::error;
 
 use crate::{
     binancespot::{
-        msg::{rest::OrderResponse, stream::ExecutionReport}, BinanceSpotError
-        // msg::{rest::OrderResponse, stream::OrderTradeUpdate},
+        BinanceSpotError, // msg::{rest::OrderResponse, stream::OrderTradeUpdate},
+        msg::{rest::OrderResponse, stream::ExecutionReport},
     },
     connector::GetOrders,
-    utils::{generate_rand_string, RefSymbolOrderId, SymbolOrderId},
+    utils::{RefSymbolOrderId, SymbolOrderId, generate_rand_string},
 };
 
 #[derive(Debug)]
@@ -25,7 +25,6 @@ struct OrderExt {
 pub type SharedOrderManager = Arc<Mutex<OrderManager>>;
 
 pub type ClientOrderId = String;
-
 
 #[derive(Default, Debug)]
 pub struct OrderManager {
@@ -58,8 +57,7 @@ impl OrderManager {
         let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
         if resp.event_time * 1_000_000 >= order_ext.order.exch_timestamp {
             order_ext.order.qty = resp.quantity;
-            order_ext.order.leaves_qty =
-                resp.quantity - resp.order_filled_accumulated_quantity;
+            order_ext.order.leaves_qty = resp.quantity - resp.order_filled_accumulated_quantity;
             order_ext.order.side = resp.side;
             order_ext.order.time_in_force = resp.time_in_force;
             order_ext.order.exch_timestamp = resp.event_time * 1_000_000;

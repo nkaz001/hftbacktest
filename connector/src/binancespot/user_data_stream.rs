@@ -21,11 +21,21 @@ use tracing::{debug, error, warn};
 
 use crate::{
     binancespot::{
-        msg::stream::{SignParams, SignRequest, UserEventStream, UserStream, UserStreamSubscribeRequest}, ordermanager::SharedOrderManager, rest::BinanceSpotClient, BinanceSpotError, SharedSymbolSet
+        BinanceSpotError,
+        SharedSymbolSet,
+        msg::stream::{
+            SignParams,
+            SignRequest,
+            UserEventStream,
+            UserStream,
+            UserStreamSubscribeRequest,
+        },
+        ordermanager::SharedOrderManager,
+        rest::BinanceSpotClient,
     },
-    connector::PublishEvent, utils::{generate_rand_string, get_timestamp, sign_ed25519},
+    connector::PublishEvent,
+    utils::{generate_rand_string, get_timestamp, sign_ed25519},
 };
-
 
 pub struct UserDataStream {
     symbols: SharedSymbolSet,
@@ -70,8 +80,7 @@ impl UserDataStream {
                         .unwrap();
                 }
             }
-            UserEventStream::BalanceUpdate(_data) => {
-            },
+            UserEventStream::BalanceUpdate(_data) => {}
             UserEventStream::ExecutionReport(data) => {
                 match self.order_manager.lock().unwrap().update_from_ws(&data) {
                     Ok(Some(order)) => {
@@ -81,24 +90,23 @@ impl UserDataStream {
                                 order,
                             }))
                             .unwrap();
-                    },
+                    }
                     Ok(None) => {
                         // order已经删除
-                    },
+                    }
                     Err(BinanceSpotError::PrefixUnmatched) => {
                         // order不是当前connector创建的
-                    },
+                    }
                     Err(error) => {
                         error!(
                             ?error,
                             ?data,
                             "Couldn't update the order from OrderTradeUpdate message."
                         );
-                    },
+                    }
                 }
-            },
-            UserEventStream::ListStatus(_data) => {
-            },
+            }
+            UserEventStream::ListStatus(_data) => {}
         }
         Ok(())
     }
@@ -128,13 +136,10 @@ impl UserDataStream {
             let signature = sign_ed25519(&self.client.secret, &payload);
             req.params.signature = Some(signature);
             let _ = write
-            .send(Message::Text(
-                serde_json::to_string(&req).unwrap().into(),
-            ))
-            .await;
+                .send(Message::Text(serde_json::to_string(&req).unwrap().into()))
+                .await;
         }
-        
-        
+
         tokio::spawn(async move {
             // Cancel all orders before connecting to the stream in order to start with the
             // clean state.
@@ -277,7 +282,7 @@ pub async fn get_position_information(
             .send(PublishEvent::LiveEvent(LiveEvent::Position {
                 symbol: balance.asset,
                 qty: balance.free,
-                exch_ts
+                exch_ts,
             }))
             .unwrap();
     });

@@ -44,7 +44,12 @@ use hftbacktest::{
 };
 use hftbacktest_derive::build_asset;
 pub use order::*;
-use pyo3::{exceptions::{PyValueError, PyDeprecationWarning}, prelude::*, PyTypeInfo, ffi::c_str};
+use pyo3::{
+    PyTypeInfo,
+    exceptions::{PyDeprecationWarning, PyValueError},
+    ffi::c_str,
+    prelude::*,
+};
 
 #[cfg(feature = "live")]
 use crate::live::{HashMapMarketDepthLiveBot, ROIVectorMarketDepthLiveBot};
@@ -243,7 +248,8 @@ impl BacktestAsset {
                 c_str!("constant_latency() is deprecated; use constant_order_latency()."),
                 1,
             )
-        }).unwrap();
+        })
+        .unwrap();
 
         slf.latency_model = LatencyModel::ConstantLatency {
             entry_latency,

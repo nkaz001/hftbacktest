@@ -1,5 +1,6 @@
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{Deserialize, Serialize};
+
 use super::{from_str_to_side, from_str_to_status, from_str_to_tif, from_str_to_type};
 use crate::utils::{from_str_to_f64, to_lowercase};
 
@@ -7,8 +8,8 @@ use crate::utils::{from_str_to_f64, to_lowercase};
 #[serde(rename_all = "camelCase")]
 pub struct Depth {
     pub last_update_id: i64,
-    pub asks: Vec<(String,String)>,
-    pub bids: Vec<(String,String)>,
+    pub asks: Vec<(String, String)>,
+    pub bids: Vec<(String, String)>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -41,9 +42,7 @@ pub struct OrderResponse {
     pub status: Status,
     #[serde(deserialize_with = "from_str_to_tif")]
     pub time_in_force: TimeInForce,
-    #[serde(
-        rename = "type",
-    )]
+    #[serde(rename = "type")]
     #[serde(deserialize_with = "from_str_to_type")]
     pub order_type: OrdType,
     #[serde(deserialize_with = "from_str_to_side")]
@@ -91,13 +90,11 @@ pub struct CancelOrderResponse {
     pub status: Status,
     #[serde(deserialize_with = "from_str_to_tif")]
     pub time_in_force: TimeInForce,
-    #[serde(
-        rename = "type",
-    )]
+    #[serde(rename = "type")]
     #[serde(deserialize_with = "from_str_to_type")]
     pub order_type: OrdType,
     #[serde(deserialize_with = "from_str_to_side")]
-    pub side: Side, 
+    pub side: Side,
     pub self_trade_prevention_mode: String,
 }
 

@@ -1,9 +1,8 @@
 mod market_data_stream;
-mod user_data_stream;
 mod msg;
+mod ordermanager;
 mod rest;
-mod ordermanager;  
-
+mod user_data_stream;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -21,7 +20,13 @@ use tokio_tungstenite::tungstenite;
 use tracing::{debug, error, warn};
 
 use crate::{
-    binancespot::{msg::rest::OrderResponse, ordermanager::{OrderManager, SharedOrderManager}, rest::BinanceSpotClient}, connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent}, utils::{ExponentialBackoff, Retry}
+    binancespot::{
+        msg::rest::OrderResponse,
+        ordermanager::{OrderManager, SharedOrderManager},
+        rest::BinanceSpotClient,
+    },
+    connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
+    utils::{ExponentialBackoff, Retry},
 };
 
 #[derive(Error, Debug)]
@@ -80,7 +85,6 @@ impl From<BinanceSpotError> for Value {
     }
 }
 
-
 #[derive(Deserialize)]
 pub struct Config {
     stream_url: String,
@@ -96,7 +100,6 @@ pub struct Config {
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;
-
 
 /// A connector for Binance Spot.
 pub struct BinanceSpot {
@@ -206,7 +209,6 @@ impl ConnectorBuilder for BinanceSpot {
         })
     }
 }
-
 
 impl Connector for BinanceSpot {
     fn register(&mut self, symbol: String) {
