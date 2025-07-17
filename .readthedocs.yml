@@ -11,8 +11,8 @@ build:
   tools:
     python: "3.10"
   commands:
-    - asdf install rust 1.87
-    - asdf global rust 1.87
+    - asdf install rust 1.88
+    - asdf global rust 1.88
     - cp examples/*.ipynb docs/tutorials
     - python -mvirtualenv $READTHEDOCS_VIRTUALENV_PATH
     - python -m pip install --upgrade --no-cache-dir pip setuptools
