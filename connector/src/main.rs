@@ -32,7 +32,10 @@ use tokio::{
 use tracing::error;
 
 use crate::{
-    binancefutures::BinanceFutures, binancespot::BinanceSpot, bybit::Bybit, connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent}, fuse::FusedHashMapMarketDepth
+    binancefutures::BinanceFutures,
+    binancespot::BinanceSpot,
+    bybit::Bybit,
+    connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
 };
 
 #[cfg(feature = "binancefutures")]
@@ -43,7 +46,7 @@ pub mod binancespot;
 pub mod bybit;
 
 mod connector;
-mod fuse;
+//mod fuse;
 mod utils;
 
 struct Position {
@@ -86,13 +89,14 @@ fn run_receive_task(
                         LiveRequest::RegisterInstrument {
                             symbol,
                             tick_size,
-                            lot_size: _,
+                            lot_size,
                         } => {
                             // Makes prepare the publisher thread to also add the instrument.
                             tx.send(PublishEvent::RegisterInstrument {
                                 id,
                                 symbol: symbol.clone(),
                                 tick_size,
+                                lot_size,
                             })
                             .unwrap();
                             // Requests to the Connector subscribe to the necessary feeds for the
@@ -131,6 +135,7 @@ async fn run_publish_task(
                         id,
                         symbol,
                         tick_size,
+                        lot_size,
                     } => {
                         // Sends the current state (orders, position, and market depth) to the bot that
                         // requested to add this instrument in batch mode.
@@ -172,7 +177,7 @@ async fn run_publish_task(
                                 }
                             }
                             Entry::Vacant(entry) => {
-                                entry.insert(FusedHashMapMarketDepth::new(tick_size));
+                                entry.insert(FusedHashMapMarketDepth::new(tick_size, lot_size));
                             }
                         }
 
@@ -180,7 +185,7 @@ async fn run_publish_task(
                     }
                     PublishEvent::LiveEvent(ev) => {
                         // The live event will only be published if the result is true.
-                        if handle_ev(&ev, &mut depth, &mut position) {
+                        for ev in handle_ev(ev, &mut depth, &mut position) {
                             bot_tx.send(TO_ALL, &ev)?;
                         }
                     }
@@ -206,52 +211,80 @@ async fn run_publish_task(
 /// For example, publication is unnecessary if the received market depth data is outdated by more
 /// recent data from a different stream due to fusion.
 fn handle_ev(
-    ev: &LiveEvent,
+    ev: LiveEvent,
     depth: &mut HashMap<String, FusedHashMapMarketDepth>,
     position: &mut HashMap<String, Position>,
-) -> bool {
-    match ev {
+) -> Vec<LiveEvent> {
+    match &ev {
         LiveEvent::Feed { symbol, event } => {
             if event.is(BUY_EVENT | DEPTH_EVENT) {
                 let depth_ = {
                     match depth.get_mut(symbol) {
                         Some(d) => d,
-                        None => return false,
+                        None => return vec![],
                     }
                 };
-                return depth_.update_bid_depth(event.px, event.qty, event.exch_ts);
+                return depth_
+                    .update_bid_depth(event.clone())
+                    .iter()
+                    .map(|event| LiveEvent::Feed {
+                        symbol: symbol.clone(),
+                        event: event.clone(),
+                    })
+                    .collect();
             } else if event.is(SELL_EVENT | DEPTH_EVENT) {
                 let depth_ = {
                     match depth.get_mut(symbol) {
                         Some(d) => d,
-                        None => return false,
+                        None => return vec![],
                     }
                 };
-                return depth_.update_ask_depth(event.px, event.qty, event.exch_ts);
+                return depth_
+                    .update_ask_depth(event.clone())
+                    .iter()
+                    .map(|event| LiveEvent::Feed {
+                        symbol: symbol.clone(),
+                        event: event.clone(),
+                    })
+                    .collect();
             } else if event.is(BUY_EVENT | DEPTH_BBO_EVENT) {
                 let depth_ = {
                     match depth.get_mut(symbol) {
                         Some(d) => d,
-                        None => return false,
+                        None => return vec![],
                     }
                 };
-                return depth_.update_best_bid(event.px, event.qty, event.exch_ts);
+                return depth_
+                    .update_best_bid(event.clone())
+                    .iter()
+                    .map(|event| LiveEvent::Feed {
+                        symbol: symbol.clone(),
+                        event: event.clone(),
+                    })
+                    .collect();
             } else if event.is(SELL_EVENT | DEPTH_BBO_EVENT) {
                 let depth_ = {
                     match depth.get_mut(symbol) {
                         Some(d) => d,
-                        None => return false,
+                        None => return vec![],
                     }
                 };
-                return depth_.update_best_ask(event.px, event.qty, event.exch_ts);
+                return depth_
+                    .update_best_ask(event.clone())
+                    .iter()
+                    .map(|event| LiveEvent::Feed {
+                        symbol: symbol.clone(),
+                        event: event.clone(),
+                    })
+                    .collect();
             } else if event.is(DEPTH_CLEAR_EVENT) {
                 let depth_ = {
                     match depth.get_mut(symbol) {
                         Some(d) => d,
-                        None => return false,
+                        None => return vec![],
                     }
                 };
-                depth_.clear_depth(Side::None, 0.0);
+                depth_.clear_depth(Side::None, 0.0, 0);
             }
         }
         LiveEvent::Position {
@@ -263,9 +296,9 @@ fn handle_ev(
                 let position = position.get_mut(symbol).unwrap();
                 return if *exch_ts >= position.exch_ts {
                     position.qty = *qty;
-                    true
+                    vec![ev]
                 } else {
-                    false
+                    vec![]
                 };
             } else {
                 position.insert(
@@ -275,12 +308,12 @@ fn handle_ev(
                         exch_ts: *exch_ts,
                     },
                 );
-                return true;
+                return vec![ev];
             }
         }
         _ => {}
     }
-    true
+    vec![ev]
 }
 
 #[derive(Parser, Debug)]
@@ -368,12 +401,12 @@ async fn main() {
         }
         "binancespot" => {
             let mut connector = BinanceSpot::build_from(&config)
-            .map_err(|error| {
-                error!(?error, "Couldn't build the Bybit connector.");
-            })
-            .unwrap();
+                .map_err(|error| {
+                    error!(?error, "Couldn't build the Bybit connector.");
+                })
+                .unwrap();
             connector.run(pub_tx.clone());
-            Box::new(connector) 
+            Box::new(connector)
         }
         connector => {
             error!(%connector, "This connector doesn't exist.");

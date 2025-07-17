@@ -15,6 +15,7 @@ pub enum PublishEvent {
         id: u64,
         symbol: String,
         tick_size: f64,
+        lot_size: f64,
     },
 }
 

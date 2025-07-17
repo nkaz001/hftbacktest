@@ -25,7 +25,6 @@ default = ["backtest", "live"]
 backtest = ["zip", "uuid", "nom", "hftbacktest-derive"]
 live = ["chrono", "tokio", "futures-util", "iceoryx2", "rand", "toml", "serde"]
 s3 = ["aws-config", "aws-sdk-s3", "tokio"]
-unstable_fuse = []
 
 [dependencies]
 tracing = "0.1.41"
