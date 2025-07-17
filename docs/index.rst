@@ -15,9 +15,6 @@ This framework is designed for developing high frequency trading and market maki
 Key Features
 ============
 
-The experimental features are currently in the early stages of development, having been completely rewritten in Rust to
-support the following features.
-
 * Working in `Numba <https://numba.pydata.org/>`_ JIT function (Python).
 * Complete tick-by-tick simulation with a customizable time interval or based on the feed and order receipt.
 * Full order book reconstruction based on L2 Market-By-Price and L3 Market-By-Order feeds.
