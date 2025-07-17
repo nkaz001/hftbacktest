@@ -240,6 +240,6 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
     :target: https://github.com/nkaz001/hftbacktest
     :alt: Github
 
-.. |rustc| image:: https://shields.io/badge/rustc-1.87-blue
+.. |rustc| image:: https://shields.io/badge/rustc-1.88-blue
     :alt: Rust Version
     :target: https://www.rust-lang.org/

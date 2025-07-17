@@ -16,7 +16,7 @@ keywords = [
     "hft"
 ]
 categories = ["finance", "mathematics", "science", "algorithms", "simulation"]
-rust-version = "1.86"
+rust-version = "1.88"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
