@@ -84,7 +84,7 @@ impl BinanceSpotClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={}{}", time, body);
+        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
         let signature = sign_ed25519(&self.secret, &sign_body);
         let resp = self
             .client
@@ -108,7 +108,7 @@ impl BinanceSpotClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={}{}", time, body);
+        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
         let signature = sign_ed25519(&self.secret, &sign_body);
         let resp = self
             .client
@@ -132,7 +132,7 @@ impl BinanceSpotClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={}{}", time, body);
+        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
         let signature = sign_ed25519(&self.secret, &sign_body);
         let resp = self
             .client
@@ -152,7 +152,7 @@ impl BinanceSpotClient {
 
     pub async fn get_depth(&self, symbol: &str) -> Result<rest::Depth, reqwest::Error> {
         let resp: rest::Depth = self
-            .get_noauth("/api/v1/depth", format!("symbol={}&limit=1000", symbol))
+            .get_noauth("/api/v1/depth", format!("symbol={symbol}&limit=1000"))
             .await?;
         Ok(resp)
     }
@@ -164,7 +164,7 @@ impl BinanceSpotClient {
 
     pub async fn cancel_all_orders(&self, symbol: &str) -> Result<(), reqwest::Error> {
         let _: serde_json::Value = self
-            .delete("/api/v3/openOrders", format!("symbol={}", symbol))
+            .delete("/api/v3/openOrders", format!("symbol={symbol}"))
             .await?;
         Ok(())
     }
@@ -209,9 +209,9 @@ impl BinanceSpotClient {
         body.push_str("&side=");
         body.push_str(side.as_ref());
         body.push_str("&price=");
-        body.push_str(&format!("{:.prec$}", price, prec = price_prec));
+        body.push_str(&format!("{price:.price_prec$}"));
         body.push_str("&quantity=");
-        body.push_str(&format!("{:.5}", qty));
+        body.push_str(&format!("{qty:.5}"));
         body.push_str("&type=");
         body.push_str(order_type.as_ref());
         body.push_str("&timeInForce=");

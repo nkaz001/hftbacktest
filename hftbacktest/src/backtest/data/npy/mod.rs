@@ -210,13 +210,10 @@ mod s3_support {
             .key(key)
             .send()
             .await
-            .map_err(|e| Error::new(ErrorKind::Other, format!("S3 request failed: {}", e)))?;
+            .map_err(|e| Error::other(format!("S3 request failed: {e}")))?;
 
         let bytes = response.body.collect().await.map_err(|e| {
-            Error::new(
-                ErrorKind::Other,
-                format!("Failed to read response body: {}", e),
-            )
+            Error::other(format!("Failed to read response body: {e}"))
         })?;
 
         Ok(bytes.into_bytes().to_vec())
@@ -225,7 +222,7 @@ mod s3_support {
     pub fn read_s3_object(s3_path: &str) -> std::io::Result<Vec<u8>> {
         // Create runtime
         let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            Error::new(ErrorKind::Other, format!("Failed to create runtime: {}", e))
+            Error::other(format!("Failed to create runtime: {e}"))
         })?;
 
         rt.block_on(read_s3_object_async(s3_path))
@@ -337,7 +334,7 @@ pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> std::i
             let data = s3_support::read_s3_object(filepath)?;
             let cursor = Cursor::new(data);
             let mut archive = zip::ZipArchive::new(cursor)?;
-            let mut file = archive.by_name(&format!("{}.npy", name))?;
+            let mut file = archive.by_name(&format!("{name}.npy"))?;
             let size = file.size() as usize;
             read_npy(&mut file, size)
         }
@@ -351,7 +348,7 @@ pub fn read_npz_file<D: NpyDTyped + Clone>(filepath: &str, name: &str) -> std::i
         }
     } else {
         let mut archive = zip::ZipArchive::new(File::open(filepath)?)?;
-        let mut file = archive.by_name(&format!("{}.npy", name))?;
+        let mut file = archive.by_name(&format!("{name}.npy"))?;
         let size = file.size() as usize;
         read_npy(&mut file, size)
     }

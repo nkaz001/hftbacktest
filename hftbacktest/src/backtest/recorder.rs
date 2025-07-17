@@ -111,15 +111,7 @@ impl BacktestRecorder {
             {
                 writeln!(
                     file,
-                    "{},{},{},{},{},{},{},{}",
-                    timestamp,
-                    balance,
-                    position,
-                    fee,
-                    trading_volume,
-                    trading_value,
-                    num_trades,
-                    mid_price,
+                    "{timestamp},{balance},{position},{fee},{trading_volume},{trading_value},{num_trades},{mid_price}"
                 )?;
             }
         }

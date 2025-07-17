@@ -43,7 +43,7 @@ iceoryx2 = { version = "0.6.1", optional = true, features = ["logger_tracing"] }
 serde = { version = "1.0.219", optional = true, features = ["derive"] }
 toml = { version = "0.8.22", optional = true }
 hftbacktest-derive = { path = "../hftbacktest-derive", optional = true, version = "0.2.0" }
-aws-config = { version = "1.6.3", optional = true }
+aws-config = { version = "1.6.3", optional = true, features = ["behavior-version-latest"] }
 aws-sdk-s3 = { version = "1.90.0", optional = true }
 
 [dev-dependencies]

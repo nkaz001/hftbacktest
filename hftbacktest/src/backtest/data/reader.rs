@@ -369,7 +369,7 @@ where
                     } => {
                         return Err(BacktestError::DataError(std::io::Error::new(
                             err.kind(),
-                            format!("Failed to read file '{}': {}", key, err),
+                            format!("Failed to read file '{key}': {err}"),
                         )));
                     }
                 }

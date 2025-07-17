@@ -136,7 +136,7 @@ pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {
     let hash = mac.finalize().into_bytes();
     let mut tmp = String::with_capacity(hash.len() * 2);
     for c in hash {
-        write!(&mut tmp, "{:02x}", c).unwrap();
+        write!(&mut tmp, "{c:02x}").unwrap();
     }
     tmp
 }
@@ -144,8 +144,7 @@ pub fn sign_hmac_sha256(secret: &str, s: &str) -> String {
 pub fn sign_ed25519(private_key: &str, s: &str) -> String {
     let private_key = SigningKey::from_pkcs8_pem(private_key).unwrap();
     let signature: Ed25519Signature = private_key.sign(s.as_bytes());
-    let signature = general_purpose::STANDARD.encode(signature.to_bytes());
-    signature
+    general_purpose::STANDARD.encode(signature.to_bytes())
 }
 
 pub fn get_timestamp() -> u64 {

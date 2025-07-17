@@ -181,7 +181,7 @@ impl BinanceSpot {
                     // let listen_key = stream.get_listen_key().await?;
 
                     debug!("Connecting to the user data stream...");
-                    stream.connect(&format!("{base_url}")).await?;
+                    stream.connect(&base_url).await?;
                     debug!("The user data stream connection is permanently closed.");
                     Ok(())
                 })
