@@ -2,6 +2,7 @@ use std::{ffi::c_void, mem::size_of, ptr::slice_from_raw_parts_mut};
 
 pub use backtest::*;
 pub use depth::*;
+pub use fuse::*;
 #[cfg(feature = "live")]
 use hftbacktest::live::{Instrument, LiveBotBuilder};
 use hftbacktest::{
@@ -56,6 +57,7 @@ use crate::live::{HashMapMarketDepthLiveBot, ROIVectorMarketDepthLiveBot};
 
 mod backtest;
 mod depth;
+mod fuse;
 #[cfg(feature = "live")]
 mod live;
 mod order;

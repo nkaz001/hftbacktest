@@ -2,9 +2,12 @@
 
 use std::mem::forget;
 
-use hftbacktest::{
-    depth::HashMapMarketDepth,
-    prelude::{ApplySnapshot, Event, MarketDepth, ROIVectorMarketDepth},
+use hftbacktest::prelude::{
+    ApplySnapshot,
+    Event,
+    HashMapMarketDepth,
+    MarketDepth,
+    ROIVectorMarketDepth,
 };
 
 #[unsafe(no_mangle)]

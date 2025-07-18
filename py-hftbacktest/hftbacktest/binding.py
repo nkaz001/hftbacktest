@@ -1360,6 +1360,50 @@ class ROIVectorMarketDepthBacktest:
 
 ROIVectorMarketDepthBacktest_ = jitclass(ROIVectorMarketDepthBacktest)
 
+
+fusemarketdepth_new = lib.fusemarketdepth_new
+fusemarketdepth_new.restype = c_void_p
+fusemarketdepth_new.argtypes = [c_double, c_double]
+
+fusemarketdepth_free = lib.fusemarketdepth_free
+fusemarketdepth_free.restype = c_void_p
+fusemarketdepth_free.argtypes = [c_void_p]
+
+fusemarketdepth_process_event = lib.fusemarketdepth_process_event
+fusemarketdepth_process_event.restype = c_bool
+fusemarketdepth_process_event.argtypes = [c_void_p, c_void_p]
+
+fusemarketdepth_fused_events = lib.fusemarketdepth_fused_events
+fusemarketdepth_fused_events.restype = c_void_p
+fusemarketdepth_fused_events.argtypes = [c_void_p, c_uint64]
+
+
+class FuseMarketDepth:
+    ptr: voidptr
+
+    def __init__(self, tick_size: float, lot_size: float):
+        self.ptr = fusemarketdepth_new(tick_size, lot_size)
+
+    def __del__(self):
+        fusemarketdepth_free(self.ptr)
+
+    def process_event(self, ev) -> None:
+        ev_ptr = ev.ctypes.data
+        ok = fusemarketdepth_process_event(self.ptr, ev)
+        if not ok:
+            raise ValueError("Invalid Event")
+
+    def fused_events(self) -> EVENT_ARRAY:
+        length = uint64(0)
+        len_ptr = ptr_from_val(length)
+        ptr = fusemarketdepth_fused_events(self.ptr, len_ptr)
+        return numba.carray(
+            address_as_void_pointer(ptr),
+            val_from_ptr(len_ptr),
+            event_dtype
+        )
+
+
 if LIVE_FEATURE:
     hashmaplive_elapse = lib.hashmaplive_elapse
     hashmaplive_elapse.restype = c_int64

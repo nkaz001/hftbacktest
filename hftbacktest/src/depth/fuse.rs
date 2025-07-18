@@ -72,16 +72,6 @@ impl FusedHashMapMarketDepth {
         }
     }
 
-    pub fn update_depth(&mut self, ev: Event) -> Vec<Event> {
-        if ev.is(BUY_EVENT) {
-            self.update_bid_depth(ev)
-        } else if ev.is(SELL_EVENT) {
-            self.update_ask_depth(ev)
-        } else {
-            panic!();
-        }
-    }
-
     pub fn update_bid_depth(&mut self, ev: Event) -> Vec<Event> {
         let mut result = Vec::new();
 
@@ -339,16 +329,6 @@ impl FusedHashMapMarketDepth {
             self.high_ask_tick = INVALID_MIN;
             self.best_bid_timestamp = timestamp;
             self.best_ask_timestamp = timestamp;
-        }
-    }
-
-    pub fn update_best(&mut self, ev: Event) -> Vec<Event> {
-        if ev.is(BUY_EVENT) {
-            self.update_best_bid(ev)
-        } else if ev.is(SELL_EVENT) {
-            self.update_best_ask(ev)
-        } else {
-            panic!();
         }
     }
 

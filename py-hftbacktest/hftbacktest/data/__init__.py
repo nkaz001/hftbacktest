@@ -3,9 +3,11 @@ from .validation import (
     correct_event_order,
     validate_event_order
 )
+from ..binding import FuseMarketDepth
 
 __all__ = (
     'correct_local_timestamp',
     'correct_event_order',
-    'validate_event_order'
+    'validate_event_order',
+    'FuseMarketDepth'
 )
