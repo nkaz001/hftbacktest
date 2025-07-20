@@ -18,6 +18,7 @@ from numba import (
     int64,
     float64,
     uint8,
+    from_dtype
 )
 from numba.core.types import voidptr
 from numba.experimental import jitclass
@@ -26,7 +27,7 @@ from . import _hftbacktest
 from .intrinsic import ptr_from_val, address_as_void_pointer, val_from_ptr, is_null_ptr
 from .order import order_dtype, Order, Order_
 from .state import StateValues, StateValues_
-from .types import event_dtype, state_values_dtype, EVENT_ARRAY
+from .types import event_dtype, state_values_dtype, EVENT_ARRAY, DEPTH_EVENT, BUY_EVENT, SELL_EVENT
 
 LIVE_FEATURE = 'build_hashmap_livebot' in dir(_hftbacktest)
 
@@ -1369,29 +1370,88 @@ fusemarketdepth_free = lib.fusemarketdepth_free
 fusemarketdepth_free.restype = c_void_p
 fusemarketdepth_free.argtypes = [c_void_p]
 
-fusemarketdepth_process_event = lib.fusemarketdepth_process_event
-fusemarketdepth_process_event.restype = c_bool
-fusemarketdepth_process_event.argtypes = [c_void_p, c_void_p]
+fusemarketdepth_process_depth_event = lib.fusemarketdepth_process_depth_event
+fusemarketdepth_process_depth_event.restype = c_bool
+fusemarketdepth_process_depth_event.argtypes = [c_void_p, c_void_p]
+
+fusemarketdepth_process_bbo_event = lib.fusemarketdepth_process_bbo_event
+fusemarketdepth_process_bbo_event.restype = c_bool
+fusemarketdepth_process_bbo_event.argtypes = [c_void_p, c_void_p]
 
 fusemarketdepth_fused_events = lib.fusemarketdepth_fused_events
 fusemarketdepth_fused_events.restype = c_void_p
-fusemarketdepth_fused_events.argtypes = [c_void_p, c_uint64]
+fusemarketdepth_fused_events.argtypes = [c_void_p, POINTER(c_uint64)]
 
 
-class FuseMarketDepth:
+class _FuseMarketDepth:
     ptr: voidptr
+    buf: from_dtype(event_dtype)[:]
 
-    def __init__(self, tick_size: float, lot_size: float):
+    def __init__(self, tick_size: float64, lot_size: float64):
         self.ptr = fusemarketdepth_new(tick_size, lot_size)
+        self.buf = np.zeros(1, event_dtype)
 
-    def __del__(self):
+    # def __del__(self):
+    #     fusemarketdepth_free(self.ptr)
+
+    def free(self):
         fusemarketdepth_free(self.ptr)
 
-    def process_event(self, ev) -> None:
-        ev_ptr = ev.ctypes.data
-        ok = fusemarketdepth_process_event(self.ptr, ev)
+    def process_depth_event(self, ev, index) -> None:
+        ev_ptr = ev.ctypes.data + 64 * index
+        ok = fusemarketdepth_process_depth_event(self.ptr, ev_ptr)
         if not ok:
-            raise ValueError("Invalid Event")
+            raise ValueError
+
+    def process_bbo_event(self, ev, index) -> None:
+        ev_ptr = ev.ctypes.data + 64 * index
+        ok = fusemarketdepth_process_bbo_event(self.ptr, ev_ptr)
+        if not ok:
+            raise ValueError
+
+    def process_bbo(self, arr, rn):
+        self.buf[0].ev = DEPTH_EVENT | BUY_EVENT
+        self.buf[0].exch_ts = arr[rn].exch_ts
+        self.buf[0].local_ts = arr[rn].local_ts
+        self.buf[0].px = arr[rn].bid_price
+        self.buf[0].qty = arr[rn].bid_amount
+        self.process_bbo_event(self.buf, 0)
+
+        self.buf[0].ev = DEPTH_EVENT | SELL_EVENT
+        self.buf[0].exch_ts = arr[rn].exch_ts
+        self.buf[0].local_ts = arr[rn].local_ts
+        self.buf[0].px = arr[rn].ask_price
+        self.buf[0].qty = arr[rn].ask_amount
+        self.process_bbo_event(self.buf, 0)
+
+    def process(self, ticker_arr, depth_arr):
+        ticker_rn = 0
+        depth_rn = 0
+        while True:
+            if ticker_rn < len(ticker_arr):
+                ticker_ts = ticker_arr[ticker_rn].local_ts
+            else:
+                ticker_ts = 0
+            if depth_rn < len(depth_arr):
+                depth_ts = depth_arr[depth_rn].local_ts
+            else:
+                depth_ts = 0
+
+            if ticker_ts > 0 and depth_ts > 0:
+                if ticker_ts <= depth_ts:
+                    self.process_bbo(ticker_arr, ticker_rn)
+                    ticker_rn += 1
+                else:
+                    self.process_depth_event(depth_arr, depth_rn)
+                    depth_rn += 1
+            elif ticker_ts > 0:
+                self.process_bbo(ticker_arr, ticker_rn)
+                ticker_rn += 1
+            elif depth_ts > 0:
+                self.process_depth_event(depth_arr, depth_rn)
+                depth_rn += 1
+            else:
+                break
 
     def fused_events(self) -> EVENT_ARRAY:
         length = uint64(0)
@@ -1402,6 +1462,8 @@ class FuseMarketDepth:
             val_from_ptr(len_ptr),
             event_dtype
         )
+
+FuseMarketDepth = jitclass(_FuseMarketDepth)
 
 
 if LIVE_FEATURE:

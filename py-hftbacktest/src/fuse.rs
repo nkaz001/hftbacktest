@@ -5,7 +5,6 @@ use hftbacktest::{
     prelude::Event,
     types::{
         BUY_EVENT,
-        DEPTH_BBO_EVENT,
         DEPTH_CLEAR_EVENT,
         DEPTH_EVENT,
         DEPTH_SNAPSHOT_EVENT,
@@ -38,7 +37,7 @@ pub extern "C" fn fusemarketdepth_free(slf: *mut FuseMarketDepth) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn fusemarketdepth_process_event(
+pub extern "C" fn fusemarketdepth_process_depth_event(
     slf: *mut FuseMarketDepth,
     ev: *const Event,
 ) -> bool {
@@ -61,18 +60,28 @@ pub extern "C" fn fusemarketdepth_process_event(
         } else {
             slf.depth.clear_depth(Side::None, 0.0, ev.exch_ts);
         }
-    } else if ev.is(DEPTH_BBO_EVENT) {
-        let mut evs = if ev.is(BUY_EVENT) {
-            slf.depth.update_best_bid(ev)
-        } else if ev.is(SELL_EVENT) {
-            slf.depth.update_best_ask(ev)
-        } else {
-            return false;
-        };
-        slf.fused.append(&mut evs);
+        slf.fused.push(ev);
     } else {
         return false;
     }
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn fusemarketdepth_process_bbo_event(
+    slf: *mut FuseMarketDepth,
+    ev: *const Event,
+) -> bool {
+    let slf = unsafe { &mut *slf };
+    let mut ev = unsafe { &*ev }.clone();
+    let mut evs = if ev.is(BUY_EVENT) {
+        slf.depth.update_best_bid(ev)
+    } else if ev.is(SELL_EVENT) {
+        slf.depth.update_best_ask(ev)
+    } else {
+        return false;
+    };
+    slf.fused.append(&mut evs);
     true
 }
 
