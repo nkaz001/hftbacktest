@@ -1378,6 +1378,10 @@ fusemarketdepth_process_bbo_event = lib.fusemarketdepth_process_bbo_event
 fusemarketdepth_process_bbo_event.restype = c_bool
 fusemarketdepth_process_bbo_event.argtypes = [c_void_p, c_void_p]
 
+fusemarketdepth_process_event = lib.fusemarketdepth_process_event
+fusemarketdepth_process_event.restype = c_bool
+fusemarketdepth_process_event.argtypes = [c_void_p, c_void_p]
+
 fusemarketdepth_fused_events = lib.fusemarketdepth_fused_events
 fusemarketdepth_fused_events.restype = c_void_p
 fusemarketdepth_fused_events.argtypes = [c_void_p, POINTER(c_uint64)]
@@ -1396,6 +1400,12 @@ class _FuseMarketDepth:
 
     def free(self):
         fusemarketdepth_free(self.ptr)
+
+    def process_event(self, ev, index) -> None:
+        ev_ptr = ev.ctypes.data + 64 * index
+        ok = fusemarketdepth_process_event(self.ptr, ev_ptr)
+        if not ok:
+            raise ValueError
 
     def process_depth_event(self, ev, index) -> None:
         ev_ptr = ev.ctypes.data + 64 * index
