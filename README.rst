@@ -14,7 +14,7 @@ Key Features
 
 * Working in `Numba <https://numba.pydata.org/>`_ JIT function (Python).
 * Complete tick-by-tick simulation with a customizable time interval or based on the feed and order receipt.
-* Full order book reconstruction based on L2 Market-By-Price and L3 Market-By-Order feeds.
+* Full order book reconstruction based on Level-2 Market-By-Price and Level-3 Market-By-Order feeds.
 * Backtest accounting for both feed and order latency, using provided models or your own custom model.
 * Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 * Backtesting of multi-asset and multi-exchange models
