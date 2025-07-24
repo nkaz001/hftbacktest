@@ -1,12 +1,13 @@
 import gzip
-
-import polars as pl
 from typing import List, Optional, Literal
 
 import numpy as np
-from numba import njit
+import polars as pl
+from numba import njit, from_dtype
+from numba.experimental import jitclass
 from numpy.typing import NDArray
 
+from .. import FuseMarketDepth
 from ..validation import correct_event_order, validate_event_order, correct_local_timestamp
 from ...types import (
     DEPTH_EVENT,
@@ -15,9 +16,8 @@ from ...types import (
     TRADE_EVENT,
     BUY_EVENT,
     SELL_EVENT,
-    event_dtype
+    event_dtype, DEPTH_BBO_EVENT
 )
-
 
 trade_schema = {
     'exchange': pl.String,
@@ -41,6 +41,17 @@ depth_schema = {
     'amount': pl.Float64,
 }
 
+book_ticker_schema = {
+    'exchange': pl.String,
+    'symbol': pl.String,
+    'timestamp': pl.Int64,
+    'local_timestamp': pl.Int64,
+    'ask_amount': pl.Float64,
+    'ask_price': pl.Float64,
+    'bid_price': pl.Float64,
+    'bid_amount': pl.Float64,
+}
+
 
 def convert(
         input_files: List[str],
@@ -56,8 +67,6 @@ def convert(
     For Tardis's Binance Futures feed data, they use the 'E' event timestamp, representing the sending time, rather
     than the 'T' transaction time, indicating when the matching occurs. So the latency is slightly less than it actually
     is.
-
-
 
     If you encounter an ``IndexError`` due to an out-of-bounds, try increasing the ``buffer_size`` and
     ``ss_buffer_size``.
@@ -99,6 +108,8 @@ def convert(
             schema = trade_schema
         elif 'incremental_book_L2' in file:
             schema = depth_schema
+        elif 'book_ticker' in file:
+            schema = book_ticker_schema
         else:
             # Attempts to infer the file type using its header.
             try:
@@ -114,6 +125,8 @@ def convert(
                     schema = trade_schema
                 elif header == list(depth_schema.keys()):
                     schema = depth_schema
+                elif header == list(book_ticker_schema.keys()):
+                    schema = book_ticker_schema
             except:
                 # Fails to infer the file type; let Polars infer the schema.
                 pass
@@ -194,6 +207,29 @@ def convert(
             elif snapshot_mode == 'ignore_sod':
                 snapshot_mode_flag = SNAPSHOT_MODE_IGNORE_SOD
             row_num = convert_depth(tmp, arr, row_num, ss_bid, ss_ask, snapshot_mode_flag)
+        elif df.columns == list(book_ticker_schema.keys()):
+            arr = (
+                df.with_columns(
+                    (pl.col('timestamp') * 1000)
+                    .cast(pl.Int64, strict=True)
+                    .alias('exch_ts'),
+                    (pl.col('local_timestamp') * 1000)
+                    .cast(pl.Int64, strict=True)
+                    .alias('local_ts'),
+                    pl.col('ask_amount')
+                    .cast(pl.Float64, strict=True),
+                    pl.col('ask_price')
+                    .cast(pl.Float64, strict=True),
+                    pl.col('bid_price')
+                    .cast(pl.Float64, strict=True),
+                    pl.col('bid_amount')
+                    .cast(pl.Float64, strict=True),
+                )
+                .select(['exch_ts', 'local_ts', 'ask_amount', 'ask_price', 'bid_price', 'bid_amount'])
+                .to_numpy(structured=True)
+            )
+            pass
+
     tmp = tmp[:row_num]
 
     print('Correcting the latency')
@@ -309,3 +345,313 @@ def convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
             out[row_num].fval = 0
             row_num += 1
     return row_num
+
+
+@jitclass
+class Fuse:
+    depth: FuseMarketDepth.class_type.instance_type
+    ev: from_dtype(event_dtype)[:]
+    ss_bid: from_dtype(event_dtype)[:]
+    ss_ask: from_dtype(event_dtype)[:]
+
+    def __init__(self, tick_size: float, lot_size: float, ss_buffer_size: int):
+        self.depth = FuseMarketDepth(tick_size, lot_size)
+        self.ev = np.zeros(1, event_dtype)
+        self.ss_bid = np.zeros(ss_buffer_size, event_dtype)
+        self.ss_ask = np.zeros(ss_buffer_size, event_dtype)
+
+    def process_depth(self, inp: NDArray, rn: int, snapshot_mode: int) -> int:
+        ss_bid_rn = 0
+        ss_ask_rn = 0
+        is_sod_snapshot = True
+        is_snapshot = False
+        for rn in range(rn, len(inp)):
+            row = inp[rn]
+            if row.is_snapshot == 1:
+                if (
+                        (snapshot_mode == SNAPSHOT_MODE_IGNORE)
+                        or (snapshot_mode == SNAPSHOT_MODE_IGNORE_SOD and is_sod_snapshot)
+                ):
+                    continue
+                # Prepare to insert DEPTH_SNAPSHOT_EVENT
+                if not is_snapshot:
+                    is_snapshot = True
+                    ss_bid_rn = 0
+                    ss_ask_rn = 0
+                if row.side == 1:
+                    self.ss_bid[ss_bid_rn].ev = DEPTH_SNAPSHOT_EVENT | BUY_EVENT
+                    self.ss_bid[ss_bid_rn].exch_ts = row.exch_ts
+                    self.ss_bid[ss_bid_rn].local_ts = row.local_ts
+                    self.ss_bid[ss_bid_rn].px = row.px
+                    self.ss_bid[ss_bid_rn].qty = row.qty
+                    ss_bid_rn += 1
+                else:
+                    self.ss_ask[ss_ask_rn].ev = DEPTH_SNAPSHOT_EVENT | SELL_EVENT
+                    self.ss_ask[ss_ask_rn].exch_ts = row.exch_ts
+                    self.ss_ask[ss_ask_rn].local_ts = row.local_ts
+                    self.ss_ask[ss_ask_rn].px = row.px
+                    self.ss_ask[ss_ask_rn].qty = row.qty
+                    ss_ask_rn += 1
+            else:
+                is_sod_snapshot = False
+                if is_snapshot:
+                    # End of the snapshot.
+                    is_snapshot = False
+
+                    # Add DEPTH_CLEAR_EVENT before refreshing the market depth by the snapshot.
+                    if ss_bid_rn > 0:
+                        # Clear the bid market depth within the snapshot bid range.
+                        self.ev[0].ev = DEPTH_CLEAR_EVENT | BUY_EVENT
+                        self.ev[0].exch_ts = self.ss_bid[0].exch_ts
+                        self.ev[0].local_ts = self.ss_bid[0].local_ts
+                        self.ev[0].px = self.ss_bid[ss_bid_rn - 1].px
+                        self.ev[0].qty = 0
+                        self.depth.process_event(self.ev, 0)
+                        # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
+                        for srn in range(ss_bid_rn):
+                            self.depth.process_event(self.ss_bid, srn)
+
+                    if ss_ask_rn > 0:
+                        # Clear the ask market depth within the snapshot ask range.
+                        self.ev[0].ev = DEPTH_CLEAR_EVENT | SELL_EVENT
+                        self.ev[0].exch_ts = self.ss_ask[0].exch_ts
+                        self.ev[0].local_ts = self.ss_ask[0].local_ts
+                        self.ev[0].px = self.ss_ask[ss_ask_rn - 1].px
+                        self.ev[0].qty = 0
+                        self.depth.process_event(self.ev, 0)
+                        # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
+                        for srn in range(ss_ask_rn):
+                            self.depth.process_event(self.ss_ask, srn)
+
+                    return rn - 1
+                else:
+                    # Insert DEPTH_EVENT
+                    self.ev[0].ev = DEPTH_EVENT | (BUY_EVENT if row.side == 1 else SELL_EVENT)
+                    self.ev[0].exch_ts = row.exch_ts
+                    self.ev[0].local_ts = row.local_ts
+                    self.ev[0].px = row.px
+                    self.ev[0].qty = row.qty
+                    self.depth.process_event(self.ev, 0)
+                    break
+        return rn
+
+    def process_bbo(self, inp: NDArray, rn: int) -> None:
+        row = inp[rn]
+
+        self.ev[0].ev = DEPTH_BBO_EVENT | SELL_EVENT
+        self.ev[0].exch_ts = row.exch_ts
+        self.ev[0].local_ts = row.local_ts
+        self.ev[0].px = row.ask_price
+        self.ev[0].qty = row.ask_amount
+        self.depth.process_event(self.ev, 0)
+
+        self.ev[0].ev = DEPTH_BBO_EVENT | BUY_EVENT
+        self.ev[0].exch_ts = row.exch_ts
+        self.ev[0].local_ts = row.local_ts
+        self.ev[0].px = row.bid_price
+        self.ev[0].qty = row.bid_amount
+        self.depth.process_event(self.ev, 0)
+
+    def process(
+            self,
+            depth_arr: NDArray,
+            book_ticker_arr: NDArray,
+            snapshot_mode: int
+    ) -> None:
+        ticker_rn = 0
+        depth_rn = 0
+        while True:
+            if ticker_rn < len(book_ticker_arr):
+                ticker_ts = book_ticker_arr[ticker_rn].local_ts
+            else:
+                ticker_ts = 0
+            if depth_rn < len(depth_arr):
+                depth_ts = depth_arr[depth_rn].local_ts
+            else:
+                depth_ts = 0
+
+            if ticker_ts > 0 and depth_ts > 0:
+                if ticker_ts < depth_ts:
+                    self.process_bbo(book_ticker_arr, ticker_rn)
+                    ticker_rn += 1
+                else:
+                    depth_rn = self.process_depth(depth_arr, depth_rn, snapshot_mode)
+                    depth_rn += 1
+            elif ticker_ts > 0:
+                self.process_bbo(book_ticker_arr, ticker_rn)
+                ticker_rn += 1
+            elif depth_ts > 0:
+                depth_rn = self.process_depth(depth_arr, depth_rn, snapshot_mode)
+                depth_rn += 1
+            else:
+                break
+
+
+def convert_fuse(
+        trades_filename: str,
+        depth_filename: str,
+        book_ticker_filename: str,
+        tick_size: float,
+        lot_size: float,
+        output_filename: Optional[str] = None,
+        ss_buffer_size: int = 1_000_000,
+        base_latency: float = 0,
+        snapshot_mode: Literal['process', 'ignore_sod', 'ignore'] = 'process',
+) -> NDArray:
+    r"""
+    Converts Tardis.dev data files into a format compatible with HftBacktest.
+
+    For Tardis's Binance Futures feed data, they use the 'E' event timestamp, representing the sending time, rather
+    than the 'T' transaction time, indicating when the matching occurs. So the latency is slightly less than it actually
+    is.
+
+    If you encounter an ``IndexError`` due to an out-of-bounds, try increasing the ``ss_buffer_size``.
+
+    Args:
+        trades_filename: Input filenames for a trades file.
+        depth_filename: Input filenames for an incremental book file.
+        book_ticker_filename: Input filenames for a book ticker file.
+        tick_size: tick size.
+        lot_size: lot_size.
+        output_filename: If provided, the converted data will be saved to the specified filename in ``npz`` format.
+        ss_buffer_size: Sets a preallocated row size for the snapshot.
+        base_latency: The value to be added to the feed latency.
+                      See :func:`.correct_local_timestamp`.
+        snapshot_mode: - If this is set to 'ignore', all snapshots are ignored. The order book will converge to a
+                         complete order book over time.
+                       - If this is set to 'ignore_sod', the SOD (Start of Day) snapshot is ignored.
+                         Since Tardis intentionally adds the SOD snapshot, not due to a message ID gap or disconnection,
+                         there might not be a need to process SOD snapshot to build a complete order book.
+                         Please see https://docs.tardis.dev/historical-data-details#collected-order-book-data-details
+                         for more details.
+                       - Otherwise, all snapshot events will be processed.
+    Returns:
+        Converted data compatible with HftBacktest.
+    """
+    df = pl.read_csv(trades_filename, schema=trade_schema)
+    if df.columns != list(trade_schema.keys()):
+        raise KeyError
+    trades_arr = (
+        df.with_columns(
+            pl.when(pl.col('side') == 'buy')
+            .then(BUY_EVENT | TRADE_EVENT)
+            .when(pl.col('side') == 'sell')
+            .then(SELL_EVENT | TRADE_EVENT)
+            .otherwise(TRADE_EVENT)
+            .cast(pl.UInt64, strict=True)
+            .alias('ev'),
+            (pl.col('timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('exch_ts'),
+            (pl.col('local_timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('local_ts'),
+            pl.col('price')
+            .cast(pl.Float64, strict=True)
+            .alias('px'),
+            pl.col('amount')
+            .cast(pl.Float64, strict=True)
+            .alias('qty'),
+            pl.lit(0)
+            .cast(pl.UInt64, strict=True)
+            .alias('order_id'),
+            pl.lit(0)
+            .cast(pl.Int64, strict=True)
+            .alias('ival'),
+            pl.lit(0.0)
+            .cast(pl.Float64, strict=True)
+            .alias('fval')
+        )
+        .select(['ev', 'exch_ts', 'local_ts', 'px', 'qty', 'order_id', 'ival', 'fval'])
+        .to_numpy(structured=True)
+    )
+
+    df = pl.read_csv(book_ticker_filename, schema=book_ticker_schema)
+    if df.columns != list(book_ticker_schema.keys()):
+        raise KeyError
+    ticker_arr = (
+        df.with_columns(
+            (pl.col('timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('exch_ts'),
+            (pl.col('local_timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('local_ts'),
+            pl.col('ask_amount')
+            .cast(pl.Float64, strict=True),
+            pl.col('ask_price')
+            .cast(pl.Float64, strict=True),
+            pl.col('bid_price')
+            .cast(pl.Float64, strict=True),
+            pl.col('bid_amount')
+            .cast(pl.Float64, strict=True),
+            )
+        .select(['exch_ts', 'local_ts', 'ask_amount', 'ask_price', 'bid_price', 'bid_amount'])
+        .to_numpy(structured=True)
+    )
+
+    df = pl.read_csv(depth_filename, schema=depth_schema)
+    if df.columns != list(depth_schema.keys()):
+        raise KeyError
+    depth_arr = (
+        df.with_columns(
+            (pl.col('timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('exch_ts'),
+            (pl.col('local_timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('local_ts'),
+            pl.col('price')
+            .cast(pl.Float64, strict=True)
+            .alias('px'),
+            pl.col('amount')
+            .cast(pl.Float64, strict=True)
+            .alias('qty'),
+            pl.when((pl.col('side') == 'bid') | (pl.col('side') == 'buy'))
+            .then(1)
+            .when((pl.col('side') == 'ask') | (pl.col('side') == 'sell'))
+            .then(-1)
+            .otherwise(0)
+            .cast(pl.Int8, strict=True)
+            .alias('side'),
+            pl.when(pl.col('is_snapshot'))
+            .then(1)
+            .otherwise(0)
+            .cast(pl.Int8, strict=True)
+            .alias('is_snapshot')
+        )
+        .select(['exch_ts', 'local_ts', 'px', 'qty', 'side', 'is_snapshot'])
+        .to_numpy(structured=True)
+    )
+
+    snapshot_mode_flag = 0
+    if snapshot_mode == 'ignore':
+        snapshot_mode_flag = SNAPSHOT_MODE_IGNORE
+    elif snapshot_mode == 'ignore_sod':
+        snapshot_mode_flag = SNAPSHOT_MODE_IGNORE_SOD
+
+    fuse = Fuse(tick_size, lot_size, ss_buffer_size)
+    fuse.process(depth_arr, ticker_arr, snapshot_mode_flag)
+    fused = fuse.depth.fused_events()
+
+    tmp = np.empty(len(trades_arr) + len(fused), event_dtype)
+    tmp[:len(trades_arr)] = trades_arr
+    tmp[len(trades_arr):] = fused
+
+    print('Correcting the latency')
+    tmp = correct_local_timestamp(tmp, base_latency)
+
+    print('Correcting the event order')
+    data = correct_event_order(
+        tmp,
+        np.argsort(tmp['exch_ts'], kind='mergesort'),
+        np.argsort(tmp['local_ts'], kind='mergesort')
+    )
+
+    validate_event_order(data)
+
+    if output_filename is not None:
+        print('Saving to %s' % output_filename)
+        np.savez_compressed(output_filename, data=data)
+
+    return data
