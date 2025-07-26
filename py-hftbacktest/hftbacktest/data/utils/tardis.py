@@ -1,5 +1,5 @@
 import gzip
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Any
 
 import numpy as np
 import polars as pl
@@ -16,7 +16,7 @@ from ...types import (
     TRADE_EVENT,
     BUY_EVENT,
     SELL_EVENT,
-    event_dtype, DEPTH_BBO_EVENT
+    event_dtype, DEPTH_BBO_EVENT, EVENT_ARRAY
 )
 
 trade_schema = {
@@ -360,6 +360,9 @@ class Fuse:
         self.ss_bid = np.zeros(ss_buffer_size, event_dtype)
         self.ss_ask = np.zeros(ss_buffer_size, event_dtype)
 
+    def close(self) -> None:
+        self.depth.close()
+
     def process_depth(self, inp: NDArray, rn: int, snapshot_mode: int) -> int:
         ss_bid_rn = 0
         ss_ask_rn = 0
@@ -485,6 +488,9 @@ class Fuse:
                 depth_rn += 1
             else:
                 break
+
+    def fused_events(self) -> EVENT_ARRAY:
+        return self.depth.fused_events()
 
 
 def convert_fuse(
@@ -632,11 +638,13 @@ def convert_fuse(
 
     fuse = Fuse(tick_size, lot_size, ss_buffer_size)
     fuse.process(depth_arr, ticker_arr, snapshot_mode_flag)
-    fused = fuse.depth.fused_events()
+    fused = fuse.fused_events()
 
     tmp = np.empty(len(trades_arr) + len(fused), event_dtype)
     tmp[:len(trades_arr)] = trades_arr
     tmp[len(trades_arr):] = fused
+
+    fuse.close()
 
     print('Correcting the latency')
     tmp = correct_local_timestamp(tmp, base_latency)

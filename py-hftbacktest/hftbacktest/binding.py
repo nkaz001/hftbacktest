@@ -1398,70 +1398,26 @@ class _FuseMarketDepth:
     # def __del__(self):
     #     fusemarketdepth_free(self.ptr)
 
-    def free(self):
+    def close(self) -> None:
         fusemarketdepth_free(self.ptr)
 
-    def process_event(self, ev, index) -> None:
+    def process_event(self, ev: EVENT_ARRAY, index: uint64) -> None:
         ev_ptr = ev.ctypes.data + 64 * index
         ok = fusemarketdepth_process_event(self.ptr, ev_ptr)
         if not ok:
             raise ValueError
 
-    def process_depth_event(self, ev, index) -> None:
+    def process_depth_event(self, ev: EVENT_ARRAY, index: uint64) -> None:
         ev_ptr = ev.ctypes.data + 64 * index
         ok = fusemarketdepth_process_depth_event(self.ptr, ev_ptr)
         if not ok:
             raise ValueError
 
-    def process_bbo_event(self, ev, index) -> None:
+    def process_bbo_event(self, ev: EVENT_ARRAY, index: uint64) -> None:
         ev_ptr = ev.ctypes.data + 64 * index
         ok = fusemarketdepth_process_bbo_event(self.ptr, ev_ptr)
         if not ok:
             raise ValueError
-
-    def process_bbo(self, arr, rn):
-        self.buf[0].ev = DEPTH_EVENT | BUY_EVENT
-        self.buf[0].exch_ts = arr[rn].exch_ts
-        self.buf[0].local_ts = arr[rn].local_ts
-        self.buf[0].px = arr[rn].bid_price
-        self.buf[0].qty = arr[rn].bid_amount
-        self.process_bbo_event(self.buf, 0)
-
-        self.buf[0].ev = DEPTH_EVENT | SELL_EVENT
-        self.buf[0].exch_ts = arr[rn].exch_ts
-        self.buf[0].local_ts = arr[rn].local_ts
-        self.buf[0].px = arr[rn].ask_price
-        self.buf[0].qty = arr[rn].ask_amount
-        self.process_bbo_event(self.buf, 0)
-
-    def process(self, ticker_arr, depth_arr):
-        ticker_rn = 0
-        depth_rn = 0
-        while True:
-            if ticker_rn < len(ticker_arr):
-                ticker_ts = ticker_arr[ticker_rn].local_ts
-            else:
-                ticker_ts = 0
-            if depth_rn < len(depth_arr):
-                depth_ts = depth_arr[depth_rn].local_ts
-            else:
-                depth_ts = 0
-
-            if ticker_ts > 0 and depth_ts > 0:
-                if ticker_ts <= depth_ts:
-                    self.process_bbo(ticker_arr, ticker_rn)
-                    ticker_rn += 1
-                else:
-                    self.process_depth_event(depth_arr, depth_rn)
-                    depth_rn += 1
-            elif ticker_ts > 0:
-                self.process_bbo(ticker_arr, ticker_rn)
-                ticker_rn += 1
-            elif depth_ts > 0:
-                self.process_depth_event(depth_arr, depth_rn)
-                depth_rn += 1
-            else:
-                break
 
     def fused_events(self) -> EVENT_ARRAY:
         length = uint64(0)
