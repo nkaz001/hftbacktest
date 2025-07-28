@@ -11,3 +11,4 @@ Data Utilities
    hftbacktest.data.utils.databento
    hftbacktest.data.utils.migration2
    hftbacktest.data.utils.difforderbooksnapshot
+   hftbacktest.data.FuseMarketDepth
