@@ -371,11 +371,6 @@ class Fuse:
         for rn in range(rn, len(inp)):
             row = inp[rn]
             if row.is_snapshot == 1:
-                if (
-                        (snapshot_mode == SNAPSHOT_MODE_IGNORE)
-                        or (snapshot_mode == SNAPSHOT_MODE_IGNORE_SOD and is_sod_snapshot)
-                ):
-                    continue
                 # Prepare to insert DEPTH_SNAPSHOT_EVENT
                 if not is_snapshot:
                     is_snapshot = True
@@ -396,6 +391,11 @@ class Fuse:
                     self.ss_ask[ss_ask_rn].qty = row.qty
                     ss_ask_rn += 1
             else:
+                add = not (
+                        (snapshot_mode == SNAPSHOT_MODE_IGNORE)
+                        or (snapshot_mode == SNAPSHOT_MODE_IGNORE_SOD and is_sod_snapshot)
+                )
+
                 is_sod_snapshot = False
                 if is_snapshot:
                     # End of the snapshot.
@@ -409,10 +409,10 @@ class Fuse:
                         self.ev[0].local_ts = self.ss_bid[0].local_ts
                         self.ev[0].px = self.ss_bid[ss_bid_rn - 1].px
                         self.ev[0].qty = 0
-                        self.depth.process_event(self.ev, 0)
+                        self.depth.process_event(self.ev, 0, add)
                         # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
                         for srn in range(ss_bid_rn):
-                            self.depth.process_event(self.ss_bid, srn)
+                            self.depth.process_event(self.ss_bid, srn, add)
 
                     if ss_ask_rn > 0:
                         # Clear the ask market depth within the snapshot ask range.
@@ -421,10 +421,10 @@ class Fuse:
                         self.ev[0].local_ts = self.ss_ask[0].local_ts
                         self.ev[0].px = self.ss_ask[ss_ask_rn - 1].px
                         self.ev[0].qty = 0
-                        self.depth.process_event(self.ev, 0)
+                        self.depth.process_event(self.ev, 0, add)
                         # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
                         for srn in range(ss_ask_rn):
-                            self.depth.process_event(self.ss_ask, srn)
+                            self.depth.process_event(self.ss_ask, srn, add)
 
                     return rn - 1
                 else:
@@ -434,7 +434,7 @@ class Fuse:
                     self.ev[0].local_ts = row.local_ts
                     self.ev[0].px = row.px
                     self.ev[0].qty = row.qty
-                    self.depth.process_event(self.ev, 0)
+                    self.depth.process_event(self.ev, 0, True)
                     break
         return rn
 
@@ -446,14 +446,14 @@ class Fuse:
         self.ev[0].local_ts = row.local_ts
         self.ev[0].px = row.ask_price
         self.ev[0].qty = row.ask_amount
-        self.depth.process_event(self.ev, 0)
+        self.depth.process_event(self.ev, 0, True)
 
         self.ev[0].ev = DEPTH_BBO_EVENT | BUY_EVENT
         self.ev[0].exch_ts = row.exch_ts
         self.ev[0].local_ts = row.local_ts
         self.ev[0].px = row.bid_price
         self.ev[0].qty = row.bid_amount
-        self.depth.process_event(self.ev, 0)
+        self.depth.process_event(self.ev, 0, True)
 
     def process(
             self,
@@ -489,8 +489,9 @@ class Fuse:
             else:
                 break
 
+    @property
     def fused_events(self) -> EVENT_ARRAY:
-        return self.depth.fused_events()
+        return self.depth.fused_events
 
 
 def convert_fuse(
@@ -638,11 +639,10 @@ def convert_fuse(
 
     fuse = Fuse(tick_size, lot_size, ss_buffer_size)
     fuse.process(depth_arr, ticker_arr, snapshot_mode_flag)
-    fused = fuse.fused_events()
 
-    tmp = np.empty(len(trades_arr) + len(fused), event_dtype)
+    tmp = np.empty(len(trades_arr) + len(fuse.fused_events), event_dtype)
     tmp[:len(trades_arr)] = trades_arr
-    tmp[len(trades_arr):] = fused
+    tmp[len(trades_arr):] = fuse.fused_events
 
     fuse.close()
 

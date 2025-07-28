@@ -1370,17 +1370,9 @@ fusemarketdepth_free = lib.fusemarketdepth_free
 fusemarketdepth_free.restype = c_void_p
 fusemarketdepth_free.argtypes = [c_void_p]
 
-fusemarketdepth_process_depth_event = lib.fusemarketdepth_process_depth_event
-fusemarketdepth_process_depth_event.restype = c_bool
-fusemarketdepth_process_depth_event.argtypes = [c_void_p, c_void_p]
-
-fusemarketdepth_process_bbo_event = lib.fusemarketdepth_process_bbo_event
-fusemarketdepth_process_bbo_event.restype = c_bool
-fusemarketdepth_process_bbo_event.argtypes = [c_void_p, c_void_p]
-
 fusemarketdepth_process_event = lib.fusemarketdepth_process_event
 fusemarketdepth_process_event.restype = c_bool
-fusemarketdepth_process_event.argtypes = [c_void_p, c_void_p]
+fusemarketdepth_process_event.argtypes = [c_void_p, c_void_p, c_bool]
 
 fusemarketdepth_fused_events = lib.fusemarketdepth_fused_events
 fusemarketdepth_fused_events.restype = c_void_p
@@ -1392,6 +1384,16 @@ class _FuseMarketDepth:
     buf: from_dtype(event_dtype)[:]
 
     def __init__(self, tick_size: float64, lot_size: float64):
+        """
+        Initializes a new instance of the `FuseMarketDepth` class.
+
+        This combines the real-time Level-1 book ticker stream with the conflated Level-2 depth stream to produce the
+        most frequent and granular depth events possible.
+
+        Args:
+            tick_size: tick size for the asset being processed.
+            lot_size: lot size for the asset being processed.
+        """
         self.ptr = fusemarketdepth_new(tick_size, lot_size)
         self.buf = np.zeros(1, event_dtype)
 
@@ -1399,27 +1401,34 @@ class _FuseMarketDepth:
     #     fusemarketdepth_free(self.ptr)
 
     def close(self) -> None:
+        """
+        Releases resources associated with this `FuseMarketDepth` instance.
+
+        This method must be called to free the underlying memory allocated by the native implementation.
+        """
         fusemarketdepth_free(self.ptr)
 
-    def process_event(self, ev: EVENT_ARRAY, index: uint64) -> None:
+    def process_event(self, ev: EVENT_ARRAY, index: uint64, add: bool) -> None:
+        """
+        Processes a market event at the given index.
+
+        Args:
+            ev: The array of events to process.
+            index: The index of the event in the array to process.
+            add: If `True`, the event is added to the fused events.
+                 If `False`, the event is used to update market depth for future processing, but is not included in the
+                 fused output.
+        """
         ev_ptr = ev.ctypes.data + 64 * index
-        ok = fusemarketdepth_process_event(self.ptr, ev_ptr)
+        ok = fusemarketdepth_process_event(self.ptr, ev_ptr, add)
         if not ok:
             raise ValueError
 
-    def process_depth_event(self, ev: EVENT_ARRAY, index: uint64) -> None:
-        ev_ptr = ev.ctypes.data + 64 * index
-        ok = fusemarketdepth_process_depth_event(self.ptr, ev_ptr)
-        if not ok:
-            raise ValueError
-
-    def process_bbo_event(self, ev: EVENT_ARRAY, index: uint64) -> None:
-        ev_ptr = ev.ctypes.data + 64 * index
-        ok = fusemarketdepth_process_bbo_event(self.ptr, ev_ptr)
-        if not ok:
-            raise ValueError
-
+    @property
     def fused_events(self) -> EVENT_ARRAY:
+        """
+        Returns the array of fused events generated so far.
+        """
         length = uint64(0)
         len_ptr = ptr_from_val(length)
         ptr = fusemarketdepth_fused_events(self.ptr, len_ptr)
