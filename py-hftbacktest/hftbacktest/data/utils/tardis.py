@@ -206,7 +206,7 @@ def convert(
                 snapshot_mode_flag = SNAPSHOT_MODE_IGNORE
             elif snapshot_mode == 'ignore_sod':
                 snapshot_mode_flag = SNAPSHOT_MODE_IGNORE_SOD
-            row_num = convert_depth(tmp, arr, row_num, ss_bid, ss_ask, snapshot_mode_flag)
+            row_num = _convert_depth(tmp, arr, row_num, ss_bid, ss_ask, snapshot_mode_flag)
         elif df.columns == list(book_ticker_schema.keys()):
             arr = (
                 df.with_columns(
@@ -256,7 +256,7 @@ SNAPSHOT_MODE_IGNORE_SOD = 2
 
 
 @njit
-def convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
+def _convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
     ss_bid_rn = 0
     ss_ask_rn = 0
     is_sod_snapshot = True
@@ -348,7 +348,7 @@ def convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
 
 
 @jitclass
-class Fuse:
+class _Fuse:
     depth: FuseMarketDepth.class_type.instance_type
     ev: from_dtype(event_dtype)[:]
     ss_bid: from_dtype(event_dtype)[:]
@@ -637,7 +637,7 @@ def convert_fuse(
     elif snapshot_mode == 'ignore_sod':
         snapshot_mode_flag = SNAPSHOT_MODE_IGNORE_SOD
 
-    fuse = Fuse(tick_size, lot_size, ss_buffer_size)
+    fuse = _Fuse(tick_size, lot_size, ss_buffer_size)
     fuse.process(depth_arr, ticker_arr, snapshot_mode_flag)
 
     tmp = np.empty(len(trades_arr) + len(fuse.fused_events), event_dtype)

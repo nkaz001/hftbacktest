@@ -1379,21 +1379,20 @@ fusemarketdepth_fused_events.restype = c_void_p
 fusemarketdepth_fused_events.argtypes = [c_void_p, POINTER(c_uint64)]
 
 
-class _FuseMarketDepth:
+class FuseMarketDepth:
+    """
+    This combines the real-time Level-1 book ticker stream with the conflated Level-2 depth stream to produce the
+    most frequent and granular depth events possible.
+
+    Args:
+        tick_size: tick size for the asset being processed.
+        lot_size: lot size for the asset being processed.
+    """
+
     ptr: voidptr
     buf: from_dtype(event_dtype)[:]
 
     def __init__(self, tick_size: float64, lot_size: float64):
-        """
-        Initializes a new instance of the `FuseMarketDepth` class.
-
-        This combines the real-time Level-1 book ticker stream with the conflated Level-2 depth stream to produce the
-        most frequent and granular depth events possible.
-
-        Args:
-            tick_size: tick size for the asset being processed.
-            lot_size: lot size for the asset being processed.
-        """
         self.ptr = fusemarketdepth_new(tick_size, lot_size)
         self.buf = np.zeros(1, event_dtype)
 
@@ -1438,7 +1437,7 @@ class _FuseMarketDepth:
             event_dtype
         )
 
-FuseMarketDepth = jitclass(_FuseMarketDepth)
+FuseMarketDepth_ = jitclass(FuseMarketDepth)
 
 
 if LIVE_FEATURE:

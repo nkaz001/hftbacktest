@@ -6,9 +6,15 @@ Data Utilities
 
    hftbacktest.data.utils.binancefutures
    hftbacktest.data.utils.binancehistmktdata
+   hftbacktest.data.utils.bybithistmktdata
+   hftbacktest.data.utils.databento
+   hftbacktest.data.utils.difforderbooksnapshot
+   hftbacktest.data.utils.hyperliquid
+   hftbacktest.data.utils.mexc
+   hftbacktest.data.utils.migration2
    hftbacktest.data.utils.snapshot
    hftbacktest.data.utils.tardis
-   hftbacktest.data.utils.databento
-   hftbacktest.data.utils.migration2
-   hftbacktest.data.utils.difforderbooksnapshot
-   hftbacktest.data.FuseMarketDepth
+
+.. autoclass:: hftbacktest.binding.FuseMarketDepth
+   :members:
+   :member-order: bysource
