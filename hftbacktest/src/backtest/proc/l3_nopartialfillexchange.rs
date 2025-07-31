@@ -308,6 +308,7 @@ where
             .modify_backtest_order(order.order_id, order, &self.depth)
         {
             Ok(()) => {
+                order.leaves_qty = order.qty;
                 order.exch_timestamp = timestamp;
                 Ok(())
             }

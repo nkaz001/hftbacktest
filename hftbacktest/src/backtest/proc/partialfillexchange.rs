@@ -716,6 +716,7 @@ where
             exch_order.qty = order.qty;
             exch_order.leaves_qty = order.qty;
             exch_order.exch_timestamp = timestamp;
+            order.leaves_qty = order.qty;
             order.exch_timestamp = timestamp;
         }
         Ok(())
