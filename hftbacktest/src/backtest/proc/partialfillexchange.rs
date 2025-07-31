@@ -714,6 +714,7 @@ where
             let exch_order = exch_order.unwrap();
 
             exch_order.qty = order.qty;
+            exch_order.leaves_qty = order.qty;
             exch_order.exch_timestamp = timestamp;
             order.exch_timestamp = timestamp;
         }

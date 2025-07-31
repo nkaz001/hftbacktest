@@ -806,8 +806,8 @@ where
                                 queue.push_back(prev_order);
                             }
                         } else {
-                            order_in_q.leaves_qty = order.leaves_qty;
                             order_in_q.qty = order.qty;
+                            order_in_q.leaves_qty = order.qty;
                             order_in_q.exch_timestamp = order.exch_timestamp;
                         }
                         processed = true;
@@ -842,8 +842,8 @@ where
                                 queue.push_back(prev_order);
                             }
                         } else {
-                            order_in_q.leaves_qty = order.leaves_qty;
                             order_in_q.qty = order.qty;
+                            order_in_q.leaves_qty = order.qty;
                             order_in_q.exch_timestamp = order.exch_timestamp;
                         }
                         processed = true;
