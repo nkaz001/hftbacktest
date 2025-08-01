@@ -789,11 +789,12 @@ where
                     let order_in_q = queue.get_mut(i).unwrap();
                     if order_in_q.is_backtest_order() && order_in_q.order_id == order_id {
                         if (order_in_q.price_tick != order.price_tick)
-                            || (order_in_q.leaves_qty < order.leaves_qty)
+                            || (order_in_q.leaves_qty < order.qty)
                         {
                             let mut prev_order = queue.remove(i).unwrap();
                             let prev_order_price_tick = prev_order.price_tick;
                             prev_order.update(order);
+                            prev_order.leaves_qty = prev_order.qty;
                             // if queue.len() == 0 {
                             //     self.bid_queue.remove(&order_price_tick);
                             // }
@@ -825,11 +826,12 @@ where
                     let order_in_q = queue.get_mut(i).unwrap();
                     if order_in_q.is_backtest_order() && order_in_q.order_id == order_id {
                         if (order_in_q.price_tick != order.price_tick)
-                            || (order_in_q.leaves_qty < order.leaves_qty)
+                            || (order_in_q.leaves_qty < order.qty)
                         {
                             let mut prev_order = queue.remove(i).unwrap();
                             let prev_order_price_tick = prev_order.price_tick;
                             prev_order.update(order);
+                            prev_order.leaves_qty = prev_order.qty;
                             // if queue.len() == 0 {
                             //     self.bid_queue.remove(&order_price_tick);
                             // }
