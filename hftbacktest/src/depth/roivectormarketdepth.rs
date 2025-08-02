@@ -372,6 +372,34 @@ impl MarketDepth for ROIVectorMarketDepth {
     }
 
     #[inline(always)]
+    fn best_bid_qty(&self) -> f64 {
+        if self.best_bid_tick < self.roi_lb || self.best_bid_tick > self.roi_ub {
+            // This is outside the range of interest.
+            0.0
+        } else {
+            unsafe {
+                *self
+                    .bid_depth
+                    .get_unchecked((self.best_bid_tick - self.roi_lb) as usize)
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn best_ask_qty(&self) -> f64 {
+        if self.best_ask_tick < self.roi_lb || self.best_ask_tick > self.roi_ub {
+            // This is outside the range of interest.
+            f64::NAN
+        } else {
+            unsafe {
+                *self
+                    .ask_depth
+                    .get_unchecked((self.best_ask_tick - self.roi_lb) as usize)
+            }
+        }
+    }
+
+    #[inline(always)]
     fn tick_size(&self) -> f64 {
         self.tick_size
     }

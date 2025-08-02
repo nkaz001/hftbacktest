@@ -49,6 +49,14 @@ hashmapdepth_best_ask = lib.hashmapdepth_best_ask
 hashmapdepth_best_ask.restype = c_double
 hashmapdepth_best_ask.argtypes = [c_void_p]
 
+hashmapdepth_best_bid_qty = lib.hashmapdepth_best_bid_qty
+hashmapdepth_best_bid_qty.restype = c_double
+hashmapdepth_best_bid_qty.argtypes = [c_void_p]
+
+hashmapdepth_best_ask_qty = lib.hashmapdepth_best_ask_qty
+hashmapdepth_best_ask_qty.restype = c_double
+hashmapdepth_best_ask_qty.argtypes = [c_void_p]
+
 hashmapdepth_tick_size = lib.hashmapdepth_tick_size
 hashmapdepth_tick_size.restype = c_double
 hashmapdepth_tick_size.argtypes = [c_void_p]
@@ -107,6 +115,20 @@ class HashMapMarketDepth:
         Returns the best ask price.
         """
         return hashmapdepth_best_ask(self.ptr)
+
+    @property
+    def best_bid_qty(self) -> float64:
+        """
+        Returns the quantity at the best bid price.
+        """
+        return hashmapdepth_best_bid_qty(self.ptr)
+
+    @property
+    def best_ask_qty(self) -> float64:
+        """
+        Returns the quantity at the best ask price.
+        """
+        return hashmapdepth_best_ask_qty(self.ptr)
 
     @property
     def tick_size(self) -> float64:
@@ -179,6 +201,14 @@ roivecdepth_best_ask = lib.roivecdepth_best_ask
 roivecdepth_best_ask.restype = c_double
 roivecdepth_best_ask.argtypes = [c_void_p]
 
+roivecdepth_best_bid_qty = lib.roivecdepth_best_bid_qty
+roivecdepth_best_bid_qty.restype = c_double
+roivecdepth_best_bid_qty.argtypes = [c_void_p]
+
+roivecdepth_best_ask_qty = lib.roivecdepth_best_ask_qty
+roivecdepth_best_ask_qty.restype = c_double
+roivecdepth_best_ask_qty.argtypes = [c_void_p]
+
 roivecdepth_tick_size = lib.roivecdepth_tick_size
 roivecdepth_tick_size.restype = c_double
 roivecdepth_tick_size.argtypes = [c_void_p]
@@ -235,6 +265,20 @@ class ROIVectorMarketDepth:
     def best_ask(self) -> float64:
         """
         Returns the best ask price.
+        """
+        return roivecdepth_best_ask(self.ptr)
+
+    @property
+    def best_bid_qty(self) -> float64:
+        """
+        Returns the quantity at the best bid price.
+        """
+        return roivecdepth_best_bid(self.ptr)
+
+    @property
+    def best_ask_qty(self) -> float64:
+        """
+        Returns the quantity at the best ask price.
         """
         return roivecdepth_best_ask(self.ptr)
 

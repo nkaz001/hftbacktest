@@ -41,6 +41,12 @@ pub trait MarketDepth {
     /// If there is no best ask, it returns [`INVALID_MAX`].
     fn best_ask_tick(&self) -> i64;
 
+    /// Returns the quantity at the best bid price.
+    fn best_bid_qty(&self) -> f64;
+
+    /// Returns the quantity at the best ask price.
+    fn best_ask_qty(&self) -> f64;
+
     /// Returns the tick size.
     fn tick_size(&self) -> f64;
 

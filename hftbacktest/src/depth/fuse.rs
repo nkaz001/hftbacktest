@@ -638,6 +638,22 @@ impl MarketDepth for FusedHashMapMarketDepth {
     }
 
     #[inline(always)]
+    fn best_bid_qty(&self) -> f64 {
+        self.bid_depth
+            .get(&self.best_bid_tick)
+            .map(|value| value.qty)
+            .unwrap_or(0.0)
+    }
+
+    #[inline(always)]
+    fn best_ask_qty(&self) -> f64 {
+        self.ask_depth
+            .get(&self.best_ask_tick)
+            .map(|value| value.qty)
+            .unwrap_or(0.0)
+    }
+
+    #[inline(always)]
     fn tick_size(&self) -> f64 {
         self.tick_size
     }

@@ -35,6 +35,18 @@ pub extern "C" fn hashmapdepth_best_ask(ptr: *const HashMapMarketDepth) -> f64 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hashmapdepth_best_bid_qty(ptr: *const HashMapMarketDepth) -> f64 {
+    let depth = unsafe { &*ptr };
+    depth.best_bid_qty()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hashmapdepth_best_ask_qty(ptr: *const HashMapMarketDepth) -> f64 {
+    let depth = unsafe { &*ptr };
+    depth.best_ask_qty()
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hashmapdepth_tick_size(ptr: *const HashMapMarketDepth) -> f64 {
     let depth = unsafe { &*ptr };
     depth.tick_size()
@@ -107,6 +119,18 @@ pub extern "C" fn roivecdepth_best_bid(ptr: *const ROIVectorMarketDepth) -> f64 
 pub extern "C" fn roivecdepth_best_ask(ptr: *const ROIVectorMarketDepth) -> f64 {
     let depth = unsafe { &*ptr };
     depth.best_ask()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn roivecdepth_best_bid_qty(ptr: *const ROIVectorMarketDepth) -> f64 {
+    let depth = unsafe { &*ptr };
+    depth.best_bid_qty()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn roivecdepth_best_ask_qty(ptr: *const ROIVectorMarketDepth) -> f64 {
+    let depth = unsafe { &*ptr };
+    depth.best_ask_qty()
 }
 
 #[unsafe(no_mangle)]
