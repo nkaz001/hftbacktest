@@ -25,6 +25,10 @@ Documentation
 
 See `full document here <https://hftbacktest.readthedocs.io/>`_.
 
+* `High-Frequency Grid Trading - Comparison Across Other Exchanges <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading%20-%20Comparison%20Across%20Other%20Exchanges.html>`_
+* `Market Making with Alpha - Order Book Imbalance <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20Order%20Book%20Imbalance.html>`_
+* `Market Making with Alpha - APT <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20APT.html>`_
+
 Getting started
 ===============
 
