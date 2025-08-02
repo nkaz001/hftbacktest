@@ -233,6 +233,14 @@ roivecdepth_ask_depth = lib.roivecdepth_ask_depth
 roivecdepth_ask_depth.restype = c_void_p
 roivecdepth_ask_depth.argtypes = [c_void_p, POINTER(c_uint64)]
 
+roivecdepth_roi_lb_tick = lib.roivecdepth_roi_lb_tick
+roivecdepth_roi_lb_tick.restype = c_int64
+roivecdepth_roi_lb_tick.argtypes = [c_void_p]
+
+roivecdepth_roi_ub_tick = lib.roivecdepth_roi_ub_tick
+roivecdepth_roi_ub_tick.restype = c_int64
+roivecdepth_roi_ub_tick.argtypes = [c_void_p]
+
 
 class ROIVectorMarketDepth:
     ptr: voidptr
@@ -355,6 +363,20 @@ class ROIVectorMarketDepth:
             val_from_ptr(len_ptr),
             float64
         )
+
+    @property
+    def roi_lb_tick(self) -> int64:
+        """
+        Returns the lower bound of the range of interest, in ticks.
+        """
+        return roivecdepth_roi_lb_tick(self.ptr)
+
+    @property
+    def roi_ub_tick(self) -> int64:
+        """
+        Returns the upper bound of the range of interest, in ticks.
+        """
+        return roivecdepth_roi_ub_tick(self.ptr)
 
 
 ROIVectorMarketDepth_ = jitclass(ROIVectorMarketDepth)

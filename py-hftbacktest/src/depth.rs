@@ -182,3 +182,14 @@ pub extern "C" fn roivecdepth_ask_depth(
     unsafe { *len = depth.ask_depth().len() }
     depth.ask_depth().as_ptr()
 }
+#[unsafe(no_mangle)]
+pub extern "C" fn roivecdepth_roi_lb_tick(ptr: *const ROIVectorMarketDepth) -> i64 {
+    let depth = unsafe { &*ptr };
+    depth.roi_tick().0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn roivecdepth_roi_ub_tick(ptr: *const ROIVectorMarketDepth) -> i64 {
+    let depth = unsafe { &*ptr };
+    depth.roi_tick().1
+}

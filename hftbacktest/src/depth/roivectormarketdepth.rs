@@ -110,6 +110,16 @@ impl ROIVectorMarketDepth {
     pub fn ask_depth(&self) -> &[f64] {
         self.ask_depth.as_slice()
     }
+
+    /// Returns the lower and the upper bound of the range of interest, in price.
+    pub fn roi(&self) -> (f64, f64) {
+        (self.roi_lb as f64 * self.tick_size, self.roi_ub as f64 * self.tick_size)
+    }
+
+    /// Returns the lower and the upper bound of the range of interest, in ticks.
+    pub fn roi_tick(&self) -> (i64, i64) {
+        (self.roi_lb, self.roi_ub)
+    }
 }
 
 impl L2MarketDepth for ROIVectorMarketDepth {
