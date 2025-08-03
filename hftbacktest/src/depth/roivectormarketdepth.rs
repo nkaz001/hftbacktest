@@ -123,7 +123,10 @@ impl ROIVectorMarketDepth {
 
     /// Returns the lower and the upper bound of the range of interest, in price.
     pub fn roi(&self) -> (f64, f64) {
-        (self.roi_lb as f64 * self.tick_size, self.roi_ub as f64 * self.tick_size)
+        (
+            self.roi_lb as f64 * self.tick_size,
+            self.roi_ub as f64 * self.tick_size,
+        )
     }
 
     /// Returns the lower and the upper bound of the range of interest, in ticks.

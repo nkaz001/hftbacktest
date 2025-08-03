@@ -212,18 +212,19 @@ mod s3_support {
             .await
             .map_err(|e| Error::other(format!("S3 request failed: {e}")))?;
 
-        let bytes = response.body.collect().await.map_err(|e| {
-            Error::other(format!("Failed to read response body: {e}"))
-        })?;
+        let bytes = response
+            .body
+            .collect()
+            .await
+            .map_err(|e| Error::other(format!("Failed to read response body: {e}")))?;
 
         Ok(bytes.into_bytes().to_vec())
     }
 
     pub fn read_s3_object(s3_path: &str) -> std::io::Result<Vec<u8>> {
         // Create runtime
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            Error::other(format!("Failed to create runtime: {e}"))
-        })?;
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| Error::other(format!("Failed to create runtime: {e}")))?;
 
         rt.block_on(read_s3_object_async(s3_path))
     }
