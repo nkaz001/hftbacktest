@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["binancefutures", "bybit"]
+default = ["binancefutures", "binancespot", "bybit"]
 binancefutures = []
+binancespot = []
 bybit = []
 
 [dependencies]
