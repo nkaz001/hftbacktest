@@ -385,6 +385,9 @@ impl FusedHashMapMarketDepth {
 
         let prev_best_bid_tick = self.best_bid_tick;
         self.best_bid_tick = price_tick;
+        if self.best_bid_tick < self.low_bid_tick {
+            self.low_bid_tick = self.best_bid_tick;
+        }
         self.best_bid_timestamp = ev.exch_ts;
 
         if price_tick >= self.best_ask_tick {
@@ -490,6 +493,9 @@ impl FusedHashMapMarketDepth {
 
         let prev_best_ask_tick = self.best_ask_tick;
         self.best_ask_tick = price_tick;
+        if self.best_ask_tick > self.high_ask_tick {
+            self.high_ask_tick = self.best_ask_tick;
+        }
         self.best_ask_timestamp = ev.exch_ts;
 
         if price_tick <= self.best_bid_tick {
@@ -1249,5 +1255,107 @@ mod tests {
             fval: 0.0,
         });
         assert_eq!(depth.best_ask_tick(), 104);
+    }
+
+    #[test]
+    fn test_bound_after_bbo_update() {
+        // Test code for the issue: https://github.com/nkaz001/hftbacktest/issues/244
+        let mut depth = FusedHashMapMarketDepth::new(1.0, 1.0);
+
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 102.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 100.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+
+        depth.update_best_ask(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 99.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_best_bid(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 98.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+
+        assert_eq!(depth.best_ask_tick, 99);
+        assert_eq!(depth.best_bid_tick, 98);
+        assert_eq!(depth.low_bid_tick, 98);
+        assert_eq!(depth.high_ask_tick, 102);
+
+        let mut depth = FusedHashMapMarketDepth::new(1.0, 1.0);
+
+        depth.update_ask_depth(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 102.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_bid_depth(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 100.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+
+        depth.update_best_bid(Event {
+            ev: BUY_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 103.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+        depth.update_best_ask(Event {
+            ev: SELL_EVENT | DEPTH_EVENT,
+            exch_ts: 1,
+            local_ts: 1,
+            px: 104.0,
+            qty: 1.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        });
+
+        assert_eq!(depth.best_ask_tick, 104);
+        assert_eq!(depth.best_bid_tick, 103);
+        assert_eq!(depth.low_bid_tick, 100);
+        assert_eq!(depth.high_ask_tick, 104);
     }
 }
