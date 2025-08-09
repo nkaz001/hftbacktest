@@ -151,7 +151,13 @@ impl FusedHashMapMarketDepth {
                         depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
                     self.best_ask_timestamp = ev.exch_ts;
 
-                    for t in prev_best_ask_tick..self.best_ask_tick {
+                    let mut up_to_ask_tick = self.best_ask_tick;
+                    if up_to_ask_tick == INVALID_MAX {
+                        up_to_ask_tick = self.best_bid_tick + 1;
+                        self.high_ask_tick = INVALID_MIN;
+                    }
+
+                    for t in prev_best_ask_tick..up_to_ask_tick {
                         if self.ask_depth.remove(&t).is_some() {
                             debug!(
                                 px = t as f64 * self.tick_size,
@@ -261,7 +267,13 @@ impl FusedHashMapMarketDepth {
                         depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
                     self.best_bid_timestamp = ev.exch_ts;
 
-                    for t in (self.best_bid_tick + 1)..(prev_best_bid_tick + 1) {
+                    let mut up_to_bid_tick = self.best_bid_tick;
+                    if up_to_bid_tick == INVALID_MIN {
+                        up_to_bid_tick = self.best_ask_tick - 1;
+                        self.low_bid_tick = INVALID_MAX;
+                    }
+
+                    for t in (up_to_bid_tick + 1)..(prev_best_bid_tick + 1) {
                         if self.bid_depth.remove(&t).is_some() {
                             debug!(
                                 px = t as f64 * self.tick_size,
@@ -381,7 +393,13 @@ impl FusedHashMapMarketDepth {
                 depth_above(&self.ask_depth, self.best_bid_tick, self.high_ask_tick);
             self.best_ask_timestamp = ev.exch_ts;
 
-            for t in prev_best_ask_tick..self.best_ask_tick {
+            let mut up_to_ask_tick = self.best_ask_tick;
+            if up_to_ask_tick == INVALID_MAX {
+                up_to_ask_tick = self.best_bid_tick + 1;
+                self.high_ask_tick = INVALID_MIN;
+            }
+
+            for t in prev_best_ask_tick..up_to_ask_tick {
                 if self.ask_depth.remove(&t).is_some() {
                     debug!(
                         px = t as f64 * self.tick_size,
@@ -480,7 +498,13 @@ impl FusedHashMapMarketDepth {
                 depth_below(&self.bid_depth, self.best_ask_tick, self.low_bid_tick);
             self.best_bid_timestamp = ev.exch_ts;
 
-            for t in (self.best_bid_tick + 1)..(prev_best_bid_tick + 1) {
+            let mut up_to_bid_tick = self.best_bid_tick;
+            if up_to_bid_tick == INVALID_MIN {
+                up_to_bid_tick = self.best_ask_tick - 1;
+                self.low_bid_tick = INVALID_MAX;
+            }
+
+            for t in (up_to_bid_tick + 1)..(prev_best_bid_tick + 1) {
                 if self.bid_depth.remove(&t).is_some() {
                     debug!(
                         px = t as f64 * self.tick_size,
