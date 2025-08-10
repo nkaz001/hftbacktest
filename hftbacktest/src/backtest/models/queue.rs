@@ -36,7 +36,7 @@ where
     /// Adjusts the estimation values when market depth changes at the same price.
     fn depth(&self, order: &mut Order, prev_qty: f64, new_qty: f64, depth: &MD);
 
-    fn is_filled(&self, order: &Order, depth: &MD) -> f64;
+    fn is_filled(&self, order: &mut Order, depth: &MD) -> f64;
 }
 
 /// Provides a conservative queue position model, where your order's queue position advances only
@@ -83,10 +83,12 @@ where
         *front_q_qty = front_q_qty.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order, depth: &MD) -> f64 {
-        let front_q_qty = order.q.as_any().downcast_ref::<f64>().unwrap();
-        if (front_q_qty / depth.lot_size()).round() < 0.0 {
-            (-front_q_qty / depth.lot_size()).floor() * depth.lot_size()
+    fn is_filled(&self, order: &mut Order, depth: &MD) -> f64 {
+        let q = order.q.as_any_mut().downcast_mut::<QueuePos>().unwrap();
+        let exec = (-q.front_q_qty / depth.lot_size()).round() as i64;
+        if exec > 0 {
+            q.front_q_qty = 0.0;
+            (exec as f64) * depth.lot_size()
         } else {
             0.0
         }
@@ -94,7 +96,7 @@ where
 }
 
 /// Stores the values needed for queue position estimation and adjustment for [`ProbQueueModel`].
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct QueuePos {
     front_q_qty: f64,
     cum_trade_qty: f64,
@@ -202,10 +204,12 @@ where
         q.front_q_qty = est_front.min(new_qty);
     }
 
-    fn is_filled(&self, order: &Order, depth: &MD) -> f64 {
-        let q = order.q.as_any().downcast_ref::<QueuePos>().unwrap();
-        if (q.front_q_qty / depth.lot_size()).round() < 0.0 {
-            (-q.front_q_qty / depth.lot_size()).floor() * depth.lot_size()
+    fn is_filled(&self, order: &mut Order, depth: &MD) -> f64 {
+        let q = order.q.as_any_mut().downcast_mut::<QueuePos>().unwrap();
+        let exec = (-q.front_q_qty / depth.lot_size()).round() as i64;
+        if exec > 0 {
+            q.front_q_qty = 0.0;
+            (exec as f64) * depth.lot_size()
         } else {
             0.0
         }
