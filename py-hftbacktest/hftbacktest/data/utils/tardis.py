@@ -208,27 +208,7 @@ def convert(
                 snapshot_mode_flag = SNAPSHOT_MODE_IGNORE_SOD
             row_num = _convert_depth(tmp, arr, row_num, ss_bid, ss_ask, snapshot_mode_flag)
         elif df.columns == list(book_ticker_schema.keys()):
-            arr = (
-                df.with_columns(
-                    (pl.col('timestamp') * 1000)
-                    .cast(pl.Int64, strict=True)
-                    .alias('exch_ts'),
-                    (pl.col('local_timestamp') * 1000)
-                    .cast(pl.Int64, strict=True)
-                    .alias('local_ts'),
-                    pl.col('ask_amount')
-                    .cast(pl.Float64, strict=True),
-                    pl.col('ask_price')
-                    .cast(pl.Float64, strict=True),
-                    pl.col('bid_price')
-                    .cast(pl.Float64, strict=True),
-                    pl.col('bid_amount')
-                    .cast(pl.Float64, strict=True),
-                )
-                .select(['exch_ts', 'local_ts', 'ask_amount', 'ask_price', 'bid_price', 'bid_amount'])
-                .to_numpy(structured=True)
-            )
-            pass
+            raise ValueError('Use `convert_fuse` instead of `convert` to combine book ticker data with the depth data.')
 
     tmp = tmp[:row_num]
 
