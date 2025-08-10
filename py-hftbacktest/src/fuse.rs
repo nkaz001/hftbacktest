@@ -41,6 +41,7 @@ pub extern "C" fn fusemarketdepth_free(slf: *mut FuseMarketDepth) {
 pub extern "C" fn fusemarketdepth_process_event(
     slf: *mut FuseMarketDepth,
     ev: *const Event,
+    add: bool,
 ) -> bool {
     let slf = unsafe { &mut *slf };
     let mut ev = unsafe { &*ev }.clone();
@@ -52,7 +53,9 @@ pub extern "C" fn fusemarketdepth_process_event(
         } else {
             return false;
         };
-        slf.fused.append(&mut evs);
+        if add {
+            slf.fused.append(&mut evs);
+        }
     } else if ev.is(DEPTH_CLEAR_EVENT) {
         if ev.is(BUY_EVENT) {
             slf.depth.clear_depth(Side::Buy, ev.px, ev.exch_ts);
@@ -61,7 +64,9 @@ pub extern "C" fn fusemarketdepth_process_event(
         } else {
             slf.depth.clear_depth(Side::None, 0.0, ev.exch_ts);
         }
-        slf.fused.push(ev);
+        if add {
+            slf.fused.push(ev);
+        }
     } else if ev.is(DEPTH_BBO_EVENT) {
         ev.ev = (ev.ev & !DEPTH_BBO_EVENT) | DEPTH_EVENT;
         let mut evs = if ev.is(BUY_EVENT) {
@@ -71,7 +76,9 @@ pub extern "C" fn fusemarketdepth_process_event(
         } else {
             return false;
         };
-        slf.fused.append(&mut evs);
+        if add {
+            slf.fused.append(&mut evs);
+        }
     } else {
         return false;
     }
