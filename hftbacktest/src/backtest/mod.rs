@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     io::Error as IoError,
-    marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
@@ -24,7 +23,7 @@ use crate::{
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         state::State,
     },
-    depth::{HashMapMarketDepth, L2MarketDepth, L3MarketDepth, MarketDepth},
+    depth::{L2MarketDepth, L3MarketDepth, MarketDepth},
     prelude::{
         Bot,
         OrdType,
