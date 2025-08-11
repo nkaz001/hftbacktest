@@ -1,6 +1,6 @@
 use std::collections::{HashMap, hash_map::Entry};
 
-use tracing::debug;
+//use tracing::debug;
 
 use crate::{
     backtest::data::Data,
@@ -81,14 +81,14 @@ impl FusedHashMapMarketDepth {
         if (price_tick >= self.best_bid_tick && ev.exch_ts < self.best_bid_timestamp)
             || (price_tick >= self.best_ask_tick && ev.exch_ts < self.best_ask_timestamp)
         {
-            debug!(
-                ?ev,
-                best_bid_tick = self.best_bid_tick,
-                best_ask_tick = self.best_ask_tick,
-                best_bid_timestamp = self.best_bid_timestamp,
-                best_ask_timestamp = self.best_ask_timestamp,
-                "update_bid_depth: attempts to update the BBO, but the event is outdated."
-            );
+            // debug!(
+            //     ?ev,
+            //     best_bid_tick = self.best_bid_tick,
+            //     best_ask_tick = self.best_ask_tick,
+            //     best_bid_timestamp = self.best_bid_timestamp,
+            //     best_ask_timestamp = self.best_ask_timestamp,
+            //     "update_bid_depth: attempts to update the BBO, but the event is outdated."
+            // );
             return result;
         }
 
@@ -106,12 +106,12 @@ impl FusedHashMapMarketDepth {
                     }
                     result.push(ev.clone());
                 } else {
-                    debug!(
-                        ?ev,
-                        ?ts,
-                        "update_bid_depth: attempts to update the price level, \
-                        but the event is outdated."
-                    );
+                    // debug!(
+                    //     ?ev,
+                    //     ?ts,
+                    //     "update_bid_depth: attempts to update the price level, \
+                    //     but the event is outdated."
+                    // );
                 }
             }
             Entry::Vacant(entry) => {
@@ -133,12 +133,12 @@ impl FusedHashMapMarketDepth {
                 if self.best_bid_tick == INVALID_MIN {
                     self.low_bid_tick = INVALID_MAX
                 }
-                debug!(
-                    ?ev,
-                    best_bid_tick = self.best_bid_tick,
-                    best_ask_tick = self.best_ask_tick,
-                    "update_bid_depth: The BBO gets updated by deleting the prior BBO."
-                );
+                // debug!(
+                //     ?ev,
+                //     best_bid_tick = self.best_bid_tick,
+                //     best_ask_tick = self.best_ask_tick,
+                //     "update_bid_depth: The BBO gets updated by deleting the prior BBO."
+                // );
             }
         } else {
             if price_tick >= self.best_bid_tick {
@@ -159,11 +159,11 @@ impl FusedHashMapMarketDepth {
 
                     for t in prev_best_ask_tick..up_to_ask_tick {
                         if self.ask_depth.remove(&t).is_some() {
-                            debug!(
-                                px = t as f64 * self.tick_size,
-                                "update_bid_depth: Ask deletion event is generated \
-                                by the best bid crossing."
-                            );
+                            // debug!(
+                            //     px = t as f64 * self.tick_size,
+                            //     "update_bid_depth: Ask deletion event is generated \
+                            //     by the best bid crossing."
+                            // );
                             result.push(Event {
                                 ev: SELL_EVENT | DEPTH_EVENT,
                                 exch_ts: ev.exch_ts,
@@ -177,11 +177,11 @@ impl FusedHashMapMarketDepth {
                         }
                     }
                 }
-                debug!(
-                    best_bid_tick = self.best_bid_tick,
-                    best_ask_tick = self.best_ask_tick,
-                    "update_bid_depth: The BBO gets updated."
-                );
+                // debug!(
+                //     best_bid_tick = self.best_bid_tick,
+                //     best_ask_tick = self.best_ask_tick,
+                //     "update_bid_depth: The BBO gets updated."
+                // );
             }
             self.low_bid_tick = self.low_bid_tick.min(price_tick);
         }
@@ -197,14 +197,14 @@ impl FusedHashMapMarketDepth {
         if (price_tick <= self.best_ask_tick && ev.exch_ts < self.best_ask_timestamp)
             || (price_tick <= self.best_bid_tick && ev.exch_ts < self.best_bid_timestamp)
         {
-            debug!(
-                price_tick,
-                best_bid_tick = self.best_bid_tick,
-                best_ask_tick = self.best_ask_tick,
-                best_bid_timestamp = self.best_bid_timestamp,
-                best_ask_timestamp = self.best_ask_timestamp,
-                "update_ask_depth: attempts to update the BBO, but the event is outdated."
-            );
+            // debug!(
+            //     price_tick,
+            //     best_bid_tick = self.best_bid_tick,
+            //     best_ask_tick = self.best_ask_tick,
+            //     best_bid_timestamp = self.best_bid_timestamp,
+            //     best_ask_timestamp = self.best_ask_timestamp,
+            //     "update_ask_depth: attempts to update the BBO, but the event is outdated."
+            // );
             return result;
         }
 
@@ -222,12 +222,12 @@ impl FusedHashMapMarketDepth {
                     }
                     result.push(ev.clone());
                 } else {
-                    debug!(
-                        ?ev,
-                        ?ts,
-                        "update_ask_depth: attempts to update the price level, \
-                        but the event is outdated."
-                    );
+                    // debug!(
+                    //     ?ev,
+                    //     ?ts,
+                    //     "update_ask_depth: attempts to update the price level, \
+                    //     but the event is outdated."
+                    // );
                 }
             }
             Entry::Vacant(entry) => {
@@ -249,12 +249,12 @@ impl FusedHashMapMarketDepth {
                 if self.best_ask_tick == INVALID_MAX {
                     self.high_ask_tick = INVALID_MIN
                 }
-                debug!(
-                    ?ev,
-                    best_bid_tick = self.best_bid_tick,
-                    best_ask_tick = self.best_ask_tick,
-                    "update_ask_depth: The BBO gets updated by deleting the prior BBO."
-                );
+                // debug!(
+                //     ?ev,
+                //     best_bid_tick = self.best_bid_tick,
+                //     best_ask_tick = self.best_ask_tick,
+                //     "update_ask_depth: The BBO gets updated by deleting the prior BBO."
+                // );
             }
         } else {
             if price_tick <= self.best_ask_tick {
@@ -275,11 +275,11 @@ impl FusedHashMapMarketDepth {
 
                     for t in (up_to_bid_tick + 1)..(prev_best_bid_tick + 1) {
                         if self.bid_depth.remove(&t).is_some() {
-                            debug!(
-                                px = t as f64 * self.tick_size,
-                                "update_ask_depth: Bid deletion event is generated \
-                                by the best ask crossing."
-                            );
+                            // debug!(
+                            //     px = t as f64 * self.tick_size,
+                            //     "update_ask_depth: Bid deletion event is generated \
+                            //     by the best ask crossing."
+                            // );
                             result.push(Event {
                                 ev: BUY_EVENT | DEPTH_EVENT,
                                 exch_ts: ev.exch_ts,
@@ -293,11 +293,11 @@ impl FusedHashMapMarketDepth {
                         }
                     }
                 }
-                debug!(
-                    best_bid_tick = self.best_bid_tick,
-                    best_ask_tick = self.best_ask_tick,
-                    "update_ask_depth: The BBO gets updated."
-                );
+                // debug!(
+                //     best_bid_tick = self.best_bid_tick,
+                //     best_ask_tick = self.best_ask_tick,
+                //     "update_ask_depth: The BBO gets updated."
+                // );
             }
             self.high_ask_tick = self.high_ask_tick.max(price_tick);
         }
@@ -351,14 +351,14 @@ impl FusedHashMapMarketDepth {
         if ev.exch_ts < self.best_bid_timestamp
             || (price_tick >= self.best_ask_tick && ev.exch_ts < self.best_ask_timestamp)
         {
-            debug!(
-                price_tick,
-                best_bid_tick = self.best_bid_tick,
-                best_ask_tick = self.best_ask_tick,
-                best_bid_timestamp = self.best_bid_timestamp,
-                best_ask_timestamp = self.best_ask_timestamp,
-                "update_best_bid: attempts to update the BBO, but the event is outdated."
-            );
+            // debug!(
+            //     price_tick,
+            //     best_bid_tick = self.best_bid_tick,
+            //     best_ask_tick = self.best_ask_tick,
+            //     best_bid_timestamp = self.best_bid_timestamp,
+            //     best_ask_timestamp = self.best_ask_timestamp,
+            //     "update_best_bid: attempts to update the BBO, but the event is outdated."
+            // );
             return result;
         }
 
@@ -404,11 +404,11 @@ impl FusedHashMapMarketDepth {
 
             for t in prev_best_ask_tick..up_to_ask_tick {
                 if self.ask_depth.remove(&t).is_some() {
-                    debug!(
-                        px = t as f64 * self.tick_size,
-                        "update_best_bid: Ask deletion event is generated \
-                        by the best bid crossing."
-                    );
+                    // debug!(
+                    //     px = t as f64 * self.tick_size,
+                    //     "update_best_bid: Ask deletion event is generated \
+                    //     by the best bid crossing."
+                    // );
                     result.push(Event {
                         ev: SELL_EVENT | DEPTH_EVENT,
                         exch_ts: ev.exch_ts,
@@ -422,20 +422,20 @@ impl FusedHashMapMarketDepth {
                 }
             }
         }
-        debug!(
-            best_bid_tick = self.best_bid_tick,
-            best_ask_tick = self.best_ask_tick,
-            "update_best_bid: The BBO gets updated."
-        );
+        // debug!(
+        //     best_bid_tick = self.best_bid_tick,
+        //     best_ask_tick = self.best_ask_tick,
+        //     "update_best_bid: The BBO gets updated."
+        // );
 
         if self.best_bid_tick < prev_best_bid_tick {
             for t in (self.best_bid_tick + 1)..(prev_best_bid_tick + 1) {
                 if self.bid_depth.remove(&t).is_some() {
-                    debug!(
-                        px = t as f64 * self.tick_size,
-                        "update_best_bid: Bid deletion event is generated \
-                        by the best bid backoff."
-                    );
+                    // debug!(
+                    //     px = t as f64 * self.tick_size,
+                    //     "update_best_bid: Bid deletion event is generated \
+                    //     by the best bid backoff."
+                    // );
                     result.push(Event {
                         ev: BUY_EVENT | DEPTH_EVENT,
                         exch_ts: ev.exch_ts,
@@ -459,14 +459,14 @@ impl FusedHashMapMarketDepth {
         if ev.exch_ts < self.best_ask_timestamp
             || (price_tick <= self.best_bid_tick && ev.exch_ts < self.best_bid_timestamp)
         {
-            debug!(
-                price_tick,
-                best_bid_tick = self.best_bid_tick,
-                best_ask_tick = self.best_ask_tick,
-                best_bid_timestamp = self.best_bid_timestamp,
-                best_ask_timestamp = self.best_ask_timestamp,
-                "update_best_ask: attempts to update the BBO, but the event is outdated."
-            );
+            // debug!(
+            //     price_tick,
+            //     best_bid_tick = self.best_bid_tick,
+            //     best_ask_tick = self.best_ask_tick,
+            //     best_bid_timestamp = self.best_bid_timestamp,
+            //     best_ask_timestamp = self.best_ask_timestamp,
+            //     "update_best_ask: attempts to update the BBO, but the event is outdated."
+            // );
             return result;
         }
 
@@ -512,11 +512,11 @@ impl FusedHashMapMarketDepth {
 
             for t in (up_to_bid_tick + 1)..(prev_best_bid_tick + 1) {
                 if self.bid_depth.remove(&t).is_some() {
-                    debug!(
-                        px = t as f64 * self.tick_size,
-                        "update_best_ask: Bid deletion event is generated \
-                        by the best ask crossing."
-                    );
+                    // debug!(
+                    //     px = t as f64 * self.tick_size,
+                    //     "update_best_ask: Bid deletion event is generated \
+                    //     by the best ask crossing."
+                    // );
                     result.push(Event {
                         ev: BUY_EVENT | DEPTH_EVENT,
                         exch_ts: ev.exch_ts,
@@ -530,20 +530,20 @@ impl FusedHashMapMarketDepth {
                 }
             }
         }
-        debug!(
-            best_bid_tick = self.best_bid_tick,
-            best_ask_tick = self.best_ask_tick,
-            "update_best_ask: The BBO gets updated."
-        );
+        // debug!(
+        //     best_bid_tick = self.best_bid_tick,
+        //     best_ask_tick = self.best_ask_tick,
+        //     "update_best_ask: The BBO gets updated."
+        // );
 
         if self.best_ask_tick > prev_best_ask_tick {
             for t in prev_best_ask_tick..self.best_ask_tick {
                 if self.ask_depth.remove(&t).is_some() {
-                    debug!(
-                        px = t as f64 * self.tick_size,
-                        "update_best_ask: Ask deletion event is generated \
-                        by the best ask backoff."
-                    );
+                    // debug!(
+                    //     px = t as f64 * self.tick_size,
+                    //     "update_best_ask: Ask deletion event is generated \
+                    //     by the best ask backoff."
+                    // );
                     result.push(Event {
                         ev: SELL_EVENT | DEPTH_EVENT,
                         exch_ts: ev.exch_ts,
