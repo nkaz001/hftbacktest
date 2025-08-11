@@ -101,9 +101,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.platform.target }}
-      - name: Install dependencies
-        run: |
-          choco install openssl
+#      - name: Install dependencies
+#        run: |
+#          choco install openssl
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
