@@ -10,7 +10,7 @@
 //!
 //! ## Key Features
 //! - Complete tick-by-tick simulation with a variable time interval.
-//! - Full order book reconstruction based on L2 feeds(Market-By-Price) and L3 feeds(Market-By-Order).
+//! - Full order book reconstruction based on Level-2 feeds(Market-By-Price) and Level-3 feeds(Market-By-Order).
 //! - Backtest accounting for both feed and order latency, using provided models or your own custom model.
 //! - Order fill simulation that takes into account the order queue position, using provided models or your own custom model.
 //! - Backtesting of multi-asset and multi-exchange models
@@ -23,9 +23,7 @@
 //!
 //! - `backtest`: Enables backtesting features.
 //! - `live`: Enables a live trading bot.
-//! - `unstable_fuse`: Enables the market depth fusion feature, which aggregates different market
-//!   depth streams to provide the finest granularity and the most frequent, up-to-date market depth
-//!   information
+//! - `s3`: Enables accessing data file from S3.
 //!
 
 /// Provides backtesting features.
