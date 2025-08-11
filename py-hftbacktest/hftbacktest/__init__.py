@@ -112,7 +112,7 @@ __all__ = (
     'Recorder'
 )
 
-__version__ = '2.4.0'
+__version__ = '2.4.1'
 
 
 class BacktestAsset(BacktestAsset_):
