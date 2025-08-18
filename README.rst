@@ -25,10 +25,30 @@ Documentation
 
 See `full document here <https://hftbacktest.readthedocs.io/>`_.
 
+Tutorials you’ll likely find interesting:
+
 * `High-Frequency Grid Trading - Comparison Across Other Exchanges <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading%20-%20Comparison%20Across%20Other%20Exchanges.html>`_
 * `Market Making with Alpha - Order Book Imbalance <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20Order%20Book%20Imbalance.html>`_
 * `Market Making with Alpha - APT <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20APT.html>`_
 * `Accelerated Backtesting <https://hftbacktest.readthedocs.io/en/latest/tutorials/Accelerated%20Backtesting.html>`_
+
+Why Accurate Backtesting Matters — Not Just Conservative Approach
+=================================================================
+
+Trading is a highly competitive field where only the small edges usually exist, but they can still make a significant
+difference. Because of this, backtesting must accurately simulate real-world conditions.: it should not rely on overly
+conservative approach that underestimate performance, nor on overly aggressive ones that overstate it. Or at the very
+least, you should clearly understand what differs from live trading and by how much, since sometimes fully accurate
+backtesting is not practical due to the time it requires.
+
+This is not about overfitting at the start—before you even consider issues like overfitting, you need confidence that
+your backtesting truly reflects real-world execution. For example, if you run a live trading strategy in January 2025,
+the backtest for that exact period should produce results that closely align with the actual results. Once you’ve
+validated that your backtesting can accurately reproduce live trading results, then you can proceed to deeper research,
+optimization, and considerations around overfitting.
+
+Accurate backtesting is the foundation. Without it, all further analysis—whether conservative or aggressive—becomes
+unreliable.
 
 Getting started
 ===============
