@@ -84,10 +84,10 @@ where
     }
 
     fn is_filled(&self, order: &mut Order, depth: &MD) -> f64 {
-        let q = order.q.as_any_mut().downcast_mut::<QueuePos>().unwrap();
-        let exec = (-q.front_q_qty / depth.lot_size()).round() as i64;
+        let front_q_qty = order.q.as_any_mut().downcast_mut::<f64>().unwrap();
+        let exec = (-*front_q_qty / depth.lot_size()).round() as i64;
         if exec > 0 {
-            q.front_q_qty = 0.0;
+            *front_q_qty = 0.0;
             (exec as f64) * depth.lot_size()
         } else {
             0.0
