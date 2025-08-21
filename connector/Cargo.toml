@@ -12,24 +12,24 @@ bybit = []
 [dependencies]
 hftbacktest = { path = "../hftbacktest" }
 tracing = "0.1.41"
-anyhow = "1.0.98"
-thiserror = "2.0.12"
+anyhow = "1.0.99"
+thiserror = "2.0.16"
 bincode = "2.0.1"
 chrono = { version = "0.4.41" }
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = { version = "1.0.140" }
-tokio = { version = "1.46.1", features = ["full"] }
+serde_json = { version = "1.0.143" }
+tokio = { version = "1.47.1", features = ["full"] }
 tokio-tungstenite = { version = "0.27", features = ["rustls-tls-native-roots"] }
-reqwest = { version = "0.12.22", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+reqwest = { version = "0.12.23", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 futures-util = { version = "0.3.31" }
 sha2 = "0.10.9"
 hmac = "0.12.1"
 iceoryx2 = { version = "0.6.1", features = ["logger_tracing"] }
-toml = "0.9.2"
+toml = "0.9.5"
 tracing-subscriber = "0.3.19"
-clap = { version = "4.5.41", features = ["derive"] }
-hashbrown = "0.15.4"
-rand = "0.9.1"
+clap = { version = "4.5.45", features = ["derive"] }
+hashbrown = "0.15.5"
+rand = "0.9.2"
 ed25519-dalek = { version = "2.2.0", features = [
     "serde",
     "zeroize",
