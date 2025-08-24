@@ -28,10 +28,30 @@ Documentation
 
 See `full document here <https://hftbacktest.readthedocs.io/>`_.
 
-* `High-Frequency Grid Trading - Comparison Across Other Exchanges <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading%20-%20Comparison%20Across%20Other%20Exchanges.html>`_
+Tutorials you’ll likely find interesting:
+
+* `High-Frequency Grid Trading - Simplified from GLFT <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading%20-%20Simplified%20from%20GLFT.html>`_
 * `Market Making with Alpha - Order Book Imbalance <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20Order%20Book%20Imbalance.html>`_
 * `Market Making with Alpha - APT <https://hftbacktest.readthedocs.io/en/latest/tutorials/Market%20Making%20with%20Alpha%20-%20APT.html>`_
 * `Accelerated Backtesting <https://hftbacktest.readthedocs.io/en/latest/tutorials/Accelerated%20Backtesting.html>`_
+
+Why Accurate Backtesting Matters — Not Just Conservative Approach
+=================================================================
+
+Trading is a highly competitive field where only the small edges usually exist, but they can still make a significant
+difference. Because of this, backtesting must accurately simulate real-world conditions.: It should neither rely on an
+overly conservative approach that hides these small edges and profit opportunities, nor on an overly aggressive one that
+overstates them through unrealistic simulation. Or at the very least, you should clearly understand what differs from
+live trading and by how much, since sometimes fully accurate backtesting is not practical due to the time it requires.
+
+This is not about overfitting at the start—before you even consider issues like overfitting, you need confidence that
+your backtesting truly reflects real-world execution. For example, if you run a live trading strategy in January 2025,
+the backtest for that exact period should produce results that closely align with the actual results. Once you’ve
+validated that your backtesting can accurately reproduce live trading results, then you can proceed to deeper research,
+optimization, and considerations around overfitting.
+
+Accurate backtesting is the foundation. Without it, all further analysis—whether conservative or aggressive—becomes
+unreliable.
 
 Getting started
 ===============
@@ -169,6 +189,7 @@ Tutorials
 * `Making Multiple Markets - Introduction <https://hftbacktest.readthedocs.io/en/latest/tutorials/Making%20Multiple%20Markets%20-%20Introduction.html>`_
 * `High-Frequency Grid Trading <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading.html>`_
 * `High-Frequency Grid Trading - Comparison Across Other Exchanges <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading%20-%20Comparison%20Across%20Other%20Exchanges.html>`_
+* `High-Frequency Grid Trading - Simplified from GLFT <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading%20-%20Simplified%20from%20GLFT.html>`_
 * `Impact of Order Latency <https://hftbacktest.readthedocs.io/en/latest/tutorials/Impact%20of%20Order%20Latency.html>`_
 * `Order Latency Data <https://hftbacktest.readthedocs.io/en/latest/tutorials/Order%20Latency%20Data.html>`_
 * `Guéant–Lehalle–Fernandez-Tapia Market Making Model and Grid Trading <https://hftbacktest.readthedocs.io/en/latest/tutorials/GLFT%20Market%20Making%20Model%20and%20Grid%20Trading.html>`_
@@ -262,6 +283,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    tutorials/Making Multiple Markets - Introduction
    tutorials/High-Frequency Grid Trading
    tutorials/High-Frequency Grid Trading - Comparison Across Other Exchanges
+   tutorials/High-Frequency Grid Trading - Simplified from GLFT
    tutorials/Impact of Order Latency
    tutorials/Order Latency Data
    tutorials/GLFT Market Making Model and Grid Trading
