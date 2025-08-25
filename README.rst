@@ -37,7 +37,7 @@ Why Accurate Backtesting Matters — Not Just Conservative Approach
 
 Trading is a highly competitive field where only the small edges usually exist, but they can still make a significant
 difference. Because of this, backtesting must accurately simulate real-world conditions.: It should neither rely on an
-overly conservative approach that hides these small edges and profit opportunities, nor on an overly aggressive one that
+overly pessimistic approach that hides these small edges and profit opportunities, nor on an overly optimistic one that
 overstates them through unrealistic simulation. Or at the very least, you should clearly understand what differs from
 live trading and by how much, since sometimes fully accurate backtesting is not practical due to the time it requires.
 
