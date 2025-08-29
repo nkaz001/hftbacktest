@@ -151,6 +151,9 @@ impl MarketDataStream {
             }
             EventStream::Trade(data) => match parse_px_qty_tup(data.price, data.qty) {
                 Ok((px, qty)) => {
+                    if data.type_ != "MARKET" {
+                        return;
+                    }
                     self.ev_tx
                         .send(PublishEvent::LiveEvent(LiveEvent::Feed {
                             symbol: data.symbol,
