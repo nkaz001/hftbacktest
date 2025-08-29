@@ -34,12 +34,14 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/nkaz001/hftbacktest"
 
-[project.optional-dependencies]
+[project.dependencies]
 numpy = ["numpy >=2.0, <2.3"]
 numba = ["numba ~= 0.61"]
 polars = ["polars"]
-holoviews = ["holoviews"]
 matplotlib = ["matplotlib"]
+
+[project.optional-dependencies]
+holoviews = ["holoviews"]
 databento = ["databento"]
 
 [tool.maturin]
