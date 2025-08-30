@@ -28,6 +28,10 @@ where
                 num_trades: 0,
                 trading_volume: 0.0,
                 trading_value: 0.0,
+                num_messages: 0,
+                num_creations: 0,
+                num_modifications: 0,
+                num_cancellations: 0,
             },
             fee_model,
             asset_type,
@@ -41,6 +45,7 @@ where
         self.state_values.balance -= amount * AsRef::<f64>::as_ref(&order.side);
         self.state_values.fee += self.fee_model.amount(order, amount);
         self.state_values.num_trades += 1;
+        self.state_values.num_messages += 1;
         self.state_values.trading_volume += order.exec_qty;
         self.state_values.trading_value += amount;
     }
@@ -58,5 +63,10 @@ where
     #[inline]
     pub fn values(&self) -> &StateValues {
         &self.state_values
+    }
+
+    #[inline]
+    pub fn values_mut(&mut self) -> &mut StateValues {
+        &mut self.state_values
     }
 }
