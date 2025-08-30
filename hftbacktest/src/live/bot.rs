@@ -172,12 +172,12 @@ impl<MD> LiveBotBuilder<MD> {
 /// Provides the same interface as the backtesters in [`backtest`](`crate::backtest`).
 ///
 /// ```
-/// use hftbacktest::{live::{Instrument, LiveBot}, prelude::HashMapMarketDepth};
+/// use hftbacktest::{live::{Instrument, LiveBotBuilder, ipc::iceoryx::IceoryxUnifiedChannel}, prelude::HashMapMarketDepth};
 ///
 /// let tick_size = 0.1;
 /// let lot_size = 1.0;
 ///
-/// let mut hbt = LiveBot::builder()
+/// let hbt: hftbacktest::live::LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> = LiveBotBuilder::new()
 ///     .register(Instrument::new(
 ///         "connector_name",
 ///         "symbol",
@@ -440,6 +440,11 @@ where
     }
 
     #[inline]
+    fn mutable_state_values(&mut self, asset_no: usize) -> &mut StateValues {
+        &mut self.instruments.get_mut(asset_no).unwrap().state
+    }
+
+    #[inline]
     fn depth(&self, asset_no: usize) -> &MD {
         &self.instruments.get(asset_no).unwrap().depth
     }
@@ -451,6 +456,24 @@ where
             .unwrap()
             .last_trades
             .as_slice()
+    }
+
+    #[inline]
+    fn last_trade_size(&self, asset_no: usize) -> f64 {
+        self.instruments
+            .get(asset_no)
+            .unwrap()
+            .last_trade_size
+            .clone()
+    }
+
+    #[inline]
+    fn last_trade_price(&self, asset_no: usize) -> f64 {
+        self.instruments
+            .get(asset_no)
+            .unwrap()
+            .last_trade_price
+            .clone()
     }
 
     fn clear_last_trades(&mut self, asset_no: Option<usize>) {
