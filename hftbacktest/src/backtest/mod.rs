@@ -889,12 +889,25 @@ where
         self.local.get(asset_no).unwrap().state_values()
     }
 
+    #[inline]
+    fn mutable_state_values(&mut self, asset_no: usize) -> &mut StateValues {
+        self.local.get_mut(asset_no).unwrap().state_values_mut()
+    }
+
     fn depth(&self, asset_no: usize) -> &MD {
         self.local.get(asset_no).unwrap().depth()
     }
 
     fn last_trades(&self, asset_no: usize) -> &[Event] {
         self.local.get(asset_no).unwrap().last_trades()
+    }
+
+    fn last_trade_price(&self, asset_no: usize) -> f64 {
+        self.local.get(asset_no).unwrap().last_trade_price()
+    }
+
+    fn last_trade_size(&self, asset_no: usize) -> f64 {
+        self.local.get(asset_no).unwrap().last_trade_size()
     }
 
     #[inline]
