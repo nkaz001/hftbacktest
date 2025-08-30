@@ -29,6 +29,9 @@ pub struct BTreeMarketDepth {
     pub ask_depth: BTreeMap<i64, f64>,
     pub best_bid_tick: i64,
     pub best_ask_tick: i64,
+    pub best_bid_size: f64,
+    pub best_ask_size: f64,
+    pub order_book_imbalance: f64,
     pub orders: HashMap<OrderId, L3Order>,
 }
 
@@ -43,7 +46,10 @@ impl BTreeMarketDepth {
             ask_depth: Default::default(),
             best_bid_tick: INVALID_MIN,
             best_ask_tick: INVALID_MAX,
+            best_bid_size: 0.,
+            best_ask_size: 0.,
             orders: Default::default(),
+            order_book_imbalance: 0.,
         }
     }
 
@@ -178,6 +184,48 @@ impl MarketDepth for BTreeMarketDepth {
         } else {
             self.best_ask_tick as f64 * self.tick_size
         }
+    }
+
+    #[inline(always)]
+    fn best_ask_size(&self) -> f64 {
+        if self.best_ask_tick == INVALID_MAX {
+            f64::NAN
+        } else {
+            self.ask_qty_at_tick(self.best_ask_tick)
+        }
+    }
+
+    #[inline(always)]
+    fn best_bid_size(&self) -> f64 {
+        if self.best_ask_tick == INVALID_MAX {
+            f64::NAN
+        } else {
+            self.bid_qty_at_tick(self.best_ask_tick)
+        }
+    }
+
+    #[inline(always)]
+    fn order_book_imbalance(&self) -> f64 {
+        let bid_size = self.best_bid_size();
+        let ask_size = self.best_ask_size();
+        (bid_size - ask_size) / (bid_size + ask_size)
+    }
+
+    #[inline(always)]
+    fn rws(&self) -> f64 {
+        let term1 = self.best_ask() * self.best_bid_size();
+        let term2 = self.best_bid() * self.best_ask_size();
+        let term3 = self.best_ask_size() + self.best_bid_size();
+        if term3 > 0. {
+            return (term1 + term2) / term3;
+        } else {
+            return 0.0;
+        }
+    }
+
+    #[inline(always)]
+    fn mid_price(&self) -> f64 {
+        return (self.best_ask() + self.best_bid()) as f64 / 2.0;
     }
 
     #[inline(always)]
