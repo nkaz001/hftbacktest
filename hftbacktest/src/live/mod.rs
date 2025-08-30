@@ -24,6 +24,8 @@ pub struct Instrument<MD> {
     last_feed_latency: Option<(i64, i64)>,
     last_order_latency: Option<(i64, i64, i64)>,
     state: StateValues,
+    last_trade_size: f64,
+    last_trade_price: f64,
 }
 
 impl<MD> Instrument<MD> {
@@ -53,6 +55,8 @@ impl<MD> Instrument<MD> {
             last_feed_latency: None,
             last_order_latency: None,
             state: Default::default(),
+            last_trade_price: 0.0,
+            last_trade_size: 0.0,
         }
     }
 }
