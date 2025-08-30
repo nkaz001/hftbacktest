@@ -80,6 +80,9 @@ where
     /// Returns the state's values such as balance, fee, and so on.
     fn state_values(&self) -> &StateValues;
 
+    /// Returns the state's values such as balance, fee, and so on, mutable.
+    fn state_values_mut(&mut self) -> &mut StateValues;
+
     /// Returns the [`MarketDepth`].
     fn depth(&self) -> &MD;
 
@@ -88,6 +91,12 @@ where
 
     /// Returns the last market trades.
     fn last_trades(&self) -> &[Event];
+
+    /// Returns the last trade's price
+    fn last_trade_price(&self) -> f64;
+
+    /// Returns the last trade's size
+    fn last_trade_size(&self) -> f64;
 
     /// Clears the last market trades from the buffer.
     fn clear_last_trades(&mut self);
