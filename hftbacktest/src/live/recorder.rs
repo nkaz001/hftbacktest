@@ -2,16 +2,14 @@ use std::collections::{HashMap, hash_map::Entry};
 
 use tracing::info;
 
-use crate::{
-    depth::MarketDepth,
-    prelude::{Bot, get_precision},
-    types::{Recorder, StateValues},
-};
+use crate::{depth::MarketDepth, prelude::Bot, types::Recorder};
 
 /// Provides logging of the live strategy's state values.
 #[derive(Default)]
 pub struct LoggingRecorder {
-    state: HashMap<usize, (f64, StateValues)>,
+    position: HashMap<usize, f64>,
+    symbol: String,
+    asset_no: usize,
 }
 
 impl Recorder for LoggingRecorder {
@@ -22,44 +20,44 @@ impl Recorder for LoggingRecorder {
         MD: MarketDepth,
         I: Bot<MD>,
     {
-        for asset_no in 0..hbt.num_assets() {
-            let depth = hbt.depth(asset_no);
-            let price_prec = get_precision(depth.tick_size());
-            let mid = (depth.best_bid() + depth.best_ask()) / 2.0;
-            let state_values = hbt.state_values(asset_no);
-            let updated = match self.state.entry(asset_no) {
-                Entry::Occupied(mut entry) => {
-                    let (prev_mid, prev_state_values) = entry.get();
-                    if (*prev_mid != mid) || (prev_state_values != state_values) {
-                        *entry.get_mut() = (mid, state_values.clone());
-                        true
-                    } else {
-                        false
-                    }
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert((mid, state_values.clone()));
+        let position = hbt.position(self.asset_no);
+
+        let updated = match self.position.entry(self.asset_no) {
+            Entry::Occupied(mut entry) => {
+                let prev_position = entry.get();
+                if *prev_position != position {
+                    *entry.get_mut() = position;
                     true
+                } else {
+                    false
                 }
-            };
-            if updated {
-                info!(
-                    %asset_no,
-                    %mid,
-                    bid = format!("{:.prec$}", depth.best_bid(), prec = price_prec),
-                    ask = format!("{:.prec$}", depth.best_ask(), prec = price_prec),
-                    ?state_values,
-                    "The state of asset number {asset_no} has been updated."
-                );
             }
+            Entry::Vacant(entry) => {
+                entry.insert(position);
+                true
+            }
+        };
+
+        if updated {
+            info!(
+                asset_no = %self.asset_no,
+                symbol = %self.symbol,
+                %position,
+                "Position updated"
+            );
         }
+
         Ok(())
     }
 }
 
 impl LoggingRecorder {
-    /// Constructs an instance of `LoggingRecorder`.
-    pub fn new() -> Self {
-        Default::default()
+    /// Constructs an instance of `LoggingRecorder` for a single symbol.
+    pub fn new(symbol: String, asset_no: usize) -> Self {
+        Self {
+            position: HashMap::new(),
+            symbol,
+            asset_no,
+        }
     }
 }
