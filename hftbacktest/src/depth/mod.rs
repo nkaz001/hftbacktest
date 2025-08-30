@@ -29,9 +29,17 @@ pub trait MarketDepth {
     /// If there is no best bid, it returns [`f64::NAN`].
     fn best_bid(&self) -> f64;
 
+    /// Returns the best bid size.
+    /// If there is no best bid, it returns [`f64::NAN`].
+    fn best_bid_size(&self) -> f64;
+
     /// Returns the best ask price.
     /// If there is no best ask, it returns [`f64::NAN`].
     fn best_ask(&self) -> f64;
+
+    /// Returns the best ask size.
+    /// If there is no best ask, it returns [`f64::NAN`].
+    fn best_ask_size(&self) -> f64;
 
     /// Returns the best bid price in ticks.
     /// If there is no best bid, it returns [`INVALID_MIN`].
@@ -47,6 +55,9 @@ pub trait MarketDepth {
     /// Returns the quantity at the best ask price.
     fn best_ask_qty(&self) -> f64;
 
+    /// Returns the order book imbalance.
+    fn order_book_imbalance(&self) -> f64;
+
     /// Returns the tick size.
     fn tick_size(&self) -> f64;
 
@@ -58,6 +69,12 @@ pub trait MarketDepth {
 
     /// Returns the quantity at the ask market depth for a given price in ticks.
     fn ask_qty_at_tick(&self, price_tick: i64) -> f64;
+
+    /// Reverse-Weighted Spot
+    fn rws(&self) -> f64;
+
+    /// Mid Price
+    fn mid_price(&self) -> f64;
 }
 
 /// Provides Level2-specific market depth functions.
