@@ -459,6 +459,15 @@ impl AsRef<str> for OrdType {
 ///
 /// **Usage:**
 /// ```
+/// use hftbacktest::types::AnyClone;
+/// use std::any::Any;
+///
+/// // Define your custom data type
+/// #[derive(Clone)]
+/// struct QueuePos {
+///     pos: usize,
+/// }
+///
 /// impl AnyClone for QueuePos {
 ///     fn as_any(&self) -> &dyn Any {
 ///         self
@@ -746,6 +755,14 @@ pub struct StateValues {
     pub trading_volume: f64,
     /// Backtest only
     pub trading_value: f64,
+    /// Number of messages (backtest only)
+    pub num_messages: i64,
+    /// Number of quote cancellation messages (backtest only)
+    pub num_cancellations: i64,
+    /// Number of quote creation messages (backtest only)
+    pub num_creations: i64,
+    /// Number of modification messages (backtest only)
+    pub num_modifications: i64,
 }
 
 /// Provides errors that can occur in builders.
@@ -796,6 +813,9 @@ where
     /// Returns the state's values such as balance, fee, and so on.
     fn state_values(&self, asset_no: usize) -> &StateValues;
 
+    /// Returns the state's values such as balance, fee, and so on, mutable.
+    fn mutable_state_values(&mut self, asset_no: usize) -> &mut StateValues;
+
     /// Returns the [`MarketDepth`].
     ///
     /// * `asset_no` - Asset number from which the market depth will be retrieved.
@@ -805,6 +825,16 @@ where
     ///
     /// * `asset_no` - Asset number from which the last market trades will be retrieved.
     fn last_trades(&self, asset_no: usize) -> &[Event];
+
+    /// Returns the last trade's price
+    ///
+    /// * `asset_no` - Asset number from which the last market trades will be retrieved.
+    fn last_trade_price(&self, asset_no: usize) -> f64;
+
+    /// Returns the last trade's size
+    ///
+    /// * `asset_no` - Asset number from which the last market trades will be retrieved.
+    fn last_trade_size(&self, asset_no: usize) -> f64;
 
     /// Clears the last market trades from the buffer.
     ///
