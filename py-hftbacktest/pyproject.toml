@@ -15,7 +15,7 @@ dependencies = [
  "numba ~= 0.61",
  "polars",
  "matplotlib",
- "holoview"
+ "holoviews"
 ]
 
 keywords = ["hft", "high-frequency trading", "trading", "market-making", "backtest"]
