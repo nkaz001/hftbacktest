@@ -16,7 +16,7 @@ class Recorder_:
         self.records = np.empty((record_size, num_assets), record_dtype)
         self.i = 0
 
-    def record(self, hbt):
+    def record(self, hbt) -> None:
         timestamp = hbt.current_timestamp
         for asset_no in range(hbt.num_assets):
             depth = hbt.depth(asset_no)
@@ -37,17 +37,46 @@ class Recorder_:
 
 
 class Recorder:
+    """
+    Record time-series state information for equity and performance metric calculation.
+
+    Args:
+        num_assets: Total number of assets.
+        record_size: Maximum number of records to store.
+    """
+
     def __init__(self, num_assets: uint64, record_size: uint64):
         self._recorder = Recorder_(num_assets, record_size)
 
     @property
     def recorder(self):
+        """
+        Returns the recorder instance used inside Numba code.
+
+        You can use this instance to record state during execution, e.g.:
+        ``recorder.record(hbt)``
+        """
         return self._recorder
 
-    def to_npz(self, file: str):
+    def to_npz(self, file: str) -> None:
+        """
+        Save records to a file.
+
+        Args:
+            file: Path to the output file.
+        """
         data = self._recorder.records[:self._recorder.i]
         kwargs = {str(asset_no): data[:, asset_no] for asset_no in range(data.shape[1])}
         np.savez_compressed(file, **kwargs)
 
     def get(self, asset_no: int) -> np.ndarray[Any, record_dtype]:
+        """
+        Get records for a given asset number.
+
+        Args:
+            asset_no: Asset number.
+
+        Returns:
+            The record associated with the given asset number.
+        """
         return self._recorder.records[:self._recorder.i, asset_no]
