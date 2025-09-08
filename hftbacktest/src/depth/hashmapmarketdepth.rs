@@ -341,6 +341,7 @@ impl ApplySnapshot for HashMapMarketDepth {
         let mut bid_depth = self
             .bid_depth
             .iter()
+            .filter(|&(&px_tick, _)| px_tick <= self.best_bid_tick)
             .map(|(&px_tick, &qty)| (px_tick, qty))
             .collect::<Vec<_>>();
         bid_depth.sort_by(|a, b| b.0.cmp(&a.0));
@@ -361,6 +362,7 @@ impl ApplySnapshot for HashMapMarketDepth {
         let mut ask_depth = self
             .ask_depth
             .iter()
+            .filter(|&(&px_tick, _)| px_tick >= self.best_ask_tick)
             .map(|(&px_tick, &qty)| (px_tick, qty))
             .collect::<Vec<_>>();
         ask_depth.sort_by(|a, b| a.0.cmp(&b.0));
