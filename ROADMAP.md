@@ -20,6 +20,8 @@
 * [X] Parallel loading: Load the next data set while backtesting is in progress.
 * [X] Add a modify order feature.
 * [ ] Allow different latencies for placing, modifying, and canceling orders, as well as order responses, fills, and position feeds.
+* [ ] Add support for data files in Parquet format.
+* [ ] Accelerated backtesting data processor based on the normalized data files.
 
 ### Live
 * [ ] Support Level 3 Market-By-Order for Live Bot.
