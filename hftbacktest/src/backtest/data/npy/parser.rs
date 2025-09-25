@@ -4,6 +4,7 @@ use std::{
 };
 
 use nom::{
+    Parser,
     IResult,
     branch::alt,
     bytes::complete::{escaped, tag, take_while, take_while1},
@@ -107,7 +108,7 @@ pub fn parse_usize<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a st
 pub fn parse_boolean<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, bool, E> {
     let parse_true = value(true, tag("True"));
     let parse_false = value(false, tag("False"));
-    alt((parse_true, parse_false))(input)
+    alt((parse_true, parse_false)).parse(input)
 }
 
 pub fn parse_string<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
@@ -119,7 +120,7 @@ pub fn parse_string<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
             alt((char('\"'), char('\''))),
             cut(terminated(parse_str, alt((char('\"'), char('\''))))),
         ),
-    )(input)
+    ).parse(input)
 }
 
 pub fn parse_list<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
@@ -134,7 +135,7 @@ pub fn parse_list<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
                 preceded(sp_with_comma, alt((char(']'), char(')')))),
             )),
         ),
-    )(input)
+    ).parse(input)
 }
 
 pub fn parse_key_value<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
@@ -144,7 +145,7 @@ pub fn parse_key_value<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
         preceded(sp, parse_string),
         cut(preceded(sp, char(':'))),
         parse_value,
-    )(input)
+    ).parse(input)
 }
 
 pub fn parse_dict<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
@@ -167,7 +168,7 @@ pub fn parse_dict<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
                 preceded(sp_with_comma, char('}')),
             )),
         ),
-    )(input)
+    ).parse(input)
 }
 
 pub fn parse_value<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
@@ -182,7 +183,7 @@ pub fn parse_value<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
             map(parse_usize, Value::Integer),
             map(parse_boolean, Value::Bool),
         )),
-    )(input)
+    ).parse(input)
 }
 
 pub fn parse<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
@@ -192,5 +193,5 @@ pub fn parse<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
         sp,
         alt((map(parse_dict, Value::Dict), map(parse_list, Value::List))),
         opt(sp),
-    )(input)
+    ).parse(input)
 }
