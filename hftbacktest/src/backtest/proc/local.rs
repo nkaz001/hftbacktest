@@ -92,10 +92,9 @@ where
                     Some((order.local_timestamp, order.exch_timestamp, timestamp));
             }
 
-            if let Some(wait_resp_order_id) = wait_resp_order_id {
-                if order.order_id == wait_resp_order_id {
-                    wait_resp_order_received = true;
-                }
+            if let Some(wait_resp_order_id) = wait_resp_order_id
+                && order.order_id == wait_resp_order_id {
+                wait_resp_order_received = true;
             }
 
             // Processes receiving order response.

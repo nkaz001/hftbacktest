@@ -18,60 +18,58 @@ fn handle(
     throttler: &Throttler,
 ) -> Result<(), ConnectorError> {
     let j: serde_json::Value = serde_json::from_str(data.as_str())?;
-    if let Some(j_data) = j.get("data") {
-        if let Some(j_symbol) = j_data
+    if let Some(j_data) = j.get("data")
+        && let Some(j_symbol) = j_data
             .as_object()
             .ok_or(ConnectorError::FormatError)?
-            .get("s")
-        {
-            let symbol = j_symbol.as_str().ok_or(ConnectorError::FormatError)?;
-            if let Some(e) = j_data.get("e") {
-                let ev = e.as_str().ok_or(ConnectorError::FormatError)?;
-                if ev == "depthUpdate" {
-                    let u = j_data
-                        .get("u")
-                        .ok_or(ConnectorError::FormatError)?
-                        .as_i64()
-                        .ok_or(ConnectorError::FormatError)?;
-                    #[allow(non_snake_case)]
-                    let U = j_data
-                        .get("U")
-                        .ok_or(ConnectorError::FormatError)?
-                        .as_i64()
-                        .ok_or(ConnectorError::FormatError)?;
-                    let prev_u = prev_u_map.get(symbol);
-                    if prev_u.is_none() || U != *prev_u.unwrap() + 1 {
-                        warn!(%symbol, "missing depth feed has been detected.");
-                        let symbol_ = symbol.to_string();
-                        let writer_tx_ = writer_tx.clone();
-                        let mut throttler_ = throttler.clone();
-                        tokio::spawn(async move {
-                            match throttler_.execute(fetch_depth_snapshot(&symbol_)).await {
-                                Some(Ok(data)) => {
-                                    let recv_time = Utc::now();
-                                    let _ = writer_tx_.send((recv_time, symbol_, data));
-                                }
-                                Some(Err(error)) => {
-                                    error!(
-                                        symbol = symbol_,
-                                        ?error,
-                                        "couldn't fetch the depth snapshot."
-                                    );
-                                }
-                                None => {
-                                    warn!(
-                                        symbol = symbol_,
-                                        "Fetching the depth snapshot is rate-limited."
-                                    )
-                                }
+            .get("s") {
+        let symbol = j_symbol.as_str().ok_or(ConnectorError::FormatError)?;
+        if let Some(e) = j_data.get("e") {
+            let ev = e.as_str().ok_or(ConnectorError::FormatError)?;
+            if ev == "depthUpdate" {
+                let u = j_data
+                    .get("u")
+                    .ok_or(ConnectorError::FormatError)?
+                    .as_i64()
+                    .ok_or(ConnectorError::FormatError)?;
+                #[allow(non_snake_case)]
+                let U = j_data
+                    .get("U")
+                    .ok_or(ConnectorError::FormatError)?
+                    .as_i64()
+                    .ok_or(ConnectorError::FormatError)?;
+                let prev_u = prev_u_map.get(symbol);
+                if prev_u.is_none() || U != *prev_u.unwrap() + 1 {
+                    warn!(%symbol, "missing depth feed has been detected.");
+                    let symbol_ = symbol.to_string();
+                    let writer_tx_ = writer_tx.clone();
+                    let mut throttler_ = throttler.clone();
+                    tokio::spawn(async move {
+                        match throttler_.execute(fetch_depth_snapshot(&symbol_)).await {
+                            Some(Ok(data)) => {
+                                let recv_time = Utc::now();
+                                let _ = writer_tx_.send((recv_time, symbol_, data));
                             }
-                        });
-                    }
-                    *prev_u_map.entry(symbol.to_string()).or_insert(0) = u;
+                            Some(Err(error)) => {
+                                error!(
+                                    symbol = symbol_,
+                                    ?error,
+                                    "couldn't fetch the depth snapshot."
+                                );
+                            }
+                            None => {
+                                warn!(
+                                    symbol = symbol_,
+                                    "Fetching the depth snapshot is rate-limited."
+                                )
+                            }
+                        }
+                    });
                 }
+                *prev_u_map.entry(symbol.to_string()).or_insert(0) = u;
             }
-            let _ = writer_tx.send((recv_time, symbol.to_string(), data.to_string()));
         }
+        let _ = writer_tx.send((recv_time, symbol.to_string(), data.to_string()));
     }
     Ok(())
 }

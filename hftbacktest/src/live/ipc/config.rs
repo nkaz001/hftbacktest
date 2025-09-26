@@ -14,12 +14,10 @@ pub struct ChannelConfig {
 
 impl ChannelConfig {
     pub fn load_config() -> Self {
-        if let Ok(config_file) = env::var("HFTBACKTEST_CHANNEL_CONFIG") {
-            if let Ok(contents) = fs::read_to_string(config_file) {
-                if let Ok(config) = toml::from_str::<ChannelConfig>(&contents) {
-                    return config;
-                }
-            }
+        if let Ok(config_file) = env::var("HFTBACKTEST_CHANNEL_CONFIG")
+            && let Ok(contents) = fs::read_to_string(config_file)
+            && let Ok(config) = toml::from_str::<ChannelConfig>(&contents) {
+            return config;
         }
         ChannelConfig::default()
     }

@@ -200,10 +200,9 @@ impl Default for ExponentialBackoff {
 
 impl BackoffStrategy for ExponentialBackoff {
     fn backoff(&mut self) -> Duration {
-        if let Some(reset_interval) = self.reset_interval {
-            if self.last_attempt.elapsed() > reset_interval {
-                self.last_delay = None;
-            }
+        if let Some(reset_interval) = self.reset_interval
+            && self.last_attempt.elapsed() > reset_interval {
+            self.last_delay = None;
         }
 
         self.last_attempt = Instant::now();
@@ -216,10 +215,9 @@ impl BackoffStrategy for ExponentialBackoff {
             Some(last_delay) => {
                 let mut delay = last_delay.saturating_mul(self.factor);
 
-                if let Some(max_delay) = self.max_delay {
-                    if delay > max_delay {
-                        delay = max_delay;
-                    }
+                if let Some(max_delay) = self.max_delay
+                    && delay > max_delay {
+                    delay = max_delay;
                 }
                 self.last_delay = Some(delay);
                 delay

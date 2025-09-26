@@ -56,10 +56,9 @@ pub async fn connect(
             Some(Ok(Message::Text(text))) => {
                 let recv_time = Utc::now();
 
-                if let Ok(j) = serde_json::from_str::<serde_json::Value>(&text) {
-                    if j.get("channel").and_then(|c| c.as_str()) == Some("pong") {
-                        continue;
-                    }
+                if let Ok(j) = serde_json::from_str::<serde_json::Value>(&text)
+                    && j.get("channel").and_then(|c| c.as_str()) == Some("pong") {
+                    continue;
                 }
 
                 if ws_tx.send((recv_time, text)).is_err() {
