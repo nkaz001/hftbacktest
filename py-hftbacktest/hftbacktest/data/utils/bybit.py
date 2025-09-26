@@ -1,6 +1,6 @@
 import gzip
 import json
-from typing import Optional, Literal
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray
