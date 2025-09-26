@@ -5,7 +5,11 @@ from typing import Optional, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from ..validation import correct_event_order, correct_local_timestamp, validate_event_order
+from ..validation import (
+    correct_event_order,
+    correct_local_timestamp,
+    validate_event_order,
+)
 from ...types import (
     DEPTH_EVENT,
     DEPTH_CLEAR_EVENT,
@@ -13,15 +17,15 @@ from ...types import (
     TRADE_EVENT,
     BUY_EVENT,
     SELL_EVENT,
-    event_dtype
+    event_dtype,
 )
 
 
 def convert(
-        input_filename: str,
-        output_filename: Optional[str] = None,
-        base_latency: float = 0,
-        buffer_size: int = 100_000_000
+    input_filename: str,
+    output_filename: Optional[str] = None,
+    base_latency: float = 0,
+    buffer_size: int = 100_000_000,
 ) -> NDArray:
     r"""
     Converts raw Bybit feed stream file into a format compatible with HftBacktest.
@@ -51,30 +55,30 @@ def convert(
 
     tmp = np.empty(buffer_size, event_dtype)
     row_num = 0
-    with gzip.open(input_filename, 'r') as f:
+    with gzip.open(input_filename, "r") as f:
         while True:
             line = f.readline()
             if not line:
                 break
             local_timestamp = int(line[:timestamp_slice])
-            message = json.loads(line[timestamp_slice + 1:])
-            
-            topic = message.get('topic', '')
-            data = message.get('data')
-            ts = message.get('ts', 0)
-            
+            message = json.loads(line[timestamp_slice + 1 :])
+
+            topic = message.get("topic", "")
+            data = message.get("data")
+            ts = message.get("ts", 0)
+
             if data is not None:
                 exch_timestamp = int(ts) * timestamp_mul
-                
-                # [orderbook.1.SYMBOL, orderbook.50.SYMBOL, orderbook.500.SYMBOL]. Reference: hftbacktest\collector\src\main.rs --> bybit 
-                if topic.startswith('orderbook.'):
-                    message_type = message.get('type', '')
-                    
-                    if message_type == 'snapshot':
+
+                # [orderbook.1.SYMBOL, orderbook.50.SYMBOL, orderbook.500.SYMBOL]. Reference: hftbacktest\collector\src\main.rs --> bybit
+                if topic.startswith("orderbook."):
+                    message_type = message.get("type", "")
+
+                    if message_type == "snapshot":
                         # clear and rebuild orderbook
-                        bids = data.get('b', [])
-                        asks = data.get('a', [])
-                        
+                        bids = data.get("b", [])
+                        asks = data.get("a", [])
+
                         if len(bids) > 0:
                             bid_clear_upto = float(bids[-1][0])
                             # 1: clear the existing market depth upto the prices in the snapshot.
@@ -86,7 +90,7 @@ def convert(
                                 0,
                                 0,
                                 0,
-                                0
+                                0,
                             )
                             row_num += 1
                             # 2: insert the snapshot.
@@ -99,10 +103,10 @@ def convert(
                                     float(qty),
                                     0,
                                     0,
-                                    0
+                                    0,
                                 )
                                 row_num += 1
-                        
+
                         if len(asks) > 0:
                             ask_clear_upto = float(asks[-1][0])
                             # 1: clear the existing market depth upto the prices in the snapshot.
@@ -114,7 +118,7 @@ def convert(
                                 0,
                                 0,
                                 0,
-                                0
+                                0,
                             )
                             row_num += 1
                             # 2: insert the snapshot.
@@ -127,12 +131,12 @@ def convert(
                                     float(qty),
                                     0,
                                     0,
-                                    0
+                                    0,
                                 )
                                 row_num += 1
-                                
-                    elif message_type == 'delta':
-                        for px, qty in data.get('b', []):
+
+                    elif message_type == "delta":
+                        for px, qty in data.get("b", []):
                             tmp[row_num] = (
                                 DEPTH_EVENT | BUY_EVENT,
                                 exch_timestamp,
@@ -141,10 +145,10 @@ def convert(
                                 float(qty),
                                 0,
                                 0,
-                                0
+                                0,
                             )
                             row_num += 1
-                        for px, qty in data.get('a', []):
+                        for px, qty in data.get("a", []):
                             tmp[row_num] = (
                                 DEPTH_EVENT | SELL_EVENT,
                                 exch_timestamp,
@@ -153,52 +157,53 @@ def convert(
                                 float(qty),
                                 0,
                                 0,
-                                0
+                                0,
                             )
                             row_num += 1
-                
-                # [publicTrade.SYMBOL]. Reference: hftbacktest\collector\src\main.rs  --> bybit 
-                elif topic.startswith('publicTrade.'):
+
+                # [publicTrade.SYMBOL]. Reference: hftbacktest\collector\src\main.rs  --> bybit
+                elif topic.startswith("publicTrade."):
                     if isinstance(data, list):
                         for trade in data:
-                            trade_timestamp = trade.get('T', ts)
-                            price = trade.get('p', '0')
-                            qty = trade.get('v', '0')
-                            side = trade.get('S', 'Buy') 
-                            
+                            trade_timestamp = trade.get("T", ts)
+                            price = trade.get("p", "0")
+                            qty = trade.get("v", "0")
+                            side = trade.get("S", "Buy")
+
                             trade_exch_timestamp = int(trade_timestamp) * timestamp_mul
-                            
+
                             tmp[row_num] = (
-                                TRADE_EVENT | (SELL_EVENT if side == 'Sell' else BUY_EVENT), 
+                                TRADE_EVENT
+                                | (SELL_EVENT if side == "Sell" else BUY_EVENT),
                                 trade_exch_timestamp,
                                 local_timestamp,
                                 float(price),
                                 float(qty),
                                 0,
                                 0,
-                                0
+                                0,
                             )
                             row_num += 1
             else:
-                if 'code' in message:
-                    print(message['code'], message.get('msg', ''))
+                if "code" in message:
+                    print(message["code"], message.get("msg", ""))
 
     tmp = tmp[:row_num]
 
-    print('Correcting the latency')
+    print("Correcting the latency")
     tmp = correct_local_timestamp(tmp, base_latency)
 
-    print('Correcting the event order')
+    print("Correcting the event order")
     data = correct_event_order(
         tmp,
-        np.argsort(tmp['exch_ts'], kind='mergesort'),
-        np.argsort(tmp['local_ts'], kind='mergesort')
+        np.argsort(tmp["exch_ts"], kind="mergesort"),
+        np.argsort(tmp["local_ts"], kind="mergesort"),
     )
 
     validate_event_order(data)
 
     if output_filename is not None:
-        print('Saving to %s' % output_filename)
+        print("Saving to %s" % output_filename)
         np.savez_compressed(output_filename, data=data)
 
     return data
