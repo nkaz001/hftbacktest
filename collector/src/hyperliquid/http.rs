@@ -57,7 +57,8 @@ pub async fn connect(
                 let recv_time = Utc::now();
 
                 if let Ok(j) = serde_json::from_str::<serde_json::Value>(&text)
-                    && j.get("channel").and_then(|c| c.as_str()) == Some("pong") {
+                    && j.get("channel").and_then(|c| c.as_str()) == Some("pong")
+                {
                     continue;
                 }
 

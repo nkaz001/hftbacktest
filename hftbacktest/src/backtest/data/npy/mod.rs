@@ -1,9 +1,9 @@
+#[cfg(feature = "s3")]
+use std::io::Cursor;
 use std::{
     fs::File,
     io::{Error, ErrorKind, Read, Write},
 };
-#[cfg(feature = "s3")]
-use std::io::Cursor;
 
 use crate::{
     backtest::data::{Data, DataPtr, POD, npy::parser::Value},

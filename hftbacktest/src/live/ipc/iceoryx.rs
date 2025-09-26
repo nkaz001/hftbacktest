@@ -344,11 +344,10 @@ impl Channel for IceoryxUnifiedChannel {
                     if let Some((dst_id, ev)) = ch
                         .receive()
                         .map_err(|err| BotError::Custom(err.to_string()))?
-                        && (dst_id == 0 || dst_id == id) {
+                        && (dst_id == 0 || dst_id == id)
+                    {
                         match &ev {
-                            LiveEvent::BatchStart
-                            | LiveEvent::BatchEnd
-                            | LiveEvent::Error(_) => {
+                            LiveEvent::BatchStart | LiveEvent::BatchEnd | LiveEvent::Error(_) => {
                                 // todo: it may cause incorrect usage.
                                 return Ok((0, ev));
                             }

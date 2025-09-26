@@ -22,7 +22,8 @@ fn handle(
         && let Some(j_symbol) = j_data
             .as_object()
             .ok_or(ConnectorError::FormatError)?
-            .get("s") {
+            .get("s")
+    {
         let symbol = j_symbol.as_str().ok_or(ConnectorError::FormatError)?;
         if let Some(e) = j_data.get("e") {
             let ev = e.as_str().ok_or(ConnectorError::FormatError)?;

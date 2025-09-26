@@ -93,7 +93,8 @@ where
             }
 
             if let Some(wait_resp_order_id) = wait_resp_order_id
-                && order.order_id == wait_resp_order_id {
+                && order.order_id == wait_resp_order_id
+            {
                 wait_resp_order_received = true;
             }
 
