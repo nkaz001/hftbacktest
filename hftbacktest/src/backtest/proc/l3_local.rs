@@ -46,6 +46,8 @@ where
     trades: Vec<Event>,
     last_feed_latency: Option<(i64, i64)>,
     last_order_latency: Option<(i64, i64, i64)>,
+    last_trade_price: f64,
+    last_trade_size: f64,
 }
 
 impl<AT, LM, MD, FM> L3Local<AT, LM, MD, FM>
@@ -70,6 +72,8 @@ where
             trades: Vec::with_capacity(trade_len),
             last_feed_latency: None,
             last_order_latency: None,
+            last_trade_price: 0.0,
+            last_trade_size: 0.0,
         }
     }
 }
@@ -113,6 +117,8 @@ where
         self.order_l2e.request(order, |order| {
             order.req = Status::Rejected;
         });
+        self.state_values_mut().num_messages += 1;
+        self.state_values_mut().num_creations += 1;
 
         Ok(())
     }
@@ -148,6 +154,8 @@ where
             order.price_tick = orig_price_tick;
             order.qty = orig_qty;
         });
+        self.state_values_mut().num_messages += 1;
+        self.state_values_mut().num_modifications += 1;
 
         Ok(())
     }
@@ -168,6 +176,8 @@ where
         self.order_l2e.request(order.clone(), |order| {
             order.req = Status::Rejected;
         });
+        self.state_values_mut().num_messages += 1;
+        self.state_values_mut().num_cancellations += 1;
 
         Ok(())
     }
@@ -188,6 +198,10 @@ where
         self.state.values()
     }
 
+    fn state_values_mut(&mut self) -> &mut StateValues {
+        self.state.values_mut()
+    }
+
     fn depth(&self) -> &MD {
         &self.depth
     }
@@ -198,6 +212,14 @@ where
 
     fn last_trades(&self) -> &[Event] {
         self.trades.as_slice()
+    }
+
+    fn last_trade_price(&self) -> f64 {
+        self.last_trade_price
+    }
+
+    fn last_trade_size(&self) -> f64 {
+        self.last_trade_size
     }
 
     fn clear_last_trades(&mut self) {
@@ -246,8 +268,12 @@ where
             self.depth.delete_order(ev.order_id, ev.local_ts)?;
         }
         // Processes a trade event
-        else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
-            self.trades.push(ev.clone());
+        else if ev.is(LOCAL_TRADE_EVENT) {
+            if self.trades.capacity() > 0 {
+                self.trades.push(ev.clone());
+            }
+            self.last_trade_size = ev.qty;
+            self.last_trade_price = ev.px;
         }
 
         // Stores the current feed latency
