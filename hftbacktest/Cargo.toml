@@ -46,7 +46,7 @@ hftbacktest-derive = { path = "../hftbacktest-derive", optional = true, version 
 aws-config = { version = "1.8.6", optional = true, features = ["behavior-version-latest"] }
 aws-sdk-s3 = { version = "1.106.0", optional = true }
 
-[target.'cfg(all(target_arch = "arm", target_feature = "v7"))'.dependencies]
+[target.'cfg(target_arch = "arm")'.dependencies]
 aws-lc-rs = { version = "1", features = ["bindgen"] }
 
 [dev-dependencies]
