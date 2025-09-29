@@ -15,3 +15,6 @@ live = ["hftbacktest/live"]
 pyo3 = { version = "0.25", features = ["extension-module"] }
 hftbacktest = { path = "../hftbacktest", default-features = false, features = ["backtest", "s3"] }
 hftbacktest-derive = { path = "../hftbacktest-derive" }
+
+[target.'cfg(all(target_arch = "arm", target_feature = "v7"))'.dependencies]
+hftbacktest = { path = "../hftbacktest", default-features = false, features = ["backtest"] }
