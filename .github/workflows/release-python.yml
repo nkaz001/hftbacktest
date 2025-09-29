@@ -42,9 +42,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Bindgen for ARMv7
+      - name: For ARMv7
         if: ${{ matrix.platform.target == 'armv7' }}
-        run: cargo install --force --locked bindgen-cli
+        run: apt-get install gcc-multilib
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -76,6 +76,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: For ARMv7
+        if: ${{ matrix.platform.target == 'armv7' }}
+        run: apt-get install gcc-multilib
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
