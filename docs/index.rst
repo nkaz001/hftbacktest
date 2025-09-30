@@ -299,6 +299,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    tutorials/Queue-Based Market Making in Large Tick Size Assets
    tutorials/Fusing Depth Data
    tutorials/Accelerated Backtesting
+   tutorials/Pricing Framework
    tutorials/examples
 
 .. toctree::
