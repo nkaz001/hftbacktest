@@ -42,9 +42,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: For ARMv7
-        if: ${{ matrix.platform.target == 'armv7' }}
-        run: sudo apt-get install -y gcc-multilib g++-multilib
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -52,6 +49,13 @@ jobs:
           rust-toolchain: ${{ env.RUST_VERSION }}
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
           manylinux: 2_28
+          before-script-linux: |
+            case "${{ matrix.platform.target }}" in
+              "armv7")
+                sudo apt-get update
+                sudo apt-get install -y gcc-multilib
+                ;;
+            esac
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
@@ -76,9 +80,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: For ARMv7
-        if: ${{ matrix.platform.target == 'armv7' }}
-        run: sudo apt-get install -y gcc-multilib g++-multilib
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -86,6 +87,13 @@ jobs:
           rust-toolchain: ${{ env.RUST_VERSION }}
           args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
           manylinux: musllinux_1_2
+          before-script-linux: |
+            case "${{ matrix.platform.target }}" in
+              "armv7")
+                sudo apt-get update
+                sudo apt-get install -y gcc-multilib
+                ;;
+            esac
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
