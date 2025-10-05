@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # Example 2: Using convert_depth for single level processing
     data_single = bybit.convert_depth(
         input_filename="examples/bybit/btcusdt_20250926.gz",
-        single_depth_level=BybitDepthLevel.LEVEL_200  # Process only level 50 data
+        single_depth_level=BybitDepthLevel.LEVEL_200  # Process only level 200 data
     )
 
     print(f"Loaded {len(data_single)} events from single depth conversion")
