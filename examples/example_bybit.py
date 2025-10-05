@@ -19,9 +19,13 @@ def market_making_algo(hbt):
     return True
 
 if __name__ == '__main__':
-    data = bybit.convert(
+    data = bybit.convert_fused(
         input_filename="examples/bybit/btcusdt_20250926.gz",
+        tick_size=0.1,   
+        lot_size=0.001
     )
+
+    print(f"Loaded {len(data)} events")
 
     asset = (
         BacktestAsset()
