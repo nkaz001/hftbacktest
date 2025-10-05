@@ -25,7 +25,6 @@ from ...types import (
 
 class BybitDepthLevel(IntEnum):
     """Reference: https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook#depths"""
-
     LEVEL_1 = 1
     LEVEL_25 = 25
     LEVEL_50 = 50
