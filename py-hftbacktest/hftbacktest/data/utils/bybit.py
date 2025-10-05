@@ -1,5 +1,6 @@
 import gzip
 import json
+from enum import IntEnum
 from typing import Optional
 
 import numpy as np
@@ -20,6 +21,17 @@ from ...types import (
     SELL_EVENT,
     event_dtype,
 )
+
+
+class BybitDepthLevel(IntEnum):
+    """Reference: https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook#depths"""
+
+    LEVEL_1 = 1
+    LEVEL_25 = 25
+    LEVEL_50 = 50
+    LEVEL_100 = 100
+    LEVEL_200 = 200
+    LEVEL_1000 = 1000
 
 
 class _Fuse:
@@ -113,12 +125,14 @@ def convert_fused(
     Use :func:`.convert_depth` if you wish to process only a single depth level
 
     **Example:**
+
     .. code-block:: python
       # Fuse all depth levels into a single market depth representation
       data = convert_fused('input.gz', tick_size=0.01, lot_size=0.001)
 
 
     **File Format:**
+
     .. code-block::
         local_timestamp raw_stream
         1758841137168651303 {"topic":"orderbook.1.BTCUSDT","type":"snapshot","ts":1758841134603,"data":{"s":"BTCUSDT","b":[["109378.80","1.273"]],"a":[["109378.90","6.278"]],"u":14869255,"seq":457514742271},"cts":1758841134598}
@@ -234,15 +248,14 @@ def _convert_depth(
     message,
     exch_timestamp,
     local_timestamp,
-    single_depth_level,
+    single_depth_level: BybitDepthLevel,
 ) -> int:
     """Auxiliary function for :func:`.convert_depth` handling depth and trade processing logic."""
 
     if topic.startswith("orderbook."):
-        if single_depth_level is not None:
-            expected_prefix = f"orderbook.{single_depth_level}."
-            if not topic.startswith(expected_prefix):
-                return row_num
+        expected_prefix = f"orderbook.{single_depth_level}."
+        if not topic.startswith(expected_prefix):
+            return row_num
 
         message_type = message.get("type", "")
 
@@ -362,7 +375,7 @@ def convert_depth(
     output_filename: Optional[str] = None,
     base_latency: float = 0,
     buffer_size: int = 100_000_000,
-    single_depth_level: Optional[int] = None,
+    single_depth_level: BybitDepthLevel = BybitDepthLevel.LEVEL_50,
 ) -> NDArray:
     r"""
     Converts raw Bybit feed stream file into a format compatible with HftBacktest.
@@ -373,8 +386,11 @@ def convert_depth(
     **Example:**
 
     .. code-block:: python
-        # Process only a specific depth level
-        data = convert_depth('input.gz', single_depth_level=50)
+        # Process with default depth level (50)
+        data = convert_depth('input.gz')
+
+        # Process a specific depth level using enum
+        data = convert_depth('input.gz', single_depth_level=BybitDepthLevel.LEVEL_1)
 
     **File Format:**
 
@@ -391,7 +407,7 @@ def convert_depth(
         base_latency: The value to be added to the feed latency.
                       See :func:`.correct_local_timestamp`.
         buffer_size: Sets a preallocated row size for the buffer.
-        single_depth_level: If provided, processes only the specified depth level (e.g., 1 for orderbook.1).
+        single_depth_level: Depth level to process. Use `BybitDepthLevel` enum values.
 
     Returns:
         Converted data compatible with HftBacktest.

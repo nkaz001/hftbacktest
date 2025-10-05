@@ -4,6 +4,7 @@ from numba import njit
 
 from hftbacktest import BacktestAsset, HashMapMarketDepthBacktest
 from hftbacktest.data.utils import bybit
+from hftbacktest.data.utils.bybit import BybitDepthLevel
 
 @njit
 def market_making_algo(hbt):
@@ -20,13 +21,22 @@ def market_making_algo(hbt):
 
 
 if __name__ == "__main__":
+    # Example 1: Using convert_fused for multi-level depth processing
     data = bybit.convert_fused(
         input_filename="examples/bybit/btcusdt_20250926.gz",
         tick_size=0.1,
         lot_size=0.001,
     )
 
-    print(f"Loaded {len(data)} events")
+    print(f"Loaded {len(data)} events from fused conversion")
+
+    # Example 2: Using convert_depth for single level processing
+    data_single = bybit.convert_depth(
+        input_filename="examples/bybit/btcusdt_20250926.gz",
+        single_depth_level=BybitDepthLevel.LEVEL_200  # Process only level 50 data
+    )
+
+    print(f"Loaded {len(data_single)} events from single depth conversion")
 
     asset = (
         BacktestAsset()
