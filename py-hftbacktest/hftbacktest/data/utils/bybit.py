@@ -112,7 +112,7 @@ def convert_fused(
     This function **fuses** multiple depth levels into a single market depth representation.
     Use :func:`.convert_depth` if you wish to process only a single depth level
 
-    **Eaxmple:**
+    **Example:**
     .. code-block:: python
       # Fuse all depth levels into a single market depth representation
       data = convert_fused('input.gz', tick_size=0.01, lot_size=0.001)
@@ -226,6 +226,137 @@ def convert_fused(
     return data
 
 
+def _convert_depth(
+    tmp,
+    row_num,
+    topic,
+    data,
+    message,
+    exch_timestamp,
+    local_timestamp,
+    single_depth_level,
+) -> int:
+    """Auxiliary function for :func:`.convert_depth` handling depth and trade processing logic."""
+
+    if topic.startswith("orderbook."):
+        if single_depth_level is not None:
+            expected_prefix = f"orderbook.{single_depth_level}."
+            if not topic.startswith(expected_prefix):
+                return row_num
+
+        message_type = message.get("type", "")
+
+        if message_type == "snapshot":
+            # clear and rebuild orderbook
+            bids = data.get("b", [])
+            asks = data.get("a", [])
+
+            if len(bids) > 0:
+                bid_clear_upto = float(bids[-1][0])
+                # 1: clear the existing market depth upto the prices in the snapshot.
+                tmp[row_num] = (
+                    DEPTH_CLEAR_EVENT | BUY_EVENT,
+                    exch_timestamp,
+                    local_timestamp,
+                    bid_clear_upto,
+                    0,
+                    0,
+                    0,
+                    0,
+                )
+                row_num += 1
+                # 2: insert the snapshot.
+                for px, qty in bids:
+                    tmp[row_num] = (
+                        DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
+                        exch_timestamp,
+                        local_timestamp,
+                        float(px),
+                        float(qty),
+                        0,
+                        0,
+                        0,
+                    )
+                    row_num += 1
+
+            if len(asks) > 0:
+                ask_clear_upto = float(asks[-1][0])
+                # 1: clear the existing market depth upto the prices in the snapshot.
+                tmp[row_num] = (
+                    DEPTH_CLEAR_EVENT | SELL_EVENT,
+                    exch_timestamp,
+                    local_timestamp,
+                    ask_clear_upto,
+                    0,
+                    0,
+                    0,
+                    0,
+                )
+                row_num += 1
+                # 2: insert the snapshot.
+                for px, qty in asks:
+                    tmp[row_num] = (
+                        DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
+                        exch_timestamp,
+                        local_timestamp,
+                        float(px),
+                        float(qty),
+                        0,
+                        0,
+                        0,
+                    )
+                    row_num += 1
+
+        elif message_type == "delta":
+            for px, qty in data.get("b", []):
+                tmp[row_num] = (
+                    DEPTH_EVENT | BUY_EVENT,
+                    exch_timestamp,
+                    local_timestamp,
+                    float(px),
+                    float(qty),
+                    0,
+                    0,
+                    0,
+                )
+                row_num += 1
+            for px, qty in data.get("a", []):
+                tmp[row_num] = (
+                    DEPTH_EVENT | SELL_EVENT,
+                    exch_timestamp,
+                    local_timestamp,
+                    float(px),
+                    float(qty),
+                    0,
+                    0,
+                    0,
+                )
+                row_num += 1
+
+    elif topic.startswith("publicTrade."):
+        for trade in data:
+            trade_timestamp = trade.get("T", message.get("ts", 0))
+            price = trade.get("p", "0")
+            qty = trade.get("v", "0")
+            side = trade.get("S", "Buy")
+
+            trade_exch_timestamp = int(trade_timestamp) * 1000000
+
+            tmp[row_num] = (
+                TRADE_EVENT | (SELL_EVENT if side == "Sell" else BUY_EVENT),
+                trade_exch_timestamp,
+                local_timestamp,
+                float(price),
+                float(qty),
+                0,
+                0,
+                0,
+            )
+            row_num += 1
+
+    return row_num
+
+
 def convert_depth(
     input_filename: str,
     output_filename: Optional[str] = None,
@@ -271,11 +402,13 @@ def convert_depth(
 
     tmp = np.empty(buffer_size, event_dtype)
     row_num = 0
+
     with gzip.open(input_filename, "r") as f:
         while True:
             line = f.readline()
             if not line:
                 break
+
             local_timestamp = int(line[:timestamp_slice])
             message = json.loads(line[timestamp_slice + 1 :])
 
@@ -285,124 +418,16 @@ def convert_depth(
 
             if data is not None:
                 exch_timestamp = int(ts) * timestamp_mul
-
-                # [orderbook.1.SYMBOL, orderbook.50.SYMBOL, orderbook.500.SYMBOL]. Reference: hftbacktest\collector\src\main.rs --> bybit
-                if topic.startswith("orderbook."):
-                    if single_depth_level is not None:
-                        expected_prefix = f"orderbook.{single_depth_level}."
-                        if not topic.startswith(expected_prefix):
-                            continue
-
-                    message_type = message.get("type", "")
-
-                    if message_type == "snapshot":
-                        # clear and rebuild orderbook
-                        bids = data.get("b", [])
-                        asks = data.get("a", [])
-
-                        if len(bids) > 0:
-                            bid_clear_upto = float(bids[-1][0])
-                            # 1: clear the existing market depth upto the prices in the snapshot.
-                            tmp[row_num] = (
-                                DEPTH_CLEAR_EVENT | BUY_EVENT,
-                                exch_timestamp,
-                                local_timestamp,
-                                bid_clear_upto,
-                                0,
-                                0,
-                                0,
-                                0,
-                            )
-                            row_num += 1
-                            # 2: insert the snapshot.
-                            for px, qty in bids:
-                                tmp[row_num] = (
-                                    DEPTH_SNAPSHOT_EVENT | BUY_EVENT,
-                                    exch_timestamp,
-                                    local_timestamp,
-                                    float(px),
-                                    float(qty),
-                                    0,
-                                    0,
-                                    0,
-                                )
-                                row_num += 1
-
-                        if len(asks) > 0:
-                            ask_clear_upto = float(asks[-1][0])
-                            # 1: clear the existing market depth upto the prices in the snapshot.
-                            tmp[row_num] = (
-                                DEPTH_CLEAR_EVENT | SELL_EVENT,
-                                exch_timestamp,
-                                local_timestamp,
-                                ask_clear_upto,
-                                0,
-                                0,
-                                0,
-                                0,
-                            )
-                            row_num += 1
-                            # 2: insert the snapshot.
-                            for px, qty in asks:
-                                tmp[row_num] = (
-                                    DEPTH_SNAPSHOT_EVENT | SELL_EVENT,
-                                    exch_timestamp,
-                                    local_timestamp,
-                                    float(px),
-                                    float(qty),
-                                    0,
-                                    0,
-                                    0,
-                                )
-                                row_num += 1
-
-                    elif message_type == "delta":
-                        for px, qty in data.get("b", []):
-                            tmp[row_num] = (
-                                DEPTH_EVENT | BUY_EVENT,
-                                exch_timestamp,
-                                local_timestamp,
-                                float(px),
-                                float(qty),
-                                0,
-                                0,
-                                0,
-                            )
-                            row_num += 1
-                        for px, qty in data.get("a", []):
-                            tmp[row_num] = (
-                                DEPTH_EVENT | SELL_EVENT,
-                                exch_timestamp,
-                                local_timestamp,
-                                float(px),
-                                float(qty),
-                                0,
-                                0,
-                                0,
-                            )
-                            row_num += 1
-
-                # [publicTrade.SYMBOL]. Reference: hftbacktest\collector\src\main.rs  --> bybit
-                elif topic.startswith("publicTrade."):
-                    for trade in data:
-                        trade_timestamp = trade.get("T", ts)
-                        price = trade.get("p", "0")
-                        qty = trade.get("v", "0")
-                        side = trade.get("S", "Buy")
-
-                        trade_exch_timestamp = int(trade_timestamp) * timestamp_mul
-
-                        tmp[row_num] = (
-                            TRADE_EVENT | (SELL_EVENT if side == "Sell" else BUY_EVENT),
-                            trade_exch_timestamp,
-                            local_timestamp,
-                            float(price),
-                            float(qty),
-                            0,
-                            0,
-                            0,
-                        )
-                        row_num += 1
+                row_num = _convert_depth(
+                    tmp,
+                    row_num,
+                    topic,
+                    data,
+                    message,
+                    exch_timestamp,
+                    local_timestamp,
+                    single_depth_level,
+                )
             else:
                 if "code" in message:
                     print(message["code"], message.get("msg", ""))

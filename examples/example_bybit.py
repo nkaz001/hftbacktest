@@ -18,24 +18,25 @@ def market_making_algo(hbt):
         )
     return True
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     data = bybit.convert_fused(
         input_filename="examples/bybit/btcusdt_20250926.gz",
-        tick_size=0.1,   
-        lot_size=0.001
+        tick_size=0.1,
+        lot_size=0.001,
     )
 
     print(f"Loaded {len(data)} events")
 
     asset = (
         BacktestAsset()
-            .data(data)
-            .linear_asset(1.0)
-            .power_prob_queue_model(2.0)
-            .no_partial_fill_exchange()
-            .trading_value_fee_model(-0.00005, 0.0007)
-            .tick_size(0.1)
-            .lot_size(0.001)
+        .data(data)
+        .linear_asset(1.0)
+        .power_prob_queue_model(2.0)
+        .no_partial_fill_exchange()
+        .trading_value_fee_model(-0.00005, 0.0007)
+        .tick_size(0.1)
+        .lot_size(0.001)
     )
     hbt = HashMapMarketDepthBacktest([asset])
     market_making_algo(hbt)
