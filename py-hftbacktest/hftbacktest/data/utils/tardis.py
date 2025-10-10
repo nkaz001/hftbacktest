@@ -643,3 +643,158 @@ def convert_fuse(
         np.savez_compressed(output_filename, data=data)
 
     return data
+
+
+@njit
+def _create_bbo_events(ticker_arr: NDArray) -> NDArray:
+    """Convert book ticker data to BBO events."""
+    # Each ticker row generates 2 events (bid and ask)
+    events = np.empty(len(ticker_arr) * 2, event_dtype)
+    
+    event_idx = 0
+    for i in range(len(ticker_arr)):
+        row = ticker_arr[i]
+        
+        # Create ASK event
+        events[event_idx].ev = DEPTH_BBO_EVENT | SELL_EVENT
+        events[event_idx].exch_ts = row['exch_ts']
+        events[event_idx].local_ts = row['local_ts']
+        events[event_idx].px = row['ask_price']
+        events[event_idx].qty = row['ask_amount']
+        events[event_idx].order_id = 0
+        events[event_idx].ival = 0
+        events[event_idx].fval = 0
+        event_idx += 1
+        
+        # Create BID event  
+        events[event_idx].ev = DEPTH_BBO_EVENT | BUY_EVENT
+        events[event_idx].exch_ts = row['exch_ts']
+        events[event_idx].local_ts = row['local_ts']
+        events[event_idx].px = row['bid_price']
+        events[event_idx].qty = row['bid_amount']
+        events[event_idx].order_id = 0
+        events[event_idx].ival = 0
+        events[event_idx].fval = 0
+        event_idx += 1
+    
+    return events
+
+
+def convert_fuse_trades_bbo(
+        trades_filename: str,
+        book_ticker_filename: str,
+        tick_size: float,
+        lot_size: float,
+        output_filename: Optional[str] = None,
+        ss_buffer_size: int = 1_000_000,
+        base_latency: float = 0,
+) -> NDArray:
+    r"""
+    Converts Tardis.dev trades and book ticker data files into a format compatible with HftBacktest.
+
+    This function processes only trades and BBO (Best Bid/Offer) data, without depth data.
+
+    Args:
+        trades_filename: Input filename for a trades file.
+        book_ticker_filename: Input filename for a book ticker file.
+        tick_size: tick size.
+        lot_size: lot_size.
+        output_filename: If provided, the converted data will be saved to the specified filename in ``npz`` format.
+        ss_buffer_size: Sets a preallocated row size for the snapshot.
+        base_latency: The value to be added to the feed latency.
+                      See :func:`.correct_local_timestamp`.
+    
+    Returns:
+        Converted data compatible with HftBacktest.
+    """
+    # Read and process trades data
+    df = pl.read_csv(trades_filename, schema=trade_schema)
+    if df.columns != list(trade_schema.keys()):
+        raise KeyError("Trades file schema mismatch")
+    
+    trades_arr = (
+        df.with_columns(
+            pl.when(pl.col('side') == 'buy')
+            .then(BUY_EVENT | TRADE_EVENT)
+            .when(pl.col('side') == 'sell')
+            .then(SELL_EVENT | TRADE_EVENT)
+            .otherwise(TRADE_EVENT)
+            .cast(pl.UInt64, strict=True)
+            .alias('ev'),
+            (pl.col('timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('exch_ts'),
+            (pl.col('local_timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('local_ts'),
+            pl.col('price')
+            .cast(pl.Float64, strict=True)
+            .alias('px'),
+            pl.col('amount')
+            .cast(pl.Float64, strict=True)
+            .alias('qty'),
+            pl.lit(0)
+            .cast(pl.UInt64, strict=True)
+            .alias('order_id'),
+            pl.lit(0)
+            .cast(pl.Int64, strict=True)
+            .alias('ival'),
+            pl.lit(0.0)
+            .cast(pl.Float64, strict=True)
+            .alias('fval')
+        )
+        .select(['ev', 'exch_ts', 'local_ts', 'px', 'qty', 'order_id', 'ival', 'fval'])
+        .to_numpy(structured=True)
+    )
+
+    # Read and process book ticker data
+    df = pl.read_csv(book_ticker_filename, schema=book_ticker_schema)
+    if df.columns != list(book_ticker_schema.keys()):
+        raise KeyError("Book ticker file schema mismatch")
+    
+    ticker_arr = (
+        df.with_columns(
+            (pl.col('timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('exch_ts'),
+            (pl.col('local_timestamp') * 1000)
+            .cast(pl.Int64, strict=True)
+            .alias('local_ts'),
+            pl.col('ask_amount')
+            .cast(pl.Float64, strict=True),
+            pl.col('ask_price')
+            .cast(pl.Float64, strict=True),
+            pl.col('bid_price')
+            .cast(pl.Float64, strict=True),
+            pl.col('bid_amount')
+            .cast(pl.Float64, strict=True),
+        )
+        .select(['exch_ts', 'local_ts', 'ask_amount', 'ask_price', 'bid_price', 'bid_amount'])
+        .to_numpy(structured=True)
+    )
+
+    # Create BBO events from ticker data
+    bbo_events = _create_bbo_events(ticker_arr)
+
+    # Combine trades and BBO events
+    tmp = np.empty(len(trades_arr) + len(bbo_events), event_dtype)
+    tmp[:len(trades_arr)] = trades_arr
+    tmp[len(trades_arr):] = bbo_events
+
+    print('Correcting the latency')
+    tmp = correct_local_timestamp(tmp, base_latency)
+
+    print('Correcting the event order')
+    data = correct_event_order(
+        tmp,
+        np.argsort(tmp['exch_ts'], kind='mergesort'),
+        np.argsort(tmp['local_ts'], kind='mergesort')
+    )
+
+    validate_event_order(data)
+
+    if output_filename is not None:
+        print('Saving to %s' % output_filename)
+        np.savez_compressed(output_filename, data=data)
+
+    return data
