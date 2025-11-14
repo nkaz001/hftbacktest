@@ -710,7 +710,8 @@ where
             || prev_order_price_tick != order.price_tick
             || order.qty > prev_leaves_qty
         {
-            self.ack_cancel(order, timestamp)?;
+            let mut cancel_order = order.clone();
+            self.ack_cancel(&mut cancel_order, timestamp)?;
             self.ack_new(order, timestamp)?;
         } else {
             let mut order_borrowed = self.orders.borrow_mut();
