@@ -235,7 +235,7 @@ SNAPSHOT_MODE_IGNORE = 1
 SNAPSHOT_MODE_IGNORE_SOD = 2
 
 
-@njit
+@njit(cache=True)
 def _convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
     ss_bid_rn = 0
     ss_ask_rn = 0
@@ -243,33 +243,34 @@ def _convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
     is_snapshot = False
     for rn in range(len(inp)):
         row = inp[rn]
-        if row.is_snapshot == 1:
+
+        # ALL FIXES HERE: use dictionary-style access ['field'] instead of .field
+        if row['is_snapshot'] == 1:
             if (
                 (snapshot_mode == SNAPSHOT_MODE_IGNORE)
                 or (snapshot_mode == SNAPSHOT_MODE_IGNORE_SOD and is_sod_snapshot)
             ):
                 continue
-            # Prepare to insert DEPTH_SNAPSHOT_EVENT
             if not is_snapshot:
                 is_snapshot = True
                 ss_bid_rn = 0
                 ss_ask_rn = 0
-            if row.side == 1:
+            if row['side'] == 1:
                 ss_bid[ss_bid_rn].ev = DEPTH_SNAPSHOT_EVENT | BUY_EVENT
-                ss_bid[ss_bid_rn].exch_ts = row.exch_ts
-                ss_bid[ss_bid_rn].local_ts = row.local_ts
-                ss_bid[ss_bid_rn].px = row.px
-                ss_bid[ss_bid_rn].qty = row.qty
+                ss_bid[ss_bid_rn].exch_ts = row['exch_ts']
+                ss_bid[ss_bid_rn].local_ts = row['local_ts']
+                ss_bid[ss_bid_rn].px = row['px']
+                ss_bid[ss_bid_rn].qty = row['qty']
                 ss_bid[ss_bid_rn].order_id = 0
                 ss_bid[ss_bid_rn].ival = 0
                 ss_bid[ss_bid_rn].fval = 0
                 ss_bid_rn += 1
             else:
                 ss_ask[ss_ask_rn].ev = DEPTH_SNAPSHOT_EVENT | SELL_EVENT
-                ss_ask[ss_ask_rn].exch_ts = row.exch_ts
-                ss_ask[ss_ask_rn].local_ts = row.local_ts
-                ss_ask[ss_ask_rn].px = row.px
-                ss_ask[ss_ask_rn].qty = row.qty
+                ss_ask[ss_ask_rn].exch_ts = row['exch_ts']
+                ss_ask[ss_ask_rn].local_ts = row['local_ts']
+                ss_ask[ss_ask_rn].px = row['px']
+                ss_ask[ss_ask_rn].qty = row['qty']
                 ss_ask[ss_ask_rn].order_id = 0
                 ss_ask[ss_ask_rn].ival = 0
                 ss_ask[ss_ask_rn].fval = 0
@@ -277,13 +278,10 @@ def _convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
         else:
             is_sod_snapshot = False
             if is_snapshot:
-                # End of the snapshot.
                 is_snapshot = False
 
-                # Add DEPTH_CLEAR_EVENT before refreshing the market depth by the snapshot.
                 ss_bid = ss_bid[:ss_bid_rn]
                 if len(ss_bid) > 0:
-                    # Clear the bid market depth within the snapshot bid range.
                     out[row_num].ev = DEPTH_CLEAR_EVENT | BUY_EVENT
                     out[row_num].exch_ts = ss_bid[0].exch_ts
                     out[row_num].local_ts = ss_bid[0].local_ts
@@ -293,14 +291,12 @@ def _convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
                     out[row_num].ival = 0
                     out[row_num].fval = 0
                     row_num += 1
-                    # Add DEPTH_SNAPSHOT_EVENT for the bid snapshot
                     out[row_num:row_num + len(ss_bid)] = ss_bid[:]
                     row_num += len(ss_bid)
                 ss_bid_rn = 0
 
                 ss_ask = ss_ask[:ss_ask_rn]
                 if len(ss_ask) > 0:
-                    # Clear the ask market depth within the snapshot ask range.
                     out[row_num].ev = DEPTH_CLEAR_EVENT | SELL_EVENT
                     out[row_num].exch_ts = ss_ask[0].exch_ts
                     out[row_num].local_ts = ss_ask[0].local_ts
@@ -310,22 +306,21 @@ def _convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
                     out[row_num].ival = 0
                     out[row_num].fval = 0
                     row_num += 1
-                    # Add DEPTH_SNAPSHOT_EVENT for the ask snapshot
                     out[row_num:row_num + len(ss_ask)] = ss_ask[:]
                     row_num += len(ss_ask)
                 ss_ask_rn = 0
-            # Insert DEPTH_EVENT
-            out[row_num].ev = DEPTH_EVENT | (BUY_EVENT if row.side == 1 else SELL_EVENT)
-            out[row_num].exch_ts = row.exch_ts
-            out[row_num].local_ts = row.local_ts
-            out[row_num].px = row.px
-            out[row_num].qty = row.qty
+
+            # Regular depth update
+            out[row_num].ev = DEPTH_EVENT | (BUY_EVENT if row['side'] == 1 else SELL_EVENT)
+            out[row_num].exch_ts = row['exch_ts']
+            out[row_num].local_ts = row['local_ts']
+            out[row_num].px = row['px']
+            out[row_num].qty = row['qty']
             out[row_num].order_id = 0
             out[row_num].ival = 0
             out[row_num].fval = 0
             row_num += 1
     return row_num
-
 
 @jitclass
 class _Fuse:
