@@ -243,7 +243,7 @@ impl BacktestAsset {
         entry_latency: i64,
         resp_latency: i64,
     ) -> PyRefMut<Self> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             PyErr::warn(
                 py,
                 &PyDeprecationWarning::type_object(py),
