@@ -18,7 +18,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
-  RUST_VERSION: '1.90'
+  RUST_VERSION: '1.91.1'
 
 permissions:
   contents: read
