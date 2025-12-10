@@ -184,14 +184,14 @@ impl PublicStream {
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
-                        // Subscribes to the orderbook.1, orderbook.50 and orderbook.500 topics to
+                        // Subscribes to the orderbook.1, orderbook.50 and orderbook.200 topics to
                         // obtain a wider range of depth and the most frequent updates.
                         // The different updates are handled by data fusion.
                         // Please see: `<https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook>`
                         let args = vec![
                             format!("orderbook.1.{symbol}"),
                             format!("orderbook.50.{symbol}"),
-                            format!("orderbook.500.{symbol}"),
+                            format!("orderbook.200.{symbol}"),
                             format!("publicTrade.{symbol}")
                         ];
                         let op = Op {
