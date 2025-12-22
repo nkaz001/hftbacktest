@@ -192,6 +192,7 @@ impl PublicStream {
                             format!("orderbook.1.{symbol}"),
                             format!("orderbook.50.{symbol}"),
                             format!("orderbook.200.{symbol}"),
+                            format!("orderbook.1000.{symbol}"),
                             format!("publicTrade.{symbol}")
                         ];
                         let op = Op {
