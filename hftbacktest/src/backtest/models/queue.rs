@@ -799,6 +799,8 @@ where
                             let prev_order_price_tick = prev_order.price_tick;
                             prev_order.update(order);
                             prev_order.leaves_qty = prev_order.qty;
+                            // todo: Status::Replaced or Status::New?
+                            prev_order.status = Status::New;
                             // if queue.len() == 0 {
                             //     self.bid_queue.remove(&order_price_tick);
                             // }
@@ -814,6 +816,8 @@ where
                             order_in_q.qty = order.qty;
                             order_in_q.leaves_qty = order.qty;
                             order_in_q.exch_timestamp = order.exch_timestamp;
+                            // todo: Status::Replaced or Status::New?
+                            order_in_q.status = Status::New;
                         }
                         processed = true;
                         break;
@@ -836,6 +840,8 @@ where
                             let prev_order_price_tick = prev_order.price_tick;
                             prev_order.update(order);
                             prev_order.leaves_qty = prev_order.qty;
+                            // todo: Status::Replaced or Status::New?
+                            prev_order.status = Status::New;
                             // if queue.len() == 0 {
                             //     self.bid_queue.remove(&order_price_tick);
                             // }
@@ -851,6 +857,8 @@ where
                             order_in_q.qty = order.qty;
                             order_in_q.leaves_qty = order.qty;
                             order_in_q.exch_timestamp = order.exch_timestamp;
+                            // todo: Status::Replaced or Status::New?
+                            order_in_q.status = Status::New;
                         }
                         processed = true;
                         break;

@@ -713,6 +713,7 @@ where
             let mut cancel_order = order.clone();
             self.ack_cancel(&mut cancel_order, timestamp)?;
             self.ack_new(order, timestamp)?;
+            // todo: Status::Replaced or Status::New?
         } else {
             let mut order_borrowed = self.orders.borrow_mut();
             let exch_order = order_borrowed.get_mut(&order.order_id);
@@ -721,8 +722,11 @@ where
             exch_order.qty = order.qty;
             exch_order.leaves_qty = order.qty;
             exch_order.exch_timestamp = timestamp;
+            // todo: Status::Replaced or Status::New?
+            exch_order.status = Status::New;
             order.leaves_qty = order.qty;
             order.exch_timestamp = timestamp;
+            order.status = Status::New;
         }
         Ok(())
     }

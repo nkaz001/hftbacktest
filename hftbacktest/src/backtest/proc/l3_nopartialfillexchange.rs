@@ -310,6 +310,8 @@ where
             Ok(()) => {
                 order.leaves_qty = order.qty;
                 order.exch_timestamp = timestamp;
+                // todo: Status::Replaced or Status::New?
+                order.status = Status::New;
                 Ok(())
             }
             Err(BacktestError::OrderNotFound) => {
