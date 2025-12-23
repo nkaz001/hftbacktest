@@ -988,7 +988,7 @@ where
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order.order_id,
-            Side::Sell,
+            order.side,
             order.price,
             order.qty,
             order.order_type,
