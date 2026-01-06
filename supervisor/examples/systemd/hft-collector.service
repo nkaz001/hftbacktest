@@ -1,0 +1,40 @@
+[Unit]
+Description=HFT Collector - Market Data Recording Service
+Documentation=https://github.com/your-org/hftbacktest
+After=hft-connector.service
+Requires=hft-connector.service
+
+[Service]
+Type=simple
+User=hft
+Group=hft
+
+# Working directory
+WorkingDirectory=/opt/hft
+
+# Environment
+Environment="RUST_LOG=info"
+
+# Command - collects from connector via IPC
+ExecStart=/opt/hft/bin/collector /var/lib/hft/data/raw --ipc bf btcusdt ethusdt solusdt
+
+# Graceful shutdown - important for proper gzip file closure
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Resource limits
+LimitNOFILE=65535
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/hft /var/log/hft
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

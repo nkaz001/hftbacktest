@@ -1,0 +1,48 @@
+[Unit]
+Description=HFT Supervisor - Bot Process Management Service
+Documentation=https://github.com/your-org/hftbacktest
+After=hft-connector.service hft-collector.service
+Requires=hft-connector.service
+Wants=hft-collector.service
+
+[Service]
+Type=simple
+User=hft
+Group=hft
+
+# Working directory
+WorkingDirectory=/opt/hft
+
+# Environment
+Environment="RUST_LOG=info"
+
+# Command
+ExecStart=/opt/hft/bin/hft-supervisor --config /etc/hft/cluster.toml --bin-dir /opt/hft/bin
+
+# Reload configuration on SIGHUP
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Graceful shutdown - give bots time to close positions
+KillSignal=SIGTERM
+TimeoutStopSec=120
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+
+# Resource limits
+LimitNOFILE=65535
+
+# Runtime directory for socket
+RuntimeDirectory=hft
+RuntimeDirectoryMode=0755
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/hft /var/log/hft /run/hft /etc/hft
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

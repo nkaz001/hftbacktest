@@ -1,0 +1,41 @@
+[Unit]
+Description=HFT Connector - Exchange Connection Service
+Documentation=https://github.com/your-org/hftbacktest
+After=network-online.target
+Wants=network-online.target
+Before=hft-supervisor.service hft-collector.service
+
+[Service]
+Type=simple
+User=hft
+Group=hft
+
+# Working directory
+WorkingDirectory=/opt/hft
+
+# Environment
+Environment="RUST_LOG=info"
+
+# Command
+ExecStart=/opt/hft/bin/connector --name bf --connector binancefutures --config /etc/hft/connector/binancefutures.toml
+
+# Graceful shutdown
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Resource limits
+LimitNOFILE=65535
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/hft /var/log/hft /run/hft
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

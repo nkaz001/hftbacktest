@@ -11,3 +11,5 @@ docs/_build
 **/*.so
 *.gz
 *.csv
+*.jsonl
+*.log
