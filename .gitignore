@@ -12,4 +12,4 @@ docs/_build
 *.gz
 *.csv
 *.jsonl
-*.log
+*.log*.db

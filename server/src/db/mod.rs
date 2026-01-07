@@ -1,9 +1,14 @@
 //! SQLite database layer for persisting state and audit logs
 
+use std::path::Path;
+
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{sqlite::SqlitePool, FromRow, Pool, Sqlite};
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqlitePool},
+    FromRow, Pool, Sqlite,
+};
 
 /// Database connection pool
 #[derive(Clone)]
@@ -13,13 +18,51 @@ pub struct Database {
 
 impl Database {
     /// Create a new database connection
+    ///
+    /// Accepts URLs like:
+    /// - `sqlite:path/to/db.sqlite`
+    /// - `sqlite://path/to/db.sqlite`
+    /// - `path/to/db.sqlite` (will be prefixed with sqlite:)
     pub async fn new(database_url: &str) -> Result<Self> {
-        let pool = SqlitePool::connect(database_url).await?;
+        // Parse or construct the connection options
+        let options = if database_url.starts_with("sqlite:") {
+            database_url
+                .parse::<SqliteConnectOptions>()?
+                .create_if_missing(true)
+        } else {
+            SqliteConnectOptions::new()
+                .filename(database_url)
+                .create_if_missing(true)
+        };
+
+        // Ensure parent directory exists
+        let filename = options.clone().get_filename();
+        if let Some(parent) = filename.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let pool = SqlitePool::connect_with(options).await?;
 
         // Run migrations
         sqlx::migrate!("./migrations").run(&pool).await?;
 
-        Ok(Self { pool })
+        let db = Self { pool };
+
+        // Create default admin user if no users exist
+        let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+            .fetch_one(db.pool())
+            .await?;
+
+        if user_count.0 == 0 {
+            use crate::auth::hash_password;
+            let admin_hash = hash_password("admin")?;
+            db.create_user("admin", &admin_hash, "admin").await?;
+            tracing::info!("Created default admin user (password: admin)");
+        }
+
+        Ok(db)
     }
 
     /// Create an in-memory database (for testing)
