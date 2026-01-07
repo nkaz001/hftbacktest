@@ -22,9 +22,15 @@ symbols = ["btcusdt"]
 retention_days = 7
 auto_start = false  # Don't auto-start, control via API
 
-# Order recorder is optional - disabled for testnet
-# [order_recorder]
-# enabled = false
+# Order recorder - enabled for testing (will fail if no ClickHouse)
+[order_recorder]
+enabled = true
+auto_start = false
+ipc_service = "hft_recording"
+clickhouse_url = "http://localhost:8123"
+database = "hft"
+batch_size = 100
+flush_interval_secs = 5
 
 [warmup]
 data_dir = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/data"
