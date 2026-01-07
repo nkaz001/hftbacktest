@@ -1,0 +1,54 @@
+[package]
+name = "hft-server"
+version = "0.1.0"
+edition = "2021"
+description = "HFT Web Server - REST API and Dashboard for bot management"
+
+[[bin]]
+name = "hft-server"
+path = "src/main.rs"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["ws", "macros"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+tokio = { version = "1", features = ["full", "signal"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono"] }
+
+# Authentication
+jsonwebtoken = "9"
+argon2 = "0.5"
+
+# Async utilities
+futures = "0.3"
+futures-util = "0.3"
+tokio-stream = "0.1"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID for session tokens
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }
