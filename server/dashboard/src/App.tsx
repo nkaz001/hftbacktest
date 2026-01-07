@@ -6,6 +6,7 @@ import { Login } from '@/pages/Login';
 import { Dashboard } from '@/pages/Dashboard';
 import { Bots } from '@/pages/Bots';
 import { Config } from '@/pages/Config';
+import { Infrastructure } from '@/pages/Infrastructure';
 import { Data } from '@/pages/Data';
 import { Logs } from '@/pages/Logs';
 import { api } from '@/api/client';
@@ -74,6 +75,7 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="bots" element={<Bots />} />
+            <Route path="infrastructure" element={<Infrastructure />} />
             <Route path="config" element={<Config />} />
             <Route path="data" element={<Data />} />
             <Route path="logs" element={<Logs />} />

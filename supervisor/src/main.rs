@@ -6,6 +6,7 @@
 
 mod config;
 mod health;
+mod infra;
 mod ipc;
 mod manager;
 mod warmup;
@@ -23,6 +24,7 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 
 use crate::config::ClusterConfig;
 use crate::health::HealthChecker;
+use crate::infra::InfraManager;
 use crate::ipc::ControlServer;
 use crate::manager::BotManager;
 
@@ -45,6 +47,11 @@ struct Cli {
     /// Start all enabled bots on startup
     #[arg(long, default_value = "true")]
     start_on_boot: bool,
+
+    /// Auto-start infrastructure components (connector, collector, order_recorder)
+    /// according to their auto_start config
+    #[arg(long, default_value = "true")]
+    auto_start_infra: bool,
 }
 
 #[tokio::main]
@@ -78,8 +85,11 @@ async fn main() -> Result<()> {
         "Configuration loaded"
     );
 
-    // Create manager
+    // Create bot manager
     let manager = Arc::new(BotManager::new(config.clone(), cli.bin_dir.clone()));
+
+    // Create infrastructure manager
+    let infra_manager = Arc::new(InfraManager::new(config.clone(), cli.bin_dir.clone()));
 
     // Create health checker
     let health_checker = Arc::new(HealthChecker::new(config.warmup.data_dir.clone()));
@@ -89,6 +99,7 @@ async fn main() -> Result<()> {
     let control_server = ControlServer::new(
         config.cluster.socket_path.clone(),
         manager.clone(),
+        infra_manager.clone(),
         health_checker.clone(),
         config.cluster.name.clone(),
     );
@@ -132,11 +143,24 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Start monitoring task
+    // Start monitoring tasks
     let manager_for_monitor = manager.clone();
     tokio::spawn(async move {
         manager_for_monitor.monitor().await;
     });
+
+    let infra_for_monitor = infra_manager.clone();
+    tokio::spawn(async move {
+        infra_for_monitor.monitor().await;
+    });
+
+    // Auto-start infrastructure components if configured
+    if cli.auto_start_infra {
+        info!("Auto-starting infrastructure components...");
+        if let Err(e) = infra_manager.start_auto_start().await {
+            error!(error = %e, "Failed to auto-start infrastructure");
+        }
+    }
 
     // Start all enabled bots if configured
     if cli.start_on_boot {
@@ -217,6 +241,11 @@ async fn main() -> Result<()> {
     info!("Stopping all bots...");
     if let Err(e) = manager.stop_all().await {
         error!(error = %e, "Error stopping bots");
+    }
+
+    info!("Stopping all infrastructure components...");
+    if let Err(e) = infra_manager.stop_all().await {
+        error!(error = %e, "Error stopping infrastructure");
     }
 
     // Shutdown control server

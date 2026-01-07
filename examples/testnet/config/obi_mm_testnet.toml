@@ -12,7 +12,7 @@ order_qty = 0.002        # ~$180 per order (above $100 minimum)
 max_position = 0.02      # ~$1800 max position
 
 # Number of orders per side (buy/sell)
-grid_num = 3             # 3 orders each side = 6 total orders
+grid_num = 2             # 3 orders each side = 6 total orders
 
 # Grid interval in absolute price terms
 grid_interval = 1.0      # $1 between grid orders

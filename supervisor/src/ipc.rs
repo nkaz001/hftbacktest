@@ -13,7 +13,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::health::HealthChecker;
-use crate::manager::BotManager;
+use crate::infra::{ClusterHealth, ClusterHealthIpc, ComponentState, InfraComponent, InfraManager};
+use crate::manager::{BotInfo, BotManager};
 
 /// Request from hftctl to supervisor
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +38,24 @@ pub enum ControlRequest {
     WarmupStatus { symbol: Option<String> },
     /// Shutdown supervisor
     Shutdown,
+
+    // Infrastructure commands
+    /// List all infrastructure components
+    ListInfra,
+    /// Get status of a specific infrastructure component
+    InfraStatus { component: String },
+    /// Start an infrastructure component
+    StartInfra { component: String },
+    /// Stop an infrastructure component
+    StopInfra { component: String },
+    /// Restart an infrastructure component
+    RestartInfra { component: String },
+    /// Start all components (infra + bots) in dependency order
+    StartAll,
+    /// Stop all components (bots + infra) in reverse order
+    StopAll,
+    /// Get cluster health status
+    ClusterHealth,
 }
 
 /// Response from supervisor to hftctl
@@ -97,6 +116,7 @@ pub struct BotStatusInfo {
 pub struct ControlServer {
     socket_path: std::path::PathBuf,
     manager: Arc<BotManager>,
+    infra_manager: Arc<InfraManager>,
     health_checker: Arc<HealthChecker>,
     cluster_name: String,
     start_time: std::time::Instant,
@@ -106,12 +126,14 @@ impl ControlServer {
     pub fn new(
         socket_path: std::path::PathBuf,
         manager: Arc<BotManager>,
+        infra_manager: Arc<InfraManager>,
         health_checker: Arc<HealthChecker>,
         cluster_name: String,
     ) -> Self {
         Self {
             socket_path,
             manager,
+            infra_manager,
             health_checker,
             cluster_name,
             start_time: std::time::Instant::now(),
@@ -148,6 +170,7 @@ impl ControlServer {
                     match accept_result {
                         Ok((stream, _)) => {
                             let manager = self.manager.clone();
+                            let infra_manager = self.infra_manager.clone();
                             let health_checker = self.health_checker.clone();
                             let cluster_name = self.cluster_name.clone();
                             let uptime = self.start_time.elapsed().as_secs();
@@ -156,6 +179,7 @@ impl ControlServer {
                                 if let Err(e) = handle_connection(
                                     stream,
                                     manager,
+                                    infra_manager,
                                     health_checker,
                                     cluster_name,
                                     uptime,
@@ -187,6 +211,7 @@ impl ControlServer {
 async fn handle_connection(
     stream: UnixStream,
     manager: Arc<BotManager>,
+    infra_manager: Arc<InfraManager>,
     health_checker: Arc<HealthChecker>,
     cluster_name: String,
     uptime_secs: u64,
@@ -213,6 +238,7 @@ async fn handle_connection(
         let response = handle_request(
             request,
             &manager,
+            &infra_manager,
             &health_checker,
             &cluster_name,
             uptime_secs,
@@ -233,47 +259,55 @@ async fn handle_connection(
 async fn handle_request(
     request: ControlRequest,
     manager: &BotManager,
+    infra_manager: &InfraManager,
     health_checker: &HealthChecker,
     cluster_name: &str,
     uptime_secs: u64,
 ) -> ControlResponse {
     match request {
         ControlRequest::Status => {
-            let bot_states = manager.get_bot_states().await;
+            let bot_infos = manager.get_all_bot_info().await;
+            let infra_status = infra_manager.get_all_status().await;
 
-            let mut bots: Vec<BotStatusInfo> = Vec::new();
-            for (id, state) in bot_states {
-                bots.push(BotStatusInfo {
-                    id: id.clone(),
-                    symbol: String::new(), // TODO: get from config
-                    state: state.as_str().to_string(),
-                    pid: None, // TODO: get from manager
-                    uptime_secs: None,
-                    restart_count: 0,
-                });
-            }
+            // Convert BotInfo to BotStatusInfo
+            let bots: Vec<BotStatusInfo> = bot_infos
+                .into_iter()
+                .map(|info| BotStatusInfo {
+                    id: info.id,
+                    symbol: info.symbol,
+                    state: info.state,
+                    pid: info.pid,
+                    uptime_secs: info.uptime_secs,
+                    restart_count: info.restart_count,
+                })
+                .collect();
 
-            let connector_health = health_checker.check_connector("bf");
-            let collector_health = health_checker.check_collector();
+            // Get connector and collector status from InfraManager
+            let connector_status = infra_status
+                .iter()
+                .find(|s| s.component == InfraComponent::Connector);
+            let collector_status = infra_status
+                .iter()
+                .find(|s| s.component == InfraComponent::Collector);
 
             let status = StatusResponse {
                 cluster_name: cluster_name.to_string(),
                 uptime_secs,
                 connector: ComponentStatus {
-                    status: if connector_health.healthy {
-                        "running".to_string()
-                    } else {
-                        "stopped".to_string()
-                    },
-                    healthy: connector_health.healthy,
+                    status: connector_status
+                        .map(|s| s.state.as_str().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    healthy: connector_status
+                        .map(|s| matches!(s.state, ComponentState::Running))
+                        .unwrap_or(false),
                 },
                 collector: ComponentStatus {
-                    status: if collector_health.healthy {
-                        "running".to_string()
-                    } else {
-                        "stopped".to_string()
-                    },
-                    healthy: collector_health.healthy,
+                    status: collector_status
+                        .map(|s| s.state.as_str().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    healthy: collector_status
+                        .map(|s| matches!(s.state, ComponentState::Running))
+                        .unwrap_or(false),
                 },
                 bots,
             };
@@ -282,18 +316,17 @@ async fn handle_request(
         }
 
         ControlRequest::BotStatus { bot_id } => {
-            let bot_states = manager.get_bot_states().await;
-            match bot_states.get(&bot_id) {
-                Some(state) => {
-                    let info = BotStatusInfo {
-                        id: bot_id,
-                        symbol: String::new(),
-                        state: state.as_str().to_string(),
-                        pid: None,
-                        uptime_secs: None,
-                        restart_count: 0,
+            match manager.get_bot_info(&bot_id).await {
+                Some(info) => {
+                    let status_info = BotStatusInfo {
+                        id: info.id,
+                        symbol: info.symbol,
+                        state: info.state,
+                        pid: info.pid,
+                        uptime_secs: info.uptime_secs,
+                        restart_count: info.restart_count,
                     };
-                    ControlResponse::ok_with_data(info)
+                    ControlResponse::ok_with_data(status_info)
                 }
                 None => ControlResponse::error(format!("Bot not found: {}", bot_id)),
             }
@@ -327,7 +360,7 @@ async fn handle_request(
             ControlResponse::error("Not implemented yet")
         }
 
-        ControlRequest::WarmupStatus { symbol } => {
+        ControlRequest::WarmupStatus { symbol: _ } => {
             // TODO: implement warmup status check
             ControlResponse::error("Not implemented yet")
         }
@@ -335,6 +368,89 @@ async fn handle_request(
         ControlRequest::Shutdown => {
             // This should trigger supervisor shutdown
             ControlResponse::ok()
+        }
+
+        // Infrastructure commands
+        ControlRequest::ListInfra => {
+            let status = infra_manager.get_all_status_ipc().await;
+            ControlResponse::ok_with_data(status)
+        }
+
+        ControlRequest::InfraStatus { component } => {
+            match component.parse::<InfraComponent>() {
+                Ok(comp) => {
+                    let status = infra_manager.get_status_ipc(comp).await;
+                    ControlResponse::ok_with_data(status)
+                }
+                Err(e) => ControlResponse::error(e.to_string()),
+            }
+        }
+
+        ControlRequest::StartInfra { component } => {
+            match component.parse::<InfraComponent>() {
+                Ok(comp) => match infra_manager.start_component(comp).await {
+                    Ok(()) => ControlResponse::ok(),
+                    Err(e) => ControlResponse::error(e.to_string()),
+                },
+                Err(e) => ControlResponse::error(e.to_string()),
+            }
+        }
+
+        ControlRequest::StopInfra { component } => {
+            match component.parse::<InfraComponent>() {
+                Ok(comp) => match infra_manager.stop_component(comp).await {
+                    Ok(()) => ControlResponse::ok(),
+                    Err(e) => ControlResponse::error(e.to_string()),
+                },
+                Err(e) => ControlResponse::error(e.to_string()),
+            }
+        }
+
+        ControlRequest::RestartInfra { component } => {
+            match component.parse::<InfraComponent>() {
+                Ok(comp) => match infra_manager.restart_component(comp).await {
+                    Ok(()) => ControlResponse::ok(),
+                    Err(e) => ControlResponse::error(e.to_string()),
+                },
+                Err(e) => ControlResponse::error(e.to_string()),
+            }
+        }
+
+        ControlRequest::StartAll => {
+            // Start infra first, then bots
+            if let Err(e) = infra_manager.start_auto_start().await {
+                return ControlResponse::error(format!("Failed to start infrastructure: {}", e));
+            }
+            match manager.start_all().await {
+                Ok(()) => ControlResponse::ok(),
+                Err(e) => ControlResponse::error(format!("Failed to start bots: {}", e)),
+            }
+        }
+
+        ControlRequest::StopAll => {
+            // Stop bots first, then infra
+            if let Err(e) = manager.stop_all().await {
+                warn!(error = %e, "Error stopping bots");
+            }
+            match infra_manager.stop_all().await {
+                Ok(()) => ControlResponse::ok(),
+                Err(e) => ControlResponse::error(format!("Failed to stop infrastructure: {}", e)),
+            }
+        }
+
+        ControlRequest::ClusterHealth => {
+            let infra_status = infra_manager.get_all_status().await;
+            let bot_states = manager.get_bot_states().await;
+
+            let bots_running = bot_states
+                .values()
+                .filter(|s| s.as_str() == "running")
+                .count();
+            let bots_total = bot_states.len();
+
+            let health = ClusterHealth::new(&infra_status, bots_running, bots_total);
+            let health_ipc: ClusterHealthIpc = health.into();
+            ControlResponse::ok_with_data(health_ipc)
         }
     }
 }

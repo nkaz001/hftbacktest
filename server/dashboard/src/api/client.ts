@@ -5,7 +5,10 @@ import type {
   StrategyConfig,
   BotActionResponse,
   AuditLog,
-  ClusterStatus
+  ClusterStatus,
+  InfraStatus,
+  ClusterHealth,
+  InfraActionResponse
 } from '@/types';
 
 const API_BASE = '/api';
@@ -122,6 +125,17 @@ class ApiClient {
     return this.request('/config/cluster');
   }
 
+  async getClusterConfigRaw(): Promise<string> {
+    const response = await fetch(`${API_BASE}/config/cluster/raw`, {
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      throw new Error(error.message || 'Failed to fetch config');
+    }
+    return response.text();
+  }
+
   async updateClusterConfig(content: string): Promise<void> {
     return this.request('/config/cluster', {
       method: 'PUT',
@@ -137,6 +151,17 @@ class ApiClient {
     return this.request(`/config/strategies/${botId}`);
   }
 
+  async getStrategyConfigRaw(botId: string): Promise<string> {
+    const response = await fetch(`${API_BASE}/config/strategies/${botId}/raw`, {
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      throw new Error(error.message || 'Failed to fetch config');
+    }
+    return response.text();
+  }
+
   async updateStrategyConfig(botId: string, content: string): Promise<void> {
     return this.request(`/config/strategies/${botId}`, {
       method: 'PUT',
@@ -147,6 +172,40 @@ class ApiClient {
   // Audit log endpoint
   async getAuditLogs(limit = 50, offset = 0): Promise<AuditLog[]> {
     return this.request(`/logs/audit?limit=${limit}&offset=${offset}`);
+  }
+
+  // Infrastructure endpoints
+  async getInfraList(): Promise<InfraStatus[]> {
+    return this.request('/infra');
+  }
+
+  async getInfraStatus(component: string): Promise<InfraStatus> {
+    return this.request(`/infra/${component}`);
+  }
+
+  async startInfra(component: string): Promise<InfraActionResponse> {
+    return this.request(`/infra/${component}/start`, { method: 'POST' });
+  }
+
+  async stopInfra(component: string): Promise<InfraActionResponse> {
+    return this.request(`/infra/${component}/stop`, { method: 'POST' });
+  }
+
+  async restartInfra(component: string): Promise<InfraActionResponse> {
+    return this.request(`/infra/${component}/restart`, { method: 'POST' });
+  }
+
+  // Cluster management endpoints
+  async startAll(): Promise<{ success: boolean; message: string }> {
+    return this.request('/cluster/start-all', { method: 'POST' });
+  }
+
+  async stopAll(): Promise<{ success: boolean; message: string }> {
+    return this.request('/cluster/stop-all', { method: 'POST' });
+  }
+
+  async getClusterHealth(): Promise<ClusterHealth> {
+    return this.request('/cluster/health');
   }
 }
 

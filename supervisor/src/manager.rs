@@ -76,6 +76,17 @@ impl ManagedBot {
     }
 }
 
+/// Bot info for status reporting (IPC-friendly)
+#[derive(Debug, Clone)]
+pub struct BotInfo {
+    pub id: String,
+    pub symbol: String,
+    pub state: String,
+    pub pid: Option<u32>,
+    pub uptime_secs: Option<u64>,
+    pub restart_count: u32,
+}
+
 /// Events emitted by the manager
 #[derive(Debug, Clone)]
 pub enum ManagerEvent {
@@ -167,6 +178,40 @@ impl BotManager {
         bots.iter()
             .map(|(id, bot)| (id.clone(), bot.state.clone()))
             .collect()
+    }
+
+    /// Get full bot info for IPC status reporting
+    pub async fn get_all_bot_info(&self) -> Vec<BotInfo> {
+        let bots = self.bots.read().await;
+        bots.iter()
+            .map(|(id, bot)| {
+                let uptime_secs = bot.started_at.map(|t| t.elapsed().as_secs());
+                BotInfo {
+                    id: id.clone(),
+                    symbol: bot.config.symbol.clone(),
+                    state: bot.state.as_str().to_string(),
+                    pid: bot.pid,
+                    uptime_secs,
+                    restart_count: bot.restart_count,
+                }
+            })
+            .collect()
+    }
+
+    /// Get single bot info by ID
+    pub async fn get_bot_info(&self, bot_id: &str) -> Option<BotInfo> {
+        let bots = self.bots.read().await;
+        bots.get(bot_id).map(|bot| {
+            let uptime_secs = bot.started_at.map(|t| t.elapsed().as_secs());
+            BotInfo {
+                id: bot_id.to_string(),
+                symbol: bot.config.symbol.clone(),
+                state: bot.state.as_str().to_string(),
+                pid: bot.pid,
+                uptime_secs,
+                restart_count: bot.restart_count,
+            }
+        })
     }
 
     /// Start a specific bot

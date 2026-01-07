@@ -28,7 +28,7 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use hft_server::api::{bots, config, data, logs, status};
+use hft_server::api::{bots, config, data, infra, logs, status};
 use hft_server::auth;
 use hft_server::db::Database;
 use hft_server::state::{AppState, ServerConfig};
@@ -168,6 +168,7 @@ async fn main() -> Result<()> {
         // Config
         .route("/api/config/cluster", get(config::get_cluster_config))
         .route("/api/config/cluster", put(config::update_cluster_config))
+        .route("/api/config/cluster/raw", get(config::get_cluster_config_raw))
         .route("/api/config/strategies", get(config::list_strategy_configs))
         .route(
             "/api/config/strategies/:bot_id",
@@ -177,10 +178,24 @@ async fn main() -> Result<()> {
             "/api/config/strategies/:bot_id",
             put(config::update_strategy_config),
         )
+        .route(
+            "/api/config/strategies/:bot_id/raw",
+            get(config::get_strategy_config_raw),
+        )
         // Data
         .route("/api/data/files", get(data::list_data_files))
         .route("/api/data/stats", get(data::get_data_stats))
         .route("/api/data/warmup/:symbol", get(data::get_warmup_status))
+        // Infrastructure
+        .route("/api/infra", get(infra::list_infra))
+        .route("/api/infra/:component", get(infra::get_infra_status))
+        .route("/api/infra/:component/start", post(infra::start_infra))
+        .route("/api/infra/:component/stop", post(infra::stop_infra))
+        .route("/api/infra/:component/restart", post(infra::restart_infra))
+        // Cluster management
+        .route("/api/cluster/start-all", post(infra::start_all))
+        .route("/api/cluster/stop-all", post(infra::stop_all))
+        .route("/api/cluster/health", get(infra::get_cluster_health))
         // Logs
         .route("/api/logs/files", get(logs::list_log_files))
         .route("/api/logs/:component", get(logs::read_logs))

@@ -122,3 +122,31 @@ export interface AuditLog {
   ip_address: string | null;
   created_at: string;
 }
+
+// Infrastructure types
+export type InfraComponentType = 'connector' | 'collector' | 'order_recorder';
+export type InfraState = 'stopped' | 'starting' | 'running' | 'crashed' | 'failed' | 'disabled';
+
+export interface InfraStatus {
+  component: InfraComponentType;
+  state: InfraState;
+  pid: number | null;
+  uptime_secs: number | null;
+  last_error: string | null;
+}
+
+export interface ClusterHealth {
+  connector: string;
+  collector: string;
+  order_recorder: string;
+  bots_running: number;
+  bots_total: number;
+  all_healthy: boolean;
+}
+
+export interface InfraActionResponse {
+  success: boolean;
+  component: string;
+  action: string;
+  message: string;
+}

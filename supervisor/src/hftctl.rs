@@ -4,6 +4,7 @@
 
 mod config;
 mod health;
+mod infra;
 mod ipc;
 mod manager;
 mod warmup;

@@ -12,6 +12,7 @@ config_reload_interval_secs = 10
 name = "bf"
 type = "binancefutures"
 config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/binancefutures_testnet.toml"
+auto_start = false  # Don't auto-start, control via API
 
 [collector]
 enabled = true
@@ -19,6 +20,11 @@ mode = "ipc"
 output_dir = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/data"
 symbols = ["btcusdt"]
 retention_days = 7
+auto_start = false  # Don't auto-start, control via API
+
+# Order recorder is optional - disabled for testnet
+# [order_recorder]
+# enabled = false
 
 [warmup]
 data_dir = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/data"

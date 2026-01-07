@@ -47,6 +47,24 @@ pub async fn get_cluster_config(
     Ok(Json(json_value))
 }
 
+/// GET /api/config/cluster/raw - Get raw cluster config content (TOML)
+pub async fn get_cluster_config_raw(
+    State(state): State<AppState>,
+) -> Result<String, ApiErrorResponse> {
+    let config_path = &state.config.cluster_config_path;
+
+    if !config_path.exists() {
+        return Err(ApiErrorResponse::not_found(format!(
+            "Config file not found: {}",
+            config_path.display()
+        )));
+    }
+
+    tokio::fs::read_to_string(config_path)
+        .await
+        .map_err(|e| ApiErrorResponse::internal(e.to_string()))
+}
+
 /// Update config request
 #[derive(Debug, Deserialize)]
 pub struct UpdateConfigRequest {
@@ -178,6 +196,40 @@ pub async fn get_strategy_config(
     Ok(Json(json_value))
 }
 
+/// GET /api/config/strategies/:bot_id/raw - Get raw strategy config content (TOML)
+pub async fn get_strategy_config_raw(
+    State(state): State<AppState>,
+    Path(bot_id): Path<String>,
+) -> Result<String, ApiErrorResponse> {
+    // Find the config path for this bot
+    let cluster_config_path = &state.config.cluster_config_path;
+    let content = tokio::fs::read_to_string(cluster_config_path)
+        .await
+        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+
+    let config: toml::Value = toml::from_str(&content)
+        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+
+    let config_path = config
+        .get("bots")
+        .and_then(|b| b.as_array())
+        .and_then(|bots| {
+            bots.iter().find(|b| {
+                b.get("id")
+                    .and_then(|v| v.as_str())
+                    .map(|id| id == bot_id)
+                    .unwrap_or(false)
+            })
+        })
+        .and_then(|b| b.get("config_file"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| ApiErrorResponse::not_found(format!("Bot not found: {}", bot_id)))?;
+
+    tokio::fs::read_to_string(config_path)
+        .await
+        .map_err(|e| ApiErrorResponse::not_found(format!("Strategy config not found: {}", e)))
+}
+
 /// PUT /api/config/strategies/:bot_id - Update strategy config
 pub async fn update_strategy_config(
     State(state): State<AppState>,
@@ -226,8 +278,19 @@ pub async fn update_strategy_config(
         .await
         .map_err(|e| ApiErrorResponse::internal(format!("Failed to write config: {}", e)))?;
 
+    // Restart the bot to apply new config
+    if state.supervisor.is_available().await {
+        if let Err(e) = state.supervisor.restart_bot(&bot_id).await {
+            tracing::warn!(bot_id = %bot_id, error = %e, "Failed to restart bot after config update");
+            return Ok(Json(ApiSuccess::<()>::with_message(format!(
+                "Strategy config for {} updated (restart failed: {})",
+                bot_id, e
+            ))));
+        }
+    }
+
     Ok(Json(ApiSuccess::<()>::with_message(format!(
-        "Strategy config for {} updated",
+        "Strategy config for {} updated and bot restarted",
         bot_id
     ))))
 }

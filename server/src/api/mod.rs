@@ -3,6 +3,7 @@
 pub mod bots;
 pub mod config;
 pub mod data;
+pub mod infra;
 pub mod logs;
 pub mod status;
 

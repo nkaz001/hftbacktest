@@ -16,6 +16,9 @@ pub struct ClusterConfig {
     pub connector: ConnectorConfig,
     pub collector: CollectorConfig,
     pub warmup: WarmupConfig,
+    /// Order recorder configuration (optional)
+    #[serde(default)]
+    pub order_recorder: Option<OrderRecorderConfig>,
     #[serde(default)]
     pub bot_defaults: BotDefaults,
     #[serde(default)]
@@ -62,6 +65,9 @@ pub struct ConnectorConfig {
     pub connector_type: String,
     /// Path to connector-specific config file (contains API keys)
     pub config_file: PathBuf,
+    /// Whether to auto-start connector with supervisor
+    #[serde(default)]
+    pub auto_start: bool,
 }
 
 /// Collector configuration
@@ -80,6 +86,55 @@ pub struct CollectorConfig {
     /// Days to retain data
     #[serde(default = "default_retention_days")]
     pub retention_days: u32,
+    /// Whether to auto-start collector with supervisor
+    #[serde(default)]
+    pub auto_start: bool,
+}
+
+/// Order recorder configuration (writes to ClickHouse)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderRecorderConfig {
+    /// Whether order recorder is enabled
+    #[serde(default)]
+    pub enabled: bool,
+    /// Whether to auto-start order recorder with supervisor
+    #[serde(default)]
+    pub auto_start: bool,
+    /// IPC service name for receiving recording events
+    #[serde(default = "default_ipc_service")]
+    pub ipc_service: String,
+    /// ClickHouse HTTP URL
+    #[serde(default = "default_clickhouse_url")]
+    pub clickhouse_url: String,
+    /// ClickHouse database name
+    #[serde(default = "default_clickhouse_database")]
+    pub database: String,
+    /// Batch size before flushing to ClickHouse
+    #[serde(default = "default_batch_size")]
+    pub batch_size: usize,
+    /// Flush interval in seconds
+    #[serde(default = "default_flush_interval")]
+    pub flush_interval_secs: u64,
+}
+
+fn default_ipc_service() -> String {
+    "hft_recording".to_string()
+}
+
+fn default_clickhouse_url() -> String {
+    "http://localhost:8123".to_string()
+}
+
+fn default_clickhouse_database() -> String {
+    "hft".to_string()
+}
+
+fn default_batch_size() -> usize {
+    100
+}
+
+fn default_flush_interval() -> u64 {
+    5
 }
 
 fn default_true() -> bool {
@@ -355,5 +410,48 @@ config_file = "/etc/hft/strategies/ethusdt.toml"
         let enabled: Vec<_> = config.enabled_bots().collect();
         assert_eq!(enabled.len(), 1);
         assert_eq!(enabled[0].id, "obi_mm_btcusdt");
+    }
+
+    #[test]
+    fn test_parse_with_order_recorder() {
+        let toml = r#"
+[cluster]
+name = "test"
+data_dir = "/tmp/data"
+
+[connector]
+name = "bf"
+type = "binancefutures"
+config_file = "/etc/hft/connector.toml"
+auto_start = true
+
+[collector]
+output_dir = "/tmp/data/raw"
+symbols = ["btcusdt"]
+auto_start = true
+
+[warmup]
+data_dir = "/tmp/data/raw"
+
+[order_recorder]
+enabled = true
+auto_start = true
+clickhouse_url = "http://clickhouse:8123"
+database = "hft_prod"
+batch_size = 200
+flush_interval_secs = 10
+"#;
+        let config: ClusterConfig = toml::from_str(toml).unwrap();
+        assert!(config.connector.auto_start);
+        assert!(config.collector.auto_start);
+
+        let order_recorder = config.order_recorder.unwrap();
+        assert!(order_recorder.enabled);
+        assert!(order_recorder.auto_start);
+        assert_eq!(order_recorder.clickhouse_url, "http://clickhouse:8123");
+        assert_eq!(order_recorder.database, "hft_prod");
+        assert_eq!(order_recorder.batch_size, 200);
+        assert_eq!(order_recorder.flush_interval_secs, 10);
+        assert_eq!(order_recorder.ipc_service, "hft_recording"); // default
     }
 }
