@@ -336,12 +336,16 @@ impl Connector for BinancePapi {
     fn cancel(&self, symbol: String, order: Order, tx: UnboundedSender<PublishEvent>) {
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
+        let bot_order_id = order.order_id;
 
         tokio::spawn(async move {
-            let client_order_id = order_manager
-                .lock()
-                .unwrap()
-                .get_client_order_id(&symbol, order.order_id);
+            let (client_order_id, exchange_order_id) = {
+                let mgr = order_manager.lock().unwrap();
+                (
+                    mgr.get_client_order_id(&symbol, bot_order_id),
+                    mgr.get_exchange_order_id(&symbol, bot_order_id),
+                )
+            };
 
             match client_order_id {
                 Some(client_order_id) => {
@@ -382,11 +386,45 @@ impl Connector for BinancePapi {
                     }
                 }
                 None => {
-                    warn!(
-                        order_id = order.order_id,
-                        "client_order_id corresponding to order_id is not found; \
-                        this may be due to the order already being canceled or filled."
-                    );
+                    // Fallback: try to cancel using exchange order ID
+                    if let Some(exchange_order_id) = exchange_order_id {
+                        info!(
+                            order_id = bot_order_id,
+                            exchange_order_id,
+                            "client_order_id not found, using exchange_order_id fallback"
+                        );
+                        match client
+                            .cancel_um_order_by_exchange_id(exchange_order_id, &symbol)
+                            .await
+                        {
+                            Ok(_) => {
+                                info!(
+                                    order_id = bot_order_id,
+                                    exchange_order_id,
+                                    "Successfully cancelled order using exchange_order_id"
+                                );
+                                // Clean up the exchange_order_id mapping
+                                order_manager
+                                    .lock()
+                                    .unwrap()
+                                    .remove_exchange_order_id(&symbol, bot_order_id);
+                            }
+                            Err(error) => {
+                                warn!(
+                                    order_id = bot_order_id,
+                                    exchange_order_id,
+                                    ?error,
+                                    "Failed to cancel order using exchange_order_id"
+                                );
+                            }
+                        }
+                    } else {
+                        warn!(
+                            order_id = bot_order_id,
+                            "Neither client_order_id nor exchange_order_id found; \
+                            order may have already been canceled or filled."
+                        );
+                    }
                 }
             }
         });

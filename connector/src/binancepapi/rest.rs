@@ -249,6 +249,25 @@ impl BinancePapiClient {
         }
     }
 
+    /// Cancel UM order by exchange order ID (fallback when client_order_id is not available)
+    /// DELETE /papi/v1/um/order
+    pub async fn cancel_um_order_by_exchange_id(
+        &self,
+        exchange_order_id: i64,
+        symbol: &str,
+    ) -> Result<OrderResponse, BinancePapiError> {
+        let body = format!("symbol={}&orderId={}", symbol, exchange_order_id);
+
+        let resp: OrderResponseResult = self.delete("/papi/v1/um/order", body).await?;
+        match resp {
+            OrderResponseResult::Ok(resp) => Ok(resp),
+            OrderResponseResult::Err(resp) => Err(BinancePapiError::OrderError {
+                code: resp.code,
+                msg: resp.msg,
+            }),
+        }
+    }
+
     /// Cancel all UM futures open orders for a symbol
     /// DELETE /papi/v1/um/allOpenOrders
     pub async fn cancel_all_um_orders(&self, symbol: &str) -> Result<(), reqwest::Error> {

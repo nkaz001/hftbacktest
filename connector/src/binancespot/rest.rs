@@ -190,6 +190,24 @@ impl BinanceSpotClient {
         }
     }
 
+    /// Cancel order by exchange order ID (fallback when client_order_id is not available)
+    pub async fn cancel_order_by_exchange_id(
+        &self,
+        exchange_order_id: u64,
+        symbol: &str,
+    ) -> Result<CancelOrderResponse, BinanceSpotError> {
+        let body = format!("symbol={}&orderId={}", symbol, exchange_order_id);
+
+        let resp: CancelOrderResponseResult = self.delete("/api/v3/order", body).await?;
+        match resp {
+            CancelOrderResponseResult::Ok(resp) => Ok(resp),
+            CancelOrderResponseResult::Err(resp) => Err(BinanceSpotError::OrderError {
+                code: resp.code,
+                msg: resp.msg,
+            }),
+        }
+    }
+
     pub async fn submit_order(
         &self,
         client_order_id: &str,
