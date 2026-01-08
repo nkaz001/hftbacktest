@@ -297,6 +297,24 @@ impl BinanceFuturesClient {
         }
     }
 
+    /// Cancel order by exchange order ID (fallback when client_order_id is not available)
+    pub async fn cancel_order_by_exchange_id(
+        &self,
+        exchange_order_id: i64,
+        symbol: &str,
+    ) -> Result<OrderResponse, BinanceFuturesError> {
+        let body = format!("symbol={}&orderId={}", symbol, exchange_order_id);
+
+        let resp: OrderResponseResult = self.delete("/fapi/v1/order", body).await?;
+        match resp {
+            OrderResponseResult::Ok(resp) => Ok(resp),
+            OrderResponseResult::Err(resp) => Err(BinanceFuturesError::OrderError {
+                code: resp.code,
+                msg: resp.msg,
+            }),
+        }
+    }
+
     pub async fn cancel_orders(
         &self,
         symbol: &str,

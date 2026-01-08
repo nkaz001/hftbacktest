@@ -40,11 +40,17 @@ pub type ClientOrderId = String;
 /// immediately notified to the bot, but the Connector must still retain the `client_order_id` in
 /// case an update arrives later from the other channel, which has not yet sent the deletion
 /// message.
+/// Exchange order ID from Binance (different from bot's order_id which is price_tick)
+pub type ExchangeOrderId = i64;
+
 #[derive(Default, Debug)]
 pub struct OrderManager {
     prefix: String,
     orders: HashMap<ClientOrderId, OrderExt>,
     order_id_map: HashMap<SymbolOrderId, ClientOrderId>,
+    /// Maps (symbol, bot_order_id) -> exchange_order_id for fallback cancellation
+    /// This allows us to cancel orders even if client_order_id mapping is lost
+    exchange_order_id_map: HashMap<SymbolOrderId, ExchangeOrderId>,
 }
 
 impl OrderManager {
@@ -53,6 +59,7 @@ impl OrderManager {
             prefix: prefix.to_string(),
             orders: Default::default(),
             order_id_map: Default::default(),
+            exchange_order_id_map: Default::default(),
         }
     }
 
@@ -81,6 +88,14 @@ impl OrderManager {
                 (resp.order.last_filled_price / order_ext.order.tick_size).round() as i64;
             order_ext.order.exec_qty = resp.order.order_last_filled_qty;
             order_ext.order.order_type = resp.order.order_type;
+
+            // Store exchange order ID for fallback cancellation
+            let symbol_order_id = SymbolOrderId::new(
+                order_ext.symbol.clone(),
+                order_ext.order.order_id,
+            );
+            self.exchange_order_id_map
+                .insert(symbol_order_id, resp.order.order_id);
         }
 
         let result = if already_removed {
@@ -94,10 +109,13 @@ impl OrderManager {
         {
             order_ext.removed_by_ws = true;
             if !already_removed {
-                self.order_id_map.remove(&RefSymbolOrderId::new(
+                let symbol_order_id = RefSymbolOrderId::new(
                     &order_ext.symbol,
                     order_ext.order.order_id,
-                ));
+                );
+                self.order_id_map.remove(&symbol_order_id);
+                // Also remove from exchange_order_id_map when order is done
+                self.exchange_order_id_map.remove(&symbol_order_id);
             }
 
             if order_ext.removed_by_ws && order_ext.removed_by_rest {
@@ -217,6 +235,14 @@ impl OrderManager {
             order_ext.order.exec_qty = resp.executed_qty;
             order_ext.order.order_type = resp.ty;
             order_ext.order.req = Status::None;
+
+            // Store exchange order ID for fallback cancellation
+            let symbol_order_id = SymbolOrderId::new(
+                order_ext.symbol.clone(),
+                order_ext.order.order_id,
+            );
+            self.exchange_order_id_map
+                .insert(symbol_order_id, resp.order_id);
         }
 
         let result = if already_removed {
@@ -230,10 +256,13 @@ impl OrderManager {
         {
             order_ext.removed_by_rest = true;
             if !already_removed {
-                self.order_id_map.remove(&RefSymbolOrderId::new(
+                let symbol_order_id = RefSymbolOrderId::new(
                     &order_ext.symbol,
                     order_ext.order.order_id,
-                ));
+                );
+                self.order_id_map.remove(&symbol_order_id);
+                // Also remove from exchange_order_id_map when order is done
+                self.exchange_order_id_map.remove(&symbol_order_id);
             }
 
             if order_ext.removed_by_ws && order_ext.removed_by_rest {
@@ -273,6 +302,19 @@ impl OrderManager {
         self.order_id_map
             .get(&RefSymbolOrderId::new(symbol, order_id))
             .cloned()
+    }
+
+    /// Get exchange order ID for fallback cancellation when client_order_id is not found
+    pub fn get_exchange_order_id(&self, symbol: &str, order_id: OrderId) -> Option<ExchangeOrderId> {
+        self.exchange_order_id_map
+            .get(&RefSymbolOrderId::new(symbol, order_id))
+            .copied()
+    }
+
+    /// Remove exchange order ID mapping (called after successful cancel)
+    pub fn remove_exchange_order_id(&mut self, symbol: &str, order_id: OrderId) {
+        self.exchange_order_id_map
+            .remove(&RefSymbolOrderId::new(symbol, order_id));
     }
 
     /// Due to API instability or network issues, discrepancies can occur where an order is deleted
