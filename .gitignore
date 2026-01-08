@@ -12,4 +12,17 @@ docs/_build
 *.gz
 *.csv
 *.jsonl
-*.log*.db
+*.log
+
+# Database files
+*.db
+
+# Environment files (secrets)
+.env
+!.env.example
+
+# Backup files
+*.bak
+
+# Log directories
+logs/

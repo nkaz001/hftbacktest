@@ -24,13 +24,12 @@
 //! 4. Strategy Loop - Main trading logic
 //! 5. Order Recording (optional) - Record trades to ClickHouse
 
-use std::sync::Arc;
-
 use anyhow::{Context, Result};
 use clap::Parser;
 use hftbacktest::{
-    live::{LiveBot, LiveBotBuilder},
+    live::{ipc::iceoryx::IceoryxUnifiedChannel, Instrument, LiveBot, LiveBotBuilder},
     prelude::*,
+    types::ElapseResult,
 };
 use serde::Deserialize;
 use tracing::{info, warn, error, debug};
@@ -55,6 +54,14 @@ struct Args {
     /// Connector name (must match cluster config)
     #[arg(long, default_value = "bf")]
     connector: String,
+
+    /// Tick size (price precision)
+    #[arg(long, default_value = "0.1")]
+    tick_size: f64,
+
+    /// Lot size (quantity precision)
+    #[arg(long, default_value = "0.001")]
+    lot_size: f64,
 
     /// Enable verbose logging
     #[arg(long, short)]
@@ -204,14 +211,18 @@ fn main() -> Result<()> {
 fn run_strategy(args: &Args, config: &Config) -> Result<()> {
     // Build the LiveBot
     // The bot connects to the connector via IPC (iceoryx2)
-    let mut bot: LiveBot<HashMapMarketDepth> = LiveBotBuilder::new()
-        .register(&args.connector, &args.symbol)
-        .depth(|builder| {
-            // Configure market depth
-            // Use HashMapMarketDepth for general purpose
-            // Use ROIVectorMarketDepth for bounded price range instruments
-            builder.with_hash_map_market_depth()
-        })
+    let tick_size = config.global.tick_size;
+    let lot_size = config.global.lot_size;
+
+    let mut bot: LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> = LiveBotBuilder::new()
+        .register(Instrument::new(
+            &args.connector,
+            &args.symbol,
+            tick_size,
+            lot_size,
+            HashMapMarketDepth::new(tick_size, lot_size),
+            0, // initial_snapshot - 0 means no snapshot
+        ))
         .build()
         .context("Failed to build LiveBot")?;
 
@@ -223,23 +234,10 @@ fn run_strategy(args: &Args, config: &Config) -> Result<()> {
     // Main strategy loop
     info!("Entering main strategy loop...");
 
-    loop {
-        // 1. Process events (market data, order updates)
-        // This is non-blocking and returns immediately if no events
-        match bot.elapse(Duration::from_millis(100)) {
-            Ok(true) => {
-                // Events were processed
-            }
-            Ok(false) => {
-                // No events, continue
-            }
-            Err(e) => {
-                error!("Error processing events: {}", e);
-                continue;
-            }
-        }
-
-        // 2. Get current timestamp
+    // elapse takes nanoseconds - 500_000_000 ns = 500ms
+    // Loop continues while elapse returns Ok
+    while bot.elapse(500_000_000).unwrap() == ElapseResult::Ok {
+        // 1. Get current timestamp
         let current_ts = bot.current_timestamp();
 
         // 3. Check if it's time to update quotes
@@ -300,6 +298,9 @@ fn run_strategy(args: &Args, config: &Config) -> Result<()> {
             );
         }
     }
+
+    info!("Strategy loop ended");
+    Ok(())
 }
 
 /// Calculate bid and ask prices based on strategy logic
@@ -328,7 +329,7 @@ fn calculate_quotes(
 
 /// Cancel orders older than lifetime
 fn cancel_stale_orders(
-    bot: &mut LiveBot<HashMapMarketDepth>,
+    bot: &mut LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth>,
     current_ts: i64,
     lifetime_secs: f64,
 ) -> Result<()> {
@@ -348,7 +349,7 @@ fn cancel_stale_orders(
     // Cancel them
     for order_id in orders_to_cancel {
         if let Err(e) = bot.cancel(0, order_id, false) {
-            warn!("Failed to cancel order {}: {}", order_id, e);
+            warn!("Failed to cancel order {}: {:?}", order_id, e);
         }
     }
 
@@ -357,38 +358,53 @@ fn cancel_stale_orders(
 
 /// Submit bid and ask orders
 fn submit_orders(
-    bot: &mut LiveBot<HashMapMarketDepth>,
+    bot: &mut LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth>,
     bid_price: f64,
     ask_price: f64,
     config: &Config,
 ) -> Result<()> {
     let qty = config.global.order_qty;
+    let tick_size = config.global.tick_size;
     let time_in_force = TimeInForce::GTX; // Post-only orders
 
-    // Submit bid order
-    if let Err(e) = bot.submit_buy_order(
-        0,
-        0, // Use auto-generated order ID
-        bid_price,
-        qty,
-        time_in_force,
-        OrdType::Limit,
-        false, // wait
-    ) {
-        warn!("Failed to submit bid order: {}", e);
+    // Use price tick as order ID (unique per price level)
+    let bid_order_id = (bid_price / tick_size).round() as u64;
+    let ask_order_id = (ask_price / tick_size).round() as u64;
+
+    // Check if orders already exist at these price levels
+    let orders = bot.orders(0);
+    let bid_exists = orders.contains_key(&bid_order_id);
+    let ask_exists = orders.contains_key(&ask_order_id);
+    drop(orders);
+
+    // Submit bid order if not exists
+    if !bid_exists {
+        if let Err(e) = bot.submit_buy_order(
+            0,
+            bid_order_id,
+            bid_price,
+            qty,
+            time_in_force,
+            OrdType::Limit,
+            false, // wait
+        ) {
+            warn!("Failed to submit bid order: {:?}", e);
+        }
     }
 
-    // Submit ask order
-    if let Err(e) = bot.submit_sell_order(
-        0,
-        0, // Use auto-generated order ID
-        ask_price,
-        qty,
-        time_in_force,
-        OrdType::Limit,
-        false, // wait
-    ) {
-        warn!("Failed to submit ask order: {}", e);
+    // Submit ask order if not exists
+    if !ask_exists {
+        if let Err(e) = bot.submit_sell_order(
+            0,
+            ask_order_id,
+            ask_price,
+            qty,
+            time_in_force,
+            OrdType::Limit,
+            false, // wait
+        ) {
+            warn!("Failed to submit ask order: {:?}", e);
+        }
     }
 
     Ok(())
@@ -446,39 +462,32 @@ fn validate_config(config: &Config) -> Result<()> {
 // =============================================================================
 // Optional: Order Recording Integration
 // =============================================================================
-
-#[cfg(feature = "recording")]
-mod recording {
-    use super::*;
-    use order_recorder::hook::create_order_hook;
-
-    /// Create a LiveBot with order recording enabled
-    pub fn build_bot_with_recording(
-        connector: &str,
-        symbol: &str,
-        tick_size: f64,
-    ) -> Result<LiveBot<HashMapMarketDepth>> {
-        // Create order recording hook
-        let hook_ctx = create_order_hook(
-            "hft_recording",  // IPC service name (must match order-recorder config)
-            "template_strategy".to_string(),
-            symbol.to_string(),
-            tick_size,
-        )?;
-
-        let ctx = Arc::new(hook_ctx);
-        let ctx_clone = ctx.clone();
-
-        // Build bot with recording hook
-        let bot = LiveBotBuilder::new()
-            .register(connector, symbol)
-            .depth(|builder| builder.with_hash_map_market_depth())
-            .order_recv_hook(move |prev, new| {
-                ctx_clone.handle_order(prev, new);
-                Ok(())
-            })
-            .build()?;
-
-        Ok(bot)
-    }
-}
+//
+// To enable order recording to ClickHouse, add the following to your strategy:
+//
+// ```rust
+// use std::sync::Arc;
+// use order_recorder::hook::{OrderHookContext, create_order_hook};
+//
+// // Create hook context
+// let hook_ctx = create_order_hook(
+//     "hft_recording",  // IPC service name
+//     "my_strategy".to_string(),
+//     symbol.clone(),
+//     tick_size,
+// )?;
+//
+// let ctx = Arc::new(hook_ctx);
+//
+// // Add to LiveBotBuilder
+// let bot = LiveBotBuilder::new()
+//     .register(instrument)
+//     .order_recv_hook({
+//         let ctx = ctx.clone();
+//         move |prev, new| {
+//             ctx.handle_order(prev, new);
+//             Ok(())
+//         }
+//     })
+//     .build()?;
+// ```
