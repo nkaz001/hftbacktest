@@ -97,6 +97,10 @@ impl UserDataStream {
                     Err(BinanceSpotError::PrefixUnmatched) => {
                         // order不是当前connector创建的
                     }
+                    Err(BinanceSpotError::OrderNotFound) => {
+                        // Order not in tracking map - likely from previous run, cancelled on startup.
+                        // This is expected after connector restart, silently ignore.
+                    }
                     Err(error) => {
                         error!(
                             ?error,
