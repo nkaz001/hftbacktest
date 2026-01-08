@@ -1,0 +1,18 @@
+# Template Strategy Configuration - ETHUSDT
+# Simple market making strategy for testing multi-bot setup
+
+[global]
+order_qty = 0.05           # ~$175 per order at $3500 ETH
+max_position = 0.2         # ~$700 max position
+grid_num = 2
+tick_size = 0.01           # Binance Futures ETHUSDT tick size
+lot_size = 0.001           # Binance Futures ETHUSDT lot size
+
+[params]
+half_spread = 0.0003       # 0.03% = 3 bps each side
+skew = 0.01                # Position skew factor
+order_lifetime_secs = 60.0
+update_interval_ns = 5000000000  # 5 seconds
+
+[risk]
+kill_switch = false

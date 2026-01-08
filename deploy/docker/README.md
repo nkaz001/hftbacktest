@@ -313,14 +313,6 @@ docker compose up -d
 # Stop all services
 docker compose down
 
-# View logs
-docker compose logs -f hft
-docker compose logs -f clickhouse
-
-# View specific bot logs
-docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_btcusdt.log
-docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_ethusdt.log
-
 # Restart HFT container (reload config)
 docker compose restart hft
 
@@ -333,6 +325,99 @@ docker compose ps
 
 # Enter container shell
 docker exec -it hft-system bash
+
+# Check cluster status via hftctl
+docker exec hft-system hftctl --socket /tmp/hft-supervisor.sock status
+```
+
+## Viewing Logs
+
+### Docker Compose Logs (stdout/stderr)
+
+```bash
+# View all service logs
+docker compose logs
+
+# Follow logs in real-time
+docker compose logs -f
+
+# View specific service logs
+docker compose logs hft
+docker compose logs clickhouse
+
+# Follow with last N lines
+docker compose logs -f --tail 100 hft
+```
+
+### HFT System Internal Logs
+
+Log files are stored in `/var/lib/hft/logs/` inside the container:
+
+```
+/var/lib/hft/logs/
+├── infra/
+│   ├── connector.log      # Exchange connector
+│   ├── collector.log      # Market data collection
+│   ├── order_recorder.log # Order recording to ClickHouse
+│   └── server.log         # Web dashboard API server
+└── bots/
+    ├── obi_mm_btcusdt.log
+    ├── obi_mm_ethusdt.log
+    └── obi_mm_solusdt.log
+```
+
+**Infrastructure Logs:**
+
+```bash
+# Connector logs (exchange connection)
+docker exec hft-system cat /var/lib/hft/logs/infra/connector.log
+docker exec hft-system tail -f /var/lib/hft/logs/infra/connector.log
+
+# Collector logs (market data)
+docker exec hft-system cat /var/lib/hft/logs/infra/collector.log
+docker exec hft-system tail -f /var/lib/hft/logs/infra/collector.log
+
+# Order recorder logs
+docker exec hft-system cat /var/lib/hft/logs/infra/order_recorder.log
+
+# Web server logs
+docker exec hft-system cat /var/lib/hft/logs/infra/server.log
+```
+
+**Bot Logs:**
+
+```bash
+# View specific bot log
+docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_btcusdt.log
+docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_ethusdt.log
+docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_solusdt.log
+
+# Follow bot log in real-time
+docker exec hft-system tail -f /var/lib/hft/logs/bots/obi_mm_btcusdt.log
+
+# List all log files
+docker exec hft-system ls -la /var/lib/hft/logs/infra/
+docker exec hft-system ls -la /var/lib/hft/logs/bots/
+```
+
+### ClickHouse Logs
+
+```bash
+# ClickHouse server log
+docker exec hft-clickhouse cat /var/log/clickhouse-server/clickhouse-server.log
+
+# ClickHouse error log
+docker exec hft-clickhouse cat /var/log/clickhouse-server/clickhouse-server.err.log
+
+# Follow ClickHouse logs
+docker exec hft-clickhouse tail -f /var/log/clickhouse-server/clickhouse-server.log
+```
+
+### View Logs via API
+
+```bash
+# Get bot logs via REST API (last 100 lines)
+curl "http://localhost:13000/api/logs/obi_mm_btcusdt?lines=100"
 ```
 
 ## API Endpoints
