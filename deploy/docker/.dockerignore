@@ -1,0 +1,48 @@
+# Build artifacts
+target/
+*.so
+*.rlib
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Local development
+examples/
+.env
+*.log
+*.db
+
+# Docker deploy (avoid recursive copy)
+deploy/docker/config/
+deploy/docker/.env
+deploy/docker/scripts/
+
+# Test data
+*.npz
+*.jsonl
+data/
+
+# Misc
+.DS_Store
+Thumbs.db

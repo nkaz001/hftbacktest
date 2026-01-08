@@ -1,0 +1,78 @@
+# HFT System Docker Compose Configuration
+#
+# Usage:
+#   cp .env.example .env
+#   # Edit .env with your API keys
+#   docker-compose build
+#   docker-compose up -d
+#
+# Access dashboard at http://localhost:3000
+
+services:
+  # ClickHouse database for order recording
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: hft-clickhouse
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./scripts/init-clickhouse.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "18123:8123"   # HTTP interface (mapped to 18123 to avoid conflict)
+      - "19000:9000"   # Native interface (mapped to 19000)
+    environment:
+      - CLICKHOUSE_DB=hft
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - hft-network
+
+  # HFT Trading System (all components in one container)
+  hft:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: hft-system
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      # Configuration files (bind mount for easy editing)
+      - ./config:/etc/hft:ro
+      # Persistent data storage
+      - hft_data:/var/lib/hft/data
+      - hft_logs:/var/lib/hft/logs
+    ports:
+      - "13000:3000"   # Web dashboard (mapped to 13000 to avoid conflict)
+    environment:
+      - CLUSTER_CONFIG=/etc/hft/cluster.toml
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - RUST_LOG=info
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - hft-network
+    # Note: If you experience IPC issues, uncomment the following:
+    # ipc: host
+
+volumes:
+  clickhouse_data:
+    driver: local
+  clickhouse_logs:
+    driver: local
+  hft_data:
+    driver: local
+  hft_logs:
+    driver: local
+
+networks:
+  hft-network:
+    driver: bridge

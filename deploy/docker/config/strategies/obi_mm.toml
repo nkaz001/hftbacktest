@@ -1,0 +1,51 @@
+# OBI MM Strategy Configuration for Docker
+#
+# This configuration is optimized for testnet trading with conservative parameters.
+
+[global]
+# Order size - Binance requires minimum $100 notional per order
+# At BTC ~$90,000, this means minimum ~0.0012 BTC
+order_qty = 0.002        # ~$180 per order (above $100 minimum)
+
+# Maximum position size (absolute value)
+max_position = 0.02      # ~$1800 max position
+
+# Number of orders per side (buy/sell)
+grid_num = 2             # 2 orders each side = 4 total orders
+
+# Grid interval in absolute price terms
+grid_interval = 1.0      # $1 between grid orders
+
+# Region of Interest bounds (price ticks for order book)
+roi_lb = 0.0
+roi_ub = 200000.0
+
+[params]
+# Order Book Imbalance parameters
+looking_depth = 0.001    # 0.1% depth from mid price for OBI calculation
+window = 5               # Z-score normalization window (samples)
+volatility_window = 2    # Volatility calculation window (samples)
+
+# Spread parameters
+half_spread = 0.0005     # 0.05% half spread (bid/ask distance from fair price)
+skew = 0.01              # Position-based quote skew
+c1 = 0.0001              # Alpha coefficient (OBI impact on fair price)
+power = 1.0              # Volatility power (spread multiplier exponent)
+
+# Order management
+live_seconds = 30.0      # Cancel orders older than this (seconds)
+
+# Update intervals (nanoseconds)
+update_interval_ns = 5000000000      # 5 seconds between strategy updates
+volatility_interval_ns = 10000000000 # 10 seconds between volatility updates
+
+[stop_loss]
+# Stop loss parameters based on volatility and price change z-scores
+volatility_mean = 0.005   # Expected 1-minute volatility (std of returns)
+volatility_std = 0.002    # Volatility of volatility
+change_mean = 0.001       # Expected 1-minute price change
+change_std = 0.003        # Standard deviation of price changes
+
+# Z-score thresholds for triggering stop loss
+volatility_threshold = 3.0  # Stop if volatility z-score > 3.0
+change_threshold = 3.0      # Stop if price change z-score > 3.0

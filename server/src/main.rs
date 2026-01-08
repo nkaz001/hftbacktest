@@ -24,6 +24,7 @@ use axum::{
 use clap::Parser;
 use tower_http::{
     cors::{Any, CorsLayer},
+    services::{ServeDir, ServeFile},
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -210,7 +211,12 @@ async fn main() -> Result<()> {
                 .allow_methods(Any)
                 .allow_headers(Any),
         )
-        .with_state(state);
+        .with_state(state)
+        // Static files for dashboard (fallback)
+        .fallback_service(
+            ServeDir::new("/var/lib/hft/dashboard")
+                .not_found_service(ServeFile::new("/var/lib/hft/dashboard/index.html")),
+        );
 
     // Start server
     let addr: SocketAddr = format!("{}:{}", config.bind_addr, config.port).parse()?;

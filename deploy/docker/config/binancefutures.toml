@@ -1,0 +1,22 @@
+# Binance USD-M Futures Configuration - Docker
+#
+# API keys are loaded from environment variables via entrypoint.sh
+# This file will be processed at container startup to substitute:
+#   ${BINANCE_API_KEY} and ${BINANCE_SECRET}
+
+# Use testnet URLs for testing
+# Testnet: wss://stream.binancefuture.com/ws
+# Mainnet: wss://fstream.binance.com/ws
+stream_url = "wss://fstream.binancefuture.com/ws"
+
+# Use testnet API for testing
+# Testnet: https://testnet.binancefuture.com
+# Mainnet: https://fapi.binance.com
+api_url = "https://testnet.binancefuture.com"
+
+# Order prefix to identify orders from this system
+order_prefix = "hft"
+
+# API credentials (substituted from environment at runtime)
+api_key = "${BINANCE_API_KEY}"
+secret = "${BINANCE_SECRET}"

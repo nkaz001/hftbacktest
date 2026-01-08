@@ -50,3 +50,25 @@ config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/obi_mm_t
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5
+
+# Template strategy - BTCUSDT
+[[bots]]
+id = "template_btcusdt"
+enabled = true
+strategy = "template_strategy"
+symbol = "btcusdt"
+config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/template_btc.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+# Template strategy - ETHUSDT (different symbol)
+[[bots]]
+id = "template_ethusdt"
+enabled = true
+strategy = "template_strategy"
+symbol = "ethusdt"
+config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/template_eth.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5

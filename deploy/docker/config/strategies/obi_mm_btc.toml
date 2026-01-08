@@ -1,0 +1,30 @@
+# OBI MM Strategy Configuration - BTC/USDT
+# Optimized for Bitcoin trading
+
+[global]
+order_qty = 0.002        # ~$180 per order at $90k BTC
+max_position = 0.02      # ~$1800 max position
+grid_num = 2             # 2 orders each side
+grid_interval = 1.0      # $1 grid spacing
+roi_lb = 0.0
+roi_ub = 200000.0
+
+[params]
+looking_depth = 0.001    # 0.1% depth for OBI calculation
+window = 5               # Z-score window
+volatility_window = 2    # Volatility window
+half_spread = 0.0005     # 5 bps half spread
+skew = 0.01              # Position skew factor
+c1 = 0.0001              # OBI impact coefficient
+power = 1.0              # Volatility power
+live_seconds = 30.0      # Order lifetime
+update_interval_ns = 5000000000      # 5 seconds
+volatility_interval_ns = 10000000000 # 10 seconds
+
+[stop_loss]
+volatility_mean = 0.005
+volatility_std = 0.002
+change_mean = 0.001
+change_std = 0.003
+volatility_threshold = 3.0
+change_threshold = 3.0
