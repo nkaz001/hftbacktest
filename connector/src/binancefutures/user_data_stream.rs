@@ -92,6 +92,10 @@ impl UserDataStream {
                     Err(BinanceFuturesError::PrefixUnmatched) => {
                         // This order is not created by this connector.
                     }
+                    Err(BinanceFuturesError::OrderNotFound) => {
+                        // Order not in tracking map - likely from previous run, cancelled on startup.
+                        // This is expected after connector restart, silently ignore.
+                    }
                     Err(error) => {
                         error!(
                             ?error,
