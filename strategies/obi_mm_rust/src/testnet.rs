@@ -118,7 +118,6 @@ fn run_strategy<MD, I, R>(
     recorder: &mut R,
     strategy: &mut ObiMmStrategy,
     args: &Args,
-    hook_ctx: Option<&Arc<OrderHookContext>>,
 ) -> Result<()>
 where
     MD: MarketDepth + L2MarketDepth,
@@ -130,12 +129,6 @@ where
     let tick_size = hbt.depth(0).tick_size();
     let mut iteration = 0u64;
     let log_interval_iters = args.log_interval * 2; // elapse is 500ms
-    let position_record_interval = 20u64; // Record position every 10 seconds
-
-    // Track position for PnL calculation
-    let mut last_position = 0.0f64;
-    let mut avg_entry_price = 0.0f64;
-    let mut realized_pnl = 0.0f64;
 
     info!("Strategy started. Waiting for market data...");
     info!("Tick size: {}", tick_size);
@@ -164,54 +157,17 @@ where
         let best_ask = depth.best_ask();
         let mid_price = (best_bid + best_ask) / 2.0;
 
-        // Track position changes for PnL
-        if position != last_position {
-            let pos_change = position - last_position;
-            if pos_change.abs() > 1e-10 {
-                // Update average entry price
-                if position.abs() < 1e-10 {
-                    // Position closed
-                    realized_pnl += (mid_price - avg_entry_price) * last_position;
-                    avg_entry_price = 0.0;
-                } else if (position > 0.0 && pos_change > 0.0) || (position < 0.0 && pos_change < 0.0) {
-                    // Adding to position
-                    let total_cost = avg_entry_price * last_position.abs() + mid_price * pos_change.abs();
-                    avg_entry_price = total_cost / position.abs();
-                } else {
-                    // Reducing position
-                    realized_pnl += (mid_price - avg_entry_price) * pos_change.abs() * if last_position > 0.0 { 1.0 } else { -1.0 };
-                }
-                last_position = position;
-            }
-        }
-
-        // Calculate unrealized PnL
-        let unrealized_pnl = if position.abs() > 1e-10 && avg_entry_price > 0.0 {
-            (mid_price - avg_entry_price) * position
-        } else {
-            0.0
-        };
-
-        // Record position snapshot periodically
-        if iteration % position_record_interval == 0 {
-            if let Some(ctx) = hook_ctx {
-                ctx.publish_position(position, avg_entry_price, mid_price, unrealized_pnl, realized_pnl);
-            }
-        }
-
         // Log status periodically
         if iteration % log_interval_iters == 0 {
             let orders = hbt.orders(0);
             info!(
-                "[{:>6}s] Mid: {:.2} | Bid: {:.2} | Ask: {:.2} | Pos: {:.4} | Orders: {} | PnL: {:.2}/{:.2}",
+                "[{:>6}s] Mid: {:.2} | Bid: {:.2} | Ask: {:.2} | Pos: {:.4} | Orders: {}",
                 iteration / 2,
                 mid_price,
                 best_bid,
                 best_ask,
                 position,
-                orders.len(),
-                unrealized_pnl,
-                realized_pnl
+                orders.len()
             );
         }
 
@@ -382,7 +338,7 @@ pub fn main() -> Result<()> {
 
     // Run strategy
     info!("Starting OBI MM strategy... (is_ready={})", strategy.is_ready());
-    let result = run_strategy(&mut hbt, &mut recorder, &mut strategy, &args, hook_ctx.as_ref());
+    let result = run_strategy(&mut hbt, &mut recorder, &mut strategy, &args);
 
     // Publish stopped status
     if let Some(ref ctx) = hook_ctx {
