@@ -86,7 +86,12 @@ async fn main() -> Result<()> {
                 Ok(cfg) => {
                     println!("Configuration valid!");
                     println!("  Cluster: {}", cfg.cluster.name);
-                    println!("  Connector: {} ({})", cfg.connector.name, cfg.connector.connector_type);
+                    // Show all connectors
+                    let connectors = cfg.all_connectors();
+                    println!("  Connectors: {}", connectors.len());
+                    for connector in &connectors {
+                        println!("    - {} ({})", connector.name, connector.connector_type);
+                    }
                     println!("  Collector: {}", if cfg.collector.enabled { "enabled" } else { "disabled" });
                     println!("  Bots: {} total, {} enabled",
                         cfg.bots.len(),
@@ -94,7 +99,8 @@ async fn main() -> Result<()> {
                     );
                     for bot in &cfg.bots {
                         let status = if bot.enabled { "enabled" } else { "disabled" };
-                        println!("    - {} ({}) [{}]", bot.id, bot.symbol, status);
+                        let connector_info = bot.connector.as_deref().unwrap_or("default");
+                        println!("    - {} ({}) [{}] -> {}", bot.id, bot.symbol, status, connector_info);
                     }
                     Ok(())
                 }
@@ -156,15 +162,22 @@ fn print_status(status: &StatusResponse) {
     println!("Cluster: {} (uptime: {})", status.cluster_name, format_duration(status.uptime_secs));
     println!();
 
-    // Connector status
-    let connector_icon = if status.connector.healthy { "●" } else { "○" };
-    let connector_color = if status.connector.healthy { "\x1b[32m" } else { "\x1b[31m" };
-    println!("{}{}  Connector: {}\x1b[0m", connector_color, connector_icon, status.connector.status);
+    // Connectors status
+    println!("Connectors:");
+    if status.connectors.is_empty() {
+        println!("  No connectors configured");
+    } else {
+        for connector in &status.connectors {
+            let icon = if connector.healthy { "●" } else { "○" };
+            let color = if connector.healthy { "\x1b[32m" } else { "\x1b[31m" };
+            println!("{}{}  {}: {}\x1b[0m", color, icon, connector.name, connector.status);
+        }
+    }
 
     // Collector status
     let collector_icon = if status.collector.healthy { "●" } else { "○" };
     let collector_color = if status.collector.healthy { "\x1b[32m" } else { "\x1b[31m" };
-    println!("{}{}  Collector: {}\x1b[0m", collector_color, collector_icon, status.collector.status);
+    println!("\n{}{}  Collector: {}\x1b[0m", collector_color, collector_icon, status.collector.status);
 
     println!();
     println!("Bots:");

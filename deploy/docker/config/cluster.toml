@@ -1,5 +1,5 @@
 # HFT Cluster Configuration - Docker
-# Multi-bot deployment with 3 symbols
+# Multi-bot deployment with multiple connectors
 
 [cluster]
 name = "hft-docker"
@@ -8,20 +8,39 @@ log_dir = "/var/lib/hft/logs"
 socket_path = "/tmp/hft-supervisor.sock"
 config_reload_interval_secs = 10
 
-[connector]
+# ============================================
+# Connectors - Multiple Exchange Support
+# ============================================
+
+# Binance Futures Testnet
+[[connectors]]
 name = "bf"
+type = "binancefutures"
+config_file = "/etc/hft/binancefutures.toml"
+auto_start = true
+
+# Bybit Demo Trading (REST API for orders)
+[[connectors]]
+name = "bybit"
 type = "bybit_rest"
 config_file = "/etc/hft/bybit.toml"
 auto_start = true
 
+# ============================================
+# Collector (uses first connector's IPC)
+# ============================================
 [collector]
 enabled = true
 mode = "ipc"
 output_dir = "/var/lib/hft/data"
-symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+# Note: Use lowercase for Binance connector (first connector)
+symbols = ["btcusdt", "ethusdt", "solusdt"]
 retention_days = 7
 auto_start = true
 
+# ============================================
+# Order Recorder (ClickHouse)
+# ============================================
 [order_recorder]
 enabled = true
 auto_start = true
@@ -31,6 +50,9 @@ database = "hft"
 batch_size = 100
 flush_interval_secs = 5
 
+# ============================================
+# Warmup Configuration
+# ============================================
 [warmup]
 data_dir = "/var/lib/hft/data"
 max_age_seconds = 86400
@@ -41,39 +63,53 @@ tick_size = 0.1
 lot_size = 0.001
 
 # ============================================
-# Bot 1: BTC/USDT OBI Market Making
+# Bots using Binance Futures Testnet
+# Note: Binance requires LOWERCASE symbols
 # ============================================
+
 [[bots]]
-id = "obi_mm_btcusdt"
+id = "obi_mm_btcusdt_bf"
 enabled = true
 strategy = "obi_mm_testnet"
-symbol = "BTCUSDT"
+symbol = "btcusdt"
+connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5
 
-# ============================================
-# Bot 2: ETH/USDT OBI Market Making
-# ============================================
 [[bots]]
-id = "obi_mm_ethusdt"
+id = "obi_mm_ethusdt_bf"
 enabled = true
 strategy = "obi_mm_testnet"
-symbol = "ETHUSDT"
+symbol = "ethusdt"
+connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_eth.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5
 
 # ============================================
-# Bot 3: SOL/USDT OBI Market Making
+# Bots using Bybit Demo Trading
 # ============================================
+
 [[bots]]
-id = "obi_mm_solusdt"
+id = "obi_mm_btcusdt_bybit"
+enabled = true
+strategy = "obi_mm_testnet"
+symbol = "BTCUSDT"
+connector = "bybit"
+config_file = "/etc/hft/strategies/obi_mm_btc.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_solusdt_bybit"
 enabled = true
 strategy = "obi_mm_testnet"
 symbol = "SOLUSDT"
+connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_sol.toml"
 auto_restart = true
 max_restarts = 3

@@ -612,6 +612,16 @@ impl BotManager {
             .arg("--symbol")
             .arg(&bot.config.symbol);
 
+        // Pass connector name if specified, otherwise use default connector
+        let config = self.config.read().await;
+        let connector_name = bot.config.connector.clone()
+            .or_else(|| config.default_connector_name().map(|s| s.to_string()));
+        drop(config);
+
+        if let Some(connector) = connector_name {
+            cmd.arg("--connector").arg(&connector);
+        }
+
         // Set up logging
         let config = self.config.read().await;
         let log_dir = config.cluster.log_dir.join("bots");

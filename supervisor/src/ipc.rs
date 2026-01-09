@@ -91,9 +91,17 @@ impl ControlResponse {
 pub struct StatusResponse {
     pub cluster_name: String,
     pub uptime_secs: u64,
-    pub connector: ComponentStatus,
+    /// All connectors status (supports multiple connectors)
+    pub connectors: Vec<ConnectorStatus>,
     pub collector: ComponentStatus,
     pub bots: Vec<BotStatusInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorStatus {
+    pub name: String,
+    pub status: String,
+    pub healthy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -282,10 +290,22 @@ async fn handle_request(
                 })
                 .collect();
 
-            // Get connector and collector status from InfraManager
-            let connector_status = infra_status
+            // Get all connector statuses from InfraManager
+            let connectors: Vec<ConnectorStatus> = infra_status
                 .iter()
-                .find(|s| s.component == InfraComponent::Connector);
+                .filter_map(|s| {
+                    if let InfraComponent::Connector(name) = &s.component {
+                        Some(ConnectorStatus {
+                            name: name.clone(),
+                            status: s.state.as_str().to_string(),
+                            healthy: matches!(s.state, ComponentState::Running),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
             let collector_status = infra_status
                 .iter()
                 .find(|s| s.component == InfraComponent::Collector);
@@ -293,14 +313,7 @@ async fn handle_request(
             let status = StatusResponse {
                 cluster_name: cluster_name.to_string(),
                 uptime_secs,
-                connector: ComponentStatus {
-                    status: connector_status
-                        .map(|s| s.state.as_str().to_string())
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    healthy: connector_status
-                        .map(|s| matches!(s.state, ComponentState::Running))
-                        .unwrap_or(false),
-                },
+                connectors,
                 collector: ComponentStatus {
                     status: collector_status
                         .map(|s| s.state.as_str().to_string())
@@ -379,7 +392,7 @@ async fn handle_request(
         ControlRequest::InfraStatus { component } => {
             match component.parse::<InfraComponent>() {
                 Ok(comp) => {
-                    let status = infra_manager.get_status_ipc(comp).await;
+                    let status = infra_manager.get_status_ipc(&comp).await;
                     ControlResponse::ok_with_data(status)
                 }
                 Err(e) => ControlResponse::error(e.to_string()),

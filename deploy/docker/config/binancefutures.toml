@@ -4,15 +4,15 @@
 # This file will be processed at container startup to substitute:
 #   ${BINANCE_API_KEY} and ${BINANCE_SECRET}
 
-# Use testnet URLs for testing
-# Testnet: wss://stream.binancefuture.com/ws
+# WebSocket stream URL
+# Testnet: wss://fstream.binancefuture.com
 # Mainnet: wss://fstream.binance.com/ws
 stream_url = "wss://fstream.binancefuture.com/ws"
 
-# Use testnet API for testing
-# Testnet: https://testnet.binancefuture.com
+# REST API URL
+# Testnet: https://demo-fapi.binance.com
 # Mainnet: https://fapi.binance.com
-api_url = "https://testnet.binancefuture.com"
+api_url = "https://demo-fapi.binance.com"
 
 # Order prefix to identify orders from this system
 order_prefix = "hft"

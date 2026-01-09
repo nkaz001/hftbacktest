@@ -13,7 +13,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterConfig {
     pub cluster: ClusterSettings,
-    pub connector: ConnectorConfig,
+    /// Single connector (legacy format, deprecated)
+    #[serde(default)]
+    pub connector: Option<ConnectorConfig>,
+    /// Multiple connectors (new format)
+    #[serde(default)]
+    pub connectors: Vec<ConnectorConfig>,
     pub collector: CollectorConfig,
     pub warmup: WarmupConfig,
     /// Order recorder configuration (optional)
@@ -193,6 +198,10 @@ pub struct BotConfig {
     pub strategy: String,
     /// Trading symbol
     pub symbol: String,
+    /// Connector name to use (must match a connector's name field)
+    /// If not specified, uses the first/only connector
+    #[serde(default)]
+    pub connector: Option<String>,
     /// Path to strategy-specific config file
     pub config_file: PathBuf,
     /// Override tick size
@@ -244,6 +253,28 @@ impl ClusterConfig {
         Ok(config)
     }
 
+    /// Get all connectors (combines legacy single connector with new multi-connector format)
+    pub fn all_connectors(&self) -> Vec<&ConnectorConfig> {
+        let mut result: Vec<&ConnectorConfig> = self.connectors.iter().collect();
+        if let Some(ref connector) = self.connector {
+            // Add legacy connector if not already present by name
+            if !result.iter().any(|c| c.name == connector.name) {
+                result.push(connector);
+            }
+        }
+        result
+    }
+
+    /// Get connector by name
+    pub fn get_connector(&self, name: &str) -> Option<&ConnectorConfig> {
+        self.all_connectors().into_iter().find(|c| c.name == name)
+    }
+
+    /// Get the default connector name (first connector)
+    pub fn default_connector_name(&self) -> Option<&str> {
+        self.all_connectors().first().map(|c| c.name.as_str())
+    }
+
     /// Validate the configuration
     pub fn validate(&self) -> Result<()> {
         // Check for duplicate bot IDs
@@ -262,22 +293,55 @@ impl ClusterConfig {
             );
         }
 
-        // Validate connector config file exists
-        if !self.connector.config_file.exists() {
-            anyhow::bail!(
-                "Connector config file not found: {}",
-                self.connector.config_file.display()
-            );
+        // Get all connectors
+        let connectors = self.all_connectors();
+
+        // Must have at least one connector
+        if connectors.is_empty() {
+            anyhow::bail!("At least one connector must be configured");
         }
 
-        // Validate bot config files exist
-        for bot in &self.bots {
-            if bot.enabled && !bot.config_file.exists() {
+        // Check for duplicate connector names
+        let mut seen_names = std::collections::HashSet::new();
+        for connector in &connectors {
+            if !seen_names.insert(&connector.name) {
+                anyhow::bail!("Duplicate connector name: {}", connector.name);
+            }
+        }
+
+        // Validate connector config files exist
+        for connector in &connectors {
+            if !connector.config_file.exists() {
                 anyhow::bail!(
-                    "Bot {} config file not found: {}",
-                    bot.id,
-                    bot.config_file.display()
+                    "Connector '{}' config file not found: {}",
+                    connector.name,
+                    connector.config_file.display()
                 );
+            }
+        }
+
+        // Validate bot config files exist and connector references are valid
+        let connector_names: std::collections::HashSet<_> =
+            connectors.iter().map(|c| c.name.as_str()).collect();
+        for bot in &self.bots {
+            if bot.enabled {
+                if !bot.config_file.exists() {
+                    anyhow::bail!(
+                        "Bot {} config file not found: {}",
+                        bot.id,
+                        bot.config_file.display()
+                    );
+                }
+                // Validate connector reference if specified
+                if let Some(ref connector_name) = bot.connector {
+                    if !connector_names.contains(connector_name.as_str()) {
+                        anyhow::bail!(
+                            "Bot {} references unknown connector: {}",
+                            bot.id,
+                            connector_name
+                        );
+                    }
+                }
             }
         }
 
@@ -342,7 +406,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_minimal_config() {
+    fn test_parse_minimal_config_legacy() {
+        // Test legacy [connector] format
         let toml = r#"
 [cluster]
 name = "test"
@@ -362,8 +427,45 @@ data_dir = "/tmp/data/raw"
 "#;
         let config: ClusterConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.cluster.name, "test");
-        assert_eq!(config.connector.name, "bf");
+        assert!(config.connector.is_some());
+        assert_eq!(config.connector.as_ref().unwrap().name, "bf");
+        assert_eq!(config.all_connectors().len(), 1);
         assert!(config.bots.is_empty());
+    }
+
+    #[test]
+    fn test_parse_multi_connector() {
+        // Test new [[connectors]] array format
+        let toml = r#"
+[cluster]
+name = "multi"
+data_dir = "/tmp/data"
+
+[[connectors]]
+name = "bf"
+type = "binancefutures"
+config_file = "/etc/hft/bf.toml"
+
+[[connectors]]
+name = "bybit"
+type = "bybit_rest"
+config_file = "/etc/hft/bybit.toml"
+
+[collector]
+output_dir = "/tmp/data/raw"
+symbols = ["btcusdt"]
+
+[warmup]
+data_dir = "/tmp/data/raw"
+"#;
+        let config: ClusterConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.cluster.name, "multi");
+        assert!(config.connector.is_none());
+        assert_eq!(config.connectors.len(), 2);
+        assert_eq!(config.all_connectors().len(), 2);
+        assert_eq!(config.get_connector("bf").unwrap().connector_type, "binancefutures");
+        assert_eq!(config.get_connector("bybit").unwrap().connector_type, "bybit_rest");
+        assert_eq!(config.default_connector_name(), Some("bf"));
     }
 
     #[test]
@@ -373,7 +475,7 @@ data_dir = "/tmp/data/raw"
 name = "prod"
 data_dir = "/var/lib/hft/data"
 
-[connector]
+[[connectors]]
 name = "bf"
 type = "binancefutures"
 config_file = "/etc/hft/connector.toml"
@@ -393,6 +495,7 @@ lot_size = 0.001
 id = "obi_mm_btcusdt"
 strategy = "obi_mm"
 symbol = "btcusdt"
+connector = "bf"
 config_file = "/etc/hft/strategies/btcusdt.toml"
 
 [[bots]]
@@ -406,6 +509,8 @@ config_file = "/etc/hft/strategies/ethusdt.toml"
         assert_eq!(config.bots.len(), 2);
         assert!(config.bots[0].enabled);
         assert!(!config.bots[1].enabled);
+        assert_eq!(config.bots[0].connector, Some("bf".to_string()));
+        assert_eq!(config.bots[1].connector, None);
 
         let enabled: Vec<_> = config.enabled_bots().collect();
         assert_eq!(enabled.len(), 1);
@@ -419,7 +524,7 @@ config_file = "/etc/hft/strategies/ethusdt.toml"
 name = "test"
 data_dir = "/tmp/data"
 
-[connector]
+[[connectors]]
 name = "bf"
 type = "binancefutures"
 config_file = "/etc/hft/connector.toml"
@@ -442,7 +547,9 @@ batch_size = 200
 flush_interval_secs = 10
 "#;
         let config: ClusterConfig = toml::from_str(toml).unwrap();
-        assert!(config.connector.auto_start);
+        let connectors = config.all_connectors();
+        assert_eq!(connectors.len(), 1);
+        assert!(connectors[0].auto_start);
         assert!(config.collector.auto_start);
 
         let order_recorder = config.order_recorder.unwrap();
