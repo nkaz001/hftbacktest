@@ -522,6 +522,9 @@ pub struct Order {
     pub status: Status,
     pub side: Side,
     pub time_in_force: TimeInForce,
+    /// Whether this is a reduce-only order (only reduces position, doesn't increase it).
+    /// Used to bypass minimum notional requirements when closing positions.
+    pub reduce_only: bool,
 }
 
 impl Order {
@@ -552,6 +555,7 @@ impl Order {
             q: Box::new(()),
             maker: false,
             order_type,
+            reduce_only: false,
         }
     }
 
@@ -618,6 +622,7 @@ impl Order {
         self.q = order.q.clone();
         self.maker = order.maker;
         self.order_type = order.order_type;
+        self.reduce_only = order.reduce_only;
     }
 }
 
@@ -639,6 +644,7 @@ impl Debug for Order {
             .field("order_id", &self.order_id)
             .field("maker", &self.maker)
             .field("order_type", &self.order_type)
+            .field("reduce_only", &self.reduce_only)
             .finish()
     }
 }
@@ -663,6 +669,7 @@ impl<Context> Decode<Context> for Order {
             status: Decode::decode(decoder)?,
             side: Decode::decode(decoder)?,
             time_in_force: Decode::decode(decoder)?,
+            reduce_only: Decode::decode(decoder)?,
         })
     }
 }
@@ -687,6 +694,7 @@ impl<'de, Context> BorrowDecode<'de, Context> for Order {
             status: Decode::decode(decoder)?,
             side: Decode::decode(decoder)?,
             time_in_force: Decode::decode(decoder)?,
+            reduce_only: Decode::decode(decoder)?,
         })
     }
 }
@@ -709,6 +717,7 @@ impl Encode for Order {
         self.status.encode(encoder)?;
         self.side.encode(encoder)?;
         self.time_in_force.encode(encoder)?;
+        self.reduce_only.encode(encoder)?;
         Ok(())
     }
 }
@@ -772,6 +781,8 @@ pub struct OrderRequest {
     pub side: Side,
     pub time_in_force: TimeInForce,
     pub order_type: OrdType,
+    /// Whether this is a reduce-only order (only reduces position, doesn't increase it).
+    pub reduce_only: bool,
 }
 
 /// Provides a bot interface for backtesting and live trading.
@@ -841,6 +852,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
+        reduce_only: bool,
     ) -> Result<ElapseResult, Self::Error>;
 
     /// Places a sell order.
@@ -867,6 +879,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
+        reduce_only: bool,
     ) -> Result<ElapseResult, Self::Error>;
 
     /// Places an order.

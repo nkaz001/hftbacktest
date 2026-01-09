@@ -168,6 +168,7 @@ impl BinanceFuturesClient {
         qty: f64,
         order_type: OrdType,
         time_in_force: TimeInForce,
+        reduce_only: bool,
     ) -> Result<OrderResponse, BinanceFuturesError> {
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");
@@ -189,6 +190,10 @@ impl BinanceFuturesClient {
         if order_type != OrdType::Market {
             body.push_str("&timeInForce=");
             body.push_str(time_in_force.as_ref());
+        }
+        // Add reduceOnly for position-closing orders (bypasses min notional)
+        if reduce_only {
+            body.push_str("&reduceOnly=true");
         }
 
         let resp: OrderResponseResult = self.post("/fapi/v1/order", body).await?;

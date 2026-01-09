@@ -574,6 +574,9 @@ pub struct Order {
     pub time_in_force: Option<String>,
     #[serde(rename = "orderLinkId")]
     pub order_link_id: String,
+    #[serde(rename = "reduceOnly")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reduce_only: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]

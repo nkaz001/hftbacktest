@@ -109,6 +109,7 @@ where
                     TimeInForce::GTX,
                     OrdType::Limit,
                     false,
+                    false, // reduce_only
                 )
                 .unwrap();
             }
@@ -155,6 +156,7 @@ where
                     TimeInForce::GTX,
                     OrdType::Limit,
                     false,
+                    false, // reduce_only
                 )
                 .unwrap();
             }

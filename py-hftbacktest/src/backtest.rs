@@ -148,6 +148,7 @@ pub extern "C" fn hashmapbt_submit_buy_order(
         tif,
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
+        false, // reduce_only - not exposed to Python API for backward compatibility
     ))
 }
 
@@ -171,6 +172,7 @@ pub extern "C" fn hashmapbt_submit_sell_order(
         unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) },
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
+        false, // reduce_only - not exposed to Python API for backward compatibility
     ))
 }
 
@@ -410,6 +412,7 @@ pub extern "C" fn roivecbt_submit_buy_order(
         tif,
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
+        false, // reduce_only - not exposed to Python API for backward compatibility
     ))
 }
 
@@ -433,6 +436,7 @@ pub extern "C" fn roivecbt_submit_sell_order(
         unsafe { mem::transmute::<u8, TimeInForce>(time_in_force) },
         unsafe { mem::transmute::<u8, OrdType>(order_type) },
         wait,
+        false, // reduce_only - not exposed to Python API for backward compatibility
     ))
 }
 

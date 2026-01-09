@@ -367,6 +367,7 @@ where
         order_type: OrdType,
         wait: bool,
         side: Side,
+        reduce_only: bool,
     ) -> Result<ElapseResult, BotError> {
         let instrument = self
             .instruments
@@ -395,6 +396,7 @@ where
             // Invalid information
             q: Box::new(()),
             maker: false,
+            reduce_only,
         };
         let order_id = order.order_id;
         instrument.orders.insert(order_id, order.clone());
@@ -498,6 +500,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
+        reduce_only: bool,
     ) -> Result<ElapseResult, Self::Error> {
         self.submit_order(
             asset_no,
@@ -508,6 +511,7 @@ where
             order_type,
             wait,
             Side::Buy,
+            reduce_only,
         )
     }
 
@@ -521,6 +525,7 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
+        reduce_only: bool,
     ) -> Result<ElapseResult, Self::Error> {
         self.submit_order(
             asset_no,
@@ -531,6 +536,7 @@ where
             order_type,
             wait,
             Side::Sell,
+            reduce_only,
         )
     }
 
@@ -549,6 +555,7 @@ where
             order.order_type,
             wait,
             order.side,
+            order.reduce_only,
         )
     }
 

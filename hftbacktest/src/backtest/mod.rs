@@ -927,7 +927,9 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
+        _reduce_only: bool,
     ) -> Result<ElapseResult, Self::Error> {
+        // Note: reduce_only is not used in backtesting as it's an exchange-specific feature
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order_id,
@@ -958,7 +960,9 @@ where
         time_in_force: TimeInForce,
         order_type: OrdType,
         wait: bool,
+        _reduce_only: bool,
     ) -> Result<ElapseResult, Self::Error> {
+        // Note: reduce_only is not used in backtesting as it's an exchange-specific feature
         let local = self.local.get_mut(asset_no).unwrap();
         local.submit_order(
             order_id,

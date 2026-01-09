@@ -176,7 +176,7 @@ where
                 println!("[DEBUG]      Cancel result: {:?}", result);
             }
             for (id, price) in submit_orders {
-                let result = hbt.submit_buy_order(0, id, price, config.order_qty, TimeInForce::GTX, OrdType::Limit, false);
+                let result = hbt.submit_buy_order(0, id, price, config.order_qty, TimeInForce::GTX, OrdType::Limit, false, false);
                 println!("[DEBUG]      Submit BUY result: {:?}", result);
             }
         }
@@ -225,7 +225,7 @@ where
                 println!("[DEBUG]      Cancel result: {:?}", result);
             }
             for (id, price) in submit_orders {
-                let result = hbt.submit_sell_order(0, id, price, config.order_qty, TimeInForce::GTX, OrdType::Limit, false);
+                let result = hbt.submit_sell_order(0, id, price, config.order_qty, TimeInForce::GTX, OrdType::Limit, false, false);
                 println!("[DEBUG]      Submit SELL result: {:?}", result);
             }
         }

@@ -135,6 +135,7 @@ impl OrderManager {
                 }
             }),
             order_link_id: order_link_id.clone(),
+            reduce_only: if order.reduce_only { Some(true) } else { None },
         };
 
         let symbol_order_id = SymbolOrderId::new(symbol.to_string(), order.order_id);
@@ -177,6 +178,7 @@ impl OrderManager {
             category: category.to_string(),
             time_in_force: None,
             order_link_id: order_link_id.clone(),
+            reduce_only: None,
         };
         Ok(order)
     }

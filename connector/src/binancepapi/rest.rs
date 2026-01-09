@@ -166,6 +166,7 @@ impl BinancePapiClient {
         qty: f64,
         order_type: OrdType,
         time_in_force: TimeInForce,
+        reduce_only: bool,
     ) -> Result<OrderResponse, BinancePapiError> {
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");
@@ -182,6 +183,10 @@ impl BinancePapiClient {
         body.push_str(order_type.as_ref());
         body.push_str("&timeInForce=");
         body.push_str(time_in_force.as_ref());
+        // Add reduceOnly for position-closing orders (bypasses min notional)
+        if reduce_only {
+            body.push_str("&reduceOnly=true");
+        }
 
         let resp: OrderResponseResult = self.post("/papi/v1/um/order", body).await?;
         match resp {

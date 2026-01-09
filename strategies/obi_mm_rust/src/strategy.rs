@@ -333,7 +333,8 @@ impl ObiMmStrategy {
                         self.global.order_qty,
                         TimeInForce::GTX,
                         OrdType::Limit,
-                        false,
+                        false,  // wait
+                        false,  // reduce_only
                     );
                 }
             }
@@ -352,7 +353,8 @@ impl ObiMmStrategy {
                         self.global.order_qty,
                         TimeInForce::GTX,
                         OrdType::Limit,
-                        false,
+                        false,  // wait
+                        false,  // reduce_only
                     );
                 }
             }
@@ -385,12 +387,12 @@ impl ObiMmStrategy {
             let _ = bot.cancel(asset_no, order_id, false);
         }
 
-        // Close position with market order
+        // Close position with market order (reduce_only=true to bypass min notional)
         let order_qty = position.abs();
         if order_qty > 1e-9 {
             if position > 0.0 {
                 let order_price = ((mid_price / self.tick_size).round() - 200.0) * self.tick_size;
-                info!(%order_qty, %order_price, "Closing LONG position with SELL market order");
+                info!(%order_qty, %order_price, "Closing LONG position with SELL market order (reduce_only)");
                 let _ = bot.submit_sell_order(
                     asset_no,
                     519,
@@ -398,11 +400,12 @@ impl ObiMmStrategy {
                     order_qty,
                     TimeInForce::IOC,
                     OrdType::Market,
-                    true,
+                    true,  // wait
+                    true,  // reduce_only - bypasses min notional requirement
                 );
             } else {
                 let order_price = ((mid_price / self.tick_size).round() + 200.0) * self.tick_size;
-                info!(%order_qty, %order_price, "Closing SHORT position with BUY market order");
+                info!(%order_qty, %order_price, "Closing SHORT position with BUY market order (reduce_only)");
                 let _ = bot.submit_buy_order(
                     asset_no,
                     519,
@@ -410,7 +413,8 @@ impl ObiMmStrategy {
                     order_qty,
                     TimeInForce::IOC,
                     OrdType::Market,
-                    true,
+                    true,  // wait
+                    true,  // reduce_only - bypasses min notional requirement
                 );
             }
         } else {

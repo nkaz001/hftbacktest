@@ -4,10 +4,10 @@
 
 | Task | Directory | Status | Started |
 |------|-----------|--------|---------|
-| (none) | | | |
+| Add reduceOnly support to connectors | `reduce-only-support/` | Phase 0/7 | 2026-01-09 |
 
 ## Current Focus
-None
+`reduce-only-support/` - Add reduceOnly parameter to fix stop loss orders
 
 ## Completed Tasks
 

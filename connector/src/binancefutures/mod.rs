@@ -275,6 +275,7 @@ impl Connector for BinanceFutures {
                             order.qty,
                             order.order_type,
                             order.time_in_force,
+                            order.reduce_only,
                         )
                         .await;
                     match result {

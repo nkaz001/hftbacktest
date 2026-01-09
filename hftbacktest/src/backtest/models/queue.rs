@@ -679,6 +679,7 @@ where
             req: Status::None,
             status: Status::None,
             time_in_force: TimeInForce::GTC,
+            reduce_only: false,
         });
 
         match self.mkt_feed_orders.entry(order_id) {
@@ -1199,6 +1200,7 @@ mod l3_tests {
                 status: Status::None,
                 side: Side::Buy,
                 time_in_force: TimeInForce::GTC,
+                reduce_only: false,
             },
             &depth,
         )
@@ -1233,6 +1235,7 @@ mod l3_tests {
                 status: Status::None,
                 side: Side::Sell,
                 time_in_force: TimeInForce::GTC,
+                reduce_only: false,
             },
             &depth,
         )
@@ -1289,6 +1292,7 @@ mod l3_tests {
                 status: Status::None,
                 side: Side::Buy,
                 time_in_force: TimeInForce::GTC,
+                reduce_only: false,
             },
             &depth,
         )

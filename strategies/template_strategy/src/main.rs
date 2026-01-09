@@ -32,7 +32,7 @@ use hftbacktest::{
     types::ElapseResult,
 };
 use serde::Deserialize;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, info, warn};
 
 // =============================================================================
 // CLI Arguments
@@ -387,6 +387,7 @@ fn submit_orders(
             time_in_force,
             OrdType::Limit,
             false, // wait
+            false, // reduce_only
         ) {
             warn!("Failed to submit bid order: {:?}", e);
         }
@@ -402,6 +403,7 @@ fn submit_orders(
             time_in_force,
             OrdType::Limit,
             false, // wait
+            false, // reduce_only
         ) {
             warn!("Failed to submit ask order: {:?}", e);
         }
