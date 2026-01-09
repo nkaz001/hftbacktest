@@ -81,6 +81,7 @@ impl ManagedBot {
 pub struct BotInfo {
     pub id: String,
     pub symbol: String,
+    pub connector: Option<String>,
     pub state: String,
     pub pid: Option<u32>,
     pub uptime_secs: Option<u64>,
@@ -189,6 +190,7 @@ impl BotManager {
                 BotInfo {
                     id: id.clone(),
                     symbol: bot.config.symbol.clone(),
+                    connector: bot.config.connector.clone(),
                     state: bot.state.as_str().to_string(),
                     pid: bot.pid,
                     uptime_secs,
@@ -206,6 +208,7 @@ impl BotManager {
             BotInfo {
                 id: bot_id.to_string(),
                 symbol: bot.config.symbol.clone(),
+                connector: bot.config.connector.clone(),
                 state: bot.state.as_str().to_string(),
                 pid: bot.pid,
                 uptime_secs,

@@ -38,7 +38,7 @@ export function useWebSocket() {
           setStatus({
             cluster_name: data.cluster_name,
             uptime_secs: data.uptime_secs,
-            connector: data.connector,
+            connectors: data.connectors,
             collector: data.collector,
             bots: data.bots,
           });

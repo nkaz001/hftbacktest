@@ -47,9 +47,18 @@ pub enum SupervisorResponse {
 pub struct ClusterStatus {
     pub cluster_name: String,
     pub uptime_secs: u64,
-    pub connector: ComponentStatus,
+    /// All connectors status (supports multiple connectors)
+    pub connectors: Vec<ConnectorStatus>,
     pub collector: ComponentStatus,
     pub bots: Vec<BotStatus>,
+}
+
+/// Status of a named connector
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorStatus {
+    pub name: String,
+    pub status: String,
+    pub healthy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,45 +71,38 @@ pub struct ComponentStatus {
 pub struct BotStatus {
     pub id: String,
     pub symbol: String,
+    pub connector: Option<String>,
     pub state: String,
     pub pid: Option<u32>,
     pub uptime_secs: Option<u64>,
     pub restart_count: u32,
 }
 
-/// Infrastructure component types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum InfraComponent {
-    Connector,
-    Collector,
-    OrderRecorder,
-}
-
-impl std::fmt::Display for InfraComponent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            InfraComponent::Connector => write!(f, "connector"),
-            InfraComponent::Collector => write!(f, "collector"),
-            InfraComponent::OrderRecorder => write!(f, "order_recorder"),
-        }
-    }
-}
-
 /// Infrastructure component status
+/// Component is a string that can be:
+/// - "collector"
+/// - "order_recorder"
+/// - "connector:name" for named connectors (e.g., "connector:bf", "connector:bybit")
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InfraStatus {
-    pub component: InfraComponent,
+    pub component: String,
     pub state: String,
     pub pid: Option<u32>,
     pub uptime_secs: Option<u64>,
     pub last_error: Option<String>,
 }
 
+/// Connector health status (for multi-connector support)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorHealthStatus {
+    pub name: String,
+    pub state: String,
+}
+
 /// Cluster health status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterHealthStatus {
-    pub connector: String,
+    pub connectors: Vec<ConnectorHealthStatus>,
     pub collector: String,
     pub order_recorder: String,
     pub bots_running: usize,

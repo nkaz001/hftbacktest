@@ -4,6 +4,7 @@ export type BotState = 'running' | 'stopped' | 'starting' | 'crashed';
 export interface Bot {
   id: string;
   symbol: string;
+  connector: string | null;
   state: BotState;
   pid: number | null;
   uptime_secs: number | null;
@@ -15,6 +16,7 @@ export interface BotConfig {
   enabled: boolean;
   strategy: string;
   symbol: string;
+  connector?: string;
   config_file: string;
   auto_restart: boolean;
   max_restarts: number;
@@ -25,9 +27,15 @@ export interface BotConfig {
 export interface ClusterStatus {
   cluster_name: string;
   uptime_secs: number;
-  connector: ComponentStatus;
+  connectors: ConnectorStatus[];
   collector: ComponentStatus;
   bots: Bot[];
+}
+
+export interface ConnectorStatus {
+  name: string;
+  status: string;
+  healthy: boolean;
 }
 
 export interface ComponentStatus {
@@ -36,6 +44,13 @@ export interface ComponentStatus {
 }
 
 // Config types
+export interface ConnectorConfig {
+  name: string;
+  type: string;
+  config_file: string;
+  auto_start?: boolean;
+}
+
 export interface ClusterConfig {
   cluster: {
     name: string;
@@ -44,11 +59,9 @@ export interface ClusterConfig {
     socket_path: string;
     config_reload_interval_secs: number;
   };
-  connector: {
-    name: string;
-    type: string;
-    config_file: string;
-  };
+  // Support both single connector (legacy) and multiple connectors
+  connector?: ConnectorConfig;
+  connectors?: ConnectorConfig[];
   collector: {
     enabled: boolean;
     mode: string;
@@ -92,7 +105,7 @@ export interface WsStatusUpdate {
   type: 'status_update';
   cluster_name: string;
   uptime_secs: number;
-  connector: ComponentStatus;
+  connectors: ConnectorStatus[];
   collector: ComponentStatus;
   bots: Bot[];
 }
@@ -124,19 +137,26 @@ export interface AuditLog {
 }
 
 // Infrastructure types
-export type InfraComponentType = 'connector' | 'collector' | 'order_recorder';
+// Component can be 'collector', 'order_recorder', or 'connector:name' for named connectors
+export type InfraComponentType = 'connector' | 'collector' | 'order_recorder' | string;
 export type InfraState = 'stopped' | 'starting' | 'running' | 'crashed' | 'failed' | 'disabled';
 
 export interface InfraStatus {
-  component: InfraComponentType;
+  // Component identifier - can be 'collector', 'order_recorder', or 'connector:name'
+  component: string;
   state: InfraState;
   pid: number | null;
   uptime_secs: number | null;
   last_error: string | null;
 }
 
+export interface ConnectorHealthStatus {
+  name: string;
+  state: string;
+}
+
 export interface ClusterHealth {
-  connector: string;
+  connectors: ConnectorHealthStatus[];
   collector: string;
   order_recorder: string;
   bots_running: number;

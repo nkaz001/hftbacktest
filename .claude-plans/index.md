@@ -13,4 +13,5 @@ None
 
 | Task | Directory | Completed |
 |------|-----------|-----------|
+| UI multi-connector support | `ui-multi-connector/` | 2026-01-09 |
 | Multi-connector support | `multi-connector/` | 2026-01-09 |

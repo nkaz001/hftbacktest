@@ -275,9 +275,21 @@ export function Config() {
                   <dd className="font-mono text-sm">{clusterConfig.cluster.log_dir}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm text-[hsl(var(--muted-foreground))]">Connector</dt>
+                  <dt className="text-sm text-[hsl(var(--muted-foreground))]">Connectors</dt>
                   <dd className="font-medium">
-                    {clusterConfig.connector.name} ({clusterConfig.connector.type})
+                    {clusterConfig.connectors && clusterConfig.connectors.length > 0 ? (
+                      <ul className="space-y-1">
+                        {clusterConfig.connectors.map((conn) => (
+                          <li key={conn.name}>
+                            {conn.name} ({conn.type})
+                          </li>
+                        ))}
+                      </ul>
+                    ) : clusterConfig.connector ? (
+                      <span>{clusterConfig.connector.name} ({clusterConfig.connector.type})</span>
+                    ) : (
+                      <span className="text-[hsl(var(--muted-foreground))]">None configured</span>
+                    )}
                   </dd>
                 </div>
                 <div>

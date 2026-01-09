@@ -114,6 +114,7 @@ pub struct ComponentStatus {
 pub struct BotStatusInfo {
     pub id: String,
     pub symbol: String,
+    pub connector: Option<String>,
     pub state: String,
     pub pid: Option<u32>,
     pub uptime_secs: Option<u64>,
@@ -283,6 +284,7 @@ async fn handle_request(
                 .map(|info| BotStatusInfo {
                     id: info.id,
                     symbol: info.symbol,
+                    connector: info.connector,
                     state: info.state,
                     pid: info.pid,
                     uptime_secs: info.uptime_secs,
@@ -334,6 +336,7 @@ async fn handle_request(
                     let status_info = BotStatusInfo {
                         id: info.id,
                         symbol: info.symbol,
+                        connector: info.connector,
                         state: info.state,
                         pid: info.pid,
                         uptime_secs: info.uptime_secs,

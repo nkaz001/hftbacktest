@@ -17,28 +17,48 @@ export function Dashboard() {
 
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Connector Status */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Connector</CardTitle>
-            <Server className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2">
-              {status?.connector.healthy ? (
-                <CheckCircle className="h-5 w-5 text-[hsl(var(--success))]" />
-              ) : (
-                <XCircle className="h-5 w-5 text-[hsl(var(--destructive))]" />
-              )}
-              <span className="text-2xl font-bold">
-                {status?.connector.status ?? 'Unknown'}
-              </span>
-            </div>
-            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-              Exchange connection
-            </p>
-          </CardContent>
-        </Card>
+        {/* Connector Status - Multiple Connectors */}
+        {status?.connectors && status.connectors.length > 0 ? (
+          status.connectors.map((connector) => (
+            <Card key={connector.name}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Connector: {connector.name}
+                </CardTitle>
+                <Server className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2">
+                  {connector.healthy ? (
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--success))]" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-[hsl(var(--destructive))]" />
+                  )}
+                  <span className="text-2xl font-bold">{connector.status}</span>
+                </div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  Exchange connection
+                </p>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Connector</CardTitle>
+              <Server className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-2">
+                <XCircle className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+                <span className="text-2xl font-bold">Unknown</span>
+              </div>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                No connectors configured
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Collector Status */}
         <Card>
@@ -123,6 +143,11 @@ export function Dashboard() {
                       <div className="font-medium">{bot.id}</div>
                       <div className="text-sm text-[hsl(var(--muted-foreground))]">
                         {bot.symbol.toUpperCase()}
+                        {bot.connector && (
+                          <span className="ml-2 text-xs bg-[hsl(var(--muted))] px-1.5 py-0.5 rounded">
+                            {bot.connector}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

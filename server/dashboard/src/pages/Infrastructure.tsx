@@ -53,9 +53,11 @@ function getStateVariant(state: InfraState): 'default' | 'success' | 'warning' |
 }
 
 function getComponentIcon(component: string) {
+  // Handle connector:name format
+  if (component.startsWith('connector:') || component === 'connector') {
+    return <Server className="h-5 w-5" />;
+  }
   switch (component) {
-    case 'connector':
-      return <Server className="h-5 w-5" />;
     case 'collector':
       return <Database className="h-5 w-5" />;
     case 'order_recorder':
@@ -66,6 +68,11 @@ function getComponentIcon(component: string) {
 }
 
 function getComponentLabel(component: string): string {
+  // Handle connector:name format (e.g., "connector:bf" -> "Connector: bf")
+  if (component.startsWith('connector:')) {
+    const name = component.substring('connector:'.length);
+    return `Connector: ${name}`;
+  }
   switch (component) {
     case 'connector':
       return 'Connector';
@@ -283,13 +290,26 @@ export function Infrastructure() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-[hsl(var(--muted))] rounded-lg">
-                <Server className="h-6 w-6 mx-auto mb-2" />
-                <div className="text-sm text-[hsl(var(--muted-foreground))]">Connector</div>
-                <Badge variant={health.connector === 'running' ? 'success' : 'default'}>
-                  {health.connector}
-                </Badge>
-              </div>
+              {/* Multiple Connectors */}
+              {health.connectors && health.connectors.length > 0 ? (
+                health.connectors.map((conn) => (
+                  <div key={conn.name} className="text-center p-3 bg-[hsl(var(--muted))] rounded-lg">
+                    <Server className="h-6 w-6 mx-auto mb-2" />
+                    <div className="text-sm text-[hsl(var(--muted-foreground))]">
+                      Connector: {conn.name}
+                    </div>
+                    <Badge variant={conn.state === 'running' ? 'success' : 'default'}>
+                      {conn.state}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center p-3 bg-[hsl(var(--muted))] rounded-lg">
+                  <Server className="h-6 w-6 mx-auto mb-2" />
+                  <div className="text-sm text-[hsl(var(--muted-foreground))]">Connector</div>
+                  <Badge variant="default">unknown</Badge>
+                </div>
+              )}
               <div className="text-center p-3 bg-[hsl(var(--muted))] rounded-lg">
                 <Database className="h-6 w-6 mx-auto mb-2" />
                 <div className="text-sm text-[hsl(var(--muted-foreground))]">Collector</div>
