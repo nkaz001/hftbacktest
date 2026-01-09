@@ -31,7 +31,7 @@ docker compose up -d
 The `hft` container includes:
 - **hft-supervisor**: Process manager for all components
 - **hft-server**: Web dashboard and REST API
-- **connector**: Binance Futures connection
+- **connectors**: Exchange connections (supports multiple: Binance Futures, Bybit, etc.)
 - **collector**: Market data recording
 - **order-recorder**: Trade logging to ClickHouse
 - **strategies**: Trading bots (obi_mm, template_strategy)
@@ -41,9 +41,13 @@ The `hft` container includes:
 ### Environment Variables (.env)
 
 ```bash
-# Binance Futures API (required)
+# Binance Futures API (for bf connector)
 BINANCE_API_KEY=your_api_key
 BINANCE_SECRET=your_secret
+
+# Bybit API (for bybit connector)
+BYBIT_API_KEY=your_api_key
+BYBIT_SECRET=your_secret
 
 # Server
 JWT_SECRET=change_me_in_production
@@ -53,6 +57,79 @@ RUST_LOG=info
 ### Cluster Configuration (config/cluster.toml)
 
 The main configuration file controls all components.
+
+---
+
+## Multi-Connector Support
+
+The system supports running multiple exchange connectors simultaneously. Each bot can specify which connector to use.
+
+### Connector Configuration
+
+Use `[[connectors]]` array in cluster.toml to define multiple connectors:
+
+```toml
+# Binance Futures Testnet
+[[connectors]]
+name = "bf"
+type = "binancefutures"
+config_file = "/etc/hft/binancefutures.toml"
+auto_start = true
+
+# Bybit Demo Trading
+[[connectors]]
+name = "bybit"
+type = "bybit_rest"
+config_file = "/etc/hft/bybit.toml"
+auto_start = true
+```
+
+### Bot-Connector Mapping
+
+Each bot specifies which connector to use via the `connector` field:
+
+```toml
+# Bot using Binance Futures
+[[bots]]
+id = "obi_mm_btcusdt_bf"
+symbol = "btcusdt"          # Binance: lowercase
+connector = "bf"
+# ...
+
+# Bot using Bybit
+[[bots]]
+id = "obi_mm_btcusdt_bybit"
+symbol = "BTCUSDT"          # Bybit: UPPERCASE
+connector = "bybit"
+# ...
+```
+
+### Symbol Case Sensitivity
+
+Different exchanges have different symbol format requirements:
+- **Binance**: lowercase (`btcusdt`, `ethusdt`, `solusdt`)
+- **Bybit**: UPPERCASE (`BTCUSDT`, `ETHUSDT`, `SOLUSDT`)
+
+### Connector Types
+
+| Type | Exchange | Description |
+|------|----------|-------------|
+| `binancefutures` | Binance USD-M Futures | WebSocket + REST |
+| `binancespot` | Binance Spot | WebSocket + REST |
+| `binancepapi` | Binance Portfolio Margin | WebSocket + REST |
+| `bybit` | Bybit | WebSocket for orders |
+| `bybit_rest` | Bybit (REST) | REST API for orders |
+
+### Check Connector Status
+
+```bash
+# Via hftctl
+docker exec hft-system hftctl --socket /tmp/hft-supervisor.sock status
+
+# Output shows all connectors:
+# connector:bf     running (healthy)
+# connector:bybit  running (healthy)
+```
 
 ---
 
@@ -224,10 +301,10 @@ docker compose restart hft
 docker compose up -d
 ```
 
-### Complete Multi-Bot cluster.toml Example
+### Complete Multi-Bot Multi-Connector cluster.toml Example
 
 ```toml
-# HFT Cluster Configuration - Multi-Bot Example
+# HFT Cluster Configuration - Multi-Bot Multi-Connector Example
 
 [cluster]
 name = "hft-multi-bot"
@@ -236,16 +313,25 @@ log_dir = "/var/lib/hft/logs"
 socket_path = "/tmp/hft-supervisor.sock"
 config_reload_interval_secs = 10
 
-[connector]
+# Binance Futures Testnet
+[[connectors]]
 name = "bf"
 type = "binancefutures"
 config_file = "/etc/hft/binancefutures.toml"
+auto_start = true
+
+# Bybit Demo Trading
+[[connectors]]
+name = "bybit"
+type = "bybit_rest"
+config_file = "/etc/hft/bybit.toml"
 auto_start = true
 
 [collector]
 enabled = true
 mode = "ipc"
 output_dir = "/var/lib/hft/data"
+# Collector uses first connector (Binance), so lowercase symbols
 symbols = ["btcusdt", "ethusdt", "solusdt"]
 retention_days = 7
 auto_start = true
@@ -268,34 +354,53 @@ min_duration_seconds = 60
 tick_size = 0.1
 lot_size = 0.001
 
-# BTC/USDT Bot
+# ============================================
+# Bots using Binance Futures (lowercase symbols)
+# ============================================
+
 [[bots]]
-id = "obi_mm_btcusdt"
+id = "obi_mm_btcusdt_bf"
 enabled = true
 strategy = "obi_mm_testnet"
 symbol = "btcusdt"
+connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5
 
-# ETH/USDT Bot
 [[bots]]
-id = "obi_mm_ethusdt"
+id = "obi_mm_ethusdt_bf"
 enabled = true
 strategy = "obi_mm_testnet"
 symbol = "ethusdt"
+connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_eth.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5
 
-# SOL/USDT Bot
+# ============================================
+# Bots using Bybit (UPPERCASE symbols)
+# ============================================
+
 [[bots]]
-id = "obi_mm_solusdt"
+id = "obi_mm_btcusdt_bybit"
 enabled = true
 strategy = "obi_mm_testnet"
-symbol = "solusdt"
+symbol = "BTCUSDT"
+connector = "bybit"
+config_file = "/etc/hft/strategies/obi_mm_btc.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_solusdt_bybit"
+enabled = true
+strategy = "obi_mm_testnet"
+symbol = "SOLUSDT"
+connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_sol.toml"
 auto_restart = true
 max_restarts = 3
@@ -356,22 +461,25 @@ Log files are stored in `/var/lib/hft/logs/` inside the container:
 ```
 /var/lib/hft/logs/
 ├── infra/
-│   ├── connector.log      # Exchange connector
-│   ├── collector.log      # Market data collection
-│   ├── order_recorder.log # Order recording to ClickHouse
-│   └── server.log         # Web dashboard API server
+│   ├── connector_bf.log     # Binance Futures connector
+│   ├── connector_bybit.log  # Bybit connector
+│   ├── collector.log        # Market data collection
+│   ├── order_recorder.log   # Order recording to ClickHouse
+│   └── server.log           # Web dashboard API server
 └── bots/
-    ├── obi_mm_btcusdt.log
-    ├── obi_mm_ethusdt.log
-    └── obi_mm_solusdt.log
+    ├── obi_mm_btcusdt_bf.log
+    ├── obi_mm_ethusdt_bf.log
+    ├── obi_mm_btcusdt_bybit.log
+    └── obi_mm_solusdt_bybit.log
 ```
 
 **Infrastructure Logs:**
 
 ```bash
-# Connector logs (exchange connection)
-docker exec hft-system cat /var/lib/hft/logs/infra/connector.log
-docker exec hft-system tail -f /var/lib/hft/logs/infra/connector.log
+# Connector logs (each connector has its own log)
+docker exec hft-system cat /var/lib/hft/logs/infra/connector_bf.log
+docker exec hft-system cat /var/lib/hft/logs/infra/connector_bybit.log
+docker exec hft-system tail -f /var/lib/hft/logs/infra/connector_bf.log
 
 # Collector logs (market data)
 docker exec hft-system cat /var/lib/hft/logs/infra/collector.log
@@ -388,12 +496,11 @@ docker exec hft-system cat /var/lib/hft/logs/infra/server.log
 
 ```bash
 # View specific bot log
-docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_btcusdt.log
-docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_ethusdt.log
-docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_solusdt.log
+docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_btcusdt_bf.log
+docker exec hft-system cat /var/lib/hft/logs/bots/obi_mm_btcusdt_bybit.log
 
 # Follow bot log in real-time
-docker exec hft-system tail -f /var/lib/hft/logs/bots/obi_mm_btcusdt.log
+docker exec hft-system tail -f /var/lib/hft/logs/bots/obi_mm_btcusdt_bf.log
 
 # List all log files
 docker exec hft-system ls -la /var/lib/hft/logs/infra/
@@ -461,7 +568,8 @@ deploy/docker/
 ├── README.md              # This file
 ├── config/
 │   ├── cluster.toml       # Main cluster config
-│   ├── binancefutures.toml # Exchange connector config
+│   ├── binancefutures.toml # Binance Futures connector config
+│   ├── bybit.toml         # Bybit connector config
 │   └── strategies/
 │       ├── obi_mm.toml    # Default strategy config
 │       ├── obi_mm_btc.toml
@@ -496,13 +604,30 @@ tail -f deploy/docker/logs/bots/obi_mm_btcusdt.log
 
 ## Testnet vs Mainnet
 
-Default configuration uses **Binance Futures Testnet**.
+Default configuration uses **Binance Futures Testnet** and **Bybit Demo Trading**.
 
-To switch to mainnet, edit `config/binancefutures.toml`:
+### Binance Futures
+
+Edit `config/binancefutures.toml`:
 ```toml
-# Mainnet URLs (USE WITH CAUTION!)
-stream_url = "wss://fstream.binance.com/ws"
-api_url = "https://fapi.binance.com"
+# Testnet (default)
+stream_url = "wss://fstream.binancefuture.com/ws"
+api_url = "https://demo-fapi.binance.com"
+
+# Mainnet (USE WITH CAUTION!)
+# stream_url = "wss://fstream.binance.com/ws"
+# api_url = "https://fapi.binance.com"
+```
+
+### Bybit
+
+Edit `config/bybit.toml`:
+```toml
+# Demo Trading (default)
+api_url = "https://api-demo.bybit.com"
+
+# Mainnet (USE WITH CAUTION!)
+# api_url = "https://api.bybit.com"
 ```
 
 **Warning**: Use mainnet with real funds at your own risk.
