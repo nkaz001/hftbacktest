@@ -22,15 +22,28 @@ chown hft:hft "$CONFIG_DIR"
 # Substitute environment variables in binancefutures.toml
 if [ -f /etc/hft/binancefutures.toml ]; then
     echo "Processing binancefutures.toml..."
-    # Use sed for variable substitution instead of envsubst
     sed -e "s|\${BINANCE_API_KEY}|${BINANCE_API_KEY:-}|g" \
         -e "s|\${BINANCE_SECRET}|${BINANCE_SECRET:-}|g" \
         /etc/hft/binancefutures.toml > "$CONFIG_DIR/binancefutures.toml"
     chown hft:hft "$CONFIG_DIR/binancefutures.toml"
 
     # Verify API key is set
-    if [ -z "$BINANCE_API_KEY" ] || [ "$BINANCE_API_KEY" = "your_api_key_here" ]; then
+    if [ -z "$BINANCE_API_KEY" ] || [ "$BINANCE_API_KEY" = "your_binance_api_key_here" ]; then
         echo "WARNING: BINANCE_API_KEY not set properly"
+    fi
+fi
+
+# Substitute environment variables in bybit.toml
+if [ -f /etc/hft/bybit.toml ]; then
+    echo "Processing bybit.toml..."
+    sed -e "s|\${BYBIT_API_KEY}|${BYBIT_API_KEY:-}|g" \
+        -e "s|\${BYBIT_SECRET}|${BYBIT_SECRET:-}|g" \
+        /etc/hft/bybit.toml > "$CONFIG_DIR/bybit.toml"
+    chown hft:hft "$CONFIG_DIR/bybit.toml"
+
+    # Verify API key is set
+    if [ -z "$BYBIT_API_KEY" ] || [ "$BYBIT_API_KEY" = "your_bybit_api_key_here" ]; then
+        echo "WARNING: BYBIT_API_KEY not set properly"
     fi
 fi
 
@@ -46,6 +59,7 @@ fi
 if [ -f /etc/hft/cluster.toml ]; then
     echo "Processing cluster.toml..."
     sed -e "s|/etc/hft/binancefutures.toml|$CONFIG_DIR/binancefutures.toml|g" \
+        -e "s|/etc/hft/bybit.toml|$CONFIG_DIR/bybit.toml|g" \
         -e "s|/etc/hft/strategies|$CONFIG_DIR/strategies|g" \
         /etc/hft/cluster.toml > "$CONFIG_DIR/cluster.toml"
     chown hft:hft "$CONFIG_DIR/cluster.toml"

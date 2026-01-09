@@ -1,0 +1,6 @@
+# Auto-generated directories (bind mounts)
+data/
+logs/
+
+# Environment file with secrets
+.env

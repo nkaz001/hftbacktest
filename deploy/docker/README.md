@@ -467,17 +467,32 @@ deploy/docker/
 │       ├── obi_mm_btc.toml
 │       ├── obi_mm_eth.toml
 │       └── obi_mm_sol.toml
-└── scripts/
-    └── init-clickhouse.sql # ClickHouse schema
+├── scripts/
+│   └── init-clickhouse.sql # ClickHouse schema
+├── data/                  # Collected market data (auto-created)
+└── logs/                  # Bot and infra logs (auto-created)
 ```
 
-## Volumes
+## Volumes and Bind Mounts
 
-| Volume | Path | Description |
-|--------|------|-------------|
-| hft_data | /var/lib/hft/data | Market data files |
-| hft_logs | /var/lib/hft/logs | Bot and infra logs |
-| clickhouse_data | /var/lib/clickhouse | Order database |
+| Host Path | Container Path | Description |
+|-----------|----------------|-------------|
+| ./data | /var/lib/hft/data | Collected market data (bind mount) |
+| ./logs | /var/lib/hft/logs | Bot and infra logs (bind mount) |
+| clickhouse_data (volume) | /var/lib/clickhouse | Order database |
+
+**Accessing data from host:**
+
+```bash
+# View collected market data
+ls -la deploy/docker/data/
+
+# View logs directly
+ls -la deploy/docker/logs/infra/
+ls -la deploy/docker/logs/bots/
+cat deploy/docker/logs/infra/connector.log
+tail -f deploy/docker/logs/bots/obi_mm_btcusdt.log
+```
 
 ## Testnet vs Mainnet
 

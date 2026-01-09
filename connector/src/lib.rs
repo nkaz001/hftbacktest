@@ -10,6 +10,8 @@ pub mod binancepapi;
 pub mod binancespot;
 #[cfg(feature = "bybit")]
 pub mod bybit;
+#[cfg(feature = "bybit")]
+pub mod bybit_rest;
 
 pub mod connector;
 pub mod utils;

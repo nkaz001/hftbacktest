@@ -22,11 +22,11 @@ use crate::{
 };
 
 #[allow(dead_code)]
-mod msg;
-mod ordermanager;
-mod private_stream;
-mod public_stream;
-mod rest;
+pub(crate) mod msg;
+pub(crate) mod ordermanager;
+pub(crate) mod private_stream;
+pub(crate) mod public_stream;
+pub(crate) mod rest;
 mod trade_stream;
 
 #[derive(Error, Debug)]

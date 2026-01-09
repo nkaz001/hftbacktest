@@ -1,0 +1,28 @@
+# Bybit Linear Futures Configuration - Docker (Demo Trading)
+#
+# This config uses bybit_rest connector which submits orders via REST API
+# instead of WebSocket Trade stream. Compatible with demo trading.
+#
+# API keys are loaded from environment variables via entrypoint.sh
+# This file will be processed at container startup to substitute:
+#   ${BYBIT_API_KEY} and ${BYBIT_SECRET}
+
+# Demo Trading URLs
+# Public stream uses mainnet (demo shares mainnet market data)
+public_url = "wss://stream.bybit.com/v5/public/linear"
+
+# Private stream for position and order updates (demo trading)
+private_url = "wss://stream-demo.bybit.com/v5/private"
+
+# REST API for order management (demo trading)
+rest_url = "https://api-demo.bybit.com"
+
+# Category: "linear" for USDT perpetual, "inverse" for inverse contracts
+category = "linear"
+
+# Order prefix to identify orders from this system (max 8 chars, no '/')
+order_prefix = "hft"
+
+# API credentials (substituted from environment at runtime)
+api_key = "${BYBIT_API_KEY}"
+secret = "${BYBIT_SECRET}"

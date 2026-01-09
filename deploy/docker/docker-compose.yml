@@ -46,9 +46,9 @@ services:
     volumes:
       # Configuration files (bind mount for easy editing)
       - ./config:/etc/hft:ro
-      # Persistent data storage
-      - hft_data:/var/lib/hft/data
-      - hft_logs:/var/lib/hft/logs
+      # Persistent data storage (bind mount for easy access)
+      - ./data:/var/lib/hft/data
+      - ./logs:/var/lib/hft/logs
     ports:
       - "13000:3000"   # Web dashboard (mapped to 13000 to avoid conflict)
     environment:
@@ -67,10 +67,6 @@ volumes:
   clickhouse_data:
     driver: local
   clickhouse_logs:
-    driver: local
-  hft_data:
-    driver: local
-  hft_logs:
     driver: local
 
 networks:

@@ -36,6 +36,7 @@ use connector::{
     binancepapi::BinancePapi,
     binancespot::BinanceSpot,
     bybit::Bybit,
+    bybit_rest::BybitRest,
     connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
 };
 
@@ -357,7 +358,8 @@ struct Args {
     /// * binancefutures: Binance USD-m Futures
     /// * binancepapi: Binance Portfolio Margin (PAPI)
     /// * binancespot: Binance Spot
-    /// * bybit: Bybit Linear Futures
+    /// * bybit: Bybit Linear Futures (WebSocket Trade)
+    /// * bybit_rest: Bybit Linear Futures (REST API for orders, compatible with testnet/demo)
     connector: String,
 
     /// Connector's configuration file path.
@@ -427,6 +429,15 @@ async fn main() {
             let mut connector = Bybit::build_from(&config)
                 .map_err(|error| {
                     error!(?error, "Couldn't build the Bybit connector.");
+                })
+                .unwrap();
+            connector.run(pub_tx.clone());
+            Box::new(connector)
+        }
+        "bybit_rest" => {
+            let mut connector = BybitRest::build_from(&config)
+                .map_err(|error| {
+                    error!(?error, "Couldn't build the BybitRest connector.");
                 })
                 .unwrap();
             connector.run(pub_tx.clone());

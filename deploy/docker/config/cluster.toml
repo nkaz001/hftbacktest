@@ -10,15 +10,15 @@ config_reload_interval_secs = 10
 
 [connector]
 name = "bf"
-type = "binancefutures"
-config_file = "/etc/hft/binancefutures.toml"
+type = "bybit_rest"
+config_file = "/etc/hft/bybit.toml"
 auto_start = true
 
 [collector]
 enabled = true
 mode = "ipc"
 output_dir = "/var/lib/hft/data"
-symbols = ["btcusdt", "ethusdt", "solusdt"]
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 retention_days = 7
 auto_start = true
 
@@ -47,7 +47,7 @@ lot_size = 0.001
 id = "obi_mm_btcusdt"
 enabled = true
 strategy = "obi_mm_testnet"
-symbol = "btcusdt"
+symbol = "BTCUSDT"
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
 auto_restart = true
 max_restarts = 3
@@ -60,7 +60,7 @@ restart_backoff_secs = 5
 id = "obi_mm_ethusdt"
 enabled = true
 strategy = "obi_mm_testnet"
-symbol = "ethusdt"
+symbol = "ETHUSDT"
 config_file = "/etc/hft/strategies/obi_mm_eth.toml"
 auto_restart = true
 max_restarts = 3
@@ -73,7 +73,7 @@ restart_backoff_secs = 5
 id = "obi_mm_solusdt"
 enabled = true
 strategy = "obi_mm_testnet"
-symbol = "solusdt"
+symbol = "SOLUSDT"
 config_file = "/etc/hft/strategies/obi_mm_sol.toml"
 auto_restart = true
 max_restarts = 3

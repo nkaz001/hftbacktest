@@ -4,10 +4,23 @@ use serde::Deserialize;
 use crate::{
     bybit::{
         BybitError,
-        msg::{Position, RestResponse},
+        msg::{Order as BybitOrder, OrderResponseData, Position, RestResponse},
     },
     utils::sign_hmac_sha256,
 };
+
+/// REST API response for order operations
+#[derive(Deserialize, Debug)]
+pub struct OrderRestResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i64,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: OrderResponseData,
+    #[serde(rename = "retExtInfo")]
+    pub ret_ext_info: serde_json::Value,
+    pub time: i64,
+}
 
 #[derive(Clone)]
 pub struct BybitClient {
@@ -112,6 +125,46 @@ impl BybitClient {
         } else {
             let position: Vec<Position> = serde_json::from_value(resp.result.list.unwrap())?;
             Ok(position)
+        }
+    }
+
+    /// Submit a new order via REST API
+    pub async fn submit_order(&self, order: &BybitOrder) -> Result<OrderResponseData, BybitError> {
+        let body = serde_json::to_string(order)?;
+        let resp: OrderRestResponse = self
+            .post("/v5/order/create", body, &self.api_key, &self.secret)
+            .await?;
+        if resp.ret_code != 0 {
+            Err(BybitError::OrderError {
+                code: resp.ret_code,
+                msg: resp.ret_msg,
+            })
+        } else {
+            Ok(resp.result)
+        }
+    }
+
+    /// Cancel an order via REST API
+    pub async fn cancel_order(
+        &self,
+        category: &str,
+        symbol: &str,
+        order_link_id: &str,
+    ) -> Result<OrderResponseData, BybitError> {
+        let body = format!(
+            r#"{{"category":"{}","symbol":"{}","orderLinkId":"{}"}}"#,
+            category, symbol, order_link_id
+        );
+        let resp: OrderRestResponse = self
+            .post("/v5/order/cancel", body, &self.api_key, &self.secret)
+            .await?;
+        if resp.ret_code != 0 {
+            Err(BybitError::OrderError {
+                code: resp.ret_code,
+                msg: resp.ret_msg,
+            })
+        } else {
+            Ok(resp.result)
         }
     }
 }
