@@ -110,6 +110,9 @@ pub mod recording {
             &self,
             provider: Arc<P>,
         ) {
+            // Wait for order-recorder to be ready
+            tokio::time::sleep(Duration::from_secs(10)).await;
+
             info!(
                 "Starting position sync task (interval: {:?})",
                 self.config.position_interval
@@ -164,6 +167,9 @@ pub mod recording {
             &self,
             provider: Arc<I>,
         ) {
+            // Wait for order-recorder to be ready
+            tokio::time::sleep(Duration::from_secs(10)).await;
+
             info!(
                 "Starting income sync task (interval: {:?})",
                 self.config.income_interval
@@ -188,9 +194,25 @@ pub mod recording {
                         let registered = self.symbols.lock().unwrap().clone();
                         let mut max_time = since.unwrap_or(0);
 
+                        if incomes.is_empty() {
+                            info!(
+                                "Income sync: no new entries (since={})",
+                                since.unwrap_or(0)
+                            );
+                        } else {
+                            info!(
+                                "Income sync: received {} entries (since={})",
+                                incomes.len(),
+                                since.unwrap_or(0)
+                            );
+                        }
+
+                        let mut published = 0;
+                        let mut skipped = 0;
                         for inc in incomes {
                             // Only publish income for registered symbols (or if no symbols registered)
                             if !registered.is_empty() && !registered.contains(&inc.symbol.to_lowercase()) {
+                                skipped += 1;
                                 continue;
                             }
 
@@ -214,9 +236,20 @@ pub mod recording {
                                 event.symbol, event.income_type, event.trade_id, event.income, event.asset
                             );
 
-                            if let Err(e) = self.publisher.publish(&RecordingEvent::Income(event)) {
-                                error!("Failed to publish income: {:?}", e);
+                            match self.publisher.publish(&RecordingEvent::Income(event)) {
+                                Ok(_) => {
+                                    published += 1;
+                                    // Small delay to prevent overwhelming the subscriber
+                                    tokio::time::sleep(Duration::from_millis(10)).await;
+                                }
+                                Err(e) => error!("Failed to publish income: {:?}", e),
                             }
+                        }
+                        if published > 0 || skipped > 0 {
+                            info!(
+                                "Income sync: published {} entries, skipped {} (registered={:?})",
+                                published, skipped, registered
+                            );
                         }
 
                         // Update last sync time

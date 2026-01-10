@@ -145,9 +145,9 @@ impl RecordingService {
                 }
             }
             RecordingEvent::Income(ref income) => {
-                debug!(
-                    "Income: {} {} {} {} = {:.4} {}",
-                    income.connector, income.symbol, income.income_type, income.trade_id, income.income, income.asset
+                info!(
+                    "RECV Income: connector={} symbol={} type={} amount={:.4} {}",
+                    income.connector, income.symbol, income.income_type, income.income, income.asset
                 );
                 if let Err(e) = self.writer.write_income(income).await {
                     error!("Failed to write income: {:?}", e);
