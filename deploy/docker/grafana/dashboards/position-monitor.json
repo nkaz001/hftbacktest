@@ -71,7 +71,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT sum(unrealized_pnl) as total_unrealized_pnl\nFROM (\n  SELECT symbol, argMax(unrealized_pnl, timestamp) as unrealized_pnl\n  FROM hft.positions\n  WHERE timestamp >= now() - INTERVAL 1 HOUR\n  GROUP BY symbol\n)",
+          "rawSql": "SELECT sum(unrealized_pnl) as total_unrealized_pnl\nFROM (\n  SELECT connector, symbol, argMax(unrealized_pnl, timestamp) as unrealized_pnl\n  FROM (\n    SELECT connector, lower(symbol) as symbol, unrealized_pnl, timestamp\n    FROM hft.positions\n    WHERE timestamp >= now() - INTERVAL 1 HOUR\n  )\n  GROUP BY connector, symbol\n)",
           "refId": "A"
         }
       ],
@@ -141,7 +141,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT sum(realized_pnl) as total_realized_pnl\nFROM (\n  SELECT symbol, argMax(realized_pnl, timestamp) as realized_pnl\n  FROM hft.positions\n  WHERE timestamp >= now() - INTERVAL 1 HOUR\n  GROUP BY symbol\n)",
+          "rawSql": "SELECT sum(income) as total_realized_pnl\nFROM hft.income\nWHERE timestamp >= now() - INTERVAL 1 HOUR\n  AND income_type = 'REALIZED_PNL'",
           "refId": "A"
         }
       ],
@@ -203,7 +203,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT count(DISTINCT symbol) as active_positions\nFROM hft.positions\nWHERE timestamp >= now() - INTERVAL 5 MINUTE\n  AND position != 0",
+          "rawSql": "SELECT count(*) as active_positions\nFROM (\n  SELECT connector, symbol, argMax(position, timestamp) as position\n  FROM (\n    SELECT connector, lower(symbol) as symbol, position, timestamp\n    FROM hft.positions\n    WHERE timestamp >= now() - INTERVAL 5 MINUTE\n  )\n  GROUP BY connector, symbol\n  HAVING position != 0\n)",
           "refId": "A"
         }
       ],
@@ -358,7 +358,7 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "timeseries",
-          "rawSql": "SELECT\n  toStartOfMinute(timestamp) as time,\n  CONCAT(symbol, '-', connector) as symbol,\n  avg(position) as position\nFROM hft.positions\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY time, symbol, connector\nORDER BY time ASC",
+          "rawSql": "SELECT\n  time,\n  CONCAT(symbol, '-', connector) as symbol,\n  avg(position) as position\nFROM (\n  SELECT toStartOfMinute(timestamp) as time, connector, lower(symbol) as symbol, position\n  FROM hft.positions\n  WHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n)\nGROUP BY time, symbol, connector\nORDER BY time ASC",
           "refId": "A"
         }
       ],
@@ -451,7 +451,7 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "timeseries",
-          "rawSql": "SELECT\n  toStartOfMinute(timestamp) as time,\n  CONCAT(symbol, '-', connector) as symbol,\n  avg(unrealized_pnl) as unrealized_pnl\nFROM hft.positions\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY time, symbol, connector\nORDER BY time ASC",
+          "rawSql": "SELECT\n  time,\n  CONCAT(symbol, '-', connector) as symbol,\n  avg(unrealized_pnl) as unrealized_pnl\nFROM (\n  SELECT toStartOfMinute(timestamp) as time, connector, lower(symbol) as symbol, unrealized_pnl\n  FROM hft.positions\n  WHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n)\nGROUP BY time, symbol, connector\nORDER BY time ASC",
           "refId": "A"
         }
       ],
@@ -626,7 +626,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT\n  connector,\n  symbol,\n  strategy_id,\n  argMax(position, timestamp) as position,\n  argMax(avg_price, timestamp) as avg_price,\n  argMax(mark_price, timestamp) as mark_price,\n  argMax(unrealized_pnl, timestamp) as unrealized_pnl,\n  argMax(realized_pnl, timestamp) as realized_pnl,\n  max(timestamp) as last_update\nFROM hft.positions\nWHERE timestamp >= now() - INTERVAL 1 HOUR\nGROUP BY connector, symbol, strategy_id\nORDER BY last_update DESC",
+          "rawSql": "SELECT\n  connector,\n  symbol,\n  argMax(position, timestamp) as position,\n  argMax(avg_price, timestamp) as avg_price,\n  argMax(mark_price, timestamp) as mark_price,\n  argMax(unrealized_pnl, timestamp) as unrealized_pnl,\n  max(timestamp) as last_update\nFROM (\n  SELECT connector, lower(symbol) as symbol, position, avg_price, mark_price, unrealized_pnl, timestamp\n  FROM hft.positions\n  WHERE timestamp >= now() - INTERVAL 1 HOUR\n)\nGROUP BY connector, symbol\nORDER BY last_update DESC",
           "refId": "A"
         }
       ],
