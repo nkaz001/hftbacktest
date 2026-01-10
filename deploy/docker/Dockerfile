@@ -43,7 +43,7 @@ COPY strategies ./strategies
 # Build all components in release mode
 # Note: This takes 30-45 minutes on first build due to LTO
 RUN cargo build --release \
-    -p connector \
+    -p connector --features recording \
     -p collector \
     -p order-recorder \
     -p hft-supervisor \

@@ -73,42 +73,62 @@ impl UserDataStream {
         Ok(self.client.start_user_data_stream().await?)
     }
 
-    /// Publish realized PnL as income event when a trade has non-zero realized profit
+    /// Publish trade income events (REALIZED_PNL and COMMISSION) from ORDER_TRADE_UPDATE
     #[cfg(feature = "recording")]
-    fn publish_realized_pnl(
+    fn publish_trade_income(
         data: &OrderTradeUpdate,
         connector_name: &str,
         publisher: &RecordingPublisher,
     ) {
-        if data.order.realized_profit.abs() < 1e-10 {
-            return; // No realized profit
-        }
-
+        let asset = data.order.commission_asset.clone().unwrap_or_else(|| "USDT".to_string());
         let commission = data.order.commission
             .as_ref()
             .and_then(|c| c.parse::<f64>().ok())
             .unwrap_or(0.0);
 
-        let income_event = IncomeEvent {
-            timestamp: data.transaction_time * 1_000_000, // Convert ms to ns
-            connector: connector_name.to_string(),
-            strategy_id: String::new(), // Will be filled by order-recorder if needed
-            symbol: data.order.symbol.clone(),
-            income_type: "REALIZED_PNL".to_string(),
-            income: data.order.realized_profit,
-            asset: data.order.commission_asset.clone().unwrap_or_else(|| "USDT".to_string()),
-            info: format!("trade_id={} commission={}", data.order.trade_id, commission),
-            tran_id: data.order.trade_id,
-            trade_id: data.order.trade_id.to_string(),
-        };
+        // Publish REALIZED_PNL if non-zero
+        if data.order.realized_profit.abs() > 1e-10 {
+            let income_event = IncomeEvent {
+                timestamp: data.transaction_time * 1_000_000, // Convert ms to ns
+                connector: connector_name.to_string(),
+                strategy_id: String::new(),
+                symbol: data.order.symbol.clone(),
+                income_type: "REALIZED_PNL".to_string(),
+                income: data.order.realized_profit,
+                asset: asset.clone(),
+                info: format!("trade_id={}", data.order.trade_id),
+                tran_id: data.order.trade_id,
+                trade_id: data.order.trade_id.to_string(),
+            };
 
-        info!(
-            "Publishing realized PnL: {} {} = {:.4} {}",
-            income_event.symbol, income_event.income_type, income_event.income, income_event.asset
-        );
+            info!(
+                "Publishing income: {} {} = {:.4} {}",
+                income_event.symbol, income_event.income_type, income_event.income, income_event.asset
+            );
 
-        if let Err(e) = publisher.publish(&RecordingEvent::Income(income_event)) {
-            error!("Failed to publish realized PnL: {:?}", e);
+            if let Err(e) = publisher.publish(&RecordingEvent::Income(income_event)) {
+                error!("Failed to publish realized PnL: {:?}", e);
+            }
+        }
+
+        // Publish COMMISSION if non-zero (as negative value since it's a cost)
+        if commission.abs() > 1e-10 {
+            let commission_event = IncomeEvent {
+                timestamp: data.transaction_time * 1_000_000,
+                connector: connector_name.to_string(),
+                strategy_id: String::new(),
+                symbol: data.order.symbol.clone(),
+                income_type: "COMMISSION".to_string(),
+                income: -commission.abs(), // Commission is always negative (cost)
+                asset: asset.clone(),
+                info: format!("trade_id={}", data.order.trade_id),
+                tran_id: data.order.trade_id,
+                trade_id: format!("{}_comm", data.order.trade_id),
+            };
+
+            if let Err(e) = publisher.publish(&RecordingEvent::Income(commission_event)) {
+                error!("Failed to publish commission: {:?}", e);
+            }
         }
     }
 
@@ -134,10 +154,10 @@ impl UserDataStream {
                 }
             }
             EventStream::OrderTradeUpdate(data) => {
-                // Publish realized PnL if available
+                // Publish trade income (REALIZED_PNL and COMMISSION)
                 #[cfg(feature = "recording")]
                 if let Some(publisher) = income_publisher {
-                    Self::publish_realized_pnl(&data, &self.connector_name, publisher);
+                    Self::publish_trade_income(&data, &self.connector_name, publisher);
                 }
 
                 match self.order_manager.lock().unwrap().update_from_ws(&data) {
