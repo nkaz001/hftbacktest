@@ -3,6 +3,7 @@
 //! These events are published by the strategy bot and consumed by the recording service.
 
 use bincode::{Decode, Encode};
+use iceoryx2::prelude::ZeroCopySend;
 use serde::{Deserialize, Serialize};
 
 /// Side of the order
@@ -175,6 +176,8 @@ impl FillEvent {
 pub struct PositionSnapshot {
     /// Local timestamp (nanoseconds)
     pub timestamp: i64,
+    /// Connector name (e.g., "bf", "bybit")
+    pub connector: String,
     /// Strategy identifier
     pub strategy_id: String,
     /// Trading symbol
@@ -183,12 +186,18 @@ pub struct PositionSnapshot {
     pub position: f64,
     /// Average entry price
     pub avg_price: f64,
-    /// Current mid price
+    /// Current mid/mark price
     pub mid_price: f64,
     /// Unrealized PnL
     pub unrealized_pnl: f64,
     /// Realized PnL
     pub realized_pnl: f64,
+    /// Entry price (if different from avg_price)
+    #[serde(default)]
+    pub entry_price: f64,
+    /// Mark price
+    #[serde(default)]
+    pub mark_price: f64,
 }
 
 /// Strategy status event - sent on state changes
@@ -204,6 +213,31 @@ pub struct StrategyStatus {
     pub message: String,
 }
 
+/// Income event - realized PnL, commissions, funding fees, etc.
+#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
+pub struct IncomeEvent {
+    /// Exchange timestamp (nanoseconds)
+    pub timestamp: i64,
+    /// Connector name (e.g., "bf", "bybit")
+    pub connector: String,
+    /// Strategy identifier (empty if not associated with a strategy)
+    pub strategy_id: String,
+    /// Trading symbol
+    pub symbol: String,
+    /// Income type: REALIZED_PNL, COMMISSION, FUNDING_FEE, TRANSFER, etc.
+    pub income_type: String,
+    /// Income amount (positive = profit, negative = loss/fee)
+    pub income: f64,
+    /// Asset currency (e.g., "USDT", "BTC")
+    pub asset: String,
+    /// Additional info (e.g., trade ID)
+    pub info: String,
+    /// Transaction ID (unique identifier from exchange)
+    pub tran_id: i64,
+    /// Trade ID (for REALIZED_PNL, COMMISSION)
+    pub trade_id: String,
+}
+
 /// Recording event - union of all event types
 #[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
 pub enum RecordingEvent {
@@ -211,6 +245,7 @@ pub enum RecordingEvent {
     Fill(FillEvent),
     Position(PositionSnapshot),
     Status(StrategyStatus),
+    Income(IncomeEvent),
 }
 
 impl RecordingEvent {
@@ -220,6 +255,7 @@ impl RecordingEvent {
             RecordingEvent::Fill(e) => e.timestamp,
             RecordingEvent::Position(e) => e.timestamp,
             RecordingEvent::Status(e) => e.timestamp,
+            RecordingEvent::Income(e) => e.timestamp,
         }
     }
 
@@ -229,12 +265,13 @@ impl RecordingEvent {
             RecordingEvent::Fill(e) => &e.strategy_id,
             RecordingEvent::Position(e) => &e.strategy_id,
             RecordingEvent::Status(e) => &e.strategy_id,
+            RecordingEvent::Income(e) => &e.strategy_id,
         }
     }
 }
 
 /// IPC message wrapper with fixed size for iceoryx2
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, ZeroCopySend)]
 #[repr(C)]
 pub struct RecordingMessage {
     /// Message length

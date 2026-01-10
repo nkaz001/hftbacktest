@@ -786,6 +786,8 @@ impl InfraManager {
             config.batch_size.to_string(),
             "--flush-interval".to_string(),
             config.flush_interval_secs.to_string(),
+            "--max-publishers".to_string(),
+            config.max_publishers.to_string(),
         ];
         Ok(("order-recorder".to_string(), args))
     }

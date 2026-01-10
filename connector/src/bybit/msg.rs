@@ -602,3 +602,138 @@ pub struct RestResponse {
     pub ret_ext_info: serde_json::Value,
     pub time: i64,
 }
+
+/// Transaction log entry from /v5/account/transaction-log
+#[derive(Deserialize, Debug, Clone)]
+pub struct TransactionLogEntry {
+    pub symbol: String,
+    #[serde(default)]
+    pub side: String,
+    #[serde(default)]
+    pub funding: String,
+    #[serde(rename = "orderLinkId")]
+    #[serde(default)]
+    pub order_link_id: String,
+    #[serde(rename = "orderId")]
+    #[serde(default)]
+    pub order_id: String,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub fee: f64,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub change: f64,
+    #[serde(rename = "cashFlow")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub cash_flow: f64,
+    #[serde(rename = "transactionTime")]
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub transaction_time: i64,
+    #[serde(rename = "type")]
+    pub tx_type: String,
+    #[serde(rename = "feeRate")]
+    #[serde(default)]
+    pub fee_rate: String,
+    #[serde(rename = "tradePrice")]
+    #[serde(default)]
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub trade_price: Option<f64>,
+    #[serde(default)]
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub qty: Option<f64>,
+    #[serde(rename = "cashBalance")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub cash_balance: f64,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub currency: String,
+    #[serde(rename = "tradeId")]
+    #[serde(default)]
+    pub trade_id: String,
+}
+
+/// Transaction log response result
+#[derive(Deserialize, Debug)]
+pub struct TransactionLogResult {
+    pub list: Vec<TransactionLogEntry>,
+    #[serde(rename = "nextPageCursor")]
+    #[serde(default)]
+    pub next_page_cursor: String,
+}
+
+/// Transaction log response wrapper
+#[derive(Deserialize, Debug)]
+pub struct TransactionLogResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i64,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: TransactionLogResult,
+    pub time: i64,
+}
+
+/// Closed PnL entry from /v5/position/closed-pnl
+#[derive(Deserialize, Debug, Clone)]
+pub struct ClosedPnlEntry {
+    pub symbol: String,
+    #[serde(rename = "orderId")]
+    pub order_id: String,
+    pub side: String,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub qty: f64,
+    #[serde(rename = "orderPrice")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub order_price: f64,
+    #[serde(rename = "orderType")]
+    pub order_type: String,
+    #[serde(rename = "execType")]
+    pub exec_type: String,
+    #[serde(rename = "closedSize")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub closed_size: f64,
+    #[serde(rename = "cumEntryValue")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub cum_entry_value: f64,
+    #[serde(rename = "avgEntryPrice")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub avg_entry_price: f64,
+    #[serde(rename = "cumExitValue")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub cum_exit_value: f64,
+    #[serde(rename = "avgExitPrice")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub avg_exit_price: f64,
+    #[serde(rename = "closedPnl")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub closed_pnl: f64,
+    #[serde(rename = "fillCount")]
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub fill_count: i64,
+    pub leverage: String,
+    #[serde(rename = "createdTime")]
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub created_time: i64,
+    #[serde(rename = "updatedTime")]
+    #[serde(deserialize_with = "from_str_to_i64")]
+    pub updated_time: i64,
+}
+
+/// Closed PnL response result
+#[derive(Deserialize, Debug)]
+pub struct ClosedPnlResult {
+    pub list: Vec<ClosedPnlEntry>,
+    #[serde(rename = "nextPageCursor")]
+    #[serde(default)]
+    pub next_page_cursor: String,
+    pub category: String,
+}
+
+/// Closed PnL response wrapper
+#[derive(Deserialize, Debug)]
+pub struct ClosedPnlResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i64,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: ClosedPnlResult,
+    pub time: i64,
+}

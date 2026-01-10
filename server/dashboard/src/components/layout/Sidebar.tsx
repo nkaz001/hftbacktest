@@ -7,12 +7,14 @@ import {
   Database,
   Activity,
   Server,
+  BarChart3,
 } from 'lucide-react';
 import { useStore } from '@/stores/useStore';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/bots', icon: Bot, label: 'Bots' },
+  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/infrastructure', icon: Server, label: 'Infrastructure' },
   { to: '/config', icon: Settings, label: 'Config' },
   { to: '/data', icon: Database, label: 'Data' },

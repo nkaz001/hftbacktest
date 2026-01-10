@@ -2,7 +2,7 @@
 //!
 //! Provides async batched writing to ClickHouse for high throughput.
 
-use crate::events::{FillEvent, OrderUpdate, PositionSnapshot, StrategyStatus};
+use crate::events::{FillEvent, IncomeEvent, OrderUpdate, PositionSnapshot, StrategyStatus};
 use clickhouse::{Client, Row};
 use serde::Serialize;
 use std::time::Duration;
@@ -102,24 +102,30 @@ impl From<&FillEvent> for FillRow {
 pub struct PositionRow {
     #[serde(with = "clickhouse::serde::time::datetime64::nanos")]
     pub timestamp: OffsetDateTime,
+    pub connector: String,
     pub symbol: String,
     pub position: f64,
     pub avg_price: f64,
     pub unrealized_pnl: f64,
     pub realized_pnl: f64,
     pub strategy_id: String,
+    pub entry_price: f64,
+    pub mark_price: f64,
 }
 
 impl From<&PositionSnapshot> for PositionRow {
     fn from(e: &PositionSnapshot) -> Self {
         Self {
             timestamp: nanos_to_datetime(e.timestamp),
+            connector: e.connector.clone(),
             symbol: e.symbol.clone(),
             position: e.position,
             avg_price: e.avg_price,
             unrealized_pnl: e.unrealized_pnl,
             realized_pnl: e.realized_pnl,
             strategy_id: e.strategy_id.clone(),
+            entry_price: e.entry_price,
+            mark_price: e.mark_price,
         }
     }
 }
@@ -145,12 +151,46 @@ impl From<&StrategyStatus> for StatusRow {
     }
 }
 
+/// ClickHouse row for income table
+#[derive(Row, Serialize, Debug)]
+pub struct IncomeRow {
+    #[serde(with = "clickhouse::serde::time::datetime64::nanos")]
+    pub timestamp: OffsetDateTime,
+    pub connector: String,
+    pub strategy_id: String,
+    pub symbol: String,
+    pub income_type: String,
+    pub income: f64,
+    pub asset: String,
+    pub info: String,
+    pub tran_id: i64,
+    pub trade_id: String,
+}
+
+impl From<&IncomeEvent> for IncomeRow {
+    fn from(e: &IncomeEvent) -> Self {
+        Self {
+            timestamp: nanos_to_datetime(e.timestamp),
+            connector: e.connector.clone(),
+            strategy_id: e.strategy_id.clone(),
+            symbol: e.symbol.clone(),
+            income_type: e.income_type.clone(),
+            income: e.income,
+            asset: e.asset.clone(),
+            info: e.info.clone(),
+            tran_id: e.tran_id,
+            trade_id: e.trade_id.clone(),
+        }
+    }
+}
+
 /// Write command sent to the writer task
 enum WriteCommand {
     Order(OrderRow),
     Fill(FillRow),
     Position(PositionRow),
     Status(StatusRow),
+    Income(IncomeRow),
     Flush,
     Shutdown,
 }
@@ -236,6 +276,12 @@ impl ClickHouseWriter {
             .map_err(|_| WriterError::ChannelClosed)
     }
 
+    /// Write an income event
+    pub async fn write_income(&self, income: &IncomeEvent) -> Result<(), WriterError> {
+        self.tx.send(WriteCommand::Income(IncomeRow::from(income))).await
+            .map_err(|_| WriterError::ChannelClosed)
+    }
+
     /// Force flush all pending writes
     pub async fn flush(&self) -> Result<(), WriterError> {
         self.tx.send(WriteCommand::Flush).await
@@ -258,6 +304,7 @@ impl ClickHouseWriter {
         let mut fills: Vec<FillRow> = Vec::with_capacity(config.batch_size);
         let mut positions: Vec<PositionRow> = Vec::with_capacity(config.batch_size);
         let mut statuses: Vec<StatusRow> = Vec::with_capacity(config.batch_size);
+        let mut incomes: Vec<IncomeRow> = Vec::with_capacity(config.batch_size);
 
         let mut flush_interval = tokio::time::interval(config.flush_interval);
 
@@ -291,18 +338,24 @@ impl ClickHouseWriter {
                                 Self::flush_statuses(&client, &mut statuses).await;
                             }
                         }
+                        WriteCommand::Income(row) => {
+                            incomes.push(row);
+                            if incomes.len() >= config.batch_size {
+                                Self::flush_incomes(&client, &mut incomes).await;
+                            }
+                        }
                         WriteCommand::Flush => {
-                            Self::flush_all(&client, &mut orders, &mut fills, &mut positions, &mut statuses).await;
+                            Self::flush_all(&client, &mut orders, &mut fills, &mut positions, &mut statuses, &mut incomes).await;
                         }
                         WriteCommand::Shutdown => {
                             info!("ClickHouse writer shutting down...");
-                            Self::flush_all(&client, &mut orders, &mut fills, &mut positions, &mut statuses).await;
+                            Self::flush_all(&client, &mut orders, &mut fills, &mut positions, &mut statuses, &mut incomes).await;
                             break;
                         }
                     }
                 }
                 _ = flush_interval.tick() => {
-                    Self::flush_all(&client, &mut orders, &mut fills, &mut positions, &mut statuses).await;
+                    Self::flush_all(&client, &mut orders, &mut fills, &mut positions, &mut statuses, &mut incomes).await;
                 }
             }
         }
@@ -414,17 +467,45 @@ impl ClickHouseWriter {
         }
     }
 
+    async fn flush_incomes(client: &Client, incomes: &mut Vec<IncomeRow>) {
+        if incomes.is_empty() {
+            return;
+        }
+
+        let count = incomes.len();
+        match client.insert("income") {
+            Ok(mut inserter) => {
+                for row in incomes.drain(..) {
+                    if let Err(e) = inserter.write(&row).await {
+                        error!("Failed to write income row: {}", e);
+                    }
+                }
+                if let Err(e) = inserter.end().await {
+                    error!("Failed to flush incomes: {}", e);
+                } else {
+                    debug!("Flushed {} incomes", count);
+                }
+            }
+            Err(e) => {
+                error!("Failed to create incomes inserter: {}", e);
+                incomes.clear();
+            }
+        }
+    }
+
     async fn flush_all(
         client: &Client,
         orders: &mut Vec<OrderRow>,
         fills: &mut Vec<FillRow>,
         positions: &mut Vec<PositionRow>,
         statuses: &mut Vec<StatusRow>,
+        incomes: &mut Vec<IncomeRow>,
     ) {
         Self::flush_orders(client, orders).await;
         Self::flush_fills(client, fills).await;
         Self::flush_positions(client, positions).await;
         Self::flush_statuses(client, statuses).await;
+        Self::flush_incomes(client, incomes).await;
     }
 }
 

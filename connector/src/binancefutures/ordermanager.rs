@@ -88,6 +88,7 @@ impl OrderManager {
                 (resp.order.last_filled_price / order_ext.order.tick_size).round() as i64;
             order_ext.order.exec_qty = resp.order.order_last_filled_qty;
             order_ext.order.order_type = resp.order.order_type;
+            order_ext.order.maker = resp.order.is_maker_side;
 
             // Store exchange order ID for fallback cancellation
             let symbol_order_id = SymbolOrderId::new(

@@ -2,7 +2,7 @@ use chrono::Utc;
 use hftbacktest::types::{OrdType, Side, TimeInForce};
 use serde::Deserialize;
 
-use super::msg::{rest, rest::PositionInformationV2};
+use super::msg::{rest, rest::IncomeEntry, rest::PositionInformationV2};
 use crate::{
     binancefutures::{
         BinanceFuturesError,
@@ -373,6 +373,59 @@ impl BinanceFuturesClient {
         let resp: rest::Depth = self
             .get_noauth("/fapi/v1/depth", format!("symbol={symbol}&limit=1000"))
             .await?;
+        Ok(resp)
+    }
+
+    /// Get income history (realized PnL, commissions, funding fees, etc.)
+    ///
+    /// # Arguments
+    /// * `symbol` - Optional symbol filter
+    /// * `income_type` - Optional income type filter (REALIZED_PNL, COMMISSION, FUNDING_FEE, etc.)
+    /// * `start_time` - Optional start time in milliseconds
+    /// * `end_time` - Optional end time in milliseconds
+    /// * `limit` - Optional limit (default 100, max 1000)
+    pub async fn get_income(
+        &self,
+        symbol: Option<&str>,
+        income_type: Option<&str>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<IncomeEntry>, reqwest::Error> {
+        let mut query = String::new();
+        if let Some(s) = symbol {
+            query.push_str("symbol=");
+            query.push_str(s);
+        }
+        if let Some(t) = income_type {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("incomeType=");
+            query.push_str(t);
+        }
+        if let Some(t) = start_time {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("startTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(t) = end_time {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("endTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(l) = limit {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("limit=");
+            query.push_str(&l.to_string());
+        }
+        let resp: Vec<IncomeEntry> = self.get("/fapi/v1/income", query).await?;
         Ok(resp)
     }
 }

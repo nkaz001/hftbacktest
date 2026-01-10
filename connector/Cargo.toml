@@ -9,6 +9,7 @@ binancefutures = []
 binancepapi = ["binancefutures"]  # PAPI reuses orderbookmanager from binancefutures
 binancespot = []
 bybit = []
+recording = ["order-recorder"]
 
 [dependencies]
 hftbacktest = { path = "../hftbacktest" }
@@ -41,6 +42,7 @@ ed25519-dalek = { version = "2.2.0", features = [
 ] }
 base64 = "0.22.1"
 serde_qs = "0.15.0"
+order-recorder = { path = "../order-recorder", optional = true }
 
 [[example]]
 name = "binancefutures_orderbook_test"

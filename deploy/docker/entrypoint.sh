@@ -14,6 +14,16 @@ echo "========================================"
 echo "Config: ${CLUSTER_CONFIG:-/etc/hft/cluster.toml}"
 echo "ClickHouse: ${CLICKHOUSE_URL:-http://clickhouse:8123}"
 
+# Clean up iceoryx2 IPC state from previous runs
+# This prevents "ServiceInCorruptedState" and "DoesNotSupportRequestedAmountOfPublishers" errors
+echo "Cleaning iceoryx2 IPC state..."
+rm -rf /dev/shm/iox2_* 2>/dev/null || true
+rm -rf /tmp/iceoryx2/services/* 2>/dev/null || true
+rm -rf /tmp/iceoryx2/nodes/* 2>/dev/null || true
+mkdir -p /tmp/iceoryx2/services /tmp/iceoryx2/nodes
+chown -R hft:hft /tmp/iceoryx2
+echo "IPC state cleaned"
+
 # Create temporary config directory for processed files
 CONFIG_DIR="/tmp/hft-config"
 mkdir -p "$CONFIG_DIR"

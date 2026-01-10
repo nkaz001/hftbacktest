@@ -474,6 +474,7 @@ fn validate_config(config: &Config) -> Result<()> {
 // // Create hook context
 // let hook_ctx = create_order_hook(
 //     "hft_recording",  // IPC service name
+//     "bf".to_string(), // connector name
 //     "my_strategy".to_string(),
 //     symbol.clone(),
 //     tick_size,

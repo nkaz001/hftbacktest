@@ -70,9 +70,10 @@ impl OrderManager {
             .get_mut(&data.order_link_id)
             .ok_or(BybitError::OrderNotFound)?;
         order_info.order.exec_price_tick =
-            (data.exec_price / order_info.order.price_tick as f64).round() as i64;
+            (data.exec_price / order_info.order.tick_size).round() as i64;
         order_info.order.exec_qty = data.exec_qty;
         order_info.order.exch_timestamp = data.exec_time * 1_000_000;
+        order_info.order.maker = data.is_maker;
         Ok(order_info.clone())
     }
 
@@ -86,7 +87,7 @@ impl OrderManager {
             .get_mut(&data.order_link_id)
             .ok_or(BybitError::OrderNotFound)?;
         order_info.order.exec_price_tick =
-            (data.exec_price / order_info.order.price_tick as f64).round() as i64;
+            (data.exec_price / order_info.order.tick_size).round() as i64;
         order_info.order.exec_qty = data.exec_qty;
         order_info.order.exch_timestamp = data.exec_time * 1_000_000;
         Ok(order_info.clone())

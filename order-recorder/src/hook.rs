@@ -3,15 +3,17 @@
 //! This module provides a reusable order hook context that can be used
 //! with any live trading strategy to record orders and fills.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::RwLock;
 
 use hftbacktest::types::Order;
 use tracing::{info, error};
 
 use crate::events::{PositionSnapshot, StrategyState, StrategyStatus};
 use crate::service::RecordingPublisher;
-use crate::convert::{create_order_update, create_fill_event, detect_fill};
+use crate::convert::{create_order_update, create_fill_event, detect_fill, calculate_first_ack_latency};
 
 /// Get current timestamp in nanoseconds
 fn current_timestamp_ns() -> i64 {
@@ -30,6 +32,7 @@ fn current_timestamp_ns() -> i64 {
 ///
 /// let hook_ctx = OrderHookContext::new(
 ///     publisher,
+///     "bf".to_string(),       // connector
 ///     "my_strategy".to_string(),
 ///     "btcusdt".to_string(),
 ///     0.1,  // tick_size
@@ -48,10 +51,14 @@ fn current_timestamp_ns() -> i64 {
 /// ```
 pub struct OrderHookContext {
     publisher: RecordingPublisher,
+    connector: String,
     strategy_id: String,
     symbol: String,
     tick_size: f64,
     fill_id_counter: AtomicU64,
+    /// Cache of order_id -> latency_ns for first acknowledgment
+    /// Each order's latency is calculated once on first ack and reused for all subsequent events
+    latency_cache: RwLock<HashMap<u64, i64>>,
 }
 
 impl OrderHookContext {
@@ -59,22 +66,31 @@ impl OrderHookContext {
     ///
     /// # Arguments
     /// * `publisher` - The recording publisher for IPC
+    /// * `connector` - Connector name (e.g., "bf", "bybit")
     /// * `strategy_id` - Unique identifier for the strategy
     /// * `symbol` - Trading symbol (e.g., "btcusdt")
     /// * `tick_size` - Tick size for price conversion
     pub fn new(
         publisher: RecordingPublisher,
+        connector: String,
         strategy_id: String,
         symbol: String,
         tick_size: f64,
     ) -> Self {
         Self {
             publisher,
+            connector,
             strategy_id,
             symbol,
             tick_size,
             fill_id_counter: AtomicU64::new(1),
+            latency_cache: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Get the connector name
+    pub fn connector(&self) -> &str {
+        &self.connector
     }
 
     /// Get the strategy ID
@@ -104,6 +120,29 @@ impl OrderHookContext {
     /// * `new_order` - The new order state
     pub fn handle_order(&self, prev_order: &Order, new_order: &Order) {
         let timestamp = current_timestamp_ns();
+        let order_id = new_order.order_id;
+
+        // Get or calculate latency for this order
+        // We only care about one latency per order - calculated on first acknowledgment
+        let cached_latency = {
+            // First, try to read from cache
+            let cache = self.latency_cache.read().unwrap();
+            if let Some(&latency) = cache.get(&order_id) {
+                Some(latency)
+            } else {
+                drop(cache); // Release read lock before acquiring write lock
+
+                // Try to calculate latency for first acknowledgment
+                if let Some(latency) = calculate_first_ack_latency(prev_order, new_order) {
+                    // Cache the latency for future events
+                    let mut cache = self.latency_cache.write().unwrap();
+                    cache.insert(order_id, latency);
+                    Some(latency)
+                } else {
+                    None
+                }
+            }
+        };
 
         // Create and publish order update
         let order_update = create_order_update(
@@ -113,6 +152,7 @@ impl OrderHookContext {
             &self.symbol,
             timestamp,
             self.tick_size,
+            cached_latency,
         );
 
         info!(
@@ -161,6 +201,16 @@ impl OrderHookContext {
                 error!("Failed to publish fill: {}", e);
             }
         }
+
+        // Clean up cache for terminal order states to prevent memory leak
+        use hftbacktest::types::Status;
+        if matches!(
+            new_order.status,
+            Status::Filled | Status::Canceled | Status::Rejected | Status::Expired
+        ) {
+            let mut cache = self.latency_cache.write().unwrap();
+            cache.remove(&order_id);
+        }
     }
 
     /// Publish a strategy status event.
@@ -196,8 +246,32 @@ impl OrderHookContext {
         unrealized_pnl: f64,
         realized_pnl: f64,
     ) {
+        self.publish_position_full(position, avg_price, mid_price, unrealized_pnl, realized_pnl, avg_price, mid_price)
+    }
+
+    /// Publish a position snapshot with all fields.
+    ///
+    /// # Arguments
+    /// * `position` - Current position (positive = long, negative = short)
+    /// * `avg_price` - Average entry price
+    /// * `mid_price` - Current mid/mark price
+    /// * `unrealized_pnl` - Unrealized PnL
+    /// * `realized_pnl` - Realized PnL
+    /// * `entry_price` - Entry price (from exchange)
+    /// * `mark_price` - Mark price (from exchange)
+    pub fn publish_position_full(
+        &self,
+        position: f64,
+        avg_price: f64,
+        mid_price: f64,
+        unrealized_pnl: f64,
+        realized_pnl: f64,
+        entry_price: f64,
+        mark_price: f64,
+    ) {
         let snapshot = PositionSnapshot {
             timestamp: current_timestamp_ns(),
+            connector: self.connector.clone(),
             strategy_id: self.strategy_id.clone(),
             symbol: self.symbol.clone(),
             position,
@@ -205,6 +279,8 @@ impl OrderHookContext {
             mid_price,
             unrealized_pnl,
             realized_pnl,
+            entry_price,
+            mark_price,
         };
         if let Err(e) = self.publisher.publish_position(snapshot) {
             error!("Failed to publish position: {}", e);
@@ -218,11 +294,13 @@ impl OrderHookContext {
 ///
 /// # Arguments
 /// * `service_name` - IPC service name (e.g., "hft_recording")
+/// * `connector` - Connector name (e.g., "bf", "bybit")
 /// * `strategy_id` - Unique identifier for the strategy
 /// * `symbol` - Trading symbol
 /// * `tick_size` - Tick size for price conversion
 pub fn create_order_hook(
     service_name: &str,
+    connector: String,
     strategy_id: String,
     symbol: String,
     tick_size: f64,
@@ -232,6 +310,7 @@ pub fn create_order_hook(
             info!("Connected to recording service: {}", service_name);
             Some(Arc::new(OrderHookContext::new(
                 publisher,
+                connector,
                 strategy_id,
                 symbol,
                 tick_size,

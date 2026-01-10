@@ -15,3 +15,6 @@ pub mod bybit_rest;
 
 pub mod connector;
 pub mod utils;
+
+#[cfg(feature = "recording")]
+pub mod sync;

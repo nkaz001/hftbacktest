@@ -153,3 +153,26 @@ pub struct Depth {
     pub bids: Vec<(String, String)>,
     pub asks: Vec<(String, String)>,
 }
+
+/// Income history entry from /fapi/v1/income
+#[derive(Deserialize, Debug, Clone)]
+pub struct IncomeEntry {
+    #[serde(deserialize_with = "to_lowercase")]
+    pub symbol: String,
+    #[serde(rename = "incomeType")]
+    pub income_type: String,
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub income: f64,
+    pub asset: String,
+    #[serde(default)]
+    pub info: String,
+    /// Timestamp in milliseconds
+    pub time: i64,
+    /// Transaction ID (unique)
+    #[serde(rename = "tranId")]
+    pub tran_id: i64,
+    /// Trade ID (for REALIZED_PNL, COMMISSION)
+    #[serde(rename = "tradeId")]
+    #[serde(default)]
+    pub trade_id: String,
+}

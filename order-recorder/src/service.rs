@@ -4,13 +4,18 @@ use crate::events::{RecordingEvent, RecordingMessage};
 use crate::writer::{ClickHouseWriter, WriterConfig};
 use iceoryx2::prelude::*;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
+
+/// Default max publishers for IPC service
+pub const DEFAULT_MAX_PUBLISHERS: usize = 16;
 
 /// Recording service configuration
 #[derive(Clone, Debug)]
 pub struct ServiceConfig {
     /// IPC service name for recording events
     pub ipc_service_name: String,
+    /// Maximum number of publishers (bots) that can connect
+    pub max_publishers: usize,
     /// ClickHouse writer configuration
     pub writer: WriterConfig,
 }
@@ -19,6 +24,7 @@ impl Default for ServiceConfig {
     fn default() -> Self {
         Self {
             ipc_service_name: "hft_recording".to_string(),
+            max_publishers: DEFAULT_MAX_PUBLISHERS,
             writer: WriterConfig::default(),
         }
     }
@@ -54,6 +60,8 @@ impl RecordingService {
         let service = node
             .service_builder(&service_name)
             .publish_subscribe::<RecordingMessage>()
+            .max_publishers(self.config.max_publishers)
+            .max_subscribers(2)  // Recording service + potential monitoring
             .open_or_create()?;
 
         let subscriber = service.subscriber_builder().create()?;
@@ -136,6 +144,15 @@ impl RecordingService {
                     error!("Failed to write status: {:?}", e);
                 }
             }
+            RecordingEvent::Income(ref income) => {
+                debug!(
+                    "Income: {} {} {} {} = {:.4} {}",
+                    income.connector, income.symbol, income.income_type, income.trade_id, income.income, income.asset
+                );
+                if let Err(e) = self.writer.write_income(income).await {
+                    error!("Failed to write income: {:?}", e);
+                }
+            }
         }
     }
 
@@ -158,14 +175,21 @@ pub struct RecordingPublisher {
 }
 
 impl RecordingPublisher {
-    /// Create a new publisher
+    /// Create a new publisher with default max_publishers
     pub fn new(service_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::with_max_publishers(service_name, DEFAULT_MAX_PUBLISHERS)
+    }
+
+    /// Create a new publisher with custom max_publishers
+    pub fn with_max_publishers(service_name: &str, max_publishers: usize) -> Result<Self, Box<dyn std::error::Error>> {
         let node = NodeBuilder::new().create::<ipc::Service>()?;
         let service_name = ServiceName::new(service_name)?;
 
         let service = node
             .service_builder(&service_name)
             .publish_subscribe::<RecordingMessage>()
+            .max_publishers(max_publishers)
+            .max_subscribers(2)  // Recording service + potential monitoring
             .open_or_create()?;
 
         let publisher = service.publisher_builder().create()?;
@@ -200,5 +224,10 @@ impl RecordingPublisher {
     /// Publish a strategy status
     pub fn publish_status(&self, status: crate::events::StrategyStatus) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Status(status))
+    }
+
+    /// Publish an income event
+    pub fn publish_income(&self, income: crate::events::IncomeEvent) -> Result<(), Box<dyn std::error::Error>> {
+        self.publish(&RecordingEvent::Income(income))
     }
 }

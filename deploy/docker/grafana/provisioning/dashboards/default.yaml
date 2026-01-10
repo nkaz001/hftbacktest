@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: 'HFT Dashboards'
+    orgId: 1
+    folder: 'HFT'
+    folderUid: 'hft'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

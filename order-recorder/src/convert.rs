@@ -6,6 +6,10 @@
 use crate::events::{FillEvent, OrderStatus, OrderUpdate, Side};
 use hftbacktest::types::{Order, Side as HftSide, Status as HftStatus};
 
+/// Maximum reasonable latency threshold (5 seconds)
+/// Values above this indicate the local_timestamp wasn't properly updated
+pub const MAX_REASONABLE_LATENCY_NS: i64 = 5_000_000_000;
+
 /// Convert hftbacktest Side to order-recorder Side
 pub fn convert_side(side: HftSide) -> Side {
     match side {
@@ -28,6 +32,28 @@ pub fn convert_status(status: HftStatus) -> OrderStatus {
     }
 }
 
+/// Calculate latency for first acknowledgment from exchange.
+///
+/// Returns the latency in nanoseconds if this is the first acknowledgment
+/// (prev_order.exch_timestamp == 0 AND new_order.exch_timestamp > 0),
+/// otherwise returns None.
+///
+/// This latency should be cached and reused for all subsequent status changes.
+pub fn calculate_first_ack_latency(prev_order: &Order, new_order: &Order) -> Option<i64> {
+    // Check if this is first acknowledgment
+    if prev_order.exch_timestamp == 0
+        && new_order.exch_timestamp > 0
+        && new_order.local_timestamp > 0
+    {
+        let latency = new_order.exch_timestamp - new_order.local_timestamp;
+        // Sanity check: latency should be reasonable
+        if latency > 0 && latency < MAX_REASONABLE_LATENCY_NS {
+            return Some(latency);
+        }
+    }
+    None
+}
+
 /// Create an OrderUpdate from hftbacktest Order
 ///
 /// # Arguments
@@ -37,6 +63,7 @@ pub fn convert_status(status: HftStatus) -> OrderStatus {
 /// * `symbol` - The trading symbol
 /// * `timestamp` - Current timestamp in nanoseconds
 /// * `tick_size` - Tick size for price conversion (order.tick_size may not be set correctly)
+/// * `cached_latency` - Cached latency from first acknowledgment (reused for all status changes)
 pub fn create_order_update(
     prev_order: &Order,
     new_order: &Order,
@@ -44,12 +71,12 @@ pub fn create_order_update(
     symbol: &str,
     timestamp: i64,
     tick_size: f64,
+    cached_latency: Option<i64>,
 ) -> OrderUpdate {
-    let latency_ns = if new_order.exch_timestamp > 0 && new_order.local_timestamp > 0 {
-        new_order.exch_timestamp - new_order.local_timestamp
-    } else {
-        0
-    };
+    // Use cached latency if available, otherwise try to calculate for first acknowledgment
+    let latency_ns = cached_latency.unwrap_or_else(|| {
+        calculate_first_ack_latency(prev_order, new_order).unwrap_or(0)
+    });
 
     OrderUpdate {
         timestamp,

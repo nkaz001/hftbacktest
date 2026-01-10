@@ -40,6 +40,6 @@ pub mod hook;
 
 pub use events::*;
 pub use writer::{ClickHouseWriter, WriterConfig, WriterError};
-pub use service::RecordingService;
+pub use service::{RecordingService, DEFAULT_MAX_PUBLISHERS};
 pub use convert::*;
 pub use hook::{OrderHookContext, create_order_hook};

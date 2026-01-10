@@ -42,6 +42,10 @@ struct Args {
     /// Flush interval in seconds
     #[arg(long, default_value = "5")]
     flush_interval: u64,
+
+    /// Maximum number of publishers (bots) that can connect
+    #[arg(long, default_value = "16")]
+    max_publishers: usize,
 }
 
 #[tokio::main]
@@ -64,10 +68,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("ClickHouse: {}/{}", args.clickhouse_url, args.database);
     println!("Batch Size: {}", args.batch_size);
     println!("Flush Interval: {}s", args.flush_interval);
+    println!("Max Publishers: {}", args.max_publishers);
     println!("======================================\n");
 
     let config = ServiceConfig {
         ipc_service_name: args.ipc_service,
+        max_publishers: args.max_publishers,
         writer: WriterConfig {
             url: args.clickhouse_url,
             database: args.database,

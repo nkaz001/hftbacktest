@@ -256,6 +256,7 @@ pub fn main() -> Result<()> {
     // Initialize order hook context using the public module
     let hook_ctx = create_order_hook(
         &args.recording_service,
+        args.connector.clone(),
         args.strategy_id.clone(),
         args.symbol.clone(),
         args.tick_size,

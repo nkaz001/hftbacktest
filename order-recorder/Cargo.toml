@@ -21,7 +21,7 @@ serde = { version = "1", features = ["derive"] }
 bincode = "2.0.0-rc.3"
 
 # IPC
-iceoryx2 = "0.5"
+iceoryx2 = "0.6.1"
 
 # ClickHouse
 clickhouse = { version = "0.13", features = ["lz4", "time"] }

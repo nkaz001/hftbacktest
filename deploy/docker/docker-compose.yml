@@ -49,6 +49,21 @@ services:
       # Persistent data storage (bind mount for easy access)
       - ./data:/var/lib/hft/data
       - ./logs:/var/lib/hft/logs
+      # Binary files (bind mount for hot-reload without image rebuild)
+      # After `cargo build --release`, just restart the bot/service to pick up new binary
+      - ../../target/release/obi_mm_testnet:/usr/local/bin/obi_mm_testnet:ro
+      - ../../target/release/order-recorder:/usr/local/bin/order-recorder:ro
+      - ../../target/release/connector:/usr/local/bin/connector:ro
+      - ../../target/release/collector:/usr/local/bin/collector:ro
+      - ../../target/release/hft-supervisor:/usr/local/bin/hft-supervisor:ro
+      - ../../target/release/hft-server:/usr/local/bin/hft-server:ro
+      - ../../target/release/hftctl:/usr/local/bin/hftctl:ro
+    # Use tmpfs for iceoryx2 IPC state to ensure clean state on restart
+    # This prevents "ServiceInCorruptedState" errors after container restart
+    tmpfs:
+      - /tmp/iceoryx2:mode=1777,uid=999,gid=999
+    # Increase shared memory size for iceoryx2 IPC
+    shm_size: '256mb'
     ports:
       - "13000:3000"   # Web dashboard (mapped to 13000 to avoid conflict)
     environment:
@@ -60,13 +75,40 @@ services:
     restart: unless-stopped
     networks:
       - hft-network
-    # Note: If you experience IPC issues, uncomment the following:
-    # ipc: host
+
+  # Grafana for analytics dashboards
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: hft-grafana
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "13001:3000"  # Grafana UI (mapped to 13001)
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=disabled
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+    restart: unless-stopped
+    networks:
+      - hft-network
 
 volumes:
   clickhouse_data:
     driver: local
   clickhouse_logs:
+    driver: local
+  grafana_data:
     driver: local
 
 networks:

@@ -120,6 +120,13 @@ pub struct OrderRecorderConfig {
     /// Flush interval in seconds
     #[serde(default = "default_flush_interval")]
     pub flush_interval_secs: u64,
+    /// Maximum number of publishers (bots) that can connect
+    #[serde(default = "default_max_publishers")]
+    pub max_publishers: usize,
+}
+
+fn default_max_publishers() -> usize {
+    16
 }
 
 fn default_ipc_service() -> String {

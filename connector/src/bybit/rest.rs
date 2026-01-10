@@ -4,7 +4,10 @@ use serde::Deserialize;
 use crate::{
     bybit::{
         BybitError,
-        msg::{Order as BybitOrder, OrderResponseData, Position, RestResponse},
+        msg::{
+            ClosedPnlEntry, ClosedPnlResponse, Order as BybitOrder, OrderResponseData, Position,
+            RestResponse, TransactionLogEntry, TransactionLogResponse,
+        },
     },
     utils::sign_hmac_sha256,
 };
@@ -165,6 +168,130 @@ impl BybitClient {
             })
         } else {
             Ok(resp.result)
+        }
+    }
+
+    /// Get transaction log (fees, PnL, funding, etc.)
+    ///
+    /// # Arguments
+    /// * `account_type` - Account type (UNIFIED for unified account)
+    /// * `category` - Category (linear, inverse, option)
+    /// * `symbol` - Optional symbol filter
+    /// * `start_time` - Optional start time in milliseconds
+    /// * `end_time` - Optional end time in milliseconds
+    /// * `limit` - Optional limit (default 20, max 50)
+    pub async fn get_transaction_log(
+        &self,
+        account_type: &str,
+        category: Option<&str>,
+        symbol: Option<&str>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<TransactionLogEntry>, BybitError> {
+        let mut query = format!("accountType={}", account_type);
+        if let Some(c) = category {
+            query.push_str("&category=");
+            query.push_str(c);
+        }
+        if let Some(s) = symbol {
+            query.push_str("&symbol=");
+            query.push_str(s);
+        }
+        if let Some(t) = start_time {
+            query.push_str("&startTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(t) = end_time {
+            query.push_str("&endTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(l) = limit {
+            query.push_str("&limit=");
+            query.push_str(&l.to_string());
+        }
+        let resp: TransactionLogResponse = self
+            .get(
+                "/v5/account/transaction-log",
+                &query,
+                &self.api_key,
+                &self.secret,
+            )
+            .await?;
+        if resp.ret_code != 0 {
+            Err(BybitError::OpError(resp.ret_msg))
+        } else {
+            Ok(resp.result.list)
+        }
+    }
+
+    /// Get closed PnL history
+    ///
+    /// # Arguments
+    /// * `category` - Category (linear, inverse)
+    /// * `symbol` - Optional symbol filter
+    /// * `start_time` - Optional start time in milliseconds
+    /// * `end_time` - Optional end time in milliseconds
+    /// * `limit` - Optional limit (default 20, max 100)
+    pub async fn get_closed_pnl(
+        &self,
+        category: &str,
+        symbol: Option<&str>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<ClosedPnlEntry>, BybitError> {
+        let mut query = format!("category={}", category);
+        if let Some(s) = symbol {
+            query.push_str("&symbol=");
+            query.push_str(s);
+        }
+        if let Some(t) = start_time {
+            query.push_str("&startTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(t) = end_time {
+            query.push_str("&endTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(l) = limit {
+            query.push_str("&limit=");
+            query.push_str(&l.to_string());
+        }
+        let resp: ClosedPnlResponse = self
+            .get(
+                "/v5/position/closed-pnl",
+                &query,
+                &self.api_key,
+                &self.secret,
+            )
+            .await?;
+        if resp.ret_code != 0 {
+            Err(BybitError::OpError(resp.ret_msg))
+        } else {
+            Ok(resp.result.list)
+        }
+    }
+
+    /// Get all positions
+    pub async fn get_all_positions(
+        &self,
+        category: &str,
+        settle_coin: Option<&str>,
+    ) -> Result<Vec<Position>, BybitError> {
+        let mut query = format!("category={}", category);
+        if let Some(s) = settle_coin {
+            query.push_str("&settleCoin=");
+            query.push_str(s);
+        }
+        let resp: RestResponse = self
+            .get("/v5/position/list", &query, &self.api_key, &self.secret)
+            .await?;
+        if resp.ret_code != 0 {
+            Err(BybitError::OpError(resp.ret_msg))
+        } else {
+            let positions: Vec<Position> = serde_json::from_value(resp.result.list.unwrap())?;
+            Ok(positions)
         }
     }
 }

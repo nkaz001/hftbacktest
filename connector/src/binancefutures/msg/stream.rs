@@ -241,8 +241,9 @@ pub struct Order {
     // pub bid_notional: String,
     // #[serde(rename = "a")]
     // pub ask_notional: String,
-    // #[serde(rename = "m")]
-    // pub is_maker_side: bool,
+    #[serde(rename = "m")]
+    #[serde(default)]
+    pub is_maker_side: bool,
     // #[serde(rename = "R")]
     // pub is_reduce_only: bool,
     // #[serde(rename = "wt")]
