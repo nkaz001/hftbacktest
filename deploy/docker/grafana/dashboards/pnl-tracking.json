@@ -370,7 +370,7 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "timeseries",
-          "rawSql": "SELECT\n  toStartOfFiveMinutes(timestamp) as time,\n  sum(income) as cumulative_pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY time\nORDER BY time ASC",
+          "rawSql": "SELECT\n  toStartOfFiveMinutes(timestamp) as time,\n  CONCAT(lower(symbol), '-', connector) as series,\n  sum(income) as pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND ('$connector' = '$__all' OR connector IN (${connector:singlequote}))\n  AND ('$symbol' = '$__all' OR CONCAT(lower(symbol), '-', connector) IN (${symbol:singlequote}))\nGROUP BY time, series\nORDER BY time ASC",
           "refId": "A"
         }
       ],
@@ -784,13 +784,13 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "clickhouse"
         },
-        "definition": "SELECT DISTINCT CONCAT(symbol, '-', connector) FROM hft.income WHERE timestamp >= now() - INTERVAL 24 HOUR",
+        "definition": "SELECT DISTINCT CONCAT(lower(symbol), '-', connector) FROM hft.income WHERE timestamp >= now() - INTERVAL 24 HOUR",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "symbol",
         "options": [],
-        "query": "SELECT DISTINCT CONCAT(symbol, '-', connector) FROM hft.income WHERE timestamp >= now() - INTERVAL 24 HOUR",
+        "query": "SELECT DISTINCT CONCAT(lower(symbol), '-', connector) FROM hft.income WHERE timestamp >= now() - INTERVAL 24 HOUR",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
