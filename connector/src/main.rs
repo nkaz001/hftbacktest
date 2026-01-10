@@ -443,6 +443,11 @@ async fn main() {
                     error!(?error, "Couldn't build the BinanceFutures connector.");
                 })
                 .unwrap();
+            connector.set_connector_name(&args.name);
+            #[cfg(feature = "recording")]
+            if let Some(ref service) = args.recording_service {
+                connector.set_recording_service(service);
+            }
             connector.run(pub_tx.clone());
             Box::new(connector)
         }

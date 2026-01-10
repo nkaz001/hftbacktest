@@ -17,17 +17,23 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{Message, client::IntoClientRequest},
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     binancefutures::{
         BinanceFuturesError,
         SharedSymbolSet,
-        msg::stream::{EventStream, Stream},
+        msg::stream::{EventStream, OrderTradeUpdate, Stream},
         ordermanager::SharedOrderManager,
         rest::BinanceFuturesClient,
     },
     connector::PublishEvent,
+};
+
+#[cfg(feature = "recording")]
+use order_recorder::{
+    events::{IncomeEvent, RecordingEvent},
+    service::RecordingPublisher,
 };
 
 pub struct UserDataStream {
@@ -36,6 +42,9 @@ pub struct UserDataStream {
     ev_tx: UnboundedSender<PublishEvent>,
     order_manager: SharedOrderManager,
     symbol_rx: Receiver<String>,
+    connector_name: String,
+    #[cfg(feature = "recording")]
+    recording_service: Option<String>,
 }
 
 impl UserDataStream {
@@ -45,6 +54,8 @@ impl UserDataStream {
         order_manager: SharedOrderManager,
         symbols: SharedSymbolSet,
         symbol_rx: Receiver<String>,
+        connector_name: String,
+        #[cfg(feature = "recording")] recording_service: Option<&str>,
     ) -> Self {
         Self {
             symbols,
@@ -52,6 +63,9 @@ impl UserDataStream {
             ev_tx,
             order_manager,
             symbol_rx,
+            connector_name,
+            #[cfg(feature = "recording")]
+            recording_service: recording_service.map(|s| s.to_string()),
         }
     }
 
@@ -59,7 +73,50 @@ impl UserDataStream {
         Ok(self.client.start_user_data_stream().await?)
     }
 
-    fn process_message(&self, stream: EventStream) -> Result<(), BinanceFuturesError> {
+    /// Publish realized PnL as income event when a trade has non-zero realized profit
+    #[cfg(feature = "recording")]
+    fn publish_realized_pnl(
+        data: &OrderTradeUpdate,
+        connector_name: &str,
+        publisher: &RecordingPublisher,
+    ) {
+        if data.order.realized_profit.abs() < 1e-10 {
+            return; // No realized profit
+        }
+
+        let commission = data.order.commission
+            .as_ref()
+            .and_then(|c| c.parse::<f64>().ok())
+            .unwrap_or(0.0);
+
+        let income_event = IncomeEvent {
+            timestamp: data.transaction_time * 1_000_000, // Convert ms to ns
+            connector: connector_name.to_string(),
+            strategy_id: String::new(), // Will be filled by order-recorder if needed
+            symbol: data.order.symbol.clone(),
+            income_type: "REALIZED_PNL".to_string(),
+            income: data.order.realized_profit,
+            asset: data.order.commission_asset.clone().unwrap_or_else(|| "USDT".to_string()),
+            info: format!("trade_id={} commission={}", data.order.trade_id, commission),
+            tran_id: data.order.trade_id,
+            trade_id: data.order.trade_id.to_string(),
+        };
+
+        info!(
+            "Publishing realized PnL: {} {} = {:.4} {}",
+            income_event.symbol, income_event.income_type, income_event.income, income_event.asset
+        );
+
+        if let Err(e) = publisher.publish(&RecordingEvent::Income(income_event)) {
+            error!("Failed to publish realized PnL: {:?}", e);
+        }
+    }
+
+    fn process_message(
+        &self,
+        stream: EventStream,
+        #[cfg(feature = "recording")] income_publisher: Option<&RecordingPublisher>,
+    ) -> Result<(), BinanceFuturesError> {
         match stream {
             EventStream::DepthUpdate(_) | EventStream::Trade(_) => unreachable!(),
             EventStream::ListenKeyExpired(_) => {
@@ -77,6 +134,12 @@ impl UserDataStream {
                 }
             }
             EventStream::OrderTradeUpdate(data) => {
+                // Publish realized PnL if available
+                #[cfg(feature = "recording")]
+                if let Some(publisher) = income_publisher {
+                    Self::publish_realized_pnl(&data, &self.connector_name, publisher);
+                }
+
                 match self.order_manager.lock().unwrap().update_from_ws(&data) {
                     Ok(Some(order)) => {
                         // Ignore send errors during shutdown
@@ -122,6 +185,21 @@ impl UserDataStream {
         let (mut write, mut read) = ws_stream.split();
         let mut interval = time::interval(Duration::from_secs(60 * 30));
         let mut ping_checker = time::interval(Duration::from_secs(10));
+
+        // Create income publisher inside connect (not in struct) because RecordingPublisher is not Send
+        #[cfg(feature = "recording")]
+        let income_publisher = self.recording_service.as_ref().and_then(|service| {
+            match RecordingPublisher::new(service) {
+                Ok(publisher) => {
+                    info!("Income publisher created for connector {}", self.connector_name);
+                    Some(publisher)
+                }
+                Err(e) => {
+                    error!("Failed to create income publisher: {:?}", e);
+                    None
+                }
+            }
+        });
 
         let symbols: HashSet<_> = self.symbols.lock().unwrap().iter().cloned().collect();
         let client = self.client.clone();
@@ -204,7 +282,11 @@ impl UserDataStream {
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<Stream>(&text) {
                             Ok(Stream::EventStream(stream)) => {
-                                self.process_message(stream)?;
+                                self.process_message(
+                                    stream,
+                                    #[cfg(feature = "recording")]
+                                    income_publisher.as_ref(),
+                                )?;
                             }
                             Ok(Stream::Result(result)) => {
                                 debug!(?result, "Subscription request response is received.");

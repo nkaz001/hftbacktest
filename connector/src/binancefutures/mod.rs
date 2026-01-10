@@ -106,6 +106,9 @@ pub struct BinanceFutures {
     order_manager: SharedOrderManager,
     client: BinanceFuturesClient,
     symbol_tx: Sender<String>,
+    connector_name: String,
+    #[cfg(feature = "recording")]
+    recording_service: Option<String>,
 }
 
 impl BinanceFutures {
@@ -150,41 +153,67 @@ impl BinanceFutures {
         let order_manager = self.order_manager.clone();
         let instruments = self.symbols.clone();
         let symbol_tx = self.symbol_tx.clone();
+        let connector_name = self.connector_name.clone();
+        #[cfg(feature = "recording")]
+        let recording_service = self.recording_service.clone();
 
-        tokio::spawn(async move {
-            let _ = Retry::new(ExponentialBackoff::default())
-                .error_handler(|error: BinanceFuturesError| {
-                    error!(
-                        ?error,
-                        "An error occurred in the user data stream connection."
-                    );
-                    ev_tx
-                        .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
-                            ErrorKind::ConnectionInterrupted,
-                            error.into(),
-                        ))))
-                        .unwrap();
-                    Ok(())
-                })
-                .retry(|| async {
-                    let mut stream = user_data_stream::UserDataStream::new(
-                        client.clone(),
-                        ev_tx.clone(),
-                        order_manager.clone(),
-                        instruments.clone(),
-                        symbol_tx.subscribe(),
-                    );
+        // Using std::thread::spawn instead of tokio::spawn because RecordingPublisher is not Send
+        // and we need to create it inside the thread where it will be used
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create tokio runtime");
 
-                    debug!("Requesting the listen key for the user data stream...");
-                    let listen_key = stream.get_listen_key().await?;
+            rt.block_on(async {
+                let _ = Retry::new(ExponentialBackoff::default())
+                    .error_handler(|error: BinanceFuturesError| {
+                        error!(
+                            ?error,
+                            "An error occurred in the user data stream connection."
+                        );
+                        ev_tx
+                            .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                                ErrorKind::ConnectionInterrupted,
+                                error.into(),
+                            ))))
+                            .unwrap();
+                        Ok(())
+                    })
+                    .retry(|| async {
+                        let mut stream = user_data_stream::UserDataStream::new(
+                            client.clone(),
+                            ev_tx.clone(),
+                            order_manager.clone(),
+                            instruments.clone(),
+                            symbol_tx.subscribe(),
+                            connector_name.clone(),
+                            #[cfg(feature = "recording")]
+                            recording_service.as_deref(),
+                        );
 
-                    debug!("Connecting to the user data stream...");
-                    stream.connect(&format!("{base_url}/{listen_key}")).await?;
-                    debug!("The user data stream connection is permanently closed.");
-                    Ok(())
-                })
-                .await;
+                        debug!("Requesting the listen key for the user data stream...");
+                        let listen_key = stream.get_listen_key().await?;
+
+                        debug!("Connecting to the user data stream...");
+                        stream.connect(&format!("{base_url}/{listen_key}")).await?;
+                        debug!("The user data stream connection is permanently closed.");
+                        Ok(())
+                    })
+                    .await;
+            });
         });
+    }
+
+    /// Set the recording service for publishing realized PnL
+    #[cfg(feature = "recording")]
+    pub fn set_recording_service(&mut self, service: &str) {
+        self.recording_service = Some(service.to_string());
+    }
+
+    /// Set the connector name for income events
+    pub fn set_connector_name(&mut self, name: &str) {
+        self.connector_name = name.to_string();
     }
 }
 
@@ -204,6 +233,9 @@ impl ConnectorBuilder for BinanceFutures {
             order_manager,
             client,
             symbol_tx,
+            connector_name: "bf".to_string(), // Default, can be overridden
+            #[cfg(feature = "recording")]
+            recording_service: None,
         })
     }
 }

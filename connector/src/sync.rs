@@ -200,10 +200,17 @@ pub mod recording {
                                 since.unwrap_or(0)
                             );
                         } else {
+                            // Log income types for debugging
+                            let type_counts: std::collections::HashMap<String, usize> = incomes.iter()
+                                .fold(std::collections::HashMap::new(), |mut acc, i| {
+                                    *acc.entry(i.income_type.clone()).or_insert(0) += 1;
+                                    acc
+                                });
                             info!(
-                                "Income sync: received {} entries (since={})",
+                                "Income sync: received {} entries (since={}), types: {:?}",
                                 incomes.len(),
-                                since.unwrap_or(0)
+                                since.unwrap_or(0),
+                                type_counts
                             );
                         }
 

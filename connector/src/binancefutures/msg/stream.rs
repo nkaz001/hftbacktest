@@ -244,34 +244,19 @@ pub struct Order {
     #[serde(rename = "m")]
     #[serde(default)]
     pub is_maker_side: bool,
-    // #[serde(rename = "R")]
-    // pub is_reduce_only: bool,
-    // #[serde(rename = "wt")]
-    // pub stop_price_working_type: String,
-    // #[serde(rename = "ot")]
-    // pub original_order_type: String,
-    // #[serde(rename = "ps")]
-    // pub position_side: String,
-    // #[serde(rename = "cp")]
-    // pub close_all: Option<String>,
-    // #[serde(rename = "AP")]
-    // pub activation_price: Option<String>,
-    // #[serde(rename = "cr")]
-    // pub callback_rate: Option<String>,
-    // #[serde(rename = "pP")]
-    // pub price_protection: bool,
-    // #[serde(rename = "si")]
-    // pub ignore: i64,
-    // #[serde(rename = "ss")]
-    // pub ignore: i64,
-    // #[serde(rename = "rp")]
-    // pub realized_profit: String,
-    // #[serde(rename = "V")]
-    // pub stp_mode: String,
-    // #[serde(rename = "pm")]
-    // pub price_match_mode: String,
-    // #[serde(rename = "gtd")]
-    // pub gtd_auto_cancel_time: i64,
+    /// Realized profit from this trade
+    #[serde(rename = "rp")]
+    #[serde(default)]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub realized_profit: f64,
+    /// Commission asset
+    #[serde(rename = "N")]
+    #[serde(default)]
+    pub commission_asset: Option<String>,
+    /// Commission amount
+    #[serde(rename = "n")]
+    #[serde(default)]
+    pub commission: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
