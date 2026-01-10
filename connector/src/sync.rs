@@ -329,7 +329,8 @@ pub mod recording {
             ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_>> {
                 let category = self.category.clone();
                 Box::pin(async move {
-                    match self.client.get_all_positions(&category, None).await {
+                    // settleCoin is required for unified account
+                    match self.client.get_all_positions(&category, Some("USDT")).await {
                         Ok(positions) => {
                             Ok(positions
                                 .into_iter()

@@ -18,6 +18,10 @@ name = "bf"
 type = "binancefutures"
 config_file = "/etc/hft/binancefutures.toml"
 auto_start = true
+# Enable position/income sync to order-recorder
+recording_service = "hft_recording"
+position_sync_interval = 5
+income_sync_interval = 60
 
 # Bybit Demo Trading (REST API for orders)
 [[connectors]]
@@ -25,6 +29,10 @@ name = "bybit"
 type = "bybit_rest"
 config_file = "/etc/hft/bybit.toml"
 auto_start = true
+# Enable position/income sync to order-recorder
+recording_service = "hft_recording"
+position_sync_interval = 5
+income_sync_interval = 60
 
 # ============================================
 # Collector (uses first connector's IPC)

@@ -73,6 +73,23 @@ pub struct ConnectorConfig {
     /// Whether to auto-start connector with supervisor
     #[serde(default)]
     pub auto_start: bool,
+    /// IPC service name for recording (enables position/income sync)
+    #[serde(default)]
+    pub recording_service: Option<String>,
+    /// Position sync interval in seconds (default: 5)
+    #[serde(default = "default_position_sync_interval")]
+    pub position_sync_interval: u64,
+    /// Income sync interval in seconds (default: 60)
+    #[serde(default = "default_income_sync_interval")]
+    pub income_sync_interval: u64,
+}
+
+fn default_position_sync_interval() -> u64 {
+    5
+}
+
+fn default_income_sync_interval() -> u64 {
+    60
 }
 
 /// Collector configuration

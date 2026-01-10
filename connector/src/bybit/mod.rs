@@ -26,7 +26,7 @@ pub(crate) mod msg;
 pub(crate) mod ordermanager;
 pub(crate) mod private_stream;
 pub(crate) mod public_stream;
-pub(crate) mod rest;
+pub mod rest;
 mod trade_stream;
 
 #[derive(Error, Debug)]
@@ -111,14 +111,15 @@ impl BybitError {
 
 #[derive(Deserialize)]
 pub struct Config {
-    public_url: String,
-    private_url: String,
-    trade_url: String,
-    rest_url: String,
-    api_key: String,
-    secret: String,
-    category: String,
-    order_prefix: String,
+    pub public_url: String,
+    pub private_url: String,
+    pub trade_url: String,
+    #[serde(alias = "rest_url")]
+    pub api_url: String,
+    pub api_key: String,
+    pub secret: String,
+    pub category: String,
+    pub order_prefix: String,
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;
@@ -277,7 +278,7 @@ impl ConnectorBuilder for Bybit {
         let (order_tx, _) = broadcast::channel(500);
         let (symbol_tx, _) = broadcast::channel(500);
         let order_manager = Arc::new(Mutex::new(OrderManager::new(&config.order_prefix)));
-        let client = BybitClient::new(&config.rest_url, &config.api_key, &config.secret);
+        let client = BybitClient::new(&config.api_url, &config.api_key, &config.secret);
         Ok(Bybit {
             config,
             order_tx,

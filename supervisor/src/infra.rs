@@ -727,12 +727,26 @@ impl InfraManager {
 
     /// Build connector command arguments
     fn build_connector_args(&self, config: &ConnectorConfig) -> Result<(String, Vec<String>)> {
-        // connector <NAME> <CONNECTOR> <CONFIG>
-        let args = vec![
+        // connector --name <NAME> --connector <CONNECTOR> --config <CONFIG>
+        let mut args = vec![
+            "--name".to_string(),
             config.name.clone(),
+            "--connector".to_string(),
             config.connector_type.clone(),
+            "--config".to_string(),
             config.config_file.to_string_lossy().to_string(),
         ];
+
+        // Add recording service if configured (enables position/income sync)
+        if let Some(ref recording_service) = config.recording_service {
+            args.push("--recording-service".to_string());
+            args.push(recording_service.clone());
+            args.push("--position-sync-interval".to_string());
+            args.push(config.position_sync_interval.to_string());
+            args.push("--income-sync-interval".to_string());
+            args.push(config.income_sync_interval.to_string());
+        }
+
         Ok(("connector".to_string(), args))
     }
 

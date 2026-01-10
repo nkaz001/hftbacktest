@@ -32,13 +32,14 @@ use crate::{
 
 #[derive(Deserialize)]
 pub struct Config {
-    public_url: String,
-    private_url: String,
-    rest_url: String,
-    api_key: String,
-    secret: String,
-    category: String,
-    order_prefix: String,
+    pub public_url: String,
+    pub private_url: String,
+    #[serde(alias = "api_url")]
+    pub rest_url: String,
+    pub api_key: String,
+    pub secret: String,
+    pub category: String,
+    pub order_prefix: String,
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;

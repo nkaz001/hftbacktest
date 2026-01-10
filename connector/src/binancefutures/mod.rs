@@ -87,14 +87,14 @@ impl From<BinanceFuturesError> for Value {
 
 #[derive(Deserialize)]
 pub struct Config {
-    stream_url: String,
-    api_url: String,
+    pub stream_url: String,
+    pub api_url: String,
     #[serde(default)]
-    order_prefix: String,
+    pub order_prefix: String,
     #[serde(default)]
-    api_key: String,
+    pub api_key: String,
     #[serde(default)]
-    secret: String,
+    pub secret: String,
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;

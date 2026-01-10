@@ -118,6 +118,7 @@ fn run_strategy<MD, I, R>(
     recorder: &mut R,
     strategy: &mut ObiMmStrategy,
     args: &Args,
+    hook_ctx: Option<Arc<OrderHookContext>>,
 ) -> Result<()>
 where
     MD: MarketDepth + L2MarketDepth,
@@ -129,6 +130,7 @@ where
     let tick_size = hbt.depth(0).tick_size();
     let mut iteration = 0u64;
     let log_interval_iters = args.log_interval * 2; // elapse is 500ms
+    let position_publish_interval = 60; // Publish position every 30 seconds (60 x 500ms)
 
     info!("Strategy started. Waiting for market data...");
     info!("Tick size: {}", tick_size);
@@ -178,6 +180,24 @@ where
             // Dry run - just log what would happen
             if iteration % log_interval_iters == 0 {
                 info!("[DRY RUN] Would update orders at mid={:.2}", mid_price);
+            }
+        }
+
+        // Publish position snapshot periodically
+        if iteration % position_publish_interval == 0 {
+            if let Some(ref ctx) = hook_ctx {
+                // Calculate simple unrealized PnL based on position and mid price
+                // For a more accurate PnL, we'd need to track entry price
+                let unrealized_pnl = 0.0; // Simplified - proper PnL requires entry price tracking
+                let realized_pnl = 0.0;   // Would need to track from fills
+
+                ctx.publish_position(
+                    position,
+                    mid_price,   // avg_price approximation
+                    mid_price,
+                    unrealized_pnl,
+                    realized_pnl,
+                );
             }
         }
     }
@@ -339,7 +359,7 @@ pub fn main() -> Result<()> {
 
     // Run strategy
     info!("Starting OBI MM strategy... (is_ready={})", strategy.is_ready());
-    let result = run_strategy(&mut hbt, &mut recorder, &mut strategy, &args);
+    let result = run_strategy(&mut hbt, &mut recorder, &mut strategy, &args, hook_ctx.clone());
 
     // Publish stopped status
     if let Some(ref ctx) = hook_ctx {

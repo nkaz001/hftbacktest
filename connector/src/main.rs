@@ -40,6 +40,9 @@ use connector::{
     connector::{Connector, ConnectorBuilder, GetOrders, PublishEvent},
 };
 
+#[cfg(feature = "recording")]
+use connector::sync::recording::{SyncConfig, SyncTask};
+
 struct Position {
     qty: f64,
     exch_ts: i64,
@@ -352,6 +355,7 @@ fn handle_ev(
 #[command(version, about, long_about = None)]
 struct Args {
     /// Name of the connector, used when connecting the bot to the connector.
+    #[arg(short, long)]
     name: String,
 
     /// Connector
@@ -360,10 +364,27 @@ struct Args {
     /// * binancespot: Binance Spot
     /// * bybit: Bybit Linear Futures (WebSocket Trade)
     /// * bybit_rest: Bybit Linear Futures (REST API for orders, compatible with testnet/demo)
+    #[arg(short, long)]
     connector: String,
 
     /// Connector's configuration file path.
+    #[arg(short = 'f', long)]
     config: String,
+
+    /// IPC service name for recording events (enables position/income sync)
+    #[cfg(feature = "recording")]
+    #[arg(long)]
+    recording_service: Option<String>,
+
+    /// Position sync interval in seconds
+    #[cfg(feature = "recording")]
+    #[arg(long, default_value = "5")]
+    position_sync_interval: u64,
+
+    /// Income sync interval in seconds
+    #[cfg(feature = "recording")]
+    #[arg(long, default_value = "60")]
+    income_sync_interval: u64,
 }
 
 #[tokio::main]
@@ -472,6 +493,121 @@ async fn main() {
 
     // Track registered symbols for cleanup on shutdown
     let registered_symbols: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+    // Spawn position and income sync tasks if recording is enabled
+    // Runs on a dedicated thread because iceoryx2 publishers aren't Send
+    #[cfg(feature = "recording")]
+    let _sync_handle = if let Some(ref recording_service) = args.recording_service {
+        use std::collections::HashSet;
+        use std::time::Duration as StdDuration;
+
+        let sync_config = SyncConfig {
+            recording_service: recording_service.clone(),
+            connector_name: args.name.clone(),
+            strategy_id: String::new(), // Will publish for all strategies
+            position_interval: StdDuration::from_secs(args.position_sync_interval),
+            income_interval: StdDuration::from_secs(args.income_sync_interval),
+        };
+
+        let connector_type = args.connector.clone();
+        let config_str = config.clone();
+
+        Some(thread::spawn(move || {
+            let rt = Builder::new_current_thread().enable_all().build().unwrap();
+            rt.block_on(async move {
+                // Create a set to track symbols (will be empty, meaning sync all)
+                let symbols: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+
+                match connector_type.as_str() {
+                    "binancefutures" => {
+                        use connector::binancefutures::{Config as BfConfig, rest::BinanceFuturesClient};
+                        use connector::sync::recording::binance::BinanceFuturesProvider;
+
+                        let bf_config: BfConfig = toml::from_str(&config_str).unwrap();
+                        let client = BinanceFuturesClient::new(
+                            &bf_config.api_url,
+                            &bf_config.api_key,
+                            &bf_config.secret,
+                        );
+                        let provider = Arc::new(BinanceFuturesProvider::new(client));
+
+                        match SyncTask::new(sync_config, symbols) {
+                            Ok(sync_task) => {
+                                info!("Started position and income sync for binancefutures");
+                                // Run both syncs concurrently on this thread
+                                let provider2 = provider.clone();
+                                tokio::join!(
+                                    sync_task.run_position_sync(provider),
+                                    sync_task.run_income_sync(provider2)
+                                );
+                            }
+                            Err(e) => {
+                                error!("Failed to create sync task: {:?}", e);
+                            }
+                        }
+                    }
+                    "bybit" => {
+                        use connector::bybit::{Config as BybitConfig, rest::BybitClient};
+                        use connector::sync::recording::bybit::BybitProvider;
+
+                        let bybit_config: BybitConfig = toml::from_str(&config_str).unwrap();
+                        let client = BybitClient::new(
+                            &bybit_config.api_url,
+                            &bybit_config.api_key,
+                            &bybit_config.secret,
+                        );
+                        let provider = Arc::new(BybitProvider::new(client, "linear"));
+
+                        match SyncTask::new(sync_config, symbols) {
+                            Ok(sync_task) => {
+                                info!("Started position and income sync for bybit");
+                                let provider2 = provider.clone();
+                                tokio::join!(
+                                    sync_task.run_position_sync(provider),
+                                    sync_task.run_income_sync(provider2)
+                                );
+                            }
+                            Err(e) => {
+                                error!("Failed to create sync task: {:?}", e);
+                            }
+                        }
+                    }
+                    "bybit_rest" => {
+                        use connector::bybit_rest::Config as BybitRestConfig;
+                        use connector::bybit::rest::BybitClient;
+                        use connector::sync::recording::bybit::BybitProvider;
+
+                        let bybit_config: BybitRestConfig = toml::from_str(&config_str).unwrap();
+                        let client = BybitClient::new(
+                            &bybit_config.rest_url,
+                            &bybit_config.api_key,
+                            &bybit_config.secret,
+                        );
+                        let provider = Arc::new(BybitProvider::new(client, "linear"));
+
+                        match SyncTask::new(sync_config, symbols) {
+                            Ok(sync_task) => {
+                                info!("Started position and income sync for bybit_rest");
+                                let provider2 = provider.clone();
+                                tokio::join!(
+                                    sync_task.run_position_sync(provider),
+                                    sync_task.run_income_sync(provider2)
+                                );
+                            }
+                            Err(e) => {
+                                error!("Failed to create sync task: {:?}", e);
+                            }
+                        }
+                    }
+                    _ => {
+                        info!("Position/income sync not implemented for connector: {}", connector_type);
+                    }
+                }
+            });
+        }))
+    } else {
+        None
+    };
 
     let name = args.name.clone();
     let order_manager = connector.order_manager();
