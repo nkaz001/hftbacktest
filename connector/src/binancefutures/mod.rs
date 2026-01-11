@@ -116,6 +116,7 @@ impl BinanceFutures {
         let base_url = self.config.stream_url.clone();
         let client = self.client.clone();
         let symbol_tx = self.symbol_tx.clone();
+        let symbols = self.symbols.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -139,6 +140,24 @@ impl BinanceFutures {
                         symbol_tx.subscribe(),
                     );
                     debug!("Connecting to the market data stream...");
+
+                    // Re-send all registered symbols to the new stream
+                    // This ensures symbols are re-subscribed after reconnection
+                    {
+                        let registered_symbols = symbols.lock().unwrap();
+                        for symbol in registered_symbols.iter() {
+                            if let Err(e) = symbol_tx.send(symbol.clone()) {
+                                error!(
+                                    symbol = %symbol,
+                                    error = ?e,
+                                    "Failed to re-send symbol for subscription after reconnect"
+                                );
+                            } else {
+                                info!(symbol = %symbol, "Re-subscribing symbol after reconnect");
+                            }
+                        }
+                    }
+
                     stream.connect(&base_url).await?;
                     debug!("The market data stream connection is permanently closed.");
                     Ok(())
