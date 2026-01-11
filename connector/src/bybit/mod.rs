@@ -138,6 +138,7 @@ impl Bybit {
         // Connects to the public stream for the market data.
         let public_url = self.config.public_url.clone();
         let symbol_tx = self.symbol_tx.clone();
+        let symbols = self.symbols.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -153,6 +154,24 @@ impl Bybit {
                 })
                 .retry(|| async {
                     let mut stream = PublicStream::new(ev_tx.clone(), symbol_tx.subscribe());
+
+                    // Re-send all registered symbols to the new stream
+                    // This ensures symbols are re-subscribed after reconnection
+                    {
+                        let registered_symbols = symbols.lock().unwrap();
+                        for symbol in registered_symbols.iter() {
+                            if let Err(e) = symbol_tx.send(symbol.clone()) {
+                                error!(
+                                    symbol = %symbol,
+                                    error = ?e,
+                                    "Failed to re-send symbol for subscription after reconnect"
+                                );
+                            } else {
+                                info!(symbol = %symbol, "Re-subscribing symbol after reconnect");
+                            }
+                        }
+                    }
+
                     if let Err(error) = stream.connect(&public_url).await {
                         error!(?error, "A connection error occurred.");
                         ev_tx
@@ -212,14 +231,22 @@ impl Bybit {
                         symbol_tx.subscribe(),
                     );
 
-                    // // todo: fix the operation order.
-                    //
-                    // // Cancel all orders before connecting to the stream in order to start with the
-                    // // clean state.
-                    // stream.cancel_all(&category).await?;
-                    //
-                    // // Fetches the initial states such as positions and open orders.
-                    // stream.get_all_position(&category).await?;
+                    // Re-send all registered symbols to the new stream
+                    // This ensures symbols are re-subscribed after reconnection
+                    {
+                        let registered_symbols = instruments.lock().unwrap();
+                        for symbol in registered_symbols.iter() {
+                            if let Err(e) = symbol_tx.send(symbol.clone()) {
+                                error!(
+                                    symbol = %symbol,
+                                    error = ?e,
+                                    "Failed to re-send symbol for subscription after reconnect"
+                                );
+                            } else {
+                                info!(symbol = %symbol, "Re-subscribing symbol after reconnect");
+                            }
+                        }
+                    }
 
                     stream.connect(&private_url).await?;
 
