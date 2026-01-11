@@ -520,8 +520,10 @@ pub struct PrivateOrder {
 #[derive(Deserialize, Debug)]
 pub struct OrderResponseData {
     #[serde(rename = "orderId")]
+    #[serde(default)]
     pub order_id: String,
     #[serde(rename = "orderLinkId")]
+    #[serde(default)]
     pub order_link_id: String,
 }
 
@@ -606,6 +608,7 @@ pub struct RestResponse {
 /// Transaction log entry from /v5/account/transaction-log
 #[derive(Deserialize, Debug, Clone)]
 pub struct TransactionLogEntry {
+    #[serde(default)]
     pub symbol: String,
     #[serde(default)]
     pub side: String,
