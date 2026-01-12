@@ -364,7 +364,19 @@ pub struct IncomeEvent {
 - `deploy/docker/grafana/dashboards/trading-activity.json` - Trading Activity dashboard
 
 ## Status
-**ALL PHASES COMPLETE** - Position & PnL Tracking System fully implemented.
+**PARTIALLY COMPLETE** - Position tracking working, Income sync pending connector integration.
+
+### 2026-01-10 Fix: Position Publishing
+- **Issue**: Position Monitor dashboard was empty because strategy wasn't calling `publish_position()`
+- **Fix**: Added position publishing every 30 seconds in `strategies/obi_mm_rust/src/testnet.rs`
+- **Result**: `positions` table now receiving data
+
+### Remaining Work: Income Sync
+- **Issue**: `income` table is empty - requires connector-level sync
+- **Location**: `connector/src/sync.rs` has `SyncTask` ready but not integrated into connectors
+- **To integrate**: Modify `connector/src/binancefutures/mod.rs` and `connector/src/bybit/mod.rs` to:
+  1. Create `SyncTask` with REST client as provider
+  2. Spawn `run_income_sync()` task in connector main loop
 
 ## Access URLs
 - **HFT Dashboard**: http://localhost:13000
