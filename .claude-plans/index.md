@@ -5,9 +5,10 @@
 | Task | Directory | Status | Started |
 |------|-----------|--------|---------|
 | Position & PnL Tracking System | `position-pnl-tracking/` | Phase 0/5 | 2026-01-10 |
+| 策略研究员实盘上手文档 | `strategy-researcher-guide/` | Phase 1/4 | 2026-01-11 |
 
 ## Current Focus
-None (last task completed)
+`strategy-researcher-guide/` - 研究现有代码结构
 
 ## Completed Tasks
 

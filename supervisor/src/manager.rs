@@ -229,9 +229,11 @@ impl BotManager {
         }
 
         match &bot.state {
-            BotState::Running | BotState::Starting | BotState::WaitingWarmup => {
+            BotState::Running | BotState::Starting => {
                 anyhow::bail!("Bot {} is already running or starting", bot_id);
             }
+            // WaitingWarmup is allowed - this is called when warmup data becomes ready
+            BotState::WaitingWarmup => {}
             _ => {}
         }
 

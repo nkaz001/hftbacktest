@@ -42,7 +42,7 @@ enabled = true
 mode = "ipc"
 output_dir = "/var/lib/hft/data"
 # Note: Use lowercase for Binance connector (first connector)
-symbols = ["btcusdt", "ethusdt", "solusdt"]
+symbols = ["btcusdt", "ethusdt", "solusdt", "linkusdt"]
 retention_days = 7
 auto_start = true
 
@@ -120,6 +120,21 @@ strategy = "obi_mm_testnet"
 symbol = "SOLUSDT"
 connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_sol.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+# ============================================
+# 新增: LINK/USDT 策略 (测试文档流程)
+# ============================================
+
+[[bots]]
+id = "obi_mm_linkusdt_bf"
+enabled = true
+strategy = "obi_mm_testnet"
+symbol = "linkusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_link.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5

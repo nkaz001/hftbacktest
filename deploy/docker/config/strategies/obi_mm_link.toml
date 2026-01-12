@@ -1,0 +1,30 @@
+# OBI MM Strategy Configuration - LINK/USDT
+# Optimized for Chainlink trading
+
+[global]
+order_qty = 3.0          # ~$60 per order at $20 LINK
+max_position = 30.0      # ~$600 max position
+grid_num = 2             # 2 orders each side
+grid_interval = 0.01     # $0.01 grid spacing
+roi_lb = 0.0
+roi_ub = 200.0           # LINK price range
+
+[params]
+looking_depth = 0.001    # 0.1% depth for OBI calculation
+window = 5               # Z-score window
+volatility_window = 2    # Volatility window
+half_spread = 0.0008     # 8 bps half spread (LINK more volatile)
+skew = 0.01              # Position skew factor
+c1 = 0.0001              # OBI impact coefficient
+power = 1.0              # Volatility power
+live_seconds = 30.0      # Order lifetime
+update_interval_ns = 5000000000      # 5 seconds
+volatility_interval_ns = 10000000000 # 10 seconds
+
+[stop_loss]
+volatility_mean = 0.010  # LINK is more volatile than BTC
+volatility_std = 0.004
+change_mean = 0.002
+change_std = 0.006
+volatility_threshold = 3.0
+change_threshold = 3.0
