@@ -57,6 +57,15 @@ if [ -f /etc/hft/bybit.toml ]; then
     fi
 fi
 
+# Substitute environment variables in bybit_mainnet.toml (for mainnet deployment)
+if [ -f /etc/hft/bybit_mainnet.toml ]; then
+    echo "Processing bybit_mainnet.toml..."
+    sed -e "s|\${BYBIT_API_KEY}|${BYBIT_API_KEY:-}|g" \
+        -e "s|\${BYBIT_SECRET}|${BYBIT_SECRET:-}|g" \
+        /etc/hft/bybit_mainnet.toml > "$CONFIG_DIR/bybit_mainnet.toml"
+    chown hft:hft "$CONFIG_DIR/bybit_mainnet.toml"
+fi
+
 # Copy strategy configs to temp directory
 if [ -d /etc/hft/strategies ]; then
     echo "Processing strategy configs..."
@@ -65,14 +74,23 @@ if [ -d /etc/hft/strategies ]; then
     chown -R hft:hft "$CONFIG_DIR/strategies"
 fi
 
-# Copy cluster.toml and update config paths
-if [ -f /etc/hft/cluster.toml ]; then
-    echo "Processing cluster.toml..."
+# Determine which cluster config to use
+CLUSTER_CONFIG_FILE="${CLUSTER_CONFIG:-/etc/hft/cluster.toml}"
+CLUSTER_CONFIG_BASENAME=$(basename "$CLUSTER_CONFIG_FILE")
+echo "Using cluster config: $CLUSTER_CONFIG_FILE"
+
+# Copy and process cluster config (update config paths)
+if [ -f "$CLUSTER_CONFIG_FILE" ]; then
+    echo "Processing $CLUSTER_CONFIG_BASENAME..."
     sed -e "s|/etc/hft/binancefutures.toml|$CONFIG_DIR/binancefutures.toml|g" \
         -e "s|/etc/hft/bybit.toml|$CONFIG_DIR/bybit.toml|g" \
+        -e "s|/etc/hft/bybit_mainnet.toml|$CONFIG_DIR/bybit_mainnet.toml|g" \
         -e "s|/etc/hft/strategies|$CONFIG_DIR/strategies|g" \
-        /etc/hft/cluster.toml > "$CONFIG_DIR/cluster.toml"
-    chown hft:hft "$CONFIG_DIR/cluster.toml"
+        "$CLUSTER_CONFIG_FILE" > "$CONFIG_DIR/$CLUSTER_CONFIG_BASENAME"
+    chown hft:hft "$CONFIG_DIR/$CLUSTER_CONFIG_BASENAME"
+else
+    echo "ERROR: Cluster config not found: $CLUSTER_CONFIG_FILE"
+    exit 1
 fi
 
 # Ensure data directories are owned by hft user
@@ -101,7 +119,7 @@ fi
 # Start the HFT Server in background (for web dashboard) as hft user
 echo "Starting HFT Server..."
 gosu hft /usr/local/bin/hft-server \
-    --config "$CONFIG_DIR/cluster.toml" \
+    --config "$CONFIG_DIR/$CLUSTER_CONFIG_BASENAME" \
     --socket /tmp/hft-supervisor.sock \
     --bind 0.0.0.0 \
     --port 3000 \
@@ -118,4 +136,4 @@ sleep 2
 
 # Start the supervisor (this is the main process) as hft user
 echo "Starting HFT Supervisor..."
-exec gosu hft /usr/local/bin/hft-supervisor --config "$CONFIG_DIR/cluster.toml" --bin-dir /usr/local/bin
+exec gosu hft /usr/local/bin/hft-supervisor --config "$CONFIG_DIR/$CLUSTER_CONFIG_BASENAME" --bin-dir /usr/local/bin

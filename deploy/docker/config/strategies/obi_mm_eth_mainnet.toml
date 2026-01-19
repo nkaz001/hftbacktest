@@ -1,0 +1,45 @@
+# OBI MM Strategy Configuration - ETH Mainnet
+# Parameters from Nautilus_Trader production config
+
+[global]
+# Order size in ETH
+order_qty = 0.02           # ~$60 per order at ETH ~$3000
+max_position = 0.4         # ~$1200 max position (from Nautilus: 1400/2943=0.47)
+
+# Grid parameters
+grid_num = 1               # Single order per side
+grid_interval = 1.0        # 1 tick grid spacing
+
+# Price range for ROIVectorMarketDepth
+roi_lb = 800.0
+roi_ub = 10000.0           # ETH price range
+
+[params]
+# OBI calculation
+looking_depth = 0.005      # 0.5% depth for OBI
+window = 15                # 15 minute rolling window (window_minutes from Nautilus)
+
+# Volatility
+volatility_window = 15     # 15 minute volatility window
+
+# Spread
+half_spread = 0.0027       # 27 bps half spread (from Nautilus)
+
+# Skew and alpha
+skew = 0.000097            # 9.7e-05 (from Nautilus)
+c1 = 0.000011              # Alpha coefficient (from Nautilus)
+power = 0.6                # Volatility adjustment power (from Nautilus)
+
+# Timing
+live_seconds = 130.0       # Order lifetime (from Nautilus)
+update_interval_ns = 10000000000      # 10 seconds (interval_sec from Nautilus)
+volatility_interval_ns = 10000000000  # 10 seconds
+
+[stop_loss]
+# Stop loss parameters from Nautilus statistics
+volatility_mean = 0.0009693
+volatility_std = 0.0007019
+change_mean = -0.0000005
+change_std = 0.0011952
+volatility_threshold = 3.0
+change_threshold = 3.0

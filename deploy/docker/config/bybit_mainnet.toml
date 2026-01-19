@@ -1,0 +1,31 @@
+# Bybit Linear Futures Configuration - Mainnet (Real Trading)
+#
+# This config uses "bybit" connector with WebSocket Trade stream for orders.
+# Lower latency than REST API. For REAL trading on Bybit mainnet.
+#
+# API keys are loaded from environment variables via entrypoint.sh
+# This file will be processed at container startup to substitute:
+#   ${BYBIT_API_KEY} and ${BYBIT_SECRET}
+
+# Mainnet URLs
+# Public stream for market data
+public_url = "wss://stream.bybit.com/v5/public/linear"
+
+# Private stream for position and order updates
+private_url = "wss://stream.bybit.com/v5/private"
+
+# Trade stream for WebSocket order submission (lower latency)
+trade_url = "wss://stream.bybit.com/v5/trade"
+
+# REST API for queries and fallback
+api_url = "https://api.bybit.com"
+
+# Category: "linear" for USDT perpetual, "inverse" for inverse contracts
+category = "linear"
+
+# Order prefix to identify orders from this system (max 8 chars, no '/')
+order_prefix = "hft"
+
+# API credentials (substituted from environment at runtime)
+api_key = "${BYBIT_API_KEY}"
+secret = "${BYBIT_SECRET}"

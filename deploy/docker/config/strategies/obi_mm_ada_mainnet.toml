@@ -1,0 +1,45 @@
+# OBI MM Strategy Configuration - ADA Mainnet
+# Parameters from Nautilus_Trader production config
+
+[global]
+# Order size in ADA
+order_qty = 180.0          # ~$70 per order at ADA ~$0.38
+max_position = 3600.0      # ~$1400 max position (from Nautilus: 1400/0.38=3684)
+
+# Grid parameters
+grid_num = 1               # Single order per side
+grid_interval = 1.0        # 1 tick grid spacing
+
+# Price range for ROIVectorMarketDepth
+roi_lb = 0.24864
+roi_ub = 1.32167           # ADA price range
+
+[params]
+# OBI calculation
+looking_depth = 0.01       # 1% depth for OBI
+window = 25                # 25 minute rolling window (window_minutes from Nautilus)
+
+# Volatility
+volatility_window = 25     # 25 minute volatility window
+
+# Spread
+half_spread = 0.0027       # 27 bps half spread (from Nautilus)
+
+# Skew and alpha
+skew = 0.000097            # 9.7e-05 (from Nautilus)
+c1 = 0.000175              # Alpha coefficient (from Nautilus)
+power = 0.3                # Volatility adjustment power (from Nautilus)
+
+# Timing
+live_seconds = 80.0        # Order lifetime (from Nautilus)
+update_interval_ns = 10000000000      # 10 seconds (interval_sec from Nautilus)
+volatility_interval_ns = 10000000000  # 10 seconds
+
+[stop_loss]
+# Stop loss parameters from Nautilus statistics
+volatility_mean = 0.0013430
+volatility_std = 0.0010204
+change_mean = 0.0000004
+change_std = 0.0016870
+volatility_threshold = 2.0
+change_threshold = 2.0

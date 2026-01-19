@@ -1,0 +1,45 @@
+# OBI MM Strategy Configuration - BTC Mainnet
+# Parameters from Nautilus_Trader production config
+
+[global]
+# Order size in BTC
+order_qty = 0.001          # ~$100 per order
+max_position = 0.015       # ~$1400 max position (from Nautilus: 1400/86000=0.015)
+
+# Grid parameters
+grid_num = 1               # Single order per side
+grid_interval = 1.0        # 1 tick grid spacing
+
+# Price range for ROIVectorMarketDepth
+roi_lb = 10000.0
+roi_ub = 150000.0          # BTC price range
+
+[params]
+# OBI calculation
+looking_depth = 0.025      # 2.5% depth for OBI
+window = 30                # 30 minute rolling window (window_minutes from Nautilus)
+
+# Volatility
+volatility_window = 30     # 30 minute volatility window
+
+# Spread
+half_spread = 0.002        # 20 bps half spread (from Nautilus)
+
+# Skew and alpha
+skew = 0.000023            # 2.3e-05 (from Nautilus)
+c1 = 0.00024               # Alpha coefficient (from Nautilus)
+power = 0.2                # Volatility adjustment power (from Nautilus)
+
+# Timing
+live_seconds = 130.0       # Warmup time (from Nautilus)
+update_interval_ns = 10000000000      # 10 seconds (interval_sec from Nautilus)
+volatility_interval_ns = 10000000000  # 10 seconds
+
+[stop_loss]
+# Stop loss parameters from Nautilus statistics
+volatility_mean = 0.0006142
+volatility_std = 0.0004217
+change_mean = 0.0000008
+change_std = 0.0007443
+volatility_threshold = 3.0
+change_threshold = 3.0

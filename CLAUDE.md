@@ -162,6 +162,43 @@ hftctl infra stop collector
 hftctl infra restart order_recorder
 ```
 
+### Strategy Configuration Parameters
+
+**Important parameter distinctions:**
+
+| Parameter | Location | Purpose |
+|-----------|----------|---------|
+| `live_seconds` | strategy config `[params]` | Order lifetime - cancel unfilled orders after this time |
+| `min_duration_seconds` | cluster config `[warmup]` | Historical data duration to load for factor warmup |
+| `window` | strategy config `[params]` | OBI rolling window size (in samples) |
+| `volatility_window` | strategy config `[params]` | Volatility rolling window size (in samples) |
+
+**Warmup vs Order Lifetime:**
+- `live_seconds` is NOT warmup time - it controls how long orders stay before cancellation
+- Warmup is controlled by `[warmup].min_duration_seconds` in cluster config
+- Set `min_duration_seconds` >= factor window size (e.g., 1800 for 30-min window)
+
+### Mainnet Deployment
+
+```bash
+cd deploy/docker
+
+# Mainnet (Bybit)
+docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet up -d
+docker compose -f docker-compose.mainnet.yml exec hft hftctl --socket /tmp/hft-supervisor.sock status
+docker compose -f docker-compose.mainnet.yml logs -f hft
+```
+
+Configuration files:
+- `config/bybit_mainnet.toml`: Bybit mainnet API config (WebSocket trade stream)
+- `config/cluster_mainnet.toml`: Cluster config for mainnet
+- `config/strategies/obi_mm_btc_mainnet.toml`: BTC strategy parameters
+- `.env.mainnet`: API credentials (not in git)
+
+**Bybit Connector Types:**
+- `type = "bybit"`: WebSocket Trade stream for order submission (lower latency)
+- `type = "bybit_rest"`: REST API for order submission
+
 ### Key Documentation
 - `docs/LIVE_TRADING_ARCHITECTURE.md`: Detailed live trading system architecture (Chinese)
 - `docs/FACTOR_FRAMEWORK_DESIGN.md`: Factor computation framework design

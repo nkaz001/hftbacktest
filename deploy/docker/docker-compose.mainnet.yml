@@ -1,0 +1,64 @@
+version: "3.8"
+
+# Docker Compose for Mainnet Trading (Bybit)
+# Usage: docker compose -f docker-compose.mainnet.yml up -d
+
+services:
+  hft:
+    image: docker-hft:latest
+    container_name: hft-mainnet
+    hostname: hft-mainnet
+    restart: unless-stopped
+    environment:
+      - BYBIT_API_KEY=${BYBIT_API_KEY}
+      - BYBIT_SECRET=${BYBIT_SECRET}
+      - CLUSTER_CONFIG=/etc/hft/cluster_mainnet.toml
+    volumes:
+      - ./config:/etc/hft:ro
+      - hft-data:/var/lib/hft
+    networks:
+      - hft-network
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    # Increase shared memory for iceoryx2
+    shm_size: '256mb'
+    # Use host network for lower latency (optional)
+    # network_mode: host
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: hft-clickhouse-mainnet
+    hostname: clickhouse
+    restart: unless-stopped
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - hft-network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Reduce ClickHouse memory usage
+    environment:
+      - CLICKHOUSE_MAX_MEMORY_USAGE=2000000000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  hft-network:
+    driver: bridge
+
+volumes:
+  hft-data:
+  clickhouse-data:
