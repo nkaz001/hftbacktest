@@ -621,11 +621,33 @@ impl BotManager {
         let config = self.config.read().await;
         let connector_name = bot.config.connector.clone()
             .or_else(|| config.default_connector_name().map(|s| s.to_string()));
+
+        // Get tick_size and lot_size from bot config or defaults
+        let tick_size = bot.config.effective_tick_size(&config.bot_defaults);
+        let lot_size = bot.config.effective_lot_size(&config.bot_defaults);
         drop(config);
 
         if let Some(connector) = connector_name {
             cmd.arg("--connector").arg(&connector);
         }
+
+        // Pass tick_size and lot_size if configured
+        if let Some(ts) = tick_size {
+            cmd.arg("--tick-size").arg(ts.to_string());
+        }
+        if let Some(ls) = lot_size {
+            cmd.arg("--lot-size").arg(ls.to_string());
+        }
+
+        // Pass warmup data directory and settings
+        let config = self.config.read().await;
+        cmd.arg("--warmup-data-dir")
+            .arg(&config.warmup.data_dir)
+            .arg("--warmup-max-age")
+            .arg(config.warmup.max_age_seconds.to_string())
+            .arg("--warmup-min-duration")
+            .arg(config.warmup.min_duration_seconds.to_string());
+        drop(config);
 
         // Set up logging
         let config = self.config.read().await;
