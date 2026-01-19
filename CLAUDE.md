@@ -199,6 +199,56 @@ Configuration files:
 - `type = "bybit"`: WebSocket Trade stream for order submission (lower latency)
 - `type = "bybit_rest"`: REST API for order submission
 
+### Remote Server Management with tmux-cli
+
+Use `tmux-cli` to manage the mainnet server (Hetzner_bybit) from Claude Code:
+
+```bash
+# Launch a shell and connect to Hetzner
+tmux-cli launch "zsh"
+tmux-cli send "ssh Hetzner_bybit" --pane=<pane_id>
+
+# Wait for connection and capture output
+tmux-cli wait_idle --pane=<pane_id> --idle-time=3.0
+tmux-cli capture --pane=<pane_id>
+
+# Send commands to the server
+tmux-cli send "cd ~/hftbacktest/deploy/docker" --pane=<pane_id>
+tmux-cli send "docker compose -f docker-compose.mainnet.yml exec hft hftctl --socket /tmp/hft-supervisor.sock status" --pane=<pane_id>
+
+# List panes and windows
+tmux-cli list_panes
+tmux-cli list_windows
+```
+
+**Common operations on Hetzner_bybit:**
+```bash
+# Check service status
+docker compose -f docker-compose.mainnet.yml exec hft hftctl --socket /tmp/hft-supervisor.sock status
+
+# View logs
+docker compose -f docker-compose.mainnet.yml logs -f hft
+
+# View bot logs
+docker compose -f docker-compose.mainnet.yml exec hft tail -f /var/lib/hft/logs/bots/obi_mm_btcusdt.log
+
+# View connector logs
+docker compose -f docker-compose.mainnet.yml exec hft tail -f /var/lib/hft/logs/infra/connector.log
+
+# Restart service (after config changes)
+docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet restart hft
+
+# Full restart (down + up)
+docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet down
+docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet up -d
+```
+
+**Server info:**
+- **SSH alias:** `Hetzner_bybit`
+- **IP:** 5.223.54.76
+- **Bybit latency:** ~17ms
+- **Config path:** `~/hftbacktest/deploy/docker/`
+
 ### Key Documentation
 - `docs/LIVE_TRADING_ARCHITECTURE.md`: Detailed live trading system architecture (Chinese)
 - `docs/FACTOR_FRAMEWORK_DESIGN.md`: Factor computation framework design
