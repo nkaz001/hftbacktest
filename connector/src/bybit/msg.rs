@@ -633,6 +633,7 @@ pub struct TransactionLogEntry {
     #[serde(deserialize_with = "from_str_to_i64")]
     pub transaction_time: i64,
     #[serde(rename = "type")]
+    #[serde(default)]
     pub tx_type: String,
     #[serde(rename = "feeRate")]
     #[serde(default)]
