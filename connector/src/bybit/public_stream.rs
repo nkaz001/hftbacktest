@@ -9,6 +9,7 @@ use hftbacktest::prelude::{
     LOCAL_BID_DEPTH_BBO_EVENT,
     LOCAL_BID_DEPTH_EVENT,
     LOCAL_BUY_TRADE_EVENT,
+    LOCAL_DEPTH_CLEAR_EVENT,
     LOCAL_SELL_TRADE_EVENT,
     LiveEvent,
     Side,
@@ -54,9 +55,31 @@ impl PublicStream {
                 debug!(?resp, "Op");
             }
             PublicStreamMsg::Topic(stream) => {
+                // Check if this is a snapshot message (Bybit sends "snapshot" for initial data, "delta" for updates)
+                let is_snapshot = stream.msg_type.as_deref() == Some("snapshot");
+
                 if stream.topic.starts_with("orderbook.1") {
                     let data: OrderBook = serde_json::from_value(stream.data)?;
                     let (bids, asks) = parse_depth(data.bids, data.asks)?;
+
+                    // Send clear event before snapshot data to properly initialize orderbook
+                    if is_snapshot {
+                        self.ev_tx
+                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
+                                symbol: data.symbol.clone(),
+                                event: Event {
+                                    ev: LOCAL_DEPTH_CLEAR_EVENT,
+                                    exch_ts: stream.cts.unwrap_or(stream.ts) * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
+                                    px: 0.0,
+                                    qty: 0.0,
+                                    ival: 0,
+                                    fval: 0.0,
+                                },
+                            }))
+                            .unwrap();
+                    }
 
                     for (px, qty) in bids {
                         self.ev_tx
@@ -96,6 +119,25 @@ impl PublicStream {
                 } else if stream.topic.starts_with("orderbook") {
                     let data: OrderBook = serde_json::from_value(stream.data)?;
                     let (bids, asks) = parse_depth(data.bids, data.asks)?;
+
+                    // Send clear event before snapshot data to properly initialize orderbook
+                    if is_snapshot {
+                        self.ev_tx
+                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
+                                symbol: data.symbol.clone(),
+                                event: Event {
+                                    ev: LOCAL_DEPTH_CLEAR_EVENT,
+                                    exch_ts: stream.cts.unwrap_or(stream.ts) * 1_000_000,
+                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
+                                    order_id: 0,
+                                    px: 0.0,
+                                    qty: 0.0,
+                                    ival: 0,
+                                    fval: 0.0,
+                                },
+                            }))
+                            .unwrap();
+                    }
 
                     for (px, qty) in bids {
                         self.ev_tx

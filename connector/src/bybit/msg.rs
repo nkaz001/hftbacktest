@@ -170,6 +170,8 @@ pub enum PublicStreamMsg {
 #[derive(Deserialize, Debug)]
 pub struct PublicStream {
     pub topic: String,
+    #[serde(rename = "type")]
+    pub msg_type: Option<String>, // "snapshot" or "delta"
     pub ts: i64,
     pub data: serde_json::Value,
     pub cts: Option<i64>,

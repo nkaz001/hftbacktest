@@ -19,6 +19,7 @@ use crate::{
         LOCAL_ASK_DEPTH_EVENT,
         LOCAL_BID_DEPTH_EVENT,
         LOCAL_BUY_TRADE_EVENT,
+        LOCAL_DEPTH_CLEAR_EVENT,
         LOCAL_SELL_TRADE_EVENT,
         LiveError,
         LiveEvent,
@@ -212,7 +213,10 @@ where
             LiveEvent::Feed { event, .. } => {
                 let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
                 instrument.last_feed_latency = Some((event.exch_ts, event.local_ts));
-                if event.is(LOCAL_BID_DEPTH_EVENT) {
+                if event.is(LOCAL_DEPTH_CLEAR_EVENT) {
+                    // Clear depth on snapshot - Bybit sends this before initial orderbook data
+                    instrument.depth.clear_depth(Side::None, 0.0);
+                } else if event.is(LOCAL_BID_DEPTH_EVENT) {
                     instrument
                         .depth
                         .update_bid_depth(event.px, event.qty, event.exch_ts);
