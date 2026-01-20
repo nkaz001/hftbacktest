@@ -76,14 +76,19 @@ impl PrivateStream {
         }
     }
 
-    /// Publish commission from execution (COMMISSION income event)
-    fn publish_commission(
-        execution: &Execution,
-        connector_name: &str,
+    /// Publish commission from execution in a blocking context
+    /// This is called from spawn_blocking to avoid Send issues with RecordingPublisher
+    fn publish_commission_blocking(
         recording_service: &str,
+        connector_name: &str,
+        exec_fee_str: &str,
+        exec_time: i64,
+        symbol: &str,
+        exec_id: &str,
+        is_maker: bool,
     ) {
         // Parse exec_fee - Bybit sends it as a string
-        let exec_fee = execution.exec_fee.parse::<f64>().unwrap_or(0.0);
+        let exec_fee = exec_fee_str.parse::<f64>().unwrap_or(0.0);
 
         // Skip if fee is zero
         if exec_fee.abs() < 1e-12 {
@@ -96,24 +101,24 @@ impl PrivateStream {
         let commission = -exec_fee; // Negate because Bybit's convention is opposite
 
         let income_event = IncomeEvent {
-            timestamp: execution.exec_time * 1_000_000, // Convert ms to ns
+            timestamp: exec_time * 1_000_000, // Convert ms to ns
             connector: connector_name.to_string(),
             strategy_id: String::new(),
-            symbol: execution.symbol.clone(),
+            symbol: symbol.to_string(),
             income_type: "COMMISSION".to_string(),
             income: commission,
             asset: "USDT".to_string(), // Bybit linear perps use USDT
-            info: format!("exec_id={}", execution.exec_id),
+            info: format!("exec_id={}", exec_id),
             tran_id: 0, // Bybit doesn't provide transaction ID in execution
-            trade_id: execution.exec_id.clone(),
+            trade_id: exec_id.to_string(),
         };
 
         info!(
             "Publishing commission: {} {} = {:.6} USDT (is_maker={})",
-            income_event.symbol, income_event.income_type, income_event.income, execution.is_maker
+            symbol, income_event.income_type, income_event.income, is_maker
         );
 
-        // Create publisher for each execution (RecordingPublisher is not Send)
+        // Create publisher and send in blocking context
         match RecordingPublisher::new(recording_service) {
             Ok(publisher) => {
                 if let Err(e) = publisher.publish(&RecordingEvent::Income(income_event)) {
@@ -240,9 +245,26 @@ impl PrivateStream {
                 debug!(?data, "Execution");
                 let mut order_manager = self.order_manager.lock().unwrap();
                 for execution in &data.data {
-                    // Publish commission to order-recorder
+                    // Publish commission to order-recorder using spawn_blocking
                     if let Some(ref service) = self.recording_service {
-                        Self::publish_commission(execution, &self.connector_name, service);
+                        let service = service.clone();
+                        let connector_name = self.connector_name.clone();
+                        let exec_fee = execution.exec_fee.clone();
+                        let exec_time = execution.exec_time;
+                        let symbol = execution.symbol.clone();
+                        let exec_id = execution.exec_id.clone();
+                        let is_maker = execution.is_maker;
+                        tokio::task::spawn_blocking(move || {
+                            Self::publish_commission_blocking(
+                                &service,
+                                &connector_name,
+                                &exec_fee,
+                                exec_time,
+                                &symbol,
+                                &exec_id,
+                                is_maker,
+                            );
+                        });
                     }
 
                     match order_manager.update_execution(execution) {
