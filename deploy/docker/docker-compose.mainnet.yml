@@ -19,14 +19,17 @@ services:
       - RUST_LOG=info
     env_file:
       - .env.mainnet
-    ports:
-      - "3000:3000"  # Web monitoring dashboard
+    # Port exposed via nginx reverse proxy
+    expose:
+      - "3000"
     volumes:
       # Configuration files (bind mount for easy editing)
       - ./config:/etc/hft:ro
       # Persistent data storage (bind mount for easy access)
       - ./data:/var/lib/hft/data
       - ./logs:/var/lib/hft/logs
+      # Dashboard static files
+      - ../../server/dashboard/dist:/var/lib/hft/dashboard
       # Binary files (bind mount for hot-reload without image rebuild)
       # After `cargo build --release`, just restart the service to pick up new binary
       - ../../target/release/obi_mm_testnet:/usr/local/bin/obi_mm_testnet:ro
@@ -70,13 +73,72 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # Reduce ClickHouse memory usage
+    # ClickHouse configuration
     environment:
+      - CLICKHOUSE_DB=hft
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
       - CLICKHOUSE_MAX_MEMORY_USAGE=2000000000
     logging:
       driver: "json-file"
       options:
         max-size: "50m"
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: hft-grafana-mainnet
+    hostname: grafana
+    restart: unless-stopped
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    # Port exposed via nginx reverse proxy
+    expose:
+      - "3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=disabled
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+      # Subpath configuration - Grafana handles /grafana/ prefix
+      - GF_SERVER_ROOT_URL=https://hft.bookdisco.space/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    networks:
+      - hft-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    container_name: hft-nginx-mainnet
+    hostname: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - hft-network
+    depends_on:
+      - hft
+      - grafana
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
         max-file: "3"
 
 networks:
@@ -85,3 +147,4 @@ networks:
 
 volumes:
   clickhouse-data:
+  grafana-data:

@@ -4,10 +4,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
 // Grafana URL configuration
-// In production, this should be configurable via environment variables
+// In production, Grafana is served via reverse proxy at /grafana path
 const GRAFANA_BASE_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:13001'
-  : `http://${window.location.hostname}:13001`;
+  : `${window.location.origin}/grafana`;
 
 const dashboards = [
   {

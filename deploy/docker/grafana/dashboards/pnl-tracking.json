@@ -370,7 +370,7 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "timeseries",
-          "rawSql": "SELECT\n  toStartOfFiveMinutes(timestamp) as time,\n  CONCAT(lower(symbol), '-', connector) as series,\n  sum(income) as pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND connector IN (${connector:sqlstring})\n  AND CONCAT(lower(symbol), '-', connector) IN (${symbol:sqlstring})\nGROUP BY time, series\nORDER BY time ASC",
+          "rawSql": "SELECT\n  toStartOfFiveMinutes(timestamp) as time,\n  CONCAT(lower(symbol), '-', connector) as series,\n  sum(income) as pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY time, series\nORDER BY time ASC",
           "refId": "A"
         }
       ],
