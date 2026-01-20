@@ -36,7 +36,7 @@ impl Visitor<'_> for I64Visitor {
     type Value = Option<i64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string containing an i64 number")
+        formatter.write_str("a string containing an i64 number or null")
     }
 
     fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
@@ -48,6 +48,38 @@ impl Visitor<'_> for I64Visitor {
         } else {
             Ok(Some(s.parse::<i64>().map_err(Error::custom)?))
         }
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(None)
+    }
+}
+
+/// Visitor for Option<i64> that handles null from deserialize_option
+struct OptionI64Visitor;
+
+impl<'de> Visitor<'de> for OptionI64Visitor {
+    type Value = Option<i64>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string containing an i64 number or null")
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(None)
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(I64Visitor)
     }
 }
 
@@ -81,7 +113,7 @@ impl Visitor<'_> for F64Visitor {
     type Value = Option<f64>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string containing an f64 number")
+        formatter.write_str("a string containing an f64 number or null")
     }
 
     fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
@@ -94,6 +126,13 @@ impl Visitor<'_> for F64Visitor {
             Ok(Some(s.parse::<f64>().map_err(Error::custom)?))
         }
     }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(None)
+    }
 }
 
 pub fn from_str_to_i64<'de, D>(deserializer: D) -> Result<i64, D::Error>
@@ -101,7 +140,7 @@ where
     D: Deserializer<'de>,
 {
     deserializer
-        .deserialize_str(I64Visitor)
+        .deserialize_option(OptionI64Visitor)
         .map(|value| value.unwrap_or(0))
 }
 
@@ -110,7 +149,7 @@ where
     D: Deserializer<'de>,
 {
     deserializer
-        .deserialize_str(F64Visitor)
+        .deserialize_option(OptionF64Visitor)
         .map(|value| value.unwrap_or(0.0))
 }
 
