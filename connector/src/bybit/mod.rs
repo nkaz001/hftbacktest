@@ -120,6 +120,16 @@ pub struct Config {
     pub secret: String,
     pub category: String,
     pub order_prefix: String,
+    /// IPC service name for recording (e.g., "hft_recording")
+    #[serde(default)]
+    pub recording_service: Option<String>,
+    /// Connector name for recording events (defaults to "bybit")
+    #[serde(default = "default_connector_name")]
+    pub connector_name: String,
+}
+
+fn default_connector_name() -> String {
+    "bybit".to_string()
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;
@@ -203,6 +213,8 @@ impl Bybit {
         let instruments = self.symbols.clone();
         let client = self.client.clone();
         let symbol_tx = self.symbol_tx.clone();
+        let recording_service = self.config.recording_service.clone();
+        let connector_name = self.config.connector_name.clone();
 
         tokio::spawn(async move {
             let _ = Retry::new(ExponentialBackoff::default())
@@ -229,6 +241,8 @@ impl Bybit {
                         category.clone(),
                         client.clone(),
                         symbol_tx.subscribe(),
+                        recording_service.clone(),
+                        connector_name.clone(),
                     );
 
                     // Re-send all registered symbols to the new stream

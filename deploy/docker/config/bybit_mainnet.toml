@@ -29,3 +29,7 @@ order_prefix = "hft"
 # API credentials (substituted from environment at runtime)
 api_key = "${BYBIT_API_KEY}"
 secret = "${BYBIT_SECRET}"
+
+# Recording service for income events (commission tracking)
+recording_service = "hft_recording"
+connector_name = "bybit"

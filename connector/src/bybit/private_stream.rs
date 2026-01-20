@@ -3,6 +3,10 @@ use std::time::Duration;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
 use hftbacktest::prelude::LiveEvent;
+use order_recorder::{
+    events::{IncomeEvent, RecordingEvent},
+    service::RecordingPublisher,
+};
 use tokio::{
     net::TcpStream,
     select,
@@ -18,13 +22,13 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use crate::{
     bybit::{
         BybitError,
         SharedSymbolSet,
-        msg::{Op, PrivateStreamMsg, PrivateStreamTopicMsg},
+        msg::{Execution, Op, PrivateStreamMsg, PrivateStreamTopicMsg},
         ordermanager::{OrderExt, SharedOrderManager},
         rest::BybitClient,
     },
@@ -41,6 +45,8 @@ pub struct PrivateStream {
     category: String,
     client: BybitClient,
     symbol_rx: Receiver<String>,
+    recording_service: Option<String>,
+    connector_name: String,
 }
 
 impl PrivateStream {
@@ -53,6 +59,8 @@ impl PrivateStream {
         category: String,
         client: BybitClient,
         symbol_rx: Receiver<String>,
+        recording_service: Option<String>,
+        connector_name: String,
     ) -> Self {
         Self {
             api_key,
@@ -63,6 +71,58 @@ impl PrivateStream {
             category,
             client,
             symbol_rx,
+            recording_service,
+            connector_name,
+        }
+    }
+
+    /// Publish commission from execution (COMMISSION income event)
+    fn publish_commission(
+        execution: &Execution,
+        connector_name: &str,
+        recording_service: &str,
+    ) {
+        // Parse exec_fee - Bybit sends it as a string
+        let exec_fee = execution.exec_fee.parse::<f64>().unwrap_or(0.0);
+
+        // Skip if fee is zero
+        if exec_fee.abs() < 1e-12 {
+            return;
+        }
+
+        // For makers, fee is negative (rebate), for takers, fee is positive
+        // We store commission as negative value (cost) or positive (rebate)
+        // Bybit already sends the correct sign: negative for rebate, positive for cost
+        let commission = -exec_fee; // Negate because Bybit's convention is opposite
+
+        let income_event = IncomeEvent {
+            timestamp: execution.exec_time * 1_000_000, // Convert ms to ns
+            connector: connector_name.to_string(),
+            strategy_id: String::new(),
+            symbol: execution.symbol.clone(),
+            income_type: "COMMISSION".to_string(),
+            income: commission,
+            asset: "USDT".to_string(), // Bybit linear perps use USDT
+            info: format!("exec_id={}", execution.exec_id),
+            tran_id: 0, // Bybit doesn't provide transaction ID in execution
+            trade_id: execution.exec_id.clone(),
+        };
+
+        info!(
+            "Publishing commission: {} {} = {:.6} USDT (is_maker={})",
+            income_event.symbol, income_event.income_type, income_event.income, execution.is_maker
+        );
+
+        // Create publisher for each execution (RecordingPublisher is not Send)
+        match RecordingPublisher::new(recording_service) {
+            Ok(publisher) => {
+                if let Err(e) = publisher.publish(&RecordingEvent::Income(income_event)) {
+                    error!("Failed to publish commission: {:?}", e);
+                }
+            }
+            Err(e) => {
+                error!("Failed to create recording publisher: {:?}", e);
+            }
         }
     }
 
@@ -180,6 +240,11 @@ impl PrivateStream {
                 debug!(?data, "Execution");
                 let mut order_manager = self.order_manager.lock().unwrap();
                 for execution in &data.data {
+                    // Publish commission to order-recorder
+                    if let Some(ref service) = self.recording_service {
+                        Self::publish_commission(execution, &self.connector_name, service);
+                    }
+
                     match order_manager.update_execution(execution) {
                         Ok(OrderExt {
                             symbol: asset,
@@ -252,6 +317,10 @@ impl PrivateStream {
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
         let mut interval = time::interval(Duration::from_secs(10));
+
+        if self.recording_service.is_some() {
+            info!("Commission recording enabled for connector {}", self.connector_name);
+        }
 
         let expires = Utc::now().timestamp_millis() + 5000;
         let signature = sign_hmac_sha256(&self.secret, &format!("GET/realtime{expires}"));
