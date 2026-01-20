@@ -672,6 +672,7 @@ pub struct TransactionLogResponse {
     #[serde(rename = "retCode")]
     pub ret_code: i64,
     #[serde(rename = "retMsg")]
+    #[serde(default)]
     pub ret_msg: String,
     pub result: TransactionLogResult,
     pub time: i64,
