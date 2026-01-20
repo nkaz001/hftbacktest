@@ -1,3 +1,4 @@
+use std::sync::mpsc as std_mpsc;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -23,6 +24,15 @@ use tokio_tungstenite::{
     tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 use tracing::{debug, error, info};
+
+/// Data needed to publish a commission event
+struct CommissionData {
+    exec_fee: String,
+    exec_time: i64,
+    symbol: String,
+    exec_id: String,
+    is_maker: bool,
+}
 
 use crate::{
     bybit::{
@@ -76,65 +86,75 @@ impl PrivateStream {
         }
     }
 
-    /// Publish commission from execution in a blocking context
-    /// This is called from spawn_blocking to avoid Send issues with RecordingPublisher
-    fn publish_commission_blocking(
-        recording_service: &str,
-        connector_name: &str,
-        exec_fee_str: &str,
-        exec_time: i64,
-        symbol: &str,
-        exec_id: &str,
-        is_maker: bool,
-    ) {
-        // Parse exec_fee - Bybit sends it as a string
-        let exec_fee = exec_fee_str.parse::<f64>().unwrap_or(0.0);
+    /// Spawn a dedicated thread for commission publishing
+    /// Returns a sender that can be used to send commission data
+    fn spawn_commission_thread(
+        recording_service: String,
+        connector_name: String,
+    ) -> std_mpsc::Sender<CommissionData> {
+        let (tx, rx) = std_mpsc::channel::<CommissionData>();
 
-        // Skip if fee is zero
-        if exec_fee.abs() < 1e-12 {
-            return;
-        }
+        std::thread::spawn(move || {
+            // Create publisher once for the entire thread lifetime
+            let publisher = match RecordingPublisher::new(&recording_service) {
+                Ok(p) => {
+                    info!("Commission publisher created for connector {}", connector_name);
+                    p
+                }
+                Err(e) => {
+                    error!("Failed to create commission publisher: {:?}", e);
+                    return;
+                }
+            };
 
-        // For makers, fee is negative (rebate), for takers, fee is positive
-        // We store commission as negative value (cost) or positive (rebate)
-        // Bybit already sends the correct sign: negative for rebate, positive for cost
-        let commission = -exec_fee; // Negate because Bybit's convention is opposite
+            // Process commission events until channel is closed
+            while let Ok(data) = rx.recv() {
+                // Parse exec_fee - Bybit sends it as a string
+                let exec_fee = data.exec_fee.parse::<f64>().unwrap_or(0.0);
 
-        let income_event = IncomeEvent {
-            timestamp: exec_time * 1_000_000, // Convert ms to ns
-            connector: connector_name.to_string(),
-            strategy_id: String::new(),
-            symbol: symbol.to_string(),
-            income_type: "COMMISSION".to_string(),
-            income: commission,
-            asset: "USDT".to_string(), // Bybit linear perps use USDT
-            info: format!("exec_id={}", exec_id),
-            tran_id: 0, // Bybit doesn't provide transaction ID in execution
-            trade_id: exec_id.to_string(),
-        };
+                // Skip if fee is zero
+                if exec_fee.abs() < 1e-12 {
+                    continue;
+                }
 
-        info!(
-            "Publishing commission: {} {} = {:.6} USDT (is_maker={})",
-            symbol, income_event.income_type, income_event.income, is_maker
-        );
+                // For makers, fee is negative (rebate), for takers, fee is positive
+                // Bybit already sends the correct sign: negative for rebate, positive for cost
+                let commission = -exec_fee; // Negate because Bybit's convention is opposite
 
-        // Create publisher and send in blocking context
-        match RecordingPublisher::new(recording_service) {
-            Ok(publisher) => {
+                let income_event = IncomeEvent {
+                    timestamp: data.exec_time * 1_000_000, // Convert ms to ns
+                    connector: connector_name.clone(),
+                    strategy_id: String::new(),
+                    symbol: data.symbol.clone(),
+                    income_type: "COMMISSION".to_string(),
+                    income: commission,
+                    asset: "USDT".to_string(), // Bybit linear perps use USDT
+                    info: format!("exec_id={}", data.exec_id),
+                    tran_id: 0, // Bybit doesn't provide transaction ID in execution
+                    trade_id: data.exec_id.clone(),
+                };
+
+                info!(
+                    "Publishing commission: {} {} = {:.6} USDT (is_maker={})",
+                    data.symbol, income_event.income_type, income_event.income, data.is_maker
+                );
+
                 if let Err(e) = publisher.publish(&RecordingEvent::Income(income_event)) {
                     error!("Failed to publish commission: {:?}", e);
                 }
             }
-            Err(e) => {
-                error!("Failed to create recording publisher: {:?}", e);
-            }
-        }
+
+            info!("Commission publisher thread exiting");
+        });
+
+        tx
     }
 
     async fn handle_private_stream(
         &self,
         text: &str,
         write: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+        commission_tx: Option<&std_mpsc::Sender<CommissionData>>,
     ) -> Result<(), BybitError> {
         let stream = serde_json::from_str::<PrivateStreamMsg>(text)?;
         match stream {
@@ -245,26 +265,18 @@ impl PrivateStream {
                 debug!(?data, "Execution");
                 let mut order_manager = self.order_manager.lock().unwrap();
                 for execution in &data.data {
-                    // Publish commission to order-recorder using spawn_blocking
-                    if let Some(ref service) = self.recording_service {
-                        let service = service.clone();
-                        let connector_name = self.connector_name.clone();
-                        let exec_fee = execution.exec_fee.clone();
-                        let exec_time = execution.exec_time;
-                        let symbol = execution.symbol.clone();
-                        let exec_id = execution.exec_id.clone();
-                        let is_maker = execution.is_maker;
-                        tokio::task::spawn_blocking(move || {
-                            Self::publish_commission_blocking(
-                                &service,
-                                &connector_name,
-                                &exec_fee,
-                                exec_time,
-                                &symbol,
-                                &exec_id,
-                                is_maker,
-                            );
-                        });
+                    // Send commission data to dedicated publishing thread
+                    if let Some(tx) = commission_tx {
+                        let data = CommissionData {
+                            exec_fee: execution.exec_fee.clone(),
+                            exec_time: execution.exec_time,
+                            symbol: execution.symbol.clone(),
+                            exec_id: execution.exec_id.clone(),
+                            is_maker: execution.is_maker,
+                        };
+                        if let Err(e) = tx.send(data) {
+                            error!("Failed to send commission data: {:?}", e);
+                        }
                     }
 
                     match order_manager.update_execution(execution) {
@@ -340,9 +352,10 @@ impl PrivateStream {
         let (mut write, mut read) = ws_stream.split();
         let mut interval = time::interval(Duration::from_secs(10));
 
-        if self.recording_service.is_some() {
-            info!("Commission recording enabled for connector {}", self.connector_name);
-        }
+        // Spawn dedicated thread for commission publishing if recording is enabled
+        let commission_tx = self.recording_service.as_ref().map(|service| {
+            Self::spawn_commission_thread(service.clone(), self.connector_name.clone())
+        });
 
         let expires = Utc::now().timestamp_millis() + 5000;
         let signature = sign_hmac_sha256(&self.secret, &format!("GET/realtime{expires}"));
@@ -421,6 +434,7 @@ impl PrivateStream {
                             match self.handle_private_stream(
                                 &text,
                                 &mut write,
+                                commission_tx.as_ref(),
                             ).await {
                                 Ok(_) => {}
                                 Err(BybitError::PrefixUnmatched) => {
