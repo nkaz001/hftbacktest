@@ -358,20 +358,18 @@ impl Connector for Bybit {
             .new_order(&asset, &self.config.category, order)
         {
             Ok(bybit_order) => {
-                self.order_tx
-                    .send(OrderOp {
-                        op: "order.create",
-                        bybit_order,
-                    })
-                    .unwrap();
+                if let Err(e) = self.order_tx.send(OrderOp {
+                    op: "order.create",
+                    bybit_order,
+                }) {
+                    error!("Failed to send order to trade stream (disconnected?): {:?}", e);
+                }
             }
             Err(error) => {
-                ev_tx
-                    .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
-                        ErrorKind::OrderError,
-                        error.to_value(),
-                    ))))
-                    .unwrap();
+                let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                    ErrorKind::OrderError,
+                    error.to_value(),
+                ))));
             }
         }
     }
@@ -383,20 +381,18 @@ impl Connector for Bybit {
             order.order_id,
         ) {
             Ok(bybit_order) => {
-                self.order_tx
-                    .send(OrderOp {
-                        op: "order.cancel",
-                        bybit_order,
-                    })
-                    .unwrap();
+                if let Err(e) = self.order_tx.send(OrderOp {
+                    op: "order.cancel",
+                    bybit_order,
+                }) {
+                    error!("Failed to send cancel to trade stream (disconnected?): {:?}", e);
+                }
             }
             Err(error) => {
-                ev_tx
-                    .send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
-                        ErrorKind::OrderError,
-                        error.to_value(),
-                    ))))
-                    .unwrap();
+                let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Error(LiveError::with(
+                    ErrorKind::OrderError,
+                    error.to_value(),
+                ))));
             }
         }
     }
