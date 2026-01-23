@@ -608,19 +608,26 @@ pub struct RestResponse {
 }
 
 /// Transaction log entry from /v5/account/transaction-log
+/// Note: Many fields can be null in Bybit's API response, so we use nullable_string
+/// to handle both missing fields and explicit null values.
 #[derive(Deserialize, Debug, Clone)]
 pub struct TransactionLogEntry {
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub symbol: String,
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub side: String,
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub funding: String,
     #[serde(rename = "orderLinkId")]
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub order_link_id: String,
     #[serde(rename = "orderId")]
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub order_id: String,
     #[serde(deserialize_with = "from_str_to_f64")]
     pub fee: f64,
@@ -634,9 +641,11 @@ pub struct TransactionLogEntry {
     pub transaction_time: i64,
     #[serde(rename = "type")]
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub tx_type: String,
     #[serde(rename = "feeRate")]
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub fee_rate: String,
     #[serde(rename = "tradePrice")]
     #[serde(default)]
@@ -649,11 +658,14 @@ pub struct TransactionLogEntry {
     #[serde(deserialize_with = "from_str_to_f64")]
     pub cash_balance: f64,
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub category: String,
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub currency: String,
     #[serde(rename = "tradeId")]
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub trade_id: String,
 }
 
@@ -663,6 +675,7 @@ pub struct TransactionLogResult {
     pub list: Vec<TransactionLogEntry>,
     #[serde(rename = "nextPageCursor")]
     #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub next_page_cursor: String,
 }
 
