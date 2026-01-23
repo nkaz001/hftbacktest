@@ -160,6 +160,60 @@ where
     deserializer.deserialize_option(OptionF64Visitor)
 }
 
+/// Visitor for nullable strings - handles explicit null in JSON
+struct NullableStringVisitor;
+
+impl<'de> Visitor<'de> for NullableStringVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string or null")
+    }
+
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(s.to_string())
+    }
+
+    fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(s)
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(String::new())
+    }
+
+    fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(NullableStringVisitor)
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(String::new())
+    }
+}
+
+/// Deserialize a string that may be null in JSON to an empty string
+pub fn nullable_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_option(NullableStringVisitor)
+}
+
 pub fn to_uppercase<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,

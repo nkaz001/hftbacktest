@@ -9,7 +9,7 @@ use serde::{
     de::{Error, Unexpected, Visitor},
 };
 
-use crate::utils::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64};
+use crate::utils::{from_str_to_f64, from_str_to_f64_opt, from_str_to_i64, nullable_string};
 
 struct SideVisitor;
 
@@ -672,7 +672,7 @@ pub struct TransactionLogResponse {
     #[serde(rename = "retCode")]
     pub ret_code: i64,
     #[serde(rename = "retMsg")]
-    #[serde(default)]
+    #[serde(deserialize_with = "nullable_string")]
     pub ret_msg: String,
     pub result: TransactionLogResult,
     pub time: i64,
