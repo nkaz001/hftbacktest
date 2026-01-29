@@ -160,16 +160,42 @@ impl WelfordRolling {
         self.m2 / (n - 1) as f64
     }
 
-    /// Returns the current sample standard deviation.
+    /// Returns the current sample standard deviation (ddof=1).
     #[inline]
     pub fn std(&self) -> f64 {
         self.variance().sqrt()
     }
 
-    /// Computes the z-score for the given value using current statistics.
+    /// Returns the current population variance (ddof=0, like numpy default).
+    #[inline]
+    pub fn population_variance(&self) -> f64 {
+        let n = self.ring.len();
+        if n < 1 {
+            return 0.0;
+        }
+        self.m2 / n as f64
+    }
+
+    /// Returns the current population standard deviation (ddof=0, like numpy default).
+    #[inline]
+    pub fn population_std(&self) -> f64 {
+        self.population_variance().sqrt()
+    }
+
+    /// Computes the z-score for the given value using current statistics (sample std, ddof=1).
     #[inline]
     pub fn zscore(&self, value: f64) -> f64 {
         let std = self.std();
+        if std < 1e-10 {
+            return 0.0;
+        }
+        (value - self.mean) / std
+    }
+
+    /// Computes the z-score using population std (ddof=0, like numpy default).
+    #[inline]
+    pub fn population_zscore(&self, value: f64) -> f64 {
+        let std = self.population_std();
         if std < 1e-10 {
             return 0.0;
         }

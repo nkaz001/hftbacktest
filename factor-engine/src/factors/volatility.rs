@@ -88,7 +88,8 @@ impl VolatilityFactor {
             if self.last_price > 0.0 {
                 let ret = price / self.last_price - 1.0;
                 self.welford.update(ret);
-                self.current_value = self.welford.std();
+                // Use population std (ddof=0) to match numpy default
+                self.current_value = self.welford.population_std();
                 self.sample_count += 1;
             }
 

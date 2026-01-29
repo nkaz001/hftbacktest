@@ -1,0 +1,30 @@
+{
+  "global": {
+    "grid_interval": 1,
+    "grid_num": 1,
+    "max_position": 3600,
+    "order_qty": 180,
+    "roi_lb": 0.24864,
+    "roi_ub": 1.32167
+  },
+  "params": {
+    "c1": 0.000175,
+    "half_spread": 0.0027,
+    "live_seconds": 80,
+    "looking_depth": 0.01,
+    "power": 0.3,
+    "skew": 0.000097,
+    "update_interval_ns": 10000000000,
+    "volatility_interval_ns": 10000000000,
+    "volatility_window": 25,
+    "window": 25
+  },
+  "stop_loss": {
+    "change_mean": 4e-7,
+    "change_std": 0.001687,
+    "change_threshold": 2,
+    "volatility_mean": 0.001343,
+    "volatility_std": 0.0010204,
+    "volatility_threshold": 2
+  }
+}

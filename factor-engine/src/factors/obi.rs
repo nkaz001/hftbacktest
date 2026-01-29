@@ -149,7 +149,7 @@ impl OBIFactor {
 
         // Update rolling statistics and compute z-score
         self.welford.update(self.current_raw);
-        self.current_zscore = self.welford.zscore(self.current_raw);
+        self.current_zscore = self.welford.population_zscore(self.current_raw);
 
         self.current_zscore
     }
@@ -240,7 +240,7 @@ impl OBIFactor {
 
         // Update rolling statistics and compute z-score
         self.welford.update(self.current_raw);
-        self.current_zscore = self.welford.zscore(self.current_raw);
+        self.current_zscore = self.welford.population_zscore(self.current_raw);
 
         self.current_zscore
     }
@@ -282,17 +282,21 @@ mod tests {
 
     #[test]
     fn test_obi_factor_basic() {
-        let mut obi = OBIFactor::new(0.001, 0.1, 0, 1000, 10);
+        // Use larger looking_depth (1% = 0.01) to capture meaningful depth
+        let mut obi = OBIFactor::new(0.01, 0.1, 0, 1000, 10);
 
         // Create simple depth arrays
         let bid_depth = vec![100.0; 1000];
         let ask_depth = vec![50.0; 1000];
 
-        // Best bid at tick 500, best ask at tick 501
-        let zscore = obi.update(&bid_depth, &ask_depth, 500, 501, 50.0);
+        // Best bid at tick 500, best ask at tick 501, mid_price = 50.05
+        // With 1% depth:
+        //   Ask range: 501 to floor(50.05 * 1.01 / 0.1) = 505
+        //   Bid range: 500 down to ceil(50.05 * 0.99 / 0.1) = 496
+        let zscore = obi.update(&bid_depth, &ask_depth, 500, 501, 50.05);
 
-        // First value, z-score should be 0 (no variance yet)
-        assert!(obi.raw() != 0.0);
+        // With asymmetric depth (bid=100, ask=50), raw OBI should be positive
+        assert!(obi.raw() > 0.0, "raw OBI should be positive, got {}", obi.raw());
         assert!(zscore.is_finite());
     }
 }

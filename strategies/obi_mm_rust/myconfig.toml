@@ -1,0 +1,49 @@
+# OBI MM Strategy Configuration Example
+
+[global]
+# Order quantity per grid level
+order_qty = 0.01
+# Maximum position allowed
+max_position = 0.1
+# Number of grid levels
+grid_num = 3
+# Interval between grid levels
+grid_interval = 0.1
+# Lower bound for ROI (Region of Interest)
+roi_lb = 0.0
+# Upper bound for ROI
+roi_ub = 200000.0
+
+[params]
+# Depth percentage to look at for OBI calculation (0.001 = 0.1%)
+looking_depth = 0.001
+# Window size for OBI z-score normalization
+window = 3600
+# Half spread as a fraction of mid price
+half_spread = 0.0002
+# Skew factor for position adjustment
+skew = 0.01
+# Alpha coefficient for fair price adjustment
+c1 = 0.0001
+# Power for volatility adjustment
+power = 1.0
+# Minimum order live time in seconds before cancellation
+live_seconds = 30.0
+# Interval for strategy updates in nanoseconds (10 seconds)
+update_interval_ns = 10_000_000_000
+# Interval for volatility calculation in nanoseconds (60 seconds)
+volatility_interval_ns = 60_000_000_000
+
+[stop_loss]
+# Historical mean volatility
+volatility_mean = 0.005
+# Historical std of volatility
+volatility_std = 0.002
+# Historical mean price change
+change_mean = 0.001
+# Historical std of price change
+change_std = 0.003
+# Volatility z-score threshold for stop loss
+volatility_threshold = 3.0
+# Change z-score threshold for stop loss
+change_threshold = 3.0

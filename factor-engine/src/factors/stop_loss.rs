@@ -97,6 +97,10 @@ impl StopLossChecker {
 
     /// Checks the current market conditions and returns stop loss status.
     ///
+    /// This matches the Python implementation in `bybit_mm/core/utils.py`:
+    /// - Trigger: vol_zscore >= threshold AND change_zscore >= threshold * 2
+    /// - Recovery: vol_zscore <= threshold / 2 (hysteresis)
+    ///
     /// # Arguments
     ///
     /// * `volatility` - Current rolling volatility
@@ -114,17 +118,29 @@ impl StopLossChecker {
             0.0
         };
 
+        // Note: Python uses abs(change - mean), not abs(change) - mean
         let change_zscore = if self.change_std > 1e-10 {
-            (minute_change.abs() - self.change_mean) / self.change_std
+            (minute_change - self.change_mean).abs() / self.change_std
         } else {
             0.0
         };
 
-        // Check thresholds
-        if vol_zscore > self.volatility_threshold || change_zscore > self.change_threshold {
-            self.status = StopLossStatus::Triggered;
-        } else {
-            self.status = StopLossStatus::Normal;
+        // State machine with hysteresis (matches Python logic)
+        match self.status {
+            StopLossStatus::Normal => {
+                // Trigger condition: vol >= threshold AND change >= threshold * 2
+                if vol_zscore >= self.volatility_threshold
+                    && change_zscore >= self.change_threshold * 2.0
+                {
+                    self.status = StopLossStatus::Triggered;
+                }
+            }
+            StopLossStatus::Triggered | StopLossStatus::Cooldown => {
+                // Recovery condition: vol <= threshold / 2 (hysteresis)
+                if vol_zscore <= self.volatility_threshold / 2.0 {
+                    self.status = StopLossStatus::Normal;
+                }
+            }
         }
 
         self.status
@@ -180,28 +196,57 @@ mod tests {
     fn test_stop_loss_normal() {
         let mut checker = StopLossChecker::new(0.005, 0.002, 0.001, 0.003, 3.0, 3.0);
 
-        // Normal conditions
+        // Normal conditions - should stay normal
         let status = checker.check(0.005, 0.001);
         assert_eq!(status, StopLossStatus::Normal);
     }
 
     #[test]
-    fn test_stop_loss_volatility_trigger() {
+    fn test_stop_loss_trigger_requires_both_conditions() {
         let mut checker = StopLossChecker::new(0.005, 0.002, 0.001, 0.003, 3.0, 3.0);
 
-        // High volatility (> 3 std above mean)
+        // High volatility alone should NOT trigger (need both vol AND change)
         let high_vol = 0.005 + 3.5 * 0.002; // 3.5 std above mean
-        let status = checker.check(high_vol, 0.001);
+        let status = checker.check(high_vol, 0.001); // normal change
+        assert_eq!(status, StopLossStatus::Normal);
+
+        // Large change alone should NOT trigger
+        let mut checker2 = StopLossChecker::new(0.005, 0.002, 0.001, 0.003, 3.0, 3.0);
+        let large_change = 0.001 + 6.5 * 0.003; // 6.5 std above mean (>= 3*2)
+        let status = checker2.check(0.005, large_change); // normal vol
+        assert_eq!(status, StopLossStatus::Normal);
+    }
+
+    #[test]
+    fn test_stop_loss_trigger_with_both_conditions() {
+        let mut checker = StopLossChecker::new(0.005, 0.002, 0.001, 0.003, 3.0, 3.0);
+
+        // Both conditions met: vol >= 3 std AND change >= 6 std
+        // Use slightly above threshold to avoid floating point issues
+        let high_vol = 0.005 + 3.1 * 0.002; // 3.1 std above mean
+        let large_change = 0.001 + 6.1 * 0.003; // 6.1 std above mean (>= 3*2)
+        let status = checker.check(high_vol, large_change);
         assert_eq!(status, StopLossStatus::Triggered);
     }
 
     #[test]
-    fn test_stop_loss_change_trigger() {
+    fn test_stop_loss_recovery_with_hysteresis() {
         let mut checker = StopLossChecker::new(0.005, 0.002, 0.001, 0.003, 3.0, 3.0);
 
-        // Large price change (> 3 std above mean)
-        let large_change = 0.001 + 3.5 * 0.003; // 3.5 std above mean
-        let status = checker.check(0.005, large_change);
-        assert_eq!(status, StopLossStatus::Triggered);
+        // Trigger stop loss
+        let high_vol = 0.005 + 3.1 * 0.002;
+        let large_change = 0.001 + 6.1 * 0.003;
+        checker.check(high_vol, large_change);
+        assert_eq!(checker.status(), StopLossStatus::Triggered);
+
+        // Vol drops to 2 std - should still be triggered (hysteresis, need vol <= 1.5)
+        let medium_vol = 0.005 + 2.0 * 0.002;
+        checker.check(medium_vol, 0.001);
+        assert_eq!(checker.status(), StopLossStatus::Triggered);
+
+        // Vol drops to 1.4 std (below 3/2=1.5) - should recover
+        let low_vol = 0.005 + 1.4 * 0.002;
+        checker.check(low_vol, 0.001);
+        assert_eq!(checker.status(), StopLossStatus::Normal);
     }
 }

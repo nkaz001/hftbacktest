@@ -21,7 +21,7 @@ path = "src/testnet.rs"
 required-features = ["live"]
 
 [dependencies]
-hftbacktest = { path = "../../hftbacktest" }
+hftbacktest = { path = "../../hftbacktest", default-features = false, features = ["backtest"] }
 factor-engine = { path = "../../factor-engine" }
 order-recorder = { path = "../../order-recorder", optional = true }
 tracing = "0.1"
