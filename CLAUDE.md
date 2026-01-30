@@ -249,8 +249,69 @@ docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet up -d
 - **Bybit latency:** ~17ms
 - **Config path:** `~/hftbacktest/deploy/docker/`
 
+### Backtest Alignment Tools
+
+Tools for verifying alignment between Python strategy backtests and Rust implementations before live deployment.
+
+**Quick Start:**
+```bash
+# Compare Rust and Python backtest results
+python tools/backtest_alignment/compare.py \
+  --rust obi_mm0.csv \
+  --python obi_mm_python.npz \
+  --output ./results
+```
+
+**Claude Skill:** Use `/align-backtest` to invoke the alignment workflow, which guides through:
+1. Running both Python and Rust backtests
+2. Computing correlation metrics (PnL, position, balance)
+3. Identifying common discrepancies
+4. Applying fixes and verifying alignment
+
+**Alignment Thresholds:**
+| Metric | Threshold | Status |
+|--------|-----------|--------|
+| PnL Pearson | > 0.95 | GOOD - ready for live |
+| PnL Pearson | 0.8 - 0.95 | NEEDS WORK - investigate |
+| PnL Pearson | < 0.8 | POOR - significant issues |
+
+**Common Alignment Issues:**
+
+1. **Standard Deviation (ddof)**
+   - Python `np.nanstd()` uses ddof=0 (population std)
+   - Rust: use `welford.population_std()` not `welford.std()`
+
+2. **Stop Loss Logic**
+   - Trigger: `vol_zscore >= threshold AND change_zscore >= threshold * 2`
+   - Recovery: `vol_zscore <= threshold / 2` (hysteresis)
+
+3. **Warmup Behavior**
+   - Original Python often has NO warmup check
+   - Remove `is_ready()` check in Rust if Python trades immediately
+
+4. **Volatility Window Timing**
+   - Python: `change_t > 60` (needs 61+ samples)
+   - Rust: use `sample_count() > volatility_window`, not `>=`
+
+**API Usage:**
+```python
+from tools.backtest_alignment import (
+    load_rust_results,
+    load_python_results,
+    compute_alignment_metrics,
+    plot_comparison
+)
+
+rust_df = load_rust_results('obi_mm0.csv')
+python_df = load_python_results('obi_mm_python.npz')
+metrics, merged = compute_alignment_metrics(rust_df, python_df)
+print(metrics.summary())
+plot_comparison(rust_df, python_df, merged, metrics, 'comparison.png')
+```
+
 ### Key Documentation
 - `docs/LIVE_TRADING_ARCHITECTURE.md`: Detailed live trading system architecture (Chinese)
 - `docs/FACTOR_FRAMEWORK_DESIGN.md`: Factor computation framework design
 - `docs/STRATEGY_GUIDE.md`: Strategy implementation guide
 - `deploy/docker/README.md`: Docker deployment guide
+- `tools/backtest_alignment/README.md`: Backtest alignment tools guide

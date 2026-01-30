@@ -1,8 +1,8 @@
 """
 OBI MM Strategy Backtest - Python Version
+Based on mm_logic_v18.py from Bybit_mm
 
-This script runs the OBI MM strategy to compare with the Rust version.
-Uses identical parameters for consistency verification.
+This script runs the OBI MM strategy backtest with the same logic as production.
 """
 
 import argparse
@@ -11,58 +11,79 @@ from typing import List
 from dataclasses import dataclass
 
 import numpy as np
-from numba import njit, uint64, float64, int64, boolean
+from numba import njit, uint64, float64, int64
 from numba.typed import Dict
-from numba.experimental import jitclass
 
 from hftbacktest import (
     BacktestAsset,
-    HashMapMarketDepthBacktest,
     ROIVectorMarketDepthBacktest,
     GTX,
     LIMIT,
     MARKET,
     BUY,
     SELL,
-    FILLED,
     Recorder,
 )
 from hftbacktest.order import IOC
 
 
-# Configuration matching Rust defaults
+# Configuration matching production defaults
 @dataclass
 class GlobalConfig:
-    order_qty: float = 0.01
-    max_position: float = 0.1
-    grid_num: int = 3
-    grid_interval: float = 0.1
-    roi_lb: float = 0.0
-    roi_ub: float = 200000.0
+    order_qty: float = 0.001
+    max_position: float = 0.015
+    grid_num: int = 1
+    grid_interval: float = 1.0
+    roi_lb: float = 10000.0
+    roi_ub: float = 150000.0
 
 
 @dataclass
 class StrategyParams:
-    looking_depth: float = 0.001
-    window: int = 3600
-    volatility_window: int = 60  # Window size for volatility calculation
-    half_spread: float = 0.0002
-    skew: float = 0.01
-    c1: float = 0.0001
-    power: float = 1.0
-    live_seconds: float = 30.0
-    update_interval_ns: int = 10_000_000_000  # 10 seconds
-    volatility_interval_ns: int = 60_000_000_000  # 60 seconds
+    looking_depth: float = 0.025
+    window: int = 30
+    half_spread: float = 0.002
+    skew: float = 0.000023
+    c1: float = 0.00024
+    power: float = 0.2
+    live_seconds: float = 130.0
 
 
 @dataclass
 class StopLossConfig:
-    volatility_mean: float = 0.005
-    volatility_std: float = 0.002
-    change_mean: float = 0.001
-    change_std: float = 0.003
-    volatility_threshold: float = 3.0
-    change_threshold: float = 3.0
+    threshold: float = 3.0
+    volatility_mean: float = 0.0006142
+    volatility_std: float = 0.0004217
+    change_mean: float = 0.0000008
+    change_std: float = 0.0007443
+
+
+@njit
+def check_stop_loss(
+    status: int,
+    volatility: float,
+    change: float,
+    threshold: float,
+    volatility_mean: float,
+    volatility_std: float,
+    change_mean: float,
+    change_std: float,
+) -> int:
+    """
+    Stop loss check matching production logic (utils.py StopLossFunc.check_stop_loss)
+
+    Trigger: vol_zscore >= threshold AND change_zscore >= threshold * 2
+    Recovery: vol_zscore <= threshold / 2
+    """
+    vol_zscore = (volatility - volatility_mean) / volatility_std if volatility_std > 0 else 0.0
+    change_zscore = np.abs(change - change_mean) / change_std if change_std > 0 else 0.0
+
+    if vol_zscore >= threshold and change_zscore >= threshold * 2:
+        return 1
+    elif vol_zscore <= threshold / 2:
+        return 0
+    # Otherwise keep current status (hysteresis)
+    return status
 
 
 @njit
@@ -79,30 +100,25 @@ def obi_mm_strategy(
     # Strategy params
     looking_depth: float,
     window: int,
-    volatility_window: int,
     half_spread: float,
     skew: float,
     c1: float,
     power: float,
     live_seconds: float,
-    update_interval_ns: int,
-    volatility_interval_ns: int,
     # Stop loss config
+    threshold: float,
     volatility_mean: float,
     volatility_std: float,
     change_mean: float,
     change_std: float,
-    volatility_threshold: float,
-    change_threshold: float,
 ):
     """
-    OBI Market Making Strategy - matches Rust implementation.
+    OBI Market Making Strategy - matches mm_logic_v18.py exactly.
     """
     asset_no = 0
     tick_size = hbt.depth(asset_no).tick_size
-    lot_size = hbt.depth(asset_no).lot_size
 
-    # Pre-allocate timeseries (matching Python original)
+    # Pre-allocate timeseries
     imbalance_timeseries = np.full(30_000_000, np.nan, np.float64)
     change_timeseries = np.full(30_000_000, np.nan, np.float64)
 
@@ -116,14 +132,14 @@ def obi_mm_strategy(
     last_price = 0.0
     stop_loss_status = 0
     volatility = volatility_mean
+    minute_change = 0.0
 
-    iteration = 0
     last_log_time = int64(0)
+    update_interval_ns = 10_000_000_000  # 10 seconds
 
-    # Main loop using wait_next_feed (event-driven)
+    # Main loop
     while hbt.elapse(1_000_000_000) == 0:  # 1 second steps
         current_timestamp = hbt.current_timestamp
-        iteration += 1
 
         # Clear filled orders
         hbt.clear_inactive_orders(asset_no)
@@ -143,7 +159,8 @@ def obi_mm_strategy(
         best_bid = depth.best_bid
         best_ask = depth.best_ask
 
-        if best_bid <= 0.0 or best_ask <= 0.0:
+        # Handle NaN (when depth is not initialized)
+        if not (best_bid > 0.0 and best_ask > 0.0):
             recorder.record(hbt)
             continue
 
@@ -151,30 +168,34 @@ def obi_mm_strategy(
         best_bid_tick = depth.best_bid_tick
         best_ask_tick = depth.best_ask_tick
 
-        # Update volatility (every 60 seconds)
+        # Volatility tracking (every 60 seconds = 6 periods of 10s)
         change_period = current_period // 6
-        minute_change = 0.0
 
         if change_period > last_change_period:
-            if last_price > 0.0:
-                minute_change = mid_price / last_price - 1.0
-                change_timeseries[change_t] = minute_change
-            else:
+            if last_price == 0:
                 change_timeseries[change_t] = 0.0
+            else:
+                change_timeseries[change_t] = mid_price / last_price - 1.0
 
-            if change_t > volatility_window:
-                volatility = np.nanstd(change_timeseries[max(0, change_t + 1 - volatility_window):change_t + 1])
+            minute_change = change_timeseries[change_t]
+
+            # Volatility window is fixed at 60 in original
+            if change_t > 60:
+                volatility = np.nanstd(change_timeseries[max(0, change_t + 1 - 60):change_t + 1])
             else:
                 volatility = volatility_mean
 
-            # Check stop loss
-            vol_zscore = (volatility - volatility_mean) / volatility_std if volatility_std > 0 else 0
-            change_zscore = np.abs(minute_change - change_mean) / change_std if change_std > 0 else 0
-
-            if vol_zscore > volatility_threshold or change_zscore > change_threshold:
-                stop_loss_status = 1
-            else:
-                stop_loss_status = 0
+            # Check stop loss with AND condition and hysteresis
+            stop_loss_status = check_stop_loss(
+                stop_loss_status,
+                volatility,
+                minute_change,
+                threshold,
+                volatility_mean,
+                volatility_std,
+                change_mean,
+                change_std,
+            )
 
             last_price = mid_price
             last_change_period = change_period
@@ -195,22 +216,10 @@ def obi_mm_strategy(
 
         imbalance_timeseries[t] = sum_bid_qty - sum_ask_qty
 
-        # Standardize OBI (z-score)
+        # Standardize OBI (z-score) - uses np.nanstd which is ddof=0
         m = np.nanmean(imbalance_timeseries[max(0, t + 1 - window):t + 1])
         s = np.nanstd(imbalance_timeseries[max(0, t + 1 - window):t + 1])
         alpha = np.divide(imbalance_timeseries[t] - m, s) if s > 1e-10 else 0.0
-
-        t += 1
-        last_check_period = current_period
-
-        # Skip trading if factors are not ready (still warming up)
-        # OBI needs `window` samples, volatility needs `volatility_window` samples
-        if t < window or change_t < volatility_window:
-            if current_timestamp - last_log_time >= 3600_000_000_000:
-                print(f"[WARMUP] OBI: {t}/{window}, Vol: {change_t}/{volatility_window}")
-                last_log_time = current_timestamp
-            recorder.record(hbt)
-            continue
 
         # Compute prices
         volatility_ratio = (volatility / volatility_mean) ** power
@@ -305,6 +314,11 @@ def obi_mm_strategy(
             position = hbt.position(asset_no)
             order_qty_stop = np.abs(position)
             if order_qty_stop > 1e-9:
+                # Log stop loss trigger
+                vol_zscore = (volatility - volatility_mean) / volatility_std
+                change_zscore = np.abs(minute_change - change_mean) / change_std
+                print(change_t, position, current_timestamp, "止损触发", vol_zscore, change_zscore)
+
                 if position > 0:
                     order_price = (np.round(mid_price / tick_size) - 200) * tick_size
                     hbt.submit_sell_order(asset_no, 519, order_price, order_qty_stop, IOC, MARKET, True)
@@ -312,9 +326,12 @@ def obi_mm_strategy(
                     order_price = (np.round(mid_price / tick_size) + 200) * tick_size
                     hbt.submit_buy_order(asset_no, 519, order_price, order_qty_stop, IOC, MARKET, True)
 
+        t += 1
+        last_check_period = current_period
+
         # Log progress
         if current_timestamp - last_log_time >= 3600_000_000_000:  # Every hour
-            print("Time:", current_timestamp // 1_000_000_000, "Position:", position, "Mid:", mid_price)
+            print("Time:", current_timestamp // 1_000_000_000, "Position:", position, "Mid:", mid_price, "StopLoss:", stop_loss_status)
             last_log_time = current_timestamp
 
         if t >= len(imbalance_timeseries):
@@ -326,9 +343,9 @@ def obi_mm_strategy(
 
 
 def run_backtest(data_files: List[str], output_path: str = "."):
-    """Run OBI MM backtest with given data files."""
+    """Run OBI MM backtest with production parameters."""
 
-    # Use default configs (matching Rust)
+    # Use production configs
     g = GlobalConfig()
     p = StrategyParams()
     sl = StopLossConfig()
@@ -337,28 +354,25 @@ def run_backtest(data_files: List[str], output_path: str = "."):
         BacktestAsset()
         .data(data_files)
         .linear_asset(1.0)
-        .power_prob_queue_model(3.0)  # Match Rust: PowerProbQueueFunc3::new(3.0)
+        .power_prob_queue_model(3.0)
         .no_partial_fill_exchange()
-        .trading_value_fee_model(-0.00005, 0.0007)  # Maker rebate, taker fee
-        .constant_order_latency(1_000_000, 1_000_000)  # 1ms
+        .trading_value_fee_model(-0.00005, 0.0007)
+        .constant_order_latency(1_000_000, 1_000_000)
         .tick_size(0.1)
         .lot_size(0.001)
         .roi_lb(g.roi_lb)
         .roi_ub(g.roi_ub)
     )
 
-    # Create backtest instance (use ROIVector for direct depth array access)
     hbt = ROIVectorMarketDepthBacktest([asset])
-
-    # Create recorder (1 asset, 100k records max)
     recorder = Recorder(1, 100_000)
 
-    print("Running OBI MM backtest (Python version)...")
+    print("Running OBI MM backtest (Python version - matching mm_logic_v18.py)...")
     print(f"Data files: {data_files}")
 
     success = obi_mm_strategy(
         hbt,
-        recorder.recorder,  # Pass the jitclass instance
+        recorder.recorder,
         # Global config
         g.order_qty,
         g.max_position,
@@ -369,21 +383,17 @@ def run_backtest(data_files: List[str], output_path: str = "."):
         # Strategy params
         p.looking_depth,
         p.window,
-        p.volatility_window,
         p.half_spread,
         p.skew,
         p.c1,
         p.power,
         p.live_seconds,
-        p.update_interval_ns,
-        p.volatility_interval_ns,
         # Stop loss config
+        sl.threshold,
         sl.volatility_mean,
         sl.volatility_std,
         sl.change_mean,
         sl.change_std,
-        sl.volatility_threshold,
-        sl.change_threshold,
     )
 
     if success:
@@ -403,7 +413,7 @@ def run_backtest(data_files: List[str], output_path: str = "."):
     print(f"Trade Volume: {state.trading_volume:.4f}")
     print(f"Trade Amount: {state.trading_value:.4f}")
 
-    # Calculate net PnL (balance + fee for maker rebate)
+    # Calculate net PnL
     net_pnl = state.balance + state.fee
     print(f"Net PnL: {net_pnl:.4f}")
 

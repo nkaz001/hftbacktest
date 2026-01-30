@@ -158,10 +158,13 @@ impl ObiMmStrategy {
             }
 
             // Update volatility factor
-            volatility = self.volatility_factor.update(current_timestamp, mid_price);
-            if volatility == 0.0 {
-                volatility = self.stop_loss.volatility_mean();
+            // Note: Python uses `change_t > 60` (needs 61+ samples) before computing volatility
+            // So we need sample_count > volatility_window, not >= volatility_window
+            let _ = self.volatility_factor.update(current_timestamp, mid_price);
+            if self.volatility_factor.sample_count() > self.params.volatility_window {
+                volatility = self.volatility_factor.volatility();
             }
+            // Otherwise keep default volatility_mean (already set above)
 
             // Check stop loss
             let prev_status = self.stop_loss.status();
@@ -192,10 +195,10 @@ impl ObiMmStrategy {
 
         self.last_check_period = current_period;
 
-        // Skip trading if factors are not ready (still warming up)
-        if !self.is_ready() {
-            return false;
-        }
+        // Note: Python (mm_logic_v18.py) has NO warmup check - it starts trading immediately
+        // The OBI zscore returns 0.0 when std is small, which results in alpha=0 during warmup
+        // Orders are still submitted at the volatility-adjusted spread around mid price
+        // The is_finite() checks on bid_price/ask_price handle any edge cases
 
         // Compute prices
         let volatility_ratio =

@@ -20,7 +20,7 @@ looking_depth = 0.025      # 2.5% depth for OBI
 window = 30                # 30 minute rolling window (window_minutes from Nautilus)
 
 # Volatility
-volatility_window = 30     # 30 minute volatility window
+volatility_window = 60     # 60 samples (matching mm_logic_v18.py hardcoded value)
 
 # Spread
 half_spread = 0.002        # 20 bps half spread (from Nautilus)

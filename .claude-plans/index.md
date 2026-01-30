@@ -14,6 +14,7 @@
 
 | Task | Directory | Completed |
 |------|-----------|-----------|
+| 对齐Rust/Python策略回测 (Signal, StopLoss) | `align-signal/` | 2026-01-28 |
 | Connector Error Fixes (Bybit parsing) | `connector-error-fixes/` | 2026-01-11 |
 | Binance Orders Missing After 10AM (+ all connectors) | `binance-orders-missing/` | 2026-01-11 |
 | Add reduceOnly support to connectors | `reduce-only-support/` | 2026-01-09 |
