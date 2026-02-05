@@ -283,6 +283,12 @@ pub struct ExponentialBackoff {
     reset_interval: Option<Duration>,
     min_delay: Duration,
     max_delay: Option<Duration>,
+    /// Maximum jitter to add (in milliseconds) to prevent reconnect storms
+    jitter_ms: u64,
+    /// Whether to return zero delay on first attempt (immediate first reconnect)
+    immediate_first: bool,
+    /// Track if this is the first attempt
+    is_first: bool,
 }
 
 impl Default for ExponentialBackoff {
@@ -294,21 +300,46 @@ impl Default for ExponentialBackoff {
             reset_interval: Some(Duration::from_secs(300)),
             min_delay: Duration::from_millis(100),
             max_delay: Some(Duration::from_secs(60)),
+            jitter_ms: 1000, // 0-1000ms jitter to prevent reconnect storms
+            immediate_first: true, // First reconnect is immediate
+            is_first: true,
         }
+    }
+}
+
+impl ExponentialBackoff {
+    /// Create a new ExponentialBackoff with custom jitter
+    pub fn with_jitter(mut self, jitter_ms: u64) -> Self {
+        self.jitter_ms = jitter_ms;
+        self
+    }
+
+    /// Set whether first reconnect should be immediate
+    pub fn with_immediate_first(mut self, immediate: bool) -> Self {
+        self.immediate_first = immediate;
+        self
     }
 }
 
 impl BackoffStrategy for ExponentialBackoff {
     fn backoff(&mut self) -> Duration {
+        // Immediate first reconnect
+        if self.is_first && self.immediate_first {
+            self.is_first = false;
+            self.last_attempt = Instant::now();
+            return Duration::ZERO;
+        }
+
         if let Some(reset_interval) = self.reset_interval
             && self.last_attempt.elapsed() > reset_interval
         {
             self.last_delay = None;
+            self.is_first = true; // Reset first flag on interval reset
         }
 
         self.last_attempt = Instant::now();
 
-        match self.last_delay {
+        let base_delay = match self.last_delay {
             None => {
                 self.last_delay = Some(self.min_delay);
                 self.min_delay
@@ -324,6 +355,14 @@ impl BackoffStrategy for ExponentialBackoff {
                 self.last_delay = Some(delay);
                 delay
             }
+        };
+
+        // Add jitter to prevent reconnect storms (multiple connections reconnecting simultaneously)
+        if self.jitter_ms > 0 {
+            let jitter = rand::rng().random_range(0..self.jitter_ms);
+            base_delay + Duration::from_millis(jitter)
+        } else {
+            base_delay
         }
     }
 }
@@ -453,6 +492,9 @@ mod tests {
             reset_interval: None,
             min_delay: Duration::from_millis(0),
             max_delay: None,
+            jitter_ms: 0, // Disable jitter for deterministic tests
+            immediate_first: false,
+            is_first: false,
         };
 
         let mut value = Duration::from_secs(0);
@@ -472,6 +514,9 @@ mod tests {
             reset_interval: None,
             min_delay: Duration::from_millis(100),
             max_delay: None,
+            jitter_ms: 0,
+            immediate_first: false,
+            is_first: false,
         };
 
         assert_eq!(backoff.backoff(), backoff.min_delay);
@@ -486,6 +531,9 @@ mod tests {
             reset_interval: None,
             min_delay: Duration::from_millis(100),
             max_delay: Some(Duration::from_secs(1)),
+            jitter_ms: 0,
+            immediate_first: false,
+            is_first: false,
         };
 
         for _ in 0..100 {
@@ -503,6 +551,9 @@ mod tests {
             reset_interval: Some(Duration::from_secs(5)),
             min_delay: Duration::from_millis(100),
             max_delay: Some(Duration::from_secs(1)),
+            jitter_ms: 0,
+            immediate_first: false,
+            is_first: false,
         };
 
         for _ in 0..100 {
@@ -516,5 +567,25 @@ mod tests {
             }
         }
         panic!();
+    }
+
+    #[test]
+    fn test_backoff_immediate_first() {
+        let mut backoff = ExponentialBackoff {
+            last_attempt: Instant::now(),
+            factor: 2,
+            last_delay: None,
+            reset_interval: None,
+            min_delay: Duration::from_millis(100),
+            max_delay: None,
+            jitter_ms: 0,
+            immediate_first: true,
+            is_first: true,
+        };
+
+        // First call should return zero (immediate reconnect)
+        assert_eq!(backoff.backoff(), Duration::ZERO);
+        // Second call should return min_delay
+        assert_eq!(backoff.backoff(), backoff.min_delay);
     }
 }

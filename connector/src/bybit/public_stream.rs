@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
@@ -26,7 +26,7 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::{
     bybit::{
@@ -211,11 +211,18 @@ impl PublicStream {
 
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
-        let mut interval = time::interval(Duration::from_secs(15));
+        let mut ping_interval = time::interval(Duration::from_secs(15));
+        let mut health_checker = time::interval(Duration::from_secs(10));
+
+        // Track message activity for health detection
+        let mut last_message_time = Instant::now();
+
+        // Inactivity threshold: 90 seconds (public streams should be very active)
+        const MESSAGE_INACTIVITY_TIMEOUT: Duration = Duration::from_secs(90);
 
         loop {
             select! {
-                _ = interval.tick() => {
+                _ = ping_interval.tick() => {
                     let op = Op {
                         req_id: "ping".to_string(),
                         op: "ping".to_string(),
@@ -223,6 +230,16 @@ impl PublicStream {
                     };
                     let s = serde_json::to_string(&op).unwrap();
                     write.send(Message::Text(s.into())).await?;
+                }
+                _ = health_checker.tick() => {
+                    // Check message activity - public stream should be very active
+                    if last_message_time.elapsed() > MESSAGE_INACTIVITY_TIMEOUT {
+                        warn!(
+                            elapsed_secs = last_message_time.elapsed().as_secs(),
+                            "No message activity on public stream - connection may be dead."
+                        );
+                        return Err(BybitError::ConnectionInterrupted);
+                    }
                 }
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
@@ -255,12 +272,17 @@ impl PublicStream {
                 message = read.next() => {
                     match message {
                         Some(Ok(Message::Text(text))) => {
+                            last_message_time = Instant::now();
                             if let Err(error) = self.handle_public_stream(&text).await {
                                 error!(?error, %text, "Couldn't handle PublicStreamMsg.");
                             }
                         }
                         Some(Ok(Message::Ping(_))) => {
+                            last_message_time = Instant::now();
                             write.send(Message::Pong(Bytes::default())).await?;
+                        }
+                        Some(Ok(Message::Pong(_))) => {
+                            last_message_time = Instant::now();
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(
@@ -270,8 +292,9 @@ impl PublicStream {
                             ));
                         }
                         Some(Ok(Message::Binary(_)))
-                        | Some(Ok(Message::Frame(_)))
-                        | Some(Ok(Message::Pong(_))) => {}
+                        | Some(Ok(Message::Frame(_))) => {
+                            last_message_time = Instant::now();
+                        }
                         Some(Err(error)) => {
                             return Err(BybitError::from(error));
                         }

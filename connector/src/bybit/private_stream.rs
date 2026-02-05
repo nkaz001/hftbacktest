@@ -1,5 +1,5 @@
 use std::sync::mpsc as std_mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
@@ -350,7 +350,14 @@ impl PrivateStream {
         let request = url.into_client_request()?;
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
-        let mut interval = time::interval(Duration::from_secs(10));
+        let mut ping_interval = time::interval(Duration::from_secs(10));
+        let mut health_checker = time::interval(Duration::from_secs(10));
+
+        // Track message activity for health detection
+        let mut last_message_time = Instant::now();
+
+        // Inactivity threshold: 90 seconds (no messages at all indicates dead connection)
+        const MESSAGE_INACTIVITY_TIMEOUT: Duration = Duration::from_secs(90);
 
         // Spawn dedicated thread for commission publishing if recording is enabled
         let commission_tx = self.recording_service.as_ref().map(|service| {
@@ -370,7 +377,7 @@ impl PrivateStream {
 
         loop {
             select! {
-                _ = interval.tick() => {
+                _ = ping_interval.tick() => {
                     let op = Op {
                         req_id: "ping".to_string(),
                         op: "ping".to_string(),
@@ -378,6 +385,16 @@ impl PrivateStream {
                     };
                     let s = serde_json::to_string(&op).unwrap();
                     write.send(Message::Text(s.into())).await?;
+                }
+                _ = health_checker.tick() => {
+                    // Check message activity - if no messages for too long, connection is dead
+                    if last_message_time.elapsed() > MESSAGE_INACTIVITY_TIMEOUT {
+                        error!(
+                            elapsed_secs = last_message_time.elapsed().as_secs(),
+                            "No message activity - connection may be dead."
+                        );
+                        return Err(BybitError::ConnectionInterrupted);
+                    }
                 }
                 msg = self.symbol_rx.recv() => {
                     match msg {
@@ -431,6 +448,7 @@ impl PrivateStream {
                 message = read.next() => {
                     match message {
                         Some(Ok(Message::Text(text))) => {
+                            last_message_time = Instant::now();
                             match self.handle_private_stream(
                                 &text,
                                 &mut write,
@@ -446,7 +464,11 @@ impl PrivateStream {
                             }
                         }
                         Some(Ok(Message::Ping(_))) => {
+                            last_message_time = Instant::now();
                             write.send(Message::Pong(Bytes::default())).await?;
+                        }
+                        Some(Ok(Message::Pong(_))) => {
+                            last_message_time = Instant::now();
                         }
                         Some(Ok(Message::Close(close_frame))) => {
                             return Err(BybitError::ConnectionAbort(
@@ -454,8 +476,9 @@ impl PrivateStream {
                             ));
                         }
                         Some(Ok(Message::Binary(_)))
-                        | Some(Ok(Message::Frame(_)))
-                        | Some(Ok(Message::Pong(_))) => {}
+                        | Some(Ok(Message::Frame(_))) => {
+                            last_message_time = Instant::now();
+                        }
                         Some(Err(error)) => {
                             return Err(BybitError::from(error));
                         }

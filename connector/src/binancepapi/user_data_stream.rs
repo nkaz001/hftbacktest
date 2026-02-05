@@ -122,13 +122,22 @@ impl UserDataStream {
 
         // Keepalive every 30 minutes (listenKey expires in 60 minutes)
         let mut keepalive_interval = time::interval(Duration::from_secs(60 * 30));
-        let mut ping_checker = time::interval(Duration::from_secs(10));
+        let mut health_checker = time::interval(Duration::from_secs(10));
 
         let symbols: HashSet<_> = self.symbols.lock().unwrap().iter().cloned().collect();
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
         let ev_tx = self.ev_tx.clone();
+
+        // Track both ping responses and any message activity for health detection
         let mut last_ping = Instant::now();
+        let mut last_message_time = Instant::now();
+
+        // Inactivity threshold: 90 seconds (3 * 30s heartbeat interval)
+        // If no messages at all for this duration, connection is likely dead
+        const MESSAGE_INACTIVITY_TIMEOUT: Duration = Duration::from_secs(90);
+        // Ping timeout: 300 seconds (server should ping us periodically)
+        const PING_TIMEOUT: Duration = Duration::from_secs(300);
 
         tokio::spawn(async move {
             // Cancel all orders before connecting to the stream in order to start with the
@@ -168,9 +177,21 @@ impl UserDataStream {
                         }
                     });
                 }
-                _ = ping_checker.tick() => {
-                    if last_ping.elapsed() > Duration::from_secs(300) {
-                        warn!("Ping timeout.");
+                _ = health_checker.tick() => {
+                    // Check message activity first - more responsive detection
+                    if last_message_time.elapsed() > MESSAGE_INACTIVITY_TIMEOUT {
+                        warn!(
+                            elapsed_secs = last_message_time.elapsed().as_secs(),
+                            "No message activity - connection may be dead."
+                        );
+                        return Err(BinancePapiError::ConnectionInterrupted);
+                    }
+                    // Also check ping timeout as fallback
+                    if last_ping.elapsed() > PING_TIMEOUT {
+                        warn!(
+                            elapsed_secs = last_ping.elapsed().as_secs(),
+                            "Ping timeout."
+                        );
                         return Err(BinancePapiError::ConnectionInterrupted);
                     }
                 }
@@ -202,6 +223,7 @@ impl UserDataStream {
                 }
                 message = read.next() => match message {
                     Some(Ok(Message::Text(text))) => {
+                        last_message_time = Instant::now();
                         match serde_json::from_str::<Stream>(&text) {
                             Ok(Stream::EventStream(stream)) => {
                                 self.process_message(stream)?;
@@ -215,8 +237,12 @@ impl UserDataStream {
                         }
                     }
                     Some(Ok(Message::Ping(data))) => {
-                        write.send(Message::Pong(data)).await?;
+                        last_message_time = Instant::now();
                         last_ping = Instant::now();
+                        write.send(Message::Pong(data)).await?;
+                    }
+                    Some(Ok(Message::Pong(_))) => {
+                        last_message_time = Instant::now();
                     }
                     Some(Ok(Message::Close(close_frame))) => {
                         return Err(BinancePapiError::ConnectionAbort(
@@ -224,8 +250,9 @@ impl UserDataStream {
                         ));
                     }
                     Some(Ok(Message::Binary(_)))
-                    | Some(Ok(Message::Frame(_)))
-                    | Some(Ok(Message::Pong(_))) => {}
+                    | Some(Ok(Message::Frame(_))) => {
+                        last_message_time = Instant::now();
+                    }
                     Some(Err(error)) => {
                         return Err(BinancePapiError::from(error));
                     }
