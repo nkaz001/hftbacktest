@@ -118,3 +118,23 @@ GROUP BY date, strategy_id, symbol;
 -- Create user for HFT application (optional, uses default user)
 -- CREATE USER IF NOT EXISTS hft IDENTIFIED BY 'hft_password';
 -- GRANT ALL ON hft.* TO hft;
+
+-- Backtest equity table - imported theoretical equity and pnl curves for comparison
+CREATE TABLE IF NOT EXISTS hft.backtest_equity
+(
+    timestamp DateTime64(9, 'UTC'),
+    strategy_id LowCardinality(String),
+    symbol LowCardinality(String),
+    backtest_id LowCardinality(String),
+    equity Float64,
+    pnl Float64,
+    position Float64,
+    mid_price Float64,
+    balance Float64,
+    fee Float64,
+    num_trades Int64,
+    trading_volume Float64
+)
+ENGINE = ReplacingMergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (strategy_id, symbol, backtest_id, timestamp);

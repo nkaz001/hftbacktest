@@ -1,0 +1,510 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "PnL %",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "min"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "WITH\n  3600.0 AS max_position,\n  (\n    SELECT avg(mark_price)\n    FROM hft.positions\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n      AND mark_price > 0\n  ) AS avg_live_price\nSELECT\n  time,\n  series,\n  value\nFROM\n(\n  SELECT\n    time,\n    'Live PnL %' AS series,\n    sum(income) OVER (ORDER BY time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n      / nullIf(max_position * avg_live_price, 0) * 100 AS value\n  FROM\n  (\n    SELECT\n      toStartOfMinute(timestamp) AS time,\n      sum(income) AS income\n    FROM hft.income\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n    GROUP BY time\n  )\n\n  UNION ALL\n\n  SELECT\n    toStartOfMinute(timestamp) AS time,\n    'Backtest PnL %' AS series,\n    avg(pnl / nullIf(max_position * mid_price, 0) * 100) AS value\n  FROM hft.backtest_equity\n  WHERE strategy_id = '$strategy_id'\n    AND symbol = '$symbol'\n    AND backtest_id = '$backtest_id'\n    AND timestamp >= $__fromTime AND timestamp <= $__toTime\n  GROUP BY time\n)\nORDER BY time ASC, series",
+          "refId": "A"
+        }
+      ],
+      "title": "PnL Comparison",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": true,
+            "axisColorMode": "text",
+            "axisLabel": "Position %",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "min"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "WITH\n  3600.0 AS max_position\nSELECT\n  time,\n  series,\n  value\nFROM\n(\n  SELECT\n    toStartOfMinute(timestamp) AS time,\n    'Live Position %' AS series,\n    avg(position) / nullIf(max_position, 0) * 100 AS value\n  FROM hft.positions\n  WHERE strategy_id = '$strategy_id'\n    AND symbol = '$symbol'\n    AND timestamp >= $__fromTime AND timestamp <= $__toTime\n  GROUP BY time\n\n  UNION ALL\n\n  SELECT\n    toStartOfMinute(timestamp) AS time,\n    'Backtest Position %' AS series,\n    avg(position) / nullIf(max_position, 0) * 100 AS value\n  FROM hft.backtest_equity\n  WHERE strategy_id = '$strategy_id'\n    AND symbol = '$symbol'\n    AND backtest_id = '$backtest_id'\n    AND timestamp >= $__fromTime AND timestamp <= $__toTime\n  GROUP BY time\n)\nORDER BY time ASC, series",
+          "refId": "A"
+        }
+      ],
+      "title": "Position Comparison",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": true,
+            "axisColorMode": "text",
+            "axisLabel": "Deviation %",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "min"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "WITH\n  3600.0 AS max_position,\n  (\n    SELECT avg(mark_price)\n    FROM hft.positions\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n      AND mark_price > 0\n  ) AS avg_live_price,\n  live_pnl AS\n  (\n    SELECT\n      time,\n      sum(income) OVER (ORDER BY time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n        / nullIf(max_position * avg_live_price, 0) * 100 AS live_pnl_pct\n    FROM\n    (\n      SELECT\n        toStartOfMinute(timestamp) AS time,\n        sum(income) AS income\n      FROM hft.income\n      WHERE strategy_id = '$strategy_id'\n        AND symbol = '$symbol'\n        AND timestamp >= $__fromTime AND timestamp <= $__toTime\n      GROUP BY time\n    )\n  ),\n  backtest_pnl AS\n  (\n    SELECT\n      toStartOfMinute(timestamp) AS time,\n      avg(pnl / nullIf(max_position * mid_price, 0) * 100) AS backtest_pnl_pct\n    FROM hft.backtest_equity\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND backtest_id = '$backtest_id'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n    GROUP BY time\n  )\nSELECT\n  coalesce(live_pnl.time, backtest_pnl.time) AS time,\n  'PnL Deviation %' AS series,\n  ifNull(live_pnl.live_pnl_pct, 0) - ifNull(backtest_pnl.backtest_pnl_pct, 0) AS value\nFROM live_pnl\nFULL OUTER JOIN backtest_pnl ON live_pnl.time = backtest_pnl.time\nORDER BY time ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "PnL Deviation",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max_deviation_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "live_final_pnl_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "backtest_final_pnl_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": [
+            "max_deviation_pct",
+            "live_trade_count",
+            "backtest_trade_count"
+          ],
+          "reducer": ["max"],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "max_deviation_pct"
+          }
+        ]
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "queryType": "table",
+          "rawSql": "WITH\n  3600.0 AS max_position,\n  (\n    SELECT avg(mark_price)\n    FROM hft.positions\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n      AND mark_price > 0\n  ) AS avg_live_price,\n  live_pnl AS\n  (\n    SELECT\n      time,\n      sum(income) OVER (ORDER BY time ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n        / nullIf(max_position * avg_live_price, 0) * 100 AS live_pnl_pct\n    FROM\n    (\n      SELECT\n        toStartOfMinute(timestamp) AS time,\n        sum(income) AS income\n      FROM hft.income\n      WHERE strategy_id = '$strategy_id'\n        AND symbol = '$symbol'\n        AND timestamp >= $__fromTime AND timestamp <= $__toTime\n      GROUP BY time\n    )\n  ),\n  backtest_pnl AS\n  (\n    SELECT\n      toStartOfMinute(timestamp) AS time,\n      avg(pnl / nullIf(max_position * mid_price, 0) * 100) AS backtest_pnl_pct\n    FROM hft.backtest_equity\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND backtest_id = '$backtest_id'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n    GROUP BY time\n  ),\n  aligned AS\n  (\n    SELECT\n      coalesce(live_pnl.time, backtest_pnl.time) AS time,\n      ifNull(live_pnl.live_pnl_pct, 0) AS live_pnl_pct,\n      ifNull(backtest_pnl.backtest_pnl_pct, 0) AS backtest_pnl_pct\n    FROM live_pnl\n    FULL OUTER JOIN backtest_pnl ON live_pnl.time = backtest_pnl.time\n  )\nSELECT\n  '$strategy_id' AS strategy_id,\n  '$symbol' AS symbol,\n  '$backtest_id' AS backtest_id,\n  corrStable(live_pnl_pct, backtest_pnl_pct) AS pnl_correlation,\n  max(abs(live_pnl_pct - backtest_pnl_pct)) AS max_deviation_pct,\n  argMax(live_pnl_pct, time) AS live_final_pnl_pct,\n  argMax(backtest_pnl_pct, time) AS backtest_final_pnl_pct,\n  (\n    SELECT count()\n    FROM hft.income\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND income_type = 'REALIZED_PNL'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n  ) AS live_trade_count,\n  (\n    SELECT toInt64(max(num_trades))\n    FROM hft.backtest_equity\n    WHERE strategy_id = '$strategy_id'\n      AND symbol = '$symbol'\n      AND backtest_id = '$backtest_id'\n      AND timestamp >= $__fromTime AND timestamp <= $__toTime\n  ) AS backtest_trade_count\nFROM aligned",
+          "refId": "A"
+        }
+      ],
+      "title": "Summary Statistics",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 40,
+  "tags": ["hft", "pnl", "backtest"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "",
+          "value": ""
+        },
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT strategy_id FROM hft.backtest_equity ORDER BY strategy_id",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "strategy_id",
+        "options": [],
+        "query": "SELECT DISTINCT strategy_id FROM hft.backtest_equity ORDER BY strategy_id",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "",
+          "value": ""
+        },
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT symbol FROM hft.backtest_equity WHERE strategy_id = '$strategy_id' ORDER BY symbol",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "symbol",
+        "options": [],
+        "query": "SELECT DISTINCT symbol FROM hft.backtest_equity WHERE strategy_id = '$strategy_id' ORDER BY symbol",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "",
+          "value": ""
+        },
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT backtest_id FROM hft.backtest_equity WHERE strategy_id = '$strategy_id' AND symbol = '$symbol' ORDER BY backtest_id DESC",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "backtest_id",
+        "options": [],
+        "query": "SELECT DISTINCT backtest_id FROM hft.backtest_equity WHERE strategy_id = '$strategy_id' AND symbol = '$symbol' ORDER BY backtest_id DESC",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Live vs Backtest PnL Comparison",
+  "uid": "hft-backtest-comparison",
+  "version": 1,
+  "weekStart": ""
+}
