@@ -374,10 +374,15 @@ pub fn convert_tardis<P: AsRef<Path>>(
         println!("local_timestamp is ahead of exch_timestamp by {}", -min_latency);
     }
 
-    println!("Correcting the event order");
+    println!("Correcting the event order ({} raw events)", events.len());
     let sorted_exch_indices = argsort_by_exch_ts(&events);
     let sorted_local_indices = argsort_by_local_ts(&events);
     let corrected = correct_event_order(&events, &sorted_exch_indices, &sorted_local_indices);
+
+    // Explicitly free source data to reduce peak memory before validation/write
+    drop(events);
+    drop(sorted_exch_indices);
+    drop(sorted_local_indices);
 
     println!("Validating event order");
     validate_event_order(&corrected)?;
@@ -403,12 +408,7 @@ pub fn write_npz_file<P: AsRef<Path>>(events: &[Event], output_path: P) -> Resul
     let path = output_path.as_ref();
     println!("Saving to {:?}", path);
 
-    // Write NPY data to memory buffer
-    let mut npy_buffer = Vec::new();
-    write_npy(&mut npy_buffer, events)
-        .map_err(|e| format!("Failed to write NPY data: {}", e))?;
-
-    // Create ZIP archive with the NPY file
+    // Create ZIP archive and write NPY data directly to it (no intermediate buffer)
     let file = File::create(path)
         .map_err(|e| format!("Failed to create output file: {}", e))?;
 
@@ -422,8 +422,9 @@ pub fn write_npz_file<P: AsRef<Path>>(events: &[Event], output_path: P) -> Resul
     zip.start_file("data.npy", options)
         .map_err(|e| format!("Failed to start ZIP entry: {}", e))?;
 
-    zip.write_all(&npy_buffer)
-        .map_err(|e| format!("Failed to write to ZIP: {}", e))?;
+    // Write NPY header + data directly to zip writer (avoids ~N*64 bytes buffer)
+    write_npy(&mut zip, events)
+        .map_err(|e| format!("Failed to write NPY data: {}", e))?;
 
     zip.finish()
         .map_err(|e| format!("Failed to finish ZIP: {}", e))?;
