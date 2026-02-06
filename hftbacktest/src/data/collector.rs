@@ -54,14 +54,23 @@ pub struct ConversionStats {
     pub errors: usize,
 }
 
-/// WebSocket stream wrapper
+/// WebSocket stream wrapper (Binance combined stream format)
 #[derive(Deserialize, Debug)]
 struct StreamMessage {
     stream: String,
     data: Value,
 }
 
-/// Trade data from WebSocket
+/// Flat IPC message with event type discriminator.
+/// Used by the IPC collector which normalizes all exchange data to this format.
+#[derive(Deserialize, Debug)]
+struct FlatMessage {
+    e: String,
+    #[serde(flatten)]
+    data: Value,
+}
+
+/// Trade data from WebSocket (Binance stream format with trade ID)
 #[derive(Deserialize, Debug)]
 struct TradeData {
     #[serde(rename = "E")]
@@ -70,6 +79,21 @@ struct TradeData {
     symbol: String,
     #[serde(rename = "t")]
     id: i64,
+    #[serde(rename = "p")]
+    price: String,
+    #[serde(rename = "q")]
+    qty: String,
+    #[serde(rename = "m")]
+    is_buyer_maker: bool, // true = sell (taker is seller), false = buy (taker is buyer)
+}
+
+/// Trade data from IPC collector (no trade ID field)
+#[derive(Deserialize, Debug)]
+struct IpcTradeData {
+    #[serde(rename = "E")]
+    event_time: i64, // milliseconds
+    #[serde(rename = "s")]
+    symbol: String,
     #[serde(rename = "p")]
     price: String,
     #[serde(rename = "q")]
@@ -169,6 +193,8 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
     )
     .map_err(|e| format!("Failed to write depth header: {}", e))?;
 
+    let mut trade_id_counter: i64 = 0;
+
     for file_path in input_files {
         let path = file_path.as_ref();
         println!("Processing {:?}", path);
@@ -192,7 +218,7 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
             // Convert nanoseconds to microseconds for Tardis format
             let local_ts_micros = local_ts_nanos / 1000;
 
-            // Try to parse as stream message first
+            // Try to parse as Binance combined stream message first
             if let Ok(stream_msg) = serde_json::from_str::<StreamMessage>(json_str) {
                 let stream_type = stream_msg.stream.split('@').nth(1).unwrap_or("");
                 let symbol = extract_symbol(&stream_msg.stream).unwrap_or_default();
@@ -200,9 +226,7 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                 match stream_type {
                     "trade" => {
                         if let Ok(trade) = serde_json::from_value::<TradeData>(stream_msg.data) {
-                            // Tardis uses event timestamp (E) converted to microseconds
                             let exch_ts_micros = trade.event_time * 1000;
-                            // side: m=true means buyer is maker, so taker sells -> "sell"
                             let side = if trade.is_buyer_maker { "sell" } else { "buy" };
 
                             writeln!(
@@ -226,7 +250,6 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         if let Ok(depth) = serde_json::from_value::<DepthData>(stream_msg.data) {
                             let exch_ts_micros = depth.event_time * 1000;
 
-                            // Write bid updates
                             for (price, qty) in &depth.bids {
                                 writeln!(
                                     depth_writer,
@@ -242,7 +265,6 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                                 stats.depth_updates += 1;
                             }
 
-                            // Write ask updates
                             for (price, qty) in &depth.asks {
                                 writeln!(
                                     depth_writer,
@@ -260,19 +282,115 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         }
                     }
                     "bookTicker" => {
-                        // Skip book ticker for now (not used in Tardis format)
                         stats.book_ticker_count += 1;
                     }
-                    _ => {
-                        // Unknown stream type
+                    _ => {}
+                }
+            } else if let Ok(flat_msg) = serde_json::from_str::<FlatMessage>(json_str) {
+                // Flat IPC format: {"e":"depthUpdate","E":...,"s":...,...}
+                match flat_msg.e.as_str() {
+                    "trade" => {
+                        if let Ok(trade) = serde_json::from_str::<IpcTradeData>(json_str) {
+                            let exch_ts_micros = trade.event_time * 1000;
+                            let side = if trade.is_buyer_maker { "sell" } else { "buy" };
+                            trade_id_counter += 1;
+
+                            writeln!(
+                                trades_writer,
+                                "{},{},{},{},{},{},{},{}",
+                                config.exchange,
+                                trade.symbol,
+                                exch_ts_micros,
+                                local_ts_micros,
+                                trade_id_counter,
+                                side,
+                                trade.price,
+                                trade.qty
+                            )
+                            .map_err(|e| format!("Failed to write trade: {}", e))?;
+
+                            stats.trades += 1;
+                        }
                     }
+                    "depthUpdate" => {
+                        if let Ok(depth) = serde_json::from_str::<DepthData>(json_str) {
+                            let exch_ts_micros = depth.event_time * 1000;
+
+                            for (price, qty) in &depth.bids {
+                                writeln!(
+                                    depth_writer,
+                                    "{},{},{},{},false,bid,{},{}",
+                                    config.exchange,
+                                    depth.symbol,
+                                    exch_ts_micros,
+                                    local_ts_micros,
+                                    price,
+                                    qty
+                                )
+                                .map_err(|e| format!("Failed to write depth: {}", e))?;
+                                stats.depth_updates += 1;
+                            }
+
+                            for (price, qty) in &depth.asks {
+                                writeln!(
+                                    depth_writer,
+                                    "{},{},{},{},false,ask,{},{}",
+                                    config.exchange,
+                                    depth.symbol,
+                                    exch_ts_micros,
+                                    local_ts_micros,
+                                    price,
+                                    qty
+                                )
+                                .map_err(|e| format!("Failed to write depth: {}", e))?;
+                                stats.depth_updates += 1;
+                            }
+                        }
+                    }
+                    "depthSnapshot" => {
+                        if let Ok(depth) = serde_json::from_str::<DepthData>(json_str) {
+                            let exch_ts_micros = depth.event_time * 1000;
+
+                            for (price, qty) in &depth.bids {
+                                writeln!(
+                                    depth_writer,
+                                    "{},{},{},{},true,bid,{},{}",
+                                    config.exchange,
+                                    depth.symbol,
+                                    exch_ts_micros,
+                                    local_ts_micros,
+                                    price,
+                                    qty
+                                )
+                                .map_err(|e| format!("Failed to write depth: {}", e))?;
+                                stats.snapshot_entries += 1;
+                            }
+
+                            for (price, qty) in &depth.asks {
+                                writeln!(
+                                    depth_writer,
+                                    "{},{},{},{},true,ask,{},{}",
+                                    config.exchange,
+                                    depth.symbol,
+                                    exch_ts_micros,
+                                    local_ts_micros,
+                                    price,
+                                    qty
+                                )
+                                .map_err(|e| format!("Failed to write depth: {}", e))?;
+                                stats.snapshot_entries += 1;
+                            }
+                        }
+                    }
+                    "bookTicker" => {
+                        stats.book_ticker_count += 1;
+                    }
+                    _ => {}
                 }
             } else if config.include_snapshots {
-                // Try to parse as snapshot
+                // Try to parse as REST depth snapshot (Binance format)
                 if let Ok(snapshot) = serde_json::from_str::<SnapshotData>(json_str) {
                     let exch_ts_micros = snapshot.event_time * 1000;
-                    // For snapshot, we need to determine symbol from file name or context
-                    // For now, extract from file path
                     let symbol = path
                         .file_stem()
                         .and_then(|s| s.to_str())
@@ -280,7 +398,6 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         .map(|s| s.to_uppercase())
                         .unwrap_or_else(|| "BTCUSDT".to_string());
 
-                    // Write bid snapshot entries
                     for (price, qty) in &snapshot.bids {
                         writeln!(
                             depth_writer,
@@ -296,7 +413,6 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         stats.snapshot_entries += 1;
                     }
 
-                    // Write ask snapshot entries
                     for (price, qty) in &snapshot.asks {
                         writeln!(
                             depth_writer,
@@ -443,5 +559,51 @@ mod tests {
         assert_eq!(stats.trades, 1);
         assert_eq!(stats.depth_updates, 2); // 1 bid + 1 ask
         assert_eq!(stats.snapshot_entries, 2); // 1 bid + 1 ask
+    }
+
+    fn create_test_ipc_collector_file() -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+
+        let lines = vec![
+            // IPC bookTicker (bid side)
+            r#"1770281275681188238 {"e":"bookTicker","s":"ADAUSDT","b":"0.2819","B":"168493","a":"0","A":"0","E":1770281275474}"#,
+            // IPC depthUpdate (bid)
+            r#"1770281275681192795 {"e":"depthUpdate","E":1770281275474,"s":"ADAUSDT","b":[["0.28","0"]],"a":[]}"#,
+            // IPC depthUpdate (ask)
+            r#"1770281275681196921 {"e":"depthUpdate","E":1770281275474,"s":"ADAUSDT","b":[],"a":[["0.283","50000"]]}"#,
+            // IPC trade
+            r#"1770281275991408629 {"e":"trade","E":1770281275940,"s":"ADAUSDT","p":"0.282","q":"11011","m":false}"#,
+            // IPC trade (seller)
+            r#"1770281280769764789 {"e":"trade","E":1770281280693,"s":"ADAUSDT","p":"0.2821","q":"35","m":true}"#,
+            // IPC depthSnapshot
+            r#"1770281290000000000 {"e":"depthSnapshot","E":1770281290000,"s":"ADAUSDT","b":[["0.2819","100000"]],"a":[["0.282","200000"]]}"#,
+        ];
+
+        for line in lines {
+            writeln!(file, "{}", line).unwrap();
+        }
+
+        file
+    }
+
+    #[test]
+    fn test_convert_ipc_format() {
+        let input = create_test_ipc_collector_file();
+        let trades_output = NamedTempFile::new().unwrap();
+        let depth_output = NamedTempFile::new().unwrap();
+
+        let config = CollectorConvertConfig::default();
+        let stats = convert_to_tardis_csv(
+            &[input.path()],
+            trades_output.path(),
+            depth_output.path(),
+            &config,
+        )
+        .unwrap();
+
+        assert_eq!(stats.trades, 2);
+        assert_eq!(stats.depth_updates, 2); // 1 bid + 1 ask
+        assert_eq!(stats.snapshot_entries, 2); // 1 bid + 1 ask from depthSnapshot
+        assert_eq!(stats.book_ticker_count, 1);
     }
 }
