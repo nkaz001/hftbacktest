@@ -529,6 +529,7 @@ where
         } else if event.is(EXCH_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::None, 0.0);
         } else if event.is(EXCH_BID_DEPTH_EVENT) || event.is(EXCH_BID_DEPTH_SNAPSHOT_EVENT) {
+            // eprintln!("NoPartialFillExchange Bid depth event: {:?}", event.px);
             let (price_tick, prev_best_bid_tick, best_bid_tick, prev_qty, new_qty, timestamp) =
                 self.depth
                     .update_bid_depth(event.px, event.qty, event.exch_ts);

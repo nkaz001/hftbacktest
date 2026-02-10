@@ -469,6 +469,13 @@ class _Fuse:
             else:
                 break
 
+    def process_book_ticker(
+            self,
+            book_ticker_arr: NDArray
+    ) -> None:
+        for i in range(len(book_ticker_arr)):
+            self.process_bbo(book_ticker_arr, i)
+
     @property
     def fused_events(self) -> EVENT_ARRAY:
         return self.depth.fused_events
@@ -745,7 +752,7 @@ def convert_fuse_trades_bbo(
         )
         .select(['ev', 'exch_ts', 'local_ts', 'px', 'qty', 'order_id', 'ival', 'fval'])
         .to_numpy(structured=True)
-    )
+    )[:5]
 
     # Read and process book ticker data
     df = pl.read_csv(book_ticker_filename, schema=book_ticker_schema)
@@ -771,15 +778,16 @@ def convert_fuse_trades_bbo(
         )
         .select(['exch_ts', 'local_ts', 'ask_amount', 'ask_price', 'bid_price', 'bid_amount'])
         .to_numpy(structured=True)
-    )
+    ) 
 
-    # Create BBO events from ticker data
-    bbo_events = _create_bbo_events(ticker_arr)
+    fuse = _Fuse(tick_size, lot_size, ss_buffer_size)
+    fuse.process_book_ticker(ticker_arr)
 
-    # Combine trades and BBO events
-    tmp = np.empty(len(trades_arr) + len(bbo_events), event_dtype)
+    tmp = np.empty(len(trades_arr) + len(fuse.fused_events), event_dtype)
     tmp[:len(trades_arr)] = trades_arr
-    tmp[len(trades_arr):] = bbo_events
+    tmp[len(trades_arr):] = fuse.fused_events 
+
+    fuse.close()
 
     print('Correcting the latency')
     tmp = correct_local_timestamp(tmp, base_latency)

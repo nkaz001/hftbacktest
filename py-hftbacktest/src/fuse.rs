@@ -69,6 +69,20 @@ pub extern "C" fn fusemarketdepth_process_event(
         }
     } else if ev.is(DEPTH_BBO_EVENT) {
         ev.ev = (ev.ev & !DEPTH_BBO_EVENT) | DEPTH_EVENT;
+        // if ev.is(BUY_EVENT) {
+        //     println!("BUY");
+        // }
+        // else  if ev.is(SELL_EVENT) {
+        //     println!("SELL");
+        // }
+        // else {
+        //     println!("NONE");
+        // }
+        // println!("{}", ev.ev);
+        // println!("{}", ev.exch_ts);
+        // println!("{}", ev.px);
+        // println!("{}", slf.depth.best_bid_tick);
+        // println!("{}", slf.depth.best_ask_tick);
         let mut evs = if ev.is(BUY_EVENT) {
             slf.depth.update_best_bid(ev)
         } else if ev.is(SELL_EVENT) {
@@ -76,6 +90,10 @@ pub extern "C" fn fusemarketdepth_process_event(
         } else {
             return false;
         };
+
+        // println!("{}", slf.depth.best_bid_tick);
+        // println!("{}", slf.depth.best_ask_tick);
+        
         if add {
             slf.fused.append(&mut evs);
         }

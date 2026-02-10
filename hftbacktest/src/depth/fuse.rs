@@ -9,6 +9,7 @@ use crate::{
     types::{BUY_EVENT, DEPTH_EVENT, Event, SELL_EVENT, Side},
 };
 
+#[derive(Debug, Clone, Copy)]
 pub struct QtyTimestamp {
     qty: f64,
     ts: i64,
@@ -448,7 +449,8 @@ impl FusedHashMapMarketDepth {
                     });
                 }
             }
-        }
+        }           
+        
         result
     }
 
@@ -557,6 +559,7 @@ impl FusedHashMapMarketDepth {
                 }
             }
         }
+
         result
     }
 }

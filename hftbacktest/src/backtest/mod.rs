@@ -890,6 +890,9 @@ where
     }
 
     fn depth(&self, asset_no: usize) -> &MD {
+        // let best_bid = self.exch.get(asset_no).unwrap().depth().best_bid();
+        // let best_ask = self.exch.get(asset_no).unwrap().depth().best_ask();
+        // eprintln!("Exch box depth best bid: {:?}, best ask: {:?}", best_bid, best_ask);
         self.local.get(asset_no).unwrap().depth()
     }
 

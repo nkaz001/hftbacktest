@@ -89,6 +89,7 @@ impl L2MarketDepth for HashMapMarketDepth {
         qty: f64,
         timestamp: i64,
     ) -> (i64, i64, i64, f64, f64, i64) {
+        // eprintln!("L2MarketDepth update_bid_depth, price: {}, qty: {}, timestamp: {}", price, qty, timestamp);
         let price_tick = (price / self.tick_size).round() as i64;
         let qty_lot = (qty / self.lot_size).round() as i64;
         let prev_best_bid_tick = self.best_bid_tick;
@@ -128,6 +129,7 @@ impl L2MarketDepth for HashMapMarketDepth {
             }
             self.low_bid_tick = self.low_bid_tick.min(price_tick);
         }
+        // eprintln!("Best bid tick: {}, Best ask tick: {}", self.best_bid_tick, self.best_ask_tick);
         (
             price_tick,
             prev_best_bid_tick,

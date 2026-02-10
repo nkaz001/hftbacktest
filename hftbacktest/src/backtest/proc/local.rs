@@ -294,14 +294,31 @@ where
         } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::None, 0.0);
         } else if ev.is(LOCAL_BID_DEPTH_EVENT) || ev.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT) {
+            // eprintln!("local bid ev type: {}, price: {}, qty: {}, timestamp: {}", ev.ev, ev.px, ev.qty, ev.local_ts);
+            // eprintln!("Bid depth event exch_ts: {:?}", ev.exch_ts);
+            // eprintln!("Bid depth event local_ts: {:?}", ev.local_ts);
+            // eprintln!("Bid depth event px: {:?}", ev.px);
+            // eprintln!("best bid: {}", self.depth.best_bid());
+            // eprintln!("best ask: {}", self.depth.best_ask());
             self.depth.update_bid_depth(ev.px, ev.qty, ev.local_ts);
+            // eprintln!("best bid: {}", self.depth.best_bid());
+            // eprintln!("best ask: {}", self.depth.best_ask());            
         } else if ev.is(LOCAL_ASK_DEPTH_EVENT) || ev.is(LOCAL_ASK_DEPTH_SNAPSHOT_EVENT) {
+            // eprintln!("ev type: {}", ev.ev);
+            // eprintln!("Ask depth event exch_ts: {:?}", ev.exch_ts);
+            // eprintln!("Ask depth event local_ts: {:?}", ev.local_ts);
+            // eprintln!("Ask depth event px: {:?}", ev.px);
+            // eprintln!("best bid: {}", self.depth.best_bid());
+            // eprintln!("best ask: {}", self.depth.best_ask());            
             self.depth.update_ask_depth(ev.px, ev.qty, ev.local_ts);
+            // eprintln!("best bid: {}", self.depth.best_bid());
+            // eprintln!("best ask: {}", self.depth.best_ask());
         }
         // Processes a trade event
         else if ev.is(LOCAL_TRADE_EVENT) && self.trades.capacity() > 0 {
+            // eprintln!("trade ev type: {}", ev.ev);
             self.trades.push(ev.clone());
-        }
+        }        
 
         // Stores the current feed latency
         self.last_feed_latency = Some((ev.exch_ts, ev.local_ts));
