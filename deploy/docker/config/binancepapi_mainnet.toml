@@ -1,0 +1,23 @@
+# Binance Portfolio Margin (PAPI) Configuration - Mainnet
+#
+# API keys are loaded from environment variables via entrypoint.sh
+# This file will be processed at container startup to substitute:
+#   ${BINANCE_API_KEY} and ${BINANCE_SECRET}
+
+# REST API URL for PAPI
+# Mainnet: https://papi.binance.com
+api_url = "https://papi.binance.com"
+
+# WebSocket stream URL for market data (UM Futures)
+# Mainnet: wss://fstream.binance.com/ws
+stream_url = "wss://fstream.binance.com/ws"
+
+# user_stream_url is omitted; defaults to stream_url with /pm/ws path
+# i.e. wss://fstream.binance.com/pm/ws
+
+# Order prefix to identify orders from this system
+order_prefix = "hft"
+
+# API credentials (substituted from environment at runtime)
+api_key = "${BINANCE_API_KEY}"
+secret = "${BINANCE_SECRET}"

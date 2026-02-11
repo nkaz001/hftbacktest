@@ -66,6 +66,20 @@ if [ -f /etc/hft/bybit_mainnet.toml ]; then
     chown hft:hft "$CONFIG_DIR/bybit_mainnet.toml"
 fi
 
+# Substitute environment variables in binancepapi_mainnet.toml (for Binance PAPI deployment)
+if [ -f /etc/hft/binancepapi_mainnet.toml ]; then
+    echo "Processing binancepapi_mainnet.toml..."
+    sed -e "s|\${BINANCE_API_KEY}|${BINANCE_API_KEY:-}|g" \
+        -e "s|\${BINANCE_SECRET}|${BINANCE_SECRET:-}|g" \
+        /etc/hft/binancepapi_mainnet.toml > "$CONFIG_DIR/binancepapi_mainnet.toml"
+    chown hft:hft "$CONFIG_DIR/binancepapi_mainnet.toml"
+
+    # Verify API key is set
+    if [ -z "$BINANCE_API_KEY" ] || [ "$BINANCE_API_KEY" = "your_binance_api_key_here" ]; then
+        echo "WARNING: BINANCE_API_KEY not set properly"
+    fi
+fi
+
 # Copy strategy configs to temp directory
 if [ -d /etc/hft/strategies ]; then
     echo "Processing strategy configs..."
@@ -83,6 +97,7 @@ echo "Using cluster config: $CLUSTER_CONFIG_FILE"
 if [ -f "$CLUSTER_CONFIG_FILE" ]; then
     echo "Processing $CLUSTER_CONFIG_BASENAME..."
     sed -e "s|/etc/hft/binancefutures.toml|$CONFIG_DIR/binancefutures.toml|g" \
+        -e "s|/etc/hft/binancepapi_mainnet.toml|$CONFIG_DIR/binancepapi_mainnet.toml|g" \
         -e "s|/etc/hft/bybit.toml|$CONFIG_DIR/bybit.toml|g" \
         -e "s|/etc/hft/bybit_mainnet.toml|$CONFIG_DIR/bybit_mainnet.toml|g" \
         -e "s|/etc/hft/strategies|$CONFIG_DIR/strategies|g" \

@@ -177,6 +177,7 @@ impl BinancePapi {
 
     pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<PublishEvent>) {
         // User data stream URL: wss://fstream.binance.com/pm/ws/{listenKey}
+        // The base URL should end with /ws so that appending /{listenKey} gives the correct path.
         let user_stream_base = if self.config.user_stream_url.is_empty() {
             // Default to stream_url with /pm path
             self.config
@@ -185,7 +186,13 @@ impl BinancePapi {
                 .trim_end_matches('/')
                 .to_string()
         } else {
-            self.config.user_stream_url.trim_end_matches('/').to_string()
+            let base = self.config.user_stream_url.trim_end_matches('/').to_string();
+            // Ensure URL ends with /ws for correct path format
+            if base.ends_with("/ws") {
+                base
+            } else {
+                format!("{}/ws", base)
+            }
         };
 
         let client = self.client.clone();
@@ -217,12 +224,12 @@ impl BinancePapi {
                         symbol_tx.subscribe(),
                     );
 
-                    debug!("Requesting the listen key for the PAPI user data stream...");
+                    info!("Requesting the listen key for the PAPI user data stream...");
                     let listen_key = stream.get_listen_key().await?;
 
                     // PAPI user data stream URL format: wss://fstream.binance.com/pm/ws/{listenKey}
                     let url = format!("{}/{}", user_stream_base, listen_key);
-                    debug!("Connecting to the PAPI user data stream: {}", url);
+                    info!("Connecting to the PAPI user data stream: {}", url);
                     stream.connect(&url).await?;
                     debug!("The user data stream connection is permanently closed.");
                     Ok(())

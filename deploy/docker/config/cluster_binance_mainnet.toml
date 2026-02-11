@@ -1,0 +1,76 @@
+# HFT Cluster Configuration - Binance PAPI Mainnet (Real Trading)
+# Binance Portfolio Margin - Production Deployment
+
+[cluster]
+name = "hft-binance-mainnet"
+data_dir = "/var/lib/hft/data"
+log_dir = "/var/lib/hft/logs"
+socket_path = "/tmp/hft-supervisor.sock"
+config_reload_interval_secs = 10
+
+# ============================================
+# Connectors - Binance PAPI Mainnet
+# ============================================
+
+[[connectors]]
+name = "bf"
+type = "binancepapi"
+config_file = "/etc/hft/binancepapi_mainnet.toml"
+auto_start = true
+# Enable position/income sync to order-recorder
+recording_service = "hft_recording"
+position_sync_interval = 5
+income_sync_interval = 60
+
+# ============================================
+# Collector
+# ============================================
+[collector]
+enabled = true
+mode = "ipc"
+output_dir = "/var/lib/hft/data"
+# Binance uses lowercase symbols
+symbols = ["btcusdt"]
+retention_days = 7
+auto_start = true
+
+# ============================================
+# Order Recorder (ClickHouse)
+# ============================================
+[order_recorder]
+enabled = true
+auto_start = true
+ipc_service = "hft_recording"
+clickhouse_url = "http://clickhouse:8123"
+database = "hft"
+batch_size = 100
+flush_interval_secs = 5
+max_publishers = 16
+
+# ============================================
+# Warmup Configuration
+# ============================================
+[warmup]
+data_dir = "/var/lib/hft/data"
+max_age_seconds = 86400
+min_duration_seconds = 1800  # 30 minutes to match factor window size
+
+[bot_defaults]
+tick_size = 0.1
+lot_size = 0.002
+
+# ============================================
+# Bots - BTC/USDT on Binance PAPI
+# Note: Binance requires LOWERCASE symbols
+# ============================================
+
+[[bots]]
+id = "obi_mm_btcusdt"
+enabled = true
+strategy = "obi_mm_testnet"
+symbol = "btcusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_btc_mainnet.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
