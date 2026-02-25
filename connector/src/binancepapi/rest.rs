@@ -8,6 +8,7 @@ use super::{
         AccountInfo, Balance, ListenKey, OrderResponse, OrderResponseResult, UmPositionRisk,
     },
 };
+use crate::binancefutures::msg::rest::ExchangeInfo;
 use crate::utils::sign_hmac_sha256;
 
 #[derive(Clone)]
@@ -121,6 +122,21 @@ impl BinancePapiClient {
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
             .body(body)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    /// Get UM futures exchange info (public, no auth required).
+    /// Uses fapi.binance.com since PAPI UM symbols use futures exchange info.
+    /// GET https://fapi.binance.com/fapi/v1/exchangeInfo
+    pub async fn get_exchange_info(&self) -> Result<ExchangeInfo, reqwest::Error> {
+        let resp = self
+            .client
+            .get("https://fapi.binance.com/fapi/v1/exchangeInfo")
+            .header("Accept", "application/json")
             .send()
             .await?
             .json()

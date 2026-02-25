@@ -60,6 +60,13 @@ pub trait Connector {
     /// Gracefully shuts down the connector, canceling all open orders for the given symbols.
     /// This is called when the connector is about to exit.
     fn shutdown(&self, symbols: Vec<String>) -> BoxFuture<'_, ()>;
+
+    /// Resolves tick_size and lot_size for a symbol from the exchange.
+    /// Returns (tick_size, lot_size) or None if not supported or symbol not found.
+    /// Used when the bot sends tick_size=0.0 or lot_size=0.0 (auto-resolve convention).
+    fn resolve_instrument_info(&self, _symbol: &str) -> BoxFuture<'_, Option<(f64, f64)>> {
+        Box::pin(async { None })
+    }
 }
 
 /// Provides `orders` method to get the current working orders.

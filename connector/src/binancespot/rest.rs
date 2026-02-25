@@ -150,6 +150,12 @@ impl BinanceSpotClient {
         Ok(resp)
     }
 
+    /// Get exchange info for all symbols (public, no auth required)
+    /// GET /api/v3/exchangeInfo
+    pub async fn get_exchange_info(&self) -> Result<rest::ExchangeInfo, reqwest::Error> {
+        self.get_noauth("/api/v3/exchangeInfo", String::new()).await
+    }
+
     pub async fn get_depth(&self, symbol: &str) -> Result<rest::Depth, reqwest::Error> {
         let resp: rest::Depth = self
             .get_noauth("/api/v1/depth", format!("symbol={symbol}&limit=1000"))

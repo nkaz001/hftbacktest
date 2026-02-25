@@ -107,14 +107,46 @@ fn run_receive_task(
                                 %lot_size,
                                 "Received RegisterInstrument request from bot"
                             );
+
+                            // Auto-resolve tick_size/lot_size from exchange if either is 0.0
+                            let (resolved_tick, resolved_lot) = if tick_size == 0.0 || lot_size == 0.0 {
+                                match tokio::task::block_in_place(|| {
+                                    tokio::runtime::Handle::current().block_on(
+                                        connector.resolve_instrument_info(&symbol)
+                                    )
+                                }) {
+                                    Some((t, l)) => {
+                                        info!(
+                                            %symbol,
+                                            resolved_tick_size = %t,
+                                            resolved_lot_size = %l,
+                                            "Auto-resolved instrument info from exchange"
+                                        );
+                                        (
+                                            if tick_size == 0.0 { t } else { tick_size },
+                                            if lot_size == 0.0 { l } else { lot_size },
+                                        )
+                                    }
+                                    None => {
+                                        error!(
+                                            %symbol,
+                                            "Failed to auto-resolve instrument info, using 0.0 values"
+                                        );
+                                        (tick_size, lot_size)
+                                    }
+                                }
+                            } else {
+                                (tick_size, lot_size)
+                            };
+
                             // Track registered symbols for cleanup
                             registered_symbols.lock().unwrap().push(symbol.clone());
                             // Makes prepare the publisher thread to also add the instrument.
                             tx.send(PublishEvent::RegisterInstrument {
                                 id,
                                 symbol: symbol.clone(),
-                                tick_size,
-                                lot_size,
+                                tick_size: resolved_tick,
+                                lot_size: resolved_lot,
                             })
                             .unwrap();
                             // Requests to the Connector subscribe to the necessary feeds for the
@@ -175,6 +207,17 @@ async fn run_publish_task(
                         // Sends the current state (orders, position, and market depth) to the bot that
                         // requested to add this instrument in batch mode.
                         bot_tx.send(id, &LiveEvent::BatchStart)?;
+
+                        // Send InstrumentInfo first so bot can update tick_size/lot_size
+                        // before processing depth data
+                        bot_tx.send(
+                            id,
+                            &LiveEvent::InstrumentInfo {
+                                symbol: symbol.clone(),
+                                tick_size,
+                                lot_size,
+                            },
+                        )?;
 
                         for order in order_manager.lock().unwrap().orders(Some(symbol.clone())) {
                             bot_tx.send(

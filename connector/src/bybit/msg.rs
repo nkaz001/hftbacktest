@@ -691,6 +691,44 @@ pub struct TransactionLogResponse {
     pub time: i64,
 }
 
+/// Instruments info response from /v5/market/instruments-info
+#[derive(Deserialize, Debug)]
+pub struct InstrumentsInfoResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i64,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: InstrumentsInfoResult,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct InstrumentsInfoResult {
+    pub list: Vec<InstrumentInfoItem>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct InstrumentInfoItem {
+    pub symbol: String,
+    #[serde(rename = "priceFilter")]
+    pub price_filter: InstrumentPriceFilter,
+    #[serde(rename = "lotSizeFilter")]
+    pub lot_size_filter: InstrumentLotSizeFilter,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct InstrumentPriceFilter {
+    #[serde(rename = "tickSize")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub tick_size: f64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct InstrumentLotSizeFilter {
+    #[serde(rename = "qtyStep")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub qty_step: f64,
+}
+
 /// Closed PnL entry from /v5/position/closed-pnl
 #[derive(Deserialize, Debug, Clone)]
 pub struct ClosedPnlEntry {

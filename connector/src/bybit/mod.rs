@@ -415,4 +415,29 @@ impl Connector for Bybit {
             info!("Bybit connector shutdown complete");
         })
     }
+
+    fn resolve_instrument_info(&self, symbol: &str) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
+        let symbol = symbol.to_string();
+        Box::pin(async move {
+            let symbol_upper = symbol.to_uppercase();
+            match self.client.get_instruments_info(&self.config.category, &symbol_upper).await {
+                Ok(resp) => {
+                    if resp.ret_code != 0 {
+                        error!(ret_code = resp.ret_code, ret_msg = %resp.ret_msg, "Bybit instruments info error");
+                        return None;
+                    }
+                    if let Some(item) = resp.result.list.first() {
+                        Some((item.price_filter.tick_size, item.lot_size_filter.qty_step))
+                    } else {
+                        error!(%symbol, "Symbol not found in instruments info");
+                        None
+                    }
+                }
+                Err(error) => {
+                    error!(?error, "Failed to fetch instruments info");
+                    None
+                }
+            }
+        })
+    }
 }

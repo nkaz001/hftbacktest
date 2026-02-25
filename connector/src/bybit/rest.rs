@@ -5,8 +5,9 @@ use crate::{
     bybit::{
         BybitError,
         msg::{
-            ClosedPnlEntry, ClosedPnlResponse, Order as BybitOrder, OrderResponseData, Position,
-            RestResponse, TransactionLogEntry, TransactionLogResponse,
+            ClosedPnlEntry, ClosedPnlResponse, InstrumentsInfoResponse, Order as BybitOrder,
+            OrderResponseData, Position, RestResponse, TransactionLogEntry,
+            TransactionLogResponse,
         },
     },
     utils::sign_hmac_sha256,
@@ -92,6 +93,37 @@ impl BybitClient {
             .json()
             .await?;
         Ok(resp)
+    }
+
+    /// Public GET request (no authentication required)
+    async fn get_public<T: for<'a> Deserialize<'a>>(
+        &self,
+        path: &str,
+        query: &str,
+    ) -> Result<T, reqwest::Error> {
+        let resp = self
+            .client
+            .get(format!("{}{}?{}", self.url, path, query))
+            .header("Accept", "application/json")
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    /// Get instruments info (public, no auth required)
+    /// GET /v5/market/instruments-info?category=<category>&symbol=<symbol>
+    pub async fn get_instruments_info(
+        &self,
+        category: &str,
+        symbol: &str,
+    ) -> Result<InstrumentsInfoResponse, reqwest::Error> {
+        self.get_public(
+            "/v5/market/instruments-info",
+            &format!("category={}&symbol={}", category, symbol),
+        )
+        .await
     }
 
     pub async fn cancel_all_orders(&self, category: &str, symbol: &str) -> Result<(), BybitError> {
