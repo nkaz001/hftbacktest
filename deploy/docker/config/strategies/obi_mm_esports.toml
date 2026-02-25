@@ -5,8 +5,8 @@
 # Order notional: $19.86, Max position: $399.85
 
 [global]
-order_qty = 61.0
-max_position = 1228.0
+order_qty = 30.0
+max_position = 614.0
 grid_num = 1
 grid_interval = 0.001
 roi_lb = 0.07461

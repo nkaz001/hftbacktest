@@ -29,8 +29,8 @@ income_sync_interval = 60
 enabled = true
 mode = "ipc"
 output_dir = "/var/lib/hft/data"
-# Binance uses lowercase symbols
-symbols = ["esportsusdt", "fusdt", "idolusdt", "naorisusdt", "xpinusdt"]
+# Binance uses lowercase symbols (simplified to 1 symbol for testing)
+symbols = ["esportsusdt"]
 retention_days = 7
 auto_start = true
 
@@ -77,7 +77,7 @@ restart_backoff_secs = 5
 
 [[bots]]
 id = "obi_mm_fusdt"
-enabled = true
+enabled = false
 strategy = "obi_mm_live"
 symbol = "fusdt"
 connector = "bf"
@@ -88,7 +88,7 @@ restart_backoff_secs = 5
 
 [[bots]]
 id = "obi_mm_idolusdt"
-enabled = true
+enabled = false
 strategy = "obi_mm_live"
 symbol = "idolusdt"
 connector = "bf"
@@ -99,7 +99,7 @@ restart_backoff_secs = 5
 
 [[bots]]
 id = "obi_mm_naorisusdt"
-enabled = true
+enabled = false
 strategy = "obi_mm_live"
 symbol = "naorisusdt"
 connector = "bf"
@@ -110,7 +110,7 @@ restart_backoff_secs = 5
 
 [[bots]]
 id = "obi_mm_xpinusdt"
-enabled = true
+enabled = false
 strategy = "obi_mm_live"
 symbol = "xpinusdt"
 connector = "bf"

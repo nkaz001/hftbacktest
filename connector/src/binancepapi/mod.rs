@@ -512,4 +512,11 @@ impl Connector for BinancePapi {
             }
         })
     }
+
+    fn set_symbol_tick_size(&self, symbol: &str, tick_size: f64) {
+        self.order_manager
+            .lock()
+            .unwrap()
+            .set_tick_size(symbol, tick_size);
+    }
 }

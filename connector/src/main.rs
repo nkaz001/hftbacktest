@@ -139,6 +139,13 @@ fn run_receive_task(
                                 (tick_size, lot_size)
                             };
 
+                            // Pass resolved tick_size to ordermanager so it can properly
+                            // convert float prices to price_tick (avoids div-by-zero when bot
+                            // sends tick_size=0).
+                            if resolved_tick > 0.0 {
+                                connector.set_symbol_tick_size(&symbol, resolved_tick);
+                            }
+
                             // Track registered symbols for cleanup
                             registered_symbols.lock().unwrap().push(symbol.clone());
                             // Makes prepare the publisher thread to also add the instrument.

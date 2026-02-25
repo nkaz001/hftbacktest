@@ -39,6 +39,9 @@ pub struct OrderManager {
     /// Maps (symbol, bot_order_id) -> exchange_order_id for fallback cancellation
     /// This allows us to cancel orders even if client_order_id mapping is lost
     exchange_order_id_map: HashMap<SymbolOrderId, ExchangeOrderId>,
+    /// Resolved tick_size per symbol from exchange info.
+    /// Used to properly convert float prices to price_tick when the bot's order has tick_size=0.
+    tick_sizes: HashMap<String, f64>,
 }
 
 impl OrderManager {
@@ -48,7 +51,24 @@ impl OrderManager {
             orders: Default::default(),
             order_id_map: Default::default(),
             exchange_order_id_map: Default::default(),
+            tick_sizes: Default::default(),
         }
+    }
+
+    /// Set the resolved tick_size for a symbol.
+    /// Called by the connector after auto-resolving instrument info from the exchange.
+    pub fn set_tick_size(&mut self, symbol: &str, tick_size: f64) {
+        self.tick_sizes.insert(symbol.to_string(), tick_size);
+    }
+
+    /// Get the best available tick_size for a symbol.
+    /// Prefers the resolved tick_size from exchange info, falls back to the order's tick_size.
+    fn resolve_tick_size(&self, symbol: &str, order_tick_size: f64) -> f64 {
+        self.tick_sizes
+            .get(symbol)
+            .copied()
+            .filter(|&ts| ts > 0.0)
+            .unwrap_or(order_tick_size)
     }
 
     pub fn update_from_ws(
@@ -58,6 +78,13 @@ impl OrderManager {
         if !resp.order.client_order_id.starts_with(&self.prefix) {
             return Err(BinancePapiError::PrefixUnmatched);
         }
+
+        // Look up resolved tick_size before borrowing orders mutably
+        let resolved_ts = self.tick_sizes
+            .get(&resp.order.symbol)
+            .copied()
+            .filter(|&ts| ts > 0.0);
+
         let order_ext = self
             .orders
             .get_mut(&resp.order.client_order_id)
@@ -65,6 +92,19 @@ impl OrderManager {
 
         let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
         if resp.transaction_time * 1_000_000 >= order_ext.order.exch_timestamp {
+            // Resolve tick_size: prefer exchange-resolved value over order's (which may be 0)
+            let tick_size = resolved_ts.unwrap_or(order_ext.order.tick_size);
+            if tick_size > 0.0 {
+                order_ext.order.tick_size = tick_size;
+                // Update price_tick from exchange's float price
+                order_ext.order.price_tick =
+                    (resp.order.original_price / tick_size).round() as i64;
+                if resp.order.last_filled_price > 0.0 {
+                    order_ext.order.exec_price_tick =
+                        (resp.order.last_filled_price / tick_size).round() as i64;
+                }
+            }
+
             order_ext.order.qty = resp.order.original_qty;
             order_ext.order.leaves_qty =
                 resp.order.original_qty - resp.order.order_filled_accumulated_qty;
@@ -72,8 +112,6 @@ impl OrderManager {
             order_ext.order.time_in_force = resp.order.time_in_force;
             order_ext.order.exch_timestamp = resp.transaction_time * 1_000_000;
             order_ext.order.status = resp.order.order_status;
-            order_ext.order.exec_price_tick =
-                (resp.order.last_filled_price / order_ext.order.tick_size).round() as i64;
             order_ext.order.exec_qty = resp.order.order_last_filled_qty;
             order_ext.order.order_type = resp.order.order_type;
             order_ext.order.maker = resp.order.is_maker_side;
@@ -201,10 +239,27 @@ impl OrderManager {
         client_order_id: &ClientOrderId,
         resp: &OrderResponse,
     ) -> Option<Order> {
+        // Look up resolved tick_size before borrowing orders mutably
+        let resolved_ts = self.tick_sizes
+            .get(&resp.symbol)
+            .copied()
+            .filter(|&ts| ts > 0.0);
+
         let order_ext = self.orders.get_mut(client_order_id)?;
 
         let already_removed = order_ext.removed_by_ws || order_ext.removed_by_rest;
         if resp.update_time * 1_000_000 >= order_ext.order.exch_timestamp {
+            // Resolve tick_size: prefer exchange-resolved value over order's (which may be 0)
+            let tick_size = resolved_ts.unwrap_or(order_ext.order.tick_size);
+            if tick_size > 0.0 {
+                order_ext.order.tick_size = tick_size;
+                // Update price_tick from exchange's float price
+                if resp.price > 0.0 {
+                    order_ext.order.price_tick =
+                        (resp.price / tick_size).round() as i64;
+                }
+            }
+
             order_ext.order.qty = resp.orig_qty;
             order_ext.order.leaves_qty = resp.orig_qty - resp.cum_qty;
             order_ext.order.side = resp.side;
