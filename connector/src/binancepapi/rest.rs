@@ -63,17 +63,20 @@ impl BinancePapiClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .put(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.api_url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.api_url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -87,17 +90,20 @@ impl BinancePapiClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .post(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.api_url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.api_url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -111,17 +117,20 @@ impl BinancePapiClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .delete(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.api_url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.api_url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
