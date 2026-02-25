@@ -1,6 +1,7 @@
 use chrono::Utc;
 use hftbacktest::types::{OrdType, Side, TimeInForce};
 use serde::Deserialize;
+use tracing::debug;
 
 use super::{
     BinancePapiError,
@@ -214,8 +215,34 @@ impl BinancePapiClient {
             body.push_str("&reduceOnly=true");
         }
 
-        let resp: OrderResponseResult = self.post("/papi/v1/um/order", body).await?;
-        match resp {
+        // Use manual request to capture raw response for debugging
+        let time = Utc::now().timestamp_millis() - 1000;
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        query.push('&');
+        query.push_str(&body);
+        let signature = sign_hmac_sha256(&self.secret, &query);
+        let url = format!(
+            "{}{}?{}&signature={}",
+            self.api_url, "/papi/v1/um/order", query, signature
+        );
+        let resp = self
+            .client
+            .post(&url)
+            .header("Accept", "application/json")
+            .header("X-MBX-APIKEY", &self.api_key)
+            .send()
+            .await
+            .map_err(BinancePapiError::ReqError)?;
+        let status = resp.status();
+        let text = resp.text().await.map_err(BinancePapiError::ReqError)?;
+        debug!(%symbol_upper, %status, %text, "PAPI submit_um_order response");
+
+        let parsed: OrderResponseResult =
+            serde_json::from_str(&text).map_err(|e| BinancePapiError::OrderError {
+                code: -9999,
+                msg: format!("JSON parse error: {}. Raw response: {}", e, text),
+            })?;
+        match parsed {
             OrderResponseResult::Ok(resp) => Ok(resp),
             OrderResponseResult::Err(resp) => Err(BinancePapiError::OrderError {
                 code: resp.code,
