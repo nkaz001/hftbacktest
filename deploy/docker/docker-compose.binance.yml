@@ -131,7 +131,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: hft-cloudflared-binance
     restart: unless-stopped
-    command: tunnel run
+    command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
