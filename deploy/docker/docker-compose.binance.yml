@@ -28,16 +28,6 @@ services:
       # Persistent data storage
       - ./data:/var/lib/hft/data
       - ./logs:/var/lib/hft/logs
-      # Dashboard static files
-      - ../../server/dashboard/dist:/var/lib/hft/dashboard
-      # Binary files (bind mount for hot-reload without image rebuild)
-      - ../../target/release/obi_mm_live:/usr/local/bin/obi_mm_live:ro
-      - ../../target/release/order-recorder:/usr/local/bin/order-recorder:ro
-      - ../../target/release/connector:/usr/local/bin/connector:ro
-      - ../../target/release/collector:/usr/local/bin/collector:ro
-      - ../../target/release/hft-supervisor:/usr/local/bin/hft-supervisor:ro
-      - ../../target/release/hft-server:/usr/local/bin/hft-server:ro
-      - ../../target/release/hftctl:/usr/local/bin/hftctl:ro
     # Use tmpfs for iceoryx2 IPC state to ensure clean state on restart
     tmpfs:
       - /tmp/iceoryx2:mode=1777,uid=999,gid=999
