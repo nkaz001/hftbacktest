@@ -127,13 +127,13 @@ where
     R: Recorder,
     <R as Recorder>::Error: std::fmt::Debug,
 {
-    let tick_size = hbt.depth(0).tick_size();
+    let mut tick_size = hbt.depth(0).tick_size();
     let mut iteration = 0u64;
     let log_interval_iters = args.log_interval * 2; // elapse is 500ms
     let position_publish_interval = 60; // Publish position every 30 seconds (60 x 500ms)
 
     info!("Strategy started. Waiting for market data...");
-    info!("Tick size: {}", tick_size);
+    info!("Tick size: {} (will auto-update from InstrumentInfo)", tick_size);
 
     // Main loop: run every 500ms
     while hbt.elapse(500_000_000).unwrap() == ElapseResult::Ok {
@@ -146,6 +146,14 @@ where
 
         let depth = hbt.depth(0);
         let position = hbt.position(0);
+
+        // Check if tick_size was updated by InstrumentInfo (auto-resolution from exchange)
+        let current_tick_size = depth.tick_size();
+        if current_tick_size != tick_size && current_tick_size > 0.0 {
+            info!("Tick size updated: {} -> {}", tick_size, current_tick_size);
+            strategy.set_tick_size(current_tick_size);
+            tick_size = current_tick_size;
+        }
 
         // Wait for valid market depth
         if depth.best_bid_tick() == INVALID_MIN || depth.best_ask_tick() == INVALID_MAX {

@@ -425,6 +425,29 @@ impl ObiMmStrategy {
         }
     }
 
+    /// Updates the tick size at runtime (e.g., after InstrumentInfo is received).
+    ///
+    /// This reinitializes the OBI factor with correct ROI bounds based on the new tick size,
+    /// since ROI bounds are computed in tick units.
+    pub fn set_tick_size(&mut self, tick_size: f64) {
+        if tick_size <= 0.0 || tick_size == self.tick_size {
+            return;
+        }
+        info!(%tick_size, old_tick_size = %self.tick_size, "Updating strategy tick_size");
+        self.tick_size = tick_size;
+
+        // Reinitialize OBI factor with correct ROI bounds
+        let roi_lb_tick = (self.global.roi_lb / tick_size).round() as i64;
+        let roi_ub_tick = (self.global.roi_ub / tick_size).round() as i64;
+        self.obi_factor = OBIFactor::new(
+            self.params.looking_depth,
+            tick_size,
+            roi_lb_tick,
+            roi_ub_tick,
+            self.params.window,
+        );
+    }
+
     /// Resets the strategy state.
     pub fn reset(&mut self) {
         self.last_check_period = -1;
