@@ -1,0 +1,33 @@
+# ESPORTSUSDT - OBI MM Strategy Config
+# Generated from fitted parameters
+# Capital allocation: $400 per coin
+# Price at generation: $0.32561
+# Order notional: $19.86, Max position: $399.85
+
+[global]
+order_qty = 61.0
+max_position = 1228.0
+grid_num = 1
+grid_interval = 0.001
+roi_lb = 0.07461
+roi_ub = 0.58449
+
+[params]
+looking_depth = 0.02
+window = 126
+volatility_window = 60
+half_spread = 0.0068
+skew = 0.00015
+c1 = 2.5e-05
+power = 0.4
+live_seconds = 135
+update_interval_ns = 10000000000
+volatility_interval_ns = 60000000000
+
+[stop_loss]
+volatility_mean = 0.002201239121540478
+volatility_std = 0.0025225200032873963
+change_mean = 1.0517556846883526e-05
+change_std = 0.0033386076905456076
+volatility_threshold = 3.0
+change_threshold = 3.0

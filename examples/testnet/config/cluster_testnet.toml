@@ -44,9 +44,9 @@ lot_size = 0.001
 [[bots]]
 id = "obi_mm_btcusdt_testnet"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "btcusdt"
-config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/obi_mm_testnet.toml"
+config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/obi_mm_live.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5

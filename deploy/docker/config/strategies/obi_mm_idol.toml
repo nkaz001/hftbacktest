@@ -1,0 +1,33 @@
+# IDOLUSDT - OBI MM Strategy Config
+# Generated from fitted parameters
+# Capital allocation: $400 per coin
+# Price at generation: $0.02283
+# Order notional: $20.00, Max position: $399.98
+
+[global]
+order_qty = 876.0
+max_position = 17520.0
+grid_num = 1
+grid_interval = 0.001
+roi_lb = 0.01032
+roi_ub = 0.043
+
+[params]
+looking_depth = 0.02
+window = 156
+volatility_window = 60
+half_spread = 0.0036
+skew = 0.000115
+c1 = 9.5e-05
+power = 0.8
+live_seconds = 165
+update_interval_ns = 10000000000
+volatility_interval_ns = 60000000000
+
+[stop_loss]
+volatility_mean = 0.0018478325289248392
+volatility_std = 0.0016638794296828005
+change_mean = 1.1175828128462913e-05
+change_std = 0.0024844855850152127
+volatility_threshold = 10.0
+change_threshold = 10.0

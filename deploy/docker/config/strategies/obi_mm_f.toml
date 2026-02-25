@@ -1,0 +1,33 @@
+# FUSDT - OBI MM Strategy Config
+# Generated from fitted parameters
+# Capital allocation: $400 per coin
+# Price at generation: $0.005705
+# Order notional: $20.00, Max position: $399.99
+
+[global]
+order_qty = 3505.0
+max_position = 70113.0
+grid_num = 1
+grid_interval = 9.999999999999999e-05
+roi_lb = 0.004579
+roi_ub = 0.033714
+
+[params]
+looking_depth = 0.025
+window = 156
+volatility_window = 60
+half_spread = 0.0056
+skew = 0.00018
+c1 = 0.00014
+power = 0.4
+live_seconds = 145
+update_interval_ns = 10000000000
+volatility_interval_ns = 60000000000
+
+[stop_loss]
+volatility_mean = 0.0018320636025003756
+volatility_std = 0.0025727414262535645
+change_mean = -2.0283773724476218e-06
+change_std = 0.0031562579557537335
+volatility_threshold = 10.0
+change_threshold = 10.0

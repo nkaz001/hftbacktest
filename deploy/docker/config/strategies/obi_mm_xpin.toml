@@ -1,0 +1,33 @@
+# XPINUSDT - OBI MM Strategy Config
+# Generated from fitted parameters
+# Capital allocation: $400 per coin
+# Price at generation: $0.001578
+# Order notional: $20.00, Max position: $400.00
+
+[global]
+order_qty = 12674.0
+max_position = 253485.0
+grid_num = 1
+grid_interval = 9.999999999999999e-05
+roi_lb = 0.000313
+roi_ub = 0.010318
+
+[params]
+looking_depth = 0.015
+window = 246
+volatility_window = 60
+half_spread = 0.0039
+skew = 3e-05
+c1 = 0.00019
+power = 0.4
+live_seconds = 165
+update_interval_ns = 10000000000
+volatility_interval_ns = 60000000000
+
+[stop_loss]
+volatility_mean = 0.0028837915787977156
+volatility_std = 0.0036400744231577043
+change_mean = 3.543707373463266e-05
+change_std = 0.004632390064603488
+volatility_threshold = 2.5
+change_threshold = 2.5

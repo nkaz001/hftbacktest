@@ -1,6 +1,6 @@
-//! OBI MM Strategy for Testnet Trading with Order Recording
+//! OBI MM Strategy for Live Trading with Order Recording
 //!
-//! This binary runs the OBI MM strategy on exchange testnets (Binance Futures Testnet)
+//! This binary runs the OBI MM strategy on exchanges (Binance Futures, PAPI, Bybit, etc.)
 //! and records all trading activity to ClickHouse via the order-recorder service.
 //!
 //! Usage:
@@ -8,10 +8,10 @@
 //!   cargo run --release -p order-recorder
 //!
 //!   # Then start the connector:
-//!   cargo run --release -p connector -- bf binancefutures config/binancefutures_testnet.toml
+//!   cargo run --release -p connector -- --name bf --connector binancepapi --config config.toml
 //!
 //!   # Then run this strategy:
-//!   cargo run --release -p obi-mm --bin obi_mm_testnet --features live -- \
+//!   cargo run --release -p obi-mm --bin obi_mm_live --features live -- \
 //!     --connector bf --symbol btcusdt --config config.toml
 
 use std::path::PathBuf;
@@ -37,7 +37,7 @@ use obi_mm::config::{GlobalConfig, StrategyConfig, StrategyParams, StopLossConfi
 use obi_mm::{ObiMmStrategy, WarmupConfig, WarmupResult};
 
 #[derive(Parser, Debug)]
-#[command(author, version, about = "OBI MM Strategy for Testnet with Recording")]
+#[command(author, version, about = "OBI MM Strategy for Live Trading with Recording")]
 struct Args {
     /// Path to strategy configuration file (optional, uses defaults if not provided)
     #[arg(short, long)]
@@ -51,12 +51,12 @@ struct Args {
     #[arg(short, long, default_value = "btcusdt")]
     symbol: String,
 
-    /// Tick size (price precision)
-    #[arg(long, default_value = "0.1")]
+    /// Tick size (price precision, 0.0 = auto-resolve from exchange)
+    #[arg(long, default_value = "0.0")]
     tick_size: f64,
 
-    /// Lot size (quantity precision)
-    #[arg(long, default_value = "0.001")]
+    /// Lot size (quantity precision, 0.0 = auto-resolve from exchange)
+    #[arg(long, default_value = "0.0")]
     lot_size: f64,
 
     /// Dry run mode (log actions but don't submit orders)
@@ -68,7 +68,7 @@ struct Args {
     log_interval: u64,
 
     /// Strategy ID for recording
-    #[arg(long, default_value = "obi_mm_testnet")]
+    #[arg(long, default_value = "obi_mm_live")]
     strategy_id: String,
 
     /// IPC service name for recording events
@@ -254,7 +254,7 @@ pub fn main() -> Result<()> {
     };
 
     println!("======================================");
-    println!(" OBI MM Strategy (Testnet + Recording)");
+    println!(" OBI MM Strategy (Live + Recording)");
     println!("======================================");
     println!("Connector: {}", args.connector);
     println!("Symbol: {}", args.symbol);

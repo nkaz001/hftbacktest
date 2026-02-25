@@ -30,7 +30,7 @@ enabled = true
 mode = "ipc"
 output_dir = "/var/lib/hft/data"
 # Binance uses lowercase symbols
-symbols = ["btcusdt"]
+symbols = ["esportsusdt", "fusdt", "idolusdt", "naorisusdt", "xpinusdt"]
 retention_days = 7
 auto_start = true
 
@@ -56,21 +56,65 @@ max_age_seconds = 86400
 min_duration_seconds = 1800  # 30 minutes to match factor window size
 
 [bot_defaults]
-tick_size = 0.1
-lot_size = 0.002
+# tick_size and lot_size are auto-resolved from exchange API when set to 0.0 or omitted
 
 # ============================================
-# Bots - BTC/USDT on Binance PAPI
+# Bots - OBI MM on Binance PAPI
 # Note: Binance requires LOWERCASE symbols
+# Total capital: $2000, equal weight $400/coin
 # ============================================
 
 [[bots]]
-id = "obi_mm_btcusdt"
+id = "obi_mm_esportsusdt"
 enabled = true
-strategy = "obi_mm_testnet"
-symbol = "btcusdt"
+strategy = "obi_mm_live"
+symbol = "esportsusdt"
 connector = "bf"
-config_file = "/etc/hft/strategies/obi_mm_btc_mainnet.toml"
+config_file = "/etc/hft/strategies/obi_mm_esports.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_fusdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "fusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_f.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_idolusdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "idolusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_idol.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_naorisusdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "naorisusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_naoris.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_xpinusdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "xpinusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_xpin.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5

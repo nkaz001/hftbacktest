@@ -79,7 +79,7 @@ COPY --from=builder /build/target/release/order-recorder /usr/local/bin/
 COPY --from=builder /build/target/release/hft-supervisor /usr/local/bin/
 COPY --from=builder /build/target/release/hft-server /usr/local/bin/
 COPY --from=builder /build/target/release/hftctl /usr/local/bin/
-COPY --from=builder /build/target/release/obi_mm_testnet /usr/local/bin/
+COPY --from=builder /build/target/release/obi_mm_live /usr/local/bin/
 COPY --from=builder /build/target/release/template_strategy /usr/local/bin/
 
 # Copy dashboard from dashboard-builder
