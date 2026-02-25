@@ -125,8 +125,8 @@ impl IpcCollector {
             info!(%symbol, "Registering symbol with connector");
             let request = LiveRequest::RegisterInstrument {
                 symbol: symbol.clone(),
-                tick_size: 0.01, // Default tick size
-                lot_size: 0.001, // Default lot size
+                tick_size: 0.0, // Auto-resolve from exchange
+                lot_size: 0.0, // Auto-resolve from exchange
             };
             self.sender
                 .send(COLLECTOR_ID, &request)
