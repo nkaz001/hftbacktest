@@ -193,11 +193,12 @@ impl BinancePapiClient {
         time_in_force: TimeInForce,
         reduce_only: bool,
     ) -> Result<OrderResponse, BinancePapiError> {
+        let symbol_upper = symbol.to_uppercase();
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");
         body.push_str(client_order_id);
         body.push_str("&symbol=");
-        body.push_str(symbol);
+        body.push_str(&symbol_upper);
         body.push_str("&side=");
         body.push_str(side.as_ref());
         body.push_str("&price=");
@@ -234,9 +235,10 @@ impl BinancePapiClient {
         price_prec: usize,
         qty: f64,
     ) -> Result<OrderResponse, BinancePapiError> {
+        let symbol_upper = symbol.to_uppercase();
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
-        body.push_str(symbol);
+        body.push_str(&symbol_upper);
         body.push_str("&origClientOrderId=");
         body.push_str(client_order_id);
         body.push_str("&side=");
@@ -263,9 +265,10 @@ impl BinancePapiClient {
         client_order_id: &str,
         symbol: &str,
     ) -> Result<OrderResponse, BinancePapiError> {
+        let symbol_upper = symbol.to_uppercase();
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
-        body.push_str(symbol);
+        body.push_str(&symbol_upper);
         body.push_str("&origClientOrderId=");
         body.push_str(client_order_id);
 
@@ -286,7 +289,7 @@ impl BinancePapiClient {
         exchange_order_id: i64,
         symbol: &str,
     ) -> Result<OrderResponse, BinancePapiError> {
-        let body = format!("symbol={}&orderId={}", symbol, exchange_order_id);
+        let body = format!("symbol={}&orderId={}", symbol.to_uppercase(), exchange_order_id);
 
         let resp: OrderResponseResult = self.delete("/papi/v1/um/order", body).await?;
         match resp {
@@ -302,7 +305,10 @@ impl BinancePapiClient {
     /// DELETE /papi/v1/um/allOpenOrders
     pub async fn cancel_all_um_orders(&self, symbol: &str) -> Result<(), reqwest::Error> {
         let _: serde_json::Value = self
-            .delete("/papi/v1/um/allOpenOrders", format!("symbol={symbol}"))
+            .delete(
+                "/papi/v1/um/allOpenOrders",
+                format!("symbol={}", symbol.to_uppercase()),
+            )
             .await?;
         Ok(())
     }
@@ -333,7 +339,10 @@ impl BinancePapiClient {
         &self,
         symbol: &str,
     ) -> Result<Vec<UmPositionRisk>, reqwest::Error> {
-        self.get("/papi/v1/um/positionRisk", format!("symbol={symbol}"))
-            .await
+        self.get(
+            "/papi/v1/um/positionRisk",
+            format!("symbol={}", symbol.to_uppercase()),
+        )
+        .await
     }
 }
