@@ -87,13 +87,15 @@ services:
       - "3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-admin}
       - GF_SECURITY_ALLOW_EMBEDDING=true
       - GF_SECURITY_COOKIE_SAMESITE=disabled
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
       - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+      - GF_SERVER_ROOT_URL=${GF_ROOT_URL:-http://localhost/grafana/}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     networks:
       - hft-network
     logging:
@@ -110,7 +112,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx-binance.conf:/etc/nginx/nginx.conf:ro
     networks:
       - hft-network
     depends_on:
@@ -121,6 +123,21 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Cloudflare Tunnel - exposes nginx to the internet via CF
+  # Create tunnel at https://one.dash.cloudflare.com → Networks → Tunnels
+  # Set CLOUDFLARE_TUNNEL_TOKEN in .env.binance
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: hft-cloudflared-binance
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - hft-network
+    depends_on:
+      - nginx
 
 networks:
   hft-network:
