@@ -219,6 +219,9 @@ impl IpcCollector {
             LiveEvent::Error(err) => {
                 warn!(?err, "Received error event from connector");
             }
+            LiveEvent::InstrumentInfo { symbol, tick_size, lot_size } => {
+                debug!(%symbol, %tick_size, %lot_size, "InstrumentInfo event (ignored for data collection)");
+            }
         }
         Ok(())
     }
