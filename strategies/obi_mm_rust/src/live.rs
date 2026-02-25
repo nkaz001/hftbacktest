@@ -170,14 +170,20 @@ where
         // Log status periodically
         if iteration % log_interval_iters == 0 {
             let orders = hbt.orders(0);
+            // Use enough decimal places to show meaningful price digits
+            let prec = if mid_price >= 100.0 { 2 }
+                else if mid_price >= 1.0 { 4 }
+                else if mid_price >= 0.01 { 6 }
+                else { 8 };
             info!(
-                "[{:>6}s] Mid: {:.2} | Bid: {:.2} | Ask: {:.2} | Pos: {:.4} | Orders: {}",
+                "[{:>6}s] Mid: {:.prec$} | Bid: {:.prec$} | Ask: {:.prec$} | Pos: {:.4} | Orders: {}",
                 iteration / 2,
                 mid_price,
                 best_bid,
                 best_ask,
                 position,
-                orders.len()
+                orders.len(),
+                prec = prec,
             );
         }
 
