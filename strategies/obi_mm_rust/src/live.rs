@@ -152,6 +152,10 @@ where
         if current_tick_size != tick_size && current_tick_size > 0.0 {
             info!("Tick size updated: {} -> {}", tick_size, current_tick_size);
             strategy.set_tick_size(current_tick_size);
+            // Also update order hook context so recorded prices are correct
+            if let Some(ref ctx) = hook_ctx {
+                ctx.set_tick_size(current_tick_size);
+            }
             tick_size = current_tick_size;
         }
 

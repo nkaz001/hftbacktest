@@ -8,7 +8,7 @@ use super::{
         AccountInfo, Balance, ListenKey, OrderResponse, OrderResponseResult, UmPositionRisk,
     },
 };
-use crate::binancefutures::msg::rest::ExchangeInfo;
+use crate::binancefutures::msg::rest::{ExchangeInfo, IncomeEntry};
 use crate::utils::sign_hmac_sha256;
 
 #[derive(Clone)]
@@ -331,6 +331,53 @@ impl BinancePapiClient {
     /// GET /papi/v1/um/positionRisk
     pub async fn get_um_position_risk(&self) -> Result<Vec<UmPositionRisk>, reqwest::Error> {
         self.get("/papi/v1/um/positionRisk", String::new()).await
+    }
+
+    /// Get UM futures income history
+    /// GET /papi/v1/um/income
+    pub async fn get_um_income(
+        &self,
+        symbol: Option<&str>,
+        income_type: Option<&str>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<IncomeEntry>, reqwest::Error> {
+        let mut query = String::new();
+        if let Some(s) = symbol {
+            query.push_str("symbol=");
+            query.push_str(&s.to_uppercase());
+        }
+        if let Some(t) = income_type {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("incomeType=");
+            query.push_str(t);
+        }
+        if let Some(t) = start_time {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("startTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(t) = end_time {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("endTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(l) = limit {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("limit=");
+            query.push_str(&l.to_string());
+        }
+        let resp: Vec<IncomeEntry> = self.get("/papi/v1/um/income", query).await?;
+        Ok(resp)
     }
 
     /// Get UM position information for a specific symbol

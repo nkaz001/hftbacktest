@@ -343,6 +343,77 @@ pub mod recording {
         }
     }
 
+    /// Binance PAPI position/income provider
+    #[cfg(feature = "binancepapi")]
+    pub mod binancepapi {
+        use super::*;
+        use crate::binancepapi::rest::BinancePapiClient;
+
+        pub struct BinancePapiProvider {
+            client: BinancePapiClient,
+        }
+
+        impl BinancePapiProvider {
+            pub fn new(client: BinancePapiClient) -> Self {
+                Self { client }
+            }
+        }
+
+        impl PositionProvider for BinancePapiProvider {
+            fn get_positions(
+                &self,
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_>> {
+                Box::pin(async move {
+                    match self.client.get_um_position_risk().await {
+                        Ok(positions) => {
+                            Ok(positions
+                                .into_iter()
+                                .filter(|p| p.position_amount.abs() > 0.0)
+                                .map(|p| PositionData {
+                                    symbol: p.symbol.to_lowercase(),
+                                    position: p.position_amount,
+                                    entry_price: p.entry_price,
+                                    mark_price: p.mark_price,
+                                    unrealized_pnl: p.unrealized_pnl,
+                                    update_time: p.update_time,
+                                })
+                                .collect())
+                        }
+                        Err(e) => Err(format!("Failed to get PAPI positions: {:?}", e)),
+                    }
+                })
+            }
+        }
+
+        impl IncomeProvider for BinancePapiProvider {
+            fn get_income(
+                &self,
+                since: Option<i64>,
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>> {
+                Box::pin(async move {
+                    match self.client.get_um_income(None, None, since, None, Some(1000)).await {
+                        Ok(incomes) => {
+                            Ok(incomes
+                                .into_iter()
+                                .map(|i| IncomeData {
+                                    symbol: i.symbol,
+                                    income_type: i.income_type,
+                                    income: i.income,
+                                    asset: i.asset,
+                                    info: i.info,
+                                    time: i.time,
+                                    tran_id: i.tran_id,
+                                    trade_id: i.trade_id,
+                                })
+                                .collect())
+                        }
+                        Err(e) => Err(format!("Failed to get PAPI income: {:?}", e)),
+                    }
+                })
+            }
+        }
+    }
+
     /// Bybit position/income provider
     #[cfg(feature = "bybit")]
     pub mod bybit {

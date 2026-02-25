@@ -87,7 +87,7 @@ impl From<BinancePapiError> for Value {
 #[derive(Deserialize)]
 pub struct Config {
     /// REST API URL for PAPI (https://papi.binance.com)
-    api_url: String,
+    pub api_url: String,
     /// WebSocket stream URL for market data (wss://fstream.binance.com/ws)
     stream_url: String,
     /// WebSocket stream URL for user data (wss://fstream.binance.com/pm)
@@ -97,9 +97,9 @@ pub struct Config {
     #[serde(default)]
     order_prefix: String,
     #[serde(default)]
-    api_key: String,
+    pub api_key: String,
     #[serde(default)]
-    secret: String,
+    pub secret: String,
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;

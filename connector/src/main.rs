@@ -647,6 +647,33 @@ async fn main() {
                             }
                         }
                     }
+                    "binancepapi" => {
+                        use connector::binancepapi::{Config as PapiConfig};
+                        use connector::binancepapi::rest::BinancePapiClient;
+                        use connector::sync::recording::binancepapi::BinancePapiProvider;
+
+                        let papi_config: PapiConfig = toml::from_str(&config_str).unwrap();
+                        let client = BinancePapiClient::new(
+                            &papi_config.api_url,
+                            &papi_config.api_key,
+                            &papi_config.secret,
+                        );
+                        let provider = Arc::new(BinancePapiProvider::new(client));
+
+                        match SyncTask::new(sync_config, symbols) {
+                            Ok(sync_task) => {
+                                info!("Started position and income sync for binancepapi");
+                                let provider2 = provider.clone();
+                                tokio::join!(
+                                    sync_task.run_position_sync(provider),
+                                    sync_task.run_income_sync(provider2)
+                                );
+                            }
+                            Err(e) => {
+                                error!("Failed to create sync task: {:?}", e);
+                            }
+                        }
+                    }
                     _ => {
                         info!("Position/income sync not implemented for connector: {}", connector_type);
                     }

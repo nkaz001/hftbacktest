@@ -233,6 +233,9 @@ pub struct Order {
     pub order_trade_time: i64,
     #[serde(rename = "t")]
     pub trade_id: i64,
+    #[serde(rename = "m")]
+    #[serde(default)]
+    pub is_maker_side: bool,
 }
 
 #[derive(Deserialize, Debug)]
