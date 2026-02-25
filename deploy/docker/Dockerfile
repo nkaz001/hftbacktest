@@ -41,15 +41,24 @@ COPY factor-engine ./factor-engine
 COPY strategies ./strategies
 
 # Build all components in release mode
-# Note: This takes 30-45 minutes on first build due to LTO
-RUN cargo build --release \
+# Uses BuildKit cache mounts to persist cargo registry and target dir across builds.
+# Only changed crates are recompiled (~1-2 min instead of 5-10 min).
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release \
     -p connector --features recording \
     -p collector \
     -p order-recorder \
     -p hft-supervisor \
     -p hft-server \
     -p template_strategy && \
-    cargo build --release -p obi-mm --features live
+    cargo build --release -p obi-mm --features live && \
+    cp target/release/connector target/release/collector \
+       target/release/order-recorder target/release/hft-supervisor \
+       target/release/hft-server target/release/hftctl \
+       target/release/obi_mm_live target/release/template_strategy \
+       /tmp/
 
 # =============================================================================
 # Stage 3: Runtime
@@ -72,15 +81,15 @@ RUN useradd -r -s /bin/false -d /var/lib/hft hft
 RUN mkdir -p /var/lib/hft/data /var/lib/hft/logs/bots /var/lib/hft/logs/infra /var/lib/hft/dashboard /etc/hft \
     && chown -R hft:hft /var/lib/hft
 
-# Copy binaries from builder
-COPY --from=builder /build/target/release/connector /usr/local/bin/
-COPY --from=builder /build/target/release/collector /usr/local/bin/
-COPY --from=builder /build/target/release/order-recorder /usr/local/bin/
-COPY --from=builder /build/target/release/hft-supervisor /usr/local/bin/
-COPY --from=builder /build/target/release/hft-server /usr/local/bin/
-COPY --from=builder /build/target/release/hftctl /usr/local/bin/
-COPY --from=builder /build/target/release/obi_mm_live /usr/local/bin/
-COPY --from=builder /build/target/release/template_strategy /usr/local/bin/
+# Copy binaries from builder (staged to /tmp/ because target/ is a cache mount)
+COPY --from=builder /tmp/connector /usr/local/bin/
+COPY --from=builder /tmp/collector /usr/local/bin/
+COPY --from=builder /tmp/order-recorder /usr/local/bin/
+COPY --from=builder /tmp/hft-supervisor /usr/local/bin/
+COPY --from=builder /tmp/hft-server /usr/local/bin/
+COPY --from=builder /tmp/hftctl /usr/local/bin/
+COPY --from=builder /tmp/obi_mm_live /usr/local/bin/
+COPY --from=builder /tmp/template_strategy /usr/local/bin/
 
 # Copy dashboard from dashboard-builder
 COPY --from=dashboard-builder /dashboard/dist /var/lib/hft/dashboard
