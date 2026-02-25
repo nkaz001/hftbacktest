@@ -54,6 +54,19 @@ pub fn calculate_first_ack_latency(prev_order: &Order, new_order: &Order) -> Opt
     None
 }
 
+/// Resolve the best tick_size to use for price conversion.
+/// Prefers the order's own tick_size (set from instrument) if non-zero,
+/// falls back to the context-provided tick_size.
+/// This handles the race condition where the hook context tick_size hasn't been
+/// updated yet but the order already carries the correct tick_size from InstrumentInfo.
+fn resolve_tick_size(order: &Order, context_tick_size: f64) -> f64 {
+    if order.tick_size > 0.0 {
+        order.tick_size
+    } else {
+        context_tick_size
+    }
+}
+
 /// Create an OrderUpdate from hftbacktest Order
 ///
 /// # Arguments
@@ -62,7 +75,7 @@ pub fn calculate_first_ack_latency(prev_order: &Order, new_order: &Order) -> Opt
 /// * `strategy_id` - The strategy identifier
 /// * `symbol` - The trading symbol
 /// * `timestamp` - Current timestamp in nanoseconds
-/// * `tick_size` - Tick size for price conversion (order.tick_size may not be set correctly)
+/// * `tick_size` - Tick size for price conversion (fallback if order.tick_size is 0)
 /// * `cached_latency` - Cached latency from first acknowledgment (reused for all status changes)
 pub fn create_order_update(
     prev_order: &Order,
@@ -78,19 +91,21 @@ pub fn create_order_update(
         calculate_first_ack_latency(prev_order, new_order).unwrap_or(0)
     });
 
+    let ts = resolve_tick_size(new_order, tick_size);
+
     OrderUpdate {
         timestamp,
         strategy_id: strategy_id.to_string(),
         order_id: new_order.order_id,
         symbol: symbol.to_string(),
         side: convert_side(new_order.side),
-        price: new_order.price_tick as f64 * tick_size,
+        price: new_order.price_tick as f64 * ts,
         qty: new_order.qty,
         status: convert_status(new_order.status),
         prev_status: convert_status(prev_order.status),
         leaves_qty: new_order.leaves_qty,
         exec_qty: new_order.exec_qty,
-        exec_price: new_order.exec_price_tick as f64 * tick_size,
+        exec_price: new_order.exec_price_tick as f64 * ts,
         exch_time: new_order.exch_timestamp,
         latency_ns,
     }
@@ -127,10 +142,11 @@ pub fn create_fill_event(
     strategy_id: &str,
     symbol: &str,
     timestamp: i64,
-    mid_price: f64,
+    _mid_price: f64,
     fill_id: u64,
     tick_size: f64,
 ) -> FillEvent {
+    let ts = resolve_tick_size(new_order, tick_size);
     FillEvent {
         timestamp,
         strategy_id: strategy_id.to_string(),
@@ -138,12 +154,12 @@ pub fn create_fill_event(
         order_id: new_order.order_id,
         symbol: symbol.to_string(),
         side: convert_side(new_order.side),
-        price: new_order.exec_price_tick as f64 * tick_size,
+        price: new_order.exec_price_tick as f64 * ts,
         qty: fill_qty,
         fee: 0.0, // Fee is typically not available at this point
         is_maker: new_order.maker,
         exch_time: new_order.exch_timestamp,
-        mid_price,
+        mid_price: new_order.exec_price_tick as f64 * ts, // Use fill price as mid_price
     }
 }
 
