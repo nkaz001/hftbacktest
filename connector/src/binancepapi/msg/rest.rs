@@ -152,42 +152,56 @@ pub struct Balance {
 }
 
 /// PAPI UM Position Information
+/// Some fields are optional because PAPI portfolio margin responses differ from standard futures.
 #[derive(Deserialize, Debug)]
 pub struct UmPositionRisk {
     #[serde(rename = "entryPrice")]
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub entry_price: f64,
     #[serde(rename = "breakEvenPrice")]
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub breakeven_price: f64,
     #[serde(rename = "marginType")]
+    #[serde(default)]
     pub margin_type: String,
     #[serde(rename = "isAutoAddMargin")]
+    #[serde(default)]
     pub is_auto_add_margin: String,
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub leverage: f64,
     #[serde(rename = "liquidationPrice")]
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub liquidation_price: f64,
     #[serde(rename = "markPrice")]
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub mark_price: f64,
     #[serde(rename = "maxNotionalValue")]
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub max_notional_value: f64,
     #[serde(rename = "positionAmt")]
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub position_amount: f64,
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub notional: f64,
     #[serde(deserialize_with = "to_lowercase")]
     pub symbol: String,
     #[serde(rename = "unRealizedProfit")]
+    #[serde(default)]
     #[serde(deserialize_with = "from_str_to_f64")]
     pub unrealized_pnl: f64,
     #[serde(rename = "positionSide")]
+    #[serde(default)]
     pub position_side: String,
     #[serde(rename = "updateTime")]
+    #[serde(default)]
     pub update_time: i64,
 }
 
