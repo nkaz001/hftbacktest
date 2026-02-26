@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS hft.income
 )
 ENGINE = ReplacingMergeTree()
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (connector, income_type, tran_id)
+ORDER BY (connector, income_type, trade_id)
 TTL toDateTime(timestamp) + toIntervalDay(90)
 SETTINGS index_granularity = 8192;
 
