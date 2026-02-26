@@ -104,10 +104,25 @@ CREATE TABLE IF NOT EXISTS hft.income
     `tran_id` Int64,
     `trade_id` String
 )
+ENGINE = ReplacingMergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (connector, income_type, trade_id)
+TTL toDateTime(timestamp) + toIntervalDay(90)
+SETTINGS index_granularity = 8192;
+
+CREATE TABLE IF NOT EXISTS hft.factor_snapshots
+(
+    `timestamp` DateTime64(9, 'UTC'),
+    `connector` LowCardinality(String),
+    `strategy_id` LowCardinality(String),
+    `symbol` LowCardinality(String),
+    `factor_name` LowCardinality(String),
+    `factor_value` Float64
+)
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (connector, strategy_id, symbol, timestamp, tran_id)
-TTL toDateTime(timestamp) + toIntervalDay(90)
+ORDER BY (strategy_id, symbol, timestamp, factor_name)
+TTL toDateTime(timestamp) + toIntervalDay(30)
 SETTINGS index_granularity = 8192;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS hft.daily_pnl

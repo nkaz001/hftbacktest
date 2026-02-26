@@ -11,7 +11,7 @@ use std::sync::RwLock;
 use hftbacktest::types::Order;
 use tracing::{info, error};
 
-use crate::events::{PositionSnapshot, StrategyState, StrategyStatus};
+use crate::events::{FactorSnapshot, PositionSnapshot, StrategyState, StrategyStatus};
 use crate::service::RecordingPublisher;
 use crate::convert::{create_order_update, create_fill_event, detect_fill, calculate_first_ack_latency};
 
@@ -292,6 +292,27 @@ impl OrderHookContext {
         };
         if let Err(e) = self.publisher.publish_position(snapshot) {
             error!("Failed to publish position: {}", e);
+        }
+    }
+
+    /// Publish a factor snapshot with current factor values.
+    ///
+    /// # Arguments
+    /// * `factors` - Key-value pairs of factor names and values.
+    ///   Use naming convention: "obi.zscore", "vol.value", "sl.status", "price.mid"
+    pub fn publish_factors(&self, factors: Vec<(&str, f64)>) {
+        let snapshot = FactorSnapshot {
+            timestamp: current_timestamp_ns(),
+            connector: self.connector.clone(),
+            strategy_id: self.strategy_id.clone(),
+            symbol: self.symbol.clone(),
+            factors: factors
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        };
+        if let Err(e) = self.publisher.publish_factors(snapshot) {
+            error!("Failed to publish factor snapshot: {}", e);
         }
     }
 }

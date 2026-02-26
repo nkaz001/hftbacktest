@@ -234,6 +234,22 @@ pub struct StrategyStatus {
     pub message: String,
 }
 
+/// Factor snapshot - periodic factor values from strategy for alignment verification
+#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
+pub struct FactorSnapshot {
+    /// Local timestamp (nanoseconds)
+    pub timestamp: i64,
+    /// Connector name (e.g., "bf", "bybit")
+    pub connector: String,
+    /// Strategy identifier
+    pub strategy_id: String,
+    /// Trading symbol
+    pub symbol: String,
+    /// Factor values as key-value pairs
+    /// Keys follow convention: "obi.zscore", "obi.raw", "vol.value", "sl.status"
+    pub factors: Vec<(String, f64)>,
+}
+
 /// Income event - realized PnL, commissions, funding fees, etc.
 #[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
 pub struct IncomeEvent {
@@ -268,6 +284,7 @@ pub enum RecordingEvent {
     Account(AccountSnapshot),
     Status(StrategyStatus),
     Income(IncomeEvent),
+    Factor(FactorSnapshot),
 }
 
 impl RecordingEvent {
@@ -279,6 +296,7 @@ impl RecordingEvent {
             RecordingEvent::Account(e) => e.timestamp,
             RecordingEvent::Status(e) => e.timestamp,
             RecordingEvent::Income(e) => e.timestamp,
+            RecordingEvent::Factor(e) => e.timestamp,
         }
     }
 
@@ -290,6 +308,7 @@ impl RecordingEvent {
             RecordingEvent::Account(e) => &e.strategy_id,
             RecordingEvent::Status(e) => &e.strategy_id,
             RecordingEvent::Income(e) => &e.strategy_id,
+            RecordingEvent::Factor(e) => &e.strategy_id,
         }
     }
 }
@@ -392,5 +411,117 @@ mod tests {
 
         // Buy at 50010 when mid is 50000 = 2 bps slippage
         assert!((fill.slippage_bps() - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_factor_snapshot_roundtrip() {
+        let factors = vec![
+            ("obi.zscore".to_string(), 1.23),
+            ("obi.raw".to_string(), 0.456),
+            ("vol.value".to_string(), 0.0012),
+            ("sl.status".to_string(), 0.0),
+            ("price.mid".to_string(), 97500.35),
+        ];
+
+        let event = RecordingEvent::Factor(FactorSnapshot {
+            timestamp: 1709000000_000_000_000,
+            connector: "bf".to_string(),
+            strategy_id: "obi_mm_btcusdt".to_string(),
+            symbol: "btcusdt".to_string(),
+            factors: factors.clone(),
+        });
+
+        let msg = RecordingMessage::new(&event).unwrap();
+        let decoded = msg.decode().unwrap();
+
+        if let RecordingEvent::Factor(s) = decoded {
+            assert_eq!(s.connector, "bf");
+            assert_eq!(s.strategy_id, "obi_mm_btcusdt");
+            assert_eq!(s.symbol, "btcusdt");
+            assert_eq!(s.factors.len(), 5);
+            assert_eq!(s.factors[0].0, "obi.zscore");
+            assert!((s.factors[0].1 - 1.23).abs() < f64::EPSILON);
+            assert_eq!(s.factors[4].0, "price.mid");
+            assert!((s.factors[4].1 - 97500.35).abs() < f64::EPSILON);
+        } else {
+            panic!("Wrong event type");
+        }
+    }
+
+    #[test]
+    fn test_factor_snapshot_12_factors_fits_in_message() {
+        // Simulate the actual 12 factors published by the strategy
+        let factors = vec![
+            ("obi.zscore".to_string(), 1.5),
+            ("obi.raw".to_string(), 0.3),
+            ("obi.mean".to_string(), 0.01),
+            ("obi.std".to_string(), 0.15),
+            ("obi.sample_count".to_string(), 360.0),
+            ("vol.value".to_string(), 0.0015),
+            ("vol.mean_return".to_string(), 0.00001),
+            ("vol.sample_count".to_string(), 60.0),
+            ("sl.status".to_string(), 0.0),
+            ("price.mid".to_string(), 97543.25),
+            ("price.bid".to_string(), 97543.10),
+            ("price.ask".to_string(), 97543.40),
+        ];
+
+        let event = RecordingEvent::Factor(FactorSnapshot {
+            timestamp: 1709000000_000_000_000,
+            connector: "bf".to_string(),
+            strategy_id: "obi_mm_btcusdt".to_string(),
+            symbol: "btcusdt".to_string(),
+            factors,
+        });
+
+        let msg = RecordingMessage::new(&event).unwrap();
+        assert!(
+            (msg.len as usize) < RecordingMessage::MAX_SIZE,
+            "12-factor snapshot ({} bytes) exceeds MAX_SIZE ({})",
+            msg.len,
+            RecordingMessage::MAX_SIZE
+        );
+
+        // Roundtrip check
+        let decoded = msg.decode().unwrap();
+        if let RecordingEvent::Factor(s) = decoded {
+            assert_eq!(s.factors.len(), 12);
+        } else {
+            panic!("Wrong event type");
+        }
+    }
+
+    #[test]
+    fn test_factor_snapshot_empty_factors() {
+        let event = RecordingEvent::Factor(FactorSnapshot {
+            timestamp: 0,
+            connector: "bf".to_string(),
+            strategy_id: "test".to_string(),
+            symbol: "btcusdt".to_string(),
+            factors: vec![],
+        });
+
+        let msg = RecordingMessage::new(&event).unwrap();
+        let decoded = msg.decode().unwrap();
+
+        if let RecordingEvent::Factor(s) = decoded {
+            assert_eq!(s.factors.len(), 0);
+        } else {
+            panic!("Wrong event type");
+        }
+    }
+
+    #[test]
+    fn test_factor_snapshot_timestamp_and_strategy_id() {
+        let event = RecordingEvent::Factor(FactorSnapshot {
+            timestamp: 999,
+            connector: "bybit".to_string(),
+            strategy_id: "my_strat".to_string(),
+            symbol: "ethusdt".to_string(),
+            factors: vec![("x".to_string(), 1.0)],
+        });
+
+        assert_eq!(event.timestamp(), 999);
+        assert_eq!(event.strategy_id(), "my_strat");
     }
 }

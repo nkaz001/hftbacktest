@@ -71,7 +71,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT sum(income) as total_pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'REALIZED_PNL'",
+          "rawSql": "SELECT sum(income) as total_pnl\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'REALIZED_PNL'",
           "refId": "A"
         }
       ],
@@ -133,7 +133,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT abs(sum(income)) as total_commission\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'COMMISSION'",
+          "rawSql": "SELECT abs(sum(income)) as total_commission\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'COMMISSION'",
           "refId": "A"
         }
       ],
@@ -203,7 +203,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT sum(income) as total_funding\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'FUNDING_FEE'",
+          "rawSql": "SELECT sum(income) as total_funding\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'FUNDING_FEE'",
           "refId": "A"
         }
       ],
@@ -273,7 +273,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT sum(income) as net_pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime",
+          "rawSql": "SELECT sum(income) as net_pnl\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime",
           "refId": "A"
         }
       ],
@@ -370,7 +370,7 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "timeseries",
-          "rawSql": "SELECT\n  toStartOfFiveMinutes(timestamp) as time,\n  CONCAT(lower(symbol), '-', connector) as series,\n  sum(income) as pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY time, series\nORDER BY time ASC",
+          "rawSql": "SELECT\n  toStartOfFiveMinutes(timestamp) as time,\n  CONCAT(lower(symbol), '-', connector) as series,\n  sum(income) as pnl\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY time, series\nORDER BY time ASC",
           "refId": "A"
         }
       ],
@@ -460,7 +460,7 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "timeseries",
-          "rawSql": "SELECT\n  toStartOfHour(timestamp) as time,\n  CONCAT(symbol, '-', connector) as symbol,\n  sum(income) as pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'REALIZED_PNL'\nGROUP BY time, symbol, connector\nORDER BY time ASC",
+          "rawSql": "SELECT\n  toStartOfHour(timestamp) as time,\n  CONCAT(symbol, '-', connector) as symbol,\n  sum(income) as pnl\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'REALIZED_PNL'\nGROUP BY time, symbol, connector\nORDER BY time ASC",
           "refId": "A"
         }
       ],
@@ -525,7 +525,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT\n  income_type,\n  abs(sum(income)) as total\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type IN ('COMMISSION', 'FUNDING_FEE')\nGROUP BY income_type",
+          "rawSql": "SELECT\n  income_type,\n  abs(sum(income)) as total\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type IN ('COMMISSION', 'FUNDING_FEE')\nGROUP BY income_type",
           "refId": "A"
         }
       ],
@@ -590,7 +590,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT\n  CONCAT(symbol, '-', connector) as symbol,\n  sum(income) as pnl\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'REALIZED_PNL'\nGROUP BY symbol, connector\nHAVING pnl != 0",
+          "rawSql": "SELECT\n  CONCAT(symbol, '-', connector) as symbol,\n  sum(income) as pnl\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n  AND income_type = 'REALIZED_PNL'\nGROUP BY symbol, connector\nHAVING pnl != 0",
           "refId": "A"
         }
       ],
@@ -761,7 +761,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT\n  connector,\n  symbol,\n  sumIf(income, income_type = 'REALIZED_PNL') as pnl,\n  sumIf(income, income_type = 'COMMISSION') as commission,\n  sumIf(income, income_type = 'FUNDING_FEE') as funding,\n  sum(income) as net\nFROM hft.income\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY connector, symbol\nORDER BY net DESC",
+          "rawSql": "SELECT\n  connector,\n  symbol,\n  sumIf(income, income_type = 'REALIZED_PNL') as pnl,\n  sumIf(income, income_type = 'COMMISSION') as commission,\n  sumIf(income, income_type = 'FUNDING_FEE') as funding,\n  sum(income) as net\nFROM hft.income FINAL\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY connector, symbol\nORDER BY net DESC",
           "refId": "A"
         }
       ],
