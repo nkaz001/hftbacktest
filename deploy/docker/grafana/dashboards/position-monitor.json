@@ -203,11 +203,11 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT count(*) as active_positions\nFROM (\n  SELECT connector, symbol, argMax(position, timestamp) as position\n  FROM (\n    SELECT connector, lower(symbol) as symbol, position, timestamp\n    FROM hft.positions\n    WHERE timestamp >= now() - INTERVAL 5 MINUTE\n  )\n  GROUP BY connector, symbol\n  HAVING position != 0\n)",
+          "rawSql": "SELECT sum(abs(pos * mp)) as total_notional\nFROM (\n  SELECT connector, symbol, argMax(position, timestamp) as pos, argMax(mark_price, timestamp) as mp\n  FROM (\n    SELECT connector, lower(symbol) as symbol, position, mark_price, timestamp\n    FROM hft.positions\n    WHERE timestamp >= now() - INTERVAL 5 MINUTE\n  )\n  GROUP BY connector, symbol\n  HAVING pos != 0\n)",
           "refId": "A"
         }
       ],
-      "title": "Active Positions",
+      "title": "Total Notional Exposure",
       "type": "stat"
     },
     {
