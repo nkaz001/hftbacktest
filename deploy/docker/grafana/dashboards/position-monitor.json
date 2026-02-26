@@ -141,7 +141,7 @@
           "editorType": "sql",
           "format": 1,
           "queryType": "table",
-          "rawSql": "SELECT sum(income) as total_realized_pnl\nFROM hft.income\nWHERE income_type IN ('REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE')",
+          "rawSql": "SELECT sum(income) as total_realized_pnl\nFROM hft.income FINAL\nWHERE income_type IN ('REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE')",
           "refId": "A"
         }
       ],
