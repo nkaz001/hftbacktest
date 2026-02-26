@@ -607,6 +607,42 @@ pub struct RestResponse {
     pub time: i64,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct WalletBalanceResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i64,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: WalletBalanceResult,
+    pub time: i64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct WalletBalanceResult {
+    pub list: Vec<WalletBalanceAccount>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct WalletBalanceAccount {
+    #[serde(rename = "accountType")]
+    pub account_type: String,
+    #[serde(rename = "totalEquity")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_equity: f64,
+    #[serde(rename = "totalWalletBalance")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_wallet_balance: f64,
+    #[serde(rename = "totalInitialMargin")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_initial_margin: f64,
+    #[serde(rename = "totalMaintenanceMargin")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_maintenance_margin: f64,
+    #[serde(rename = "accountMMRate", default)]
+    #[serde(deserialize_with = "from_str_to_f64_opt")]
+    pub account_mm_rate: Option<f64>,
+}
+
 /// Transaction log entry from /v5/account/transaction-log
 /// Note: Many fields can be null in Bybit's API response, so we use nullable_string
 /// to handle both missing fields and explicit null values.

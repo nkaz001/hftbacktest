@@ -1,6 +1,7 @@
-//! Position and Income sync module
+//! Position, account, and income sync module
 //!
-//! This module provides periodic synchronization of positions and income data
+//! This module provides periodic synchronization of positions, account equity,
+//! and income data
 //! to the order-recorder service for analysis and visualization.
 
 #[cfg(feature = "recording")]
@@ -9,12 +10,12 @@ pub mod recording {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    use order_recorder::events::{IncomeEvent, PositionSnapshot, RecordingEvent};
+    use order_recorder::events::{AccountSnapshot, IncomeEvent, PositionSnapshot, RecordingEvent};
     use order_recorder::service::RecordingPublisher;
     use tokio::time::interval;
     use tracing::{debug, error, info, warn};
 
-    /// Configuration for position/income sync
+    /// Configuration for position/account/income sync
     #[derive(Clone, Debug)]
     pub struct SyncConfig {
         /// IPC service name for recording events
@@ -25,6 +26,8 @@ pub mod recording {
         pub strategy_id: String,
         /// Position sync interval
         pub position_interval: Duration,
+        /// Account sync interval
+        pub account_interval: Duration,
         /// Income sync interval
         pub income_interval: Duration,
     }
@@ -36,6 +39,7 @@ pub mod recording {
                 connector_name: "bf".to_string(),
                 strategy_id: String::new(),
                 position_interval: Duration::from_secs(5),
+                account_interval: Duration::from_secs(30),
                 income_interval: Duration::from_secs(60),
             }
         }
@@ -56,6 +60,16 @@ pub mod recording {
             &self,
             since: Option<i64>,
         ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>>;
+    }
+
+    /// Trait for account sync providers
+    pub trait AccountProvider: Send + Sync {
+        /// Get latest account equity snapshot
+        fn get_account(
+            &self,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_>,
+        >;
     }
 
     /// Position data from exchange
@@ -80,6 +94,18 @@ pub mod recording {
         pub time: i64,
         pub tran_id: i64,
         pub trade_id: String,
+    }
+
+    /// Account equity data from exchange
+    #[derive(Clone, Debug)]
+    pub struct AccountEquityData {
+        pub account_equity: f64,
+        pub actual_equity: f64,
+        pub uni_mmr: f64,
+        pub account_initial_margin: f64,
+        pub account_maint_margin: f64,
+        /// Last update timestamp in milliseconds if available
+        pub update_time: i64,
     }
 
     /// Position and Income sync task
@@ -157,6 +183,58 @@ pub mod recording {
                     }
                     Err(e) => {
                         warn!("Failed to get positions: {}", e);
+                    }
+                }
+            }
+        }
+
+        /// Run account equity sync loop
+        pub async fn run_account_sync<A: AccountProvider>(
+            &self,
+            provider: Arc<A>,
+        ) {
+            // Wait for order-recorder to be ready
+            tokio::time::sleep(Duration::from_secs(10)).await;
+
+            info!(
+                "Starting account sync task (interval: {:?})",
+                self.config.account_interval
+            );
+
+            let mut interval = interval(self.config.account_interval);
+            loop {
+                interval.tick().await;
+
+                match provider.get_account().await {
+                    Ok(account) => {
+                        let timestamp = if account.update_time > 0 {
+                            account.update_time * 1_000_000 // ms -> ns
+                        } else {
+                            chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+                        };
+
+                        let snapshot = AccountSnapshot {
+                            timestamp,
+                            connector: self.config.connector_name.clone(),
+                            strategy_id: self.config.strategy_id.clone(),
+                            account_equity: account.account_equity,
+                            actual_equity: account.actual_equity,
+                            uni_mmr: account.uni_mmr,
+                            account_initial_margin: account.account_initial_margin,
+                            account_maint_margin: account.account_maint_margin,
+                        };
+
+                        debug!(
+                            "Account sync: connector={} equity={:.2} maint_margin={:.2}",
+                            snapshot.connector, snapshot.account_equity, snapshot.account_maint_margin
+                        );
+
+                        if let Err(e) = self.publisher.publish(&RecordingEvent::Account(snapshot)) {
+                            error!("Failed to publish account snapshot: {:?}", e);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to get account snapshot: {}", e);
                     }
                 }
             }
@@ -314,6 +392,35 @@ pub mod recording {
             }
         }
 
+        impl AccountProvider for BinanceFuturesProvider {
+            fn get_account(
+                &self,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_>,
+            > {
+                Box::pin(async move {
+                    match self.client.get_account().await {
+                        Ok(account) => {
+                            let uni_mmr = if account.total_margin_balance.abs() > f64::EPSILON {
+                                account.total_maint_margin / account.total_margin_balance
+                            } else {
+                                0.0
+                            };
+                            Ok(AccountEquityData {
+                                account_equity: account.total_margin_balance,
+                                actual_equity: account.total_wallet_balance,
+                                uni_mmr,
+                                account_initial_margin: account.total_initial_margin,
+                                account_maint_margin: account.total_maint_margin,
+                                update_time: account.update_time,
+                            })
+                        }
+                        Err(e) => Err(format!("Failed to get account: {:?}", e)),
+                    }
+                })
+            }
+        }
+
         impl IncomeProvider for BinanceFuturesProvider {
             fn get_income(
                 &self,
@@ -380,6 +487,28 @@ pub mod recording {
                                 .collect())
                         }
                         Err(e) => Err(format!("Failed to get PAPI positions: {:?}", e)),
+                    }
+                })
+            }
+        }
+
+        impl AccountProvider for BinancePapiProvider {
+            fn get_account(
+                &self,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_>,
+            > {
+                Box::pin(async move {
+                    match self.client.get_account_info().await {
+                        Ok(account) => Ok(AccountEquityData {
+                            account_equity: account.account_equity,
+                            actual_equity: account.actual_equity,
+                            uni_mmr: account.uni_mmr,
+                            account_initial_margin: account.account_initial_margin,
+                            account_maint_margin: account.account_maint_margin,
+                            update_time: account.update_time,
+                        }),
+                        Err(e) => Err(format!("Failed to get PAPI account: {:?}", e)),
                     }
                 })
             }
@@ -457,6 +586,42 @@ pub mod recording {
                                 .collect())
                         }
                         Err(e) => Err(format!("Failed to get positions: {:?}", e)),
+                    }
+                })
+            }
+        }
+
+        impl AccountProvider for BybitProvider {
+            fn get_account(
+                &self,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_>,
+            > {
+                Box::pin(async move {
+                    match self.client.get_wallet_balance("UNIFIED").await {
+                        Ok(accounts) => {
+                            let account = accounts
+                                .into_iter()
+                                .next()
+                                .ok_or_else(|| "Bybit wallet balance response was empty".to_string())?;
+                            let uni_mmr = account.account_mm_rate.unwrap_or_else(|| {
+                                if account.total_equity.abs() > f64::EPSILON {
+                                    account.total_maintenance_margin / account.total_equity
+                                } else {
+                                    0.0
+                                }
+                            });
+
+                            Ok(AccountEquityData {
+                                account_equity: account.total_equity,
+                                actual_equity: account.total_wallet_balance,
+                                uni_mmr,
+                                account_initial_margin: account.total_initial_margin,
+                                account_maint_margin: account.total_maintenance_margin,
+                                update_time: chrono::Utc::now().timestamp_millis(),
+                            })
+                        }
+                        Err(e) => Err(format!("Failed to get wallet balance: {:?}", e)),
                     }
                 })
             }

@@ -6,6 +6,11 @@ use iceoryx2::prelude::*;
 use std::time::Duration;
 use tracing::{debug, error, info};
 
+#[path = "clickhouse.rs"]
+mod clickhouse_writer;
+
+use clickhouse_writer::AccountEquityWriter;
+
 /// Default max publishers for IPC service
 pub const DEFAULT_MAX_PUBLISHERS: usize = 16;
 
@@ -34,13 +39,19 @@ impl Default for ServiceConfig {
 pub struct RecordingService {
     config: ServiceConfig,
     writer: ClickHouseWriter,
+    account_writer: AccountEquityWriter,
 }
 
 impl RecordingService {
     /// Create a new recording service
     pub fn new(config: ServiceConfig) -> Self {
         let writer = ClickHouseWriter::new(config.writer.clone());
-        Self { config, writer }
+        let account_writer = AccountEquityWriter::new(&config.writer.url, &config.writer.database);
+        Self {
+            config,
+            writer,
+            account_writer,
+        }
     }
 
     /// Run the recording service (blocking)
@@ -135,6 +146,15 @@ impl RecordingService {
                     error!("Failed to write position: {:?}", e);
                 }
             }
+            RecordingEvent::Account(ref account) => {
+                debug!(
+                    "Account: connector={} equity={:.2}",
+                    account.connector, account.account_equity
+                );
+                if let Err(e) = self.account_writer.write_account(account).await {
+                    error!("Failed to write account snapshot: {:?}", e);
+                }
+            }
             RecordingEvent::Status(ref status) => {
                 info!(
                     "Strategy {}: {:?} - {}",
@@ -219,6 +239,11 @@ impl RecordingPublisher {
     /// Publish a position snapshot
     pub fn publish_position(&self, pos: crate::events::PositionSnapshot) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Position(pos))
+    }
+
+    /// Publish an account snapshot
+    pub fn publish_account(&self, account: crate::events::AccountSnapshot) -> Result<(), Box<dyn std::error::Error>> {
+        self.publish(&RecordingEvent::Account(account))
     }
 
     /// Publish a strategy status

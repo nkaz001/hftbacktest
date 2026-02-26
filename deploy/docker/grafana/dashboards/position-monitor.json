@@ -168,7 +168,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "currencyUSD"
         },
         "overrides": []
       },
@@ -358,11 +358,11 @@
           "editorType": "sql",
           "format": 0,
           "queryType": "timeseries",
-          "rawSql": "SELECT\n  time,\n  CONCAT(symbol, '-', connector) as symbol,\n  avg(position) as position\nFROM (\n  SELECT toStartOfMinute(timestamp) as time, connector, lower(symbol) as symbol, position\n  FROM hft.positions\n  WHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n)\nGROUP BY time, symbol, connector\nORDER BY time ASC",
+          "rawSql": "SELECT\n  time,\n  CONCAT(symbol, '-', connector) as symbol,\n  avg(position * mark_price) as notional\nFROM (\n  SELECT toStartOfMinute(timestamp) as time, connector, lower(symbol) as symbol, position, mark_price\n  FROM hft.positions\n  WHERE timestamp >= $__fromTime AND timestamp <= $__toTime\n)\nGROUP BY time, symbol, connector\nORDER BY time ASC",
           "refId": "A"
         }
       ],
-      "title": "Position History by Symbol",
+      "title": "Position Notional History by Symbol",
       "type": "timeseries"
     },
     {
@@ -632,6 +632,99 @@
       ],
       "title": "Current Positions",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "queryType": "timeseries",
+          "rawSql": "SELECT\n  toStartOfMinute(timestamp) as time,\n  connector,\n  avg(account_equity) as account_equity\nFROM hft.account_equity\nWHERE timestamp >= $__fromTime AND timestamp <= $__toTime\nGROUP BY time, connector\nORDER BY time ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Account Equity by Connector",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

@@ -378,6 +378,12 @@ impl BinanceFuturesClient {
         Ok(resp)
     }
 
+    /// Get futures account information
+    /// GET /fapi/v2/account
+    pub async fn get_account(&self) -> Result<rest::FuturesAccountInfo, reqwest::Error> {
+        self.get("/fapi/v2/account", String::new()).await
+    }
+
     /// Get exchange info for all symbols (public, no auth required)
     /// GET /fapi/v1/exchangeInfo
     pub async fn get_exchange_info(&self) -> Result<rest::ExchangeInfo, reqwest::Error> {

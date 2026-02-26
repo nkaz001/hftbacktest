@@ -8,6 +8,7 @@ use crate::{
             ClosedPnlEntry, ClosedPnlResponse, InstrumentsInfoResponse, Order as BybitOrder,
             OrderResponseData, Position, RestResponse, TransactionLogEntry,
             TransactionLogResponse,
+            WalletBalanceAccount, WalletBalanceResponse,
         },
     },
     utils::sign_hmac_sha256,
@@ -160,6 +161,26 @@ impl BybitClient {
         } else {
             let position: Vec<Position> = serde_json::from_value(resp.result.list.unwrap())?;
             Ok(position)
+        }
+    }
+
+    /// Get wallet balance for a given account type (e.g. UNIFIED)
+    pub async fn get_wallet_balance(
+        &self,
+        account_type: &str,
+    ) -> Result<Vec<WalletBalanceAccount>, BybitError> {
+        let resp: WalletBalanceResponse = self
+            .get(
+                "/v5/account/wallet-balance",
+                &format!("accountType={account_type}"),
+                &self.api_key,
+                &self.secret,
+            )
+            .await?;
+        if resp.ret_code != 0 {
+            Err(BybitError::OpError(resp.ret_msg))
+        } else {
+            Ok(resp.result.list)
         }
     }
 

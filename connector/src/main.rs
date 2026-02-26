@@ -421,7 +421,7 @@ struct Args {
     #[arg(short = 'f', long)]
     config: String,
 
-    /// IPC service name for recording events (enables position/income sync)
+    /// IPC service name for recording events (enables position/account/income sync)
     #[cfg(feature = "recording")]
     #[arg(long)]
     recording_service: Option<String>,
@@ -435,6 +435,11 @@ struct Args {
     #[cfg(feature = "recording")]
     #[arg(long, default_value = "60")]
     income_sync_interval: u64,
+
+    /// Account equity sync interval in seconds
+    #[cfg(feature = "recording")]
+    #[arg(long, default_value = "30")]
+    account_sync_interval: u64,
 }
 
 #[tokio::main]
@@ -549,7 +554,7 @@ async fn main() {
     // Track registered symbols for cleanup on shutdown
     let registered_symbols: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
-    // Spawn position and income sync tasks if recording is enabled
+    // Spawn position, account, and income sync tasks if recording is enabled
     // Runs on a dedicated thread because iceoryx2 publishers aren't Send
     #[cfg(feature = "recording")]
     let _sync_handle = if let Some(ref recording_service) = args.recording_service {
@@ -561,6 +566,7 @@ async fn main() {
             connector_name: args.name.clone(),
             strategy_id: String::new(), // Will publish for all strategies
             position_interval: StdDuration::from_secs(args.position_sync_interval),
+            account_interval: StdDuration::from_secs(args.account_sync_interval),
             income_interval: StdDuration::from_secs(args.income_sync_interval),
         };
 
@@ -588,12 +594,14 @@ async fn main() {
 
                         match SyncTask::new(sync_config, symbols) {
                             Ok(sync_task) => {
-                                info!("Started position and income sync for binancefutures");
-                                // Run both syncs concurrently on this thread
+                                info!("Started position, account, and income sync for binancefutures");
+                                // Run sync loops concurrently on this thread
                                 let provider2 = provider.clone();
+                                let provider3 = provider.clone();
                                 tokio::join!(
                                     sync_task.run_position_sync(provider),
-                                    sync_task.run_income_sync(provider2)
+                                    sync_task.run_account_sync(provider2),
+                                    sync_task.run_income_sync(provider3)
                                 );
                             }
                             Err(e) => {
@@ -615,11 +623,13 @@ async fn main() {
 
                         match SyncTask::new(sync_config, symbols) {
                             Ok(sync_task) => {
-                                info!("Started position and income sync for bybit");
+                                info!("Started position, account, and income sync for bybit");
                                 let provider2 = provider.clone();
+                                let provider3 = provider.clone();
                                 tokio::join!(
                                     sync_task.run_position_sync(provider),
-                                    sync_task.run_income_sync(provider2)
+                                    sync_task.run_account_sync(provider2),
+                                    sync_task.run_income_sync(provider3)
                                 );
                             }
                             Err(e) => {
@@ -642,11 +652,13 @@ async fn main() {
 
                         match SyncTask::new(sync_config, symbols) {
                             Ok(sync_task) => {
-                                info!("Started position and income sync for bybit_rest");
+                                info!("Started position, account, and income sync for bybit_rest");
                                 let provider2 = provider.clone();
+                                let provider3 = provider.clone();
                                 tokio::join!(
                                     sync_task.run_position_sync(provider),
-                                    sync_task.run_income_sync(provider2)
+                                    sync_task.run_account_sync(provider2),
+                                    sync_task.run_income_sync(provider3)
                                 );
                             }
                             Err(e) => {
@@ -669,17 +681,22 @@ async fn main() {
 
                         match SyncTask::new(sync_config, symbols) {
                             Ok(sync_task) => {
-                                info!("Started position and income sync for binancepapi");
+                                info!("Started position, account, and income sync for binancepapi");
                                 let provider2 = provider.clone();
+                                let provider3 = provider.clone();
                                 tokio::join!(
                                     sync_task.run_position_sync(provider),
-                                    sync_task.run_income_sync(provider2)
+                                    sync_task.run_account_sync(provider2),
+                                    sync_task.run_income_sync(provider3)
                                 );
                             }
                             Err(e) => {
                                 error!("Failed to create sync task: {:?}", e);
                             }
                         }
+                    }
+                    "binancespot" => {
+                        info!("Skipping account sync for binancespot");
                     }
                     _ => {
                         info!("Position/income sync not implemented for connector: {}", connector_type);

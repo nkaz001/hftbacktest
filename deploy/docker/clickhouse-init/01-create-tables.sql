@@ -61,6 +61,23 @@ ORDER BY (connector, strategy_id, symbol, timestamp)
 TTL toDateTime(timestamp) + toIntervalDay(30)
 SETTINGS index_granularity = 8192;
 
+CREATE TABLE IF NOT EXISTS hft.account_equity
+(
+    `timestamp` DateTime64(9, 'UTC'),
+    `connector` LowCardinality(String),
+    `strategy_id` LowCardinality(String),
+    `account_equity` Float64,
+    `actual_equity` Float64,
+    `uni_mmr` Float64,
+    `account_initial_margin` Float64,
+    `account_maint_margin` Float64
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (connector, strategy_id, timestamp)
+TTL toDateTime(timestamp) + toIntervalDay(90)
+SETTINGS index_granularity = 8192;
+
 CREATE TABLE IF NOT EXISTS hft.strategy_status
 (
     `timestamp` DateTime64(9, 'UTC'),

@@ -200,6 +200,27 @@ pub struct PositionSnapshot {
     pub mark_price: f64,
 }
 
+/// Account snapshot - sent periodically for account-level equity/margin metrics
+#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
+pub struct AccountSnapshot {
+    /// Local timestamp (nanoseconds)
+    pub timestamp: i64,
+    /// Connector name (e.g., "bf", "bybit")
+    pub connector: String,
+    /// Strategy identifier
+    pub strategy_id: String,
+    /// Account equity
+    pub account_equity: f64,
+    /// Actual/wallet equity
+    pub actual_equity: f64,
+    /// Maintenance margin ratio
+    pub uni_mmr: f64,
+    /// Initial margin
+    pub account_initial_margin: f64,
+    /// Maintenance margin
+    pub account_maint_margin: f64,
+}
+
 /// Strategy status event - sent on state changes
 #[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
 pub struct StrategyStatus {
@@ -244,6 +265,7 @@ pub enum RecordingEvent {
     Order(OrderUpdate),
     Fill(FillEvent),
     Position(PositionSnapshot),
+    Account(AccountSnapshot),
     Status(StrategyStatus),
     Income(IncomeEvent),
 }
@@ -254,6 +276,7 @@ impl RecordingEvent {
             RecordingEvent::Order(e) => e.timestamp,
             RecordingEvent::Fill(e) => e.timestamp,
             RecordingEvent::Position(e) => e.timestamp,
+            RecordingEvent::Account(e) => e.timestamp,
             RecordingEvent::Status(e) => e.timestamp,
             RecordingEvent::Income(e) => e.timestamp,
         }
@@ -264,6 +287,7 @@ impl RecordingEvent {
             RecordingEvent::Order(e) => &e.strategy_id,
             RecordingEvent::Fill(e) => &e.strategy_id,
             RecordingEvent::Position(e) => &e.strategy_id,
+            RecordingEvent::Account(e) => &e.strategy_id,
             RecordingEvent::Status(e) => &e.strategy_id,
             RecordingEvent::Income(e) => &e.strategy_id,
         }

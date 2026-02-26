@@ -143,6 +143,27 @@ pub struct PositionInformationV2 {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct FuturesAccountInfo {
+    #[serde(rename = "totalWalletBalance")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_wallet_balance: f64,
+    #[serde(rename = "totalUnrealizedProfit")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_unrealized_profit: f64,
+    #[serde(rename = "totalMarginBalance")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_margin_balance: f64,
+    #[serde(rename = "totalInitialMargin")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_initial_margin: f64,
+    #[serde(rename = "totalMaintMargin")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_maint_margin: f64,
+    #[serde(rename = "updateTime")]
+    pub update_time: i64,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Depth {
     #[serde(rename = "lastUpdateId")]
     pub last_update_id: i64,
