@@ -9,7 +9,7 @@ use tracing::{debug, error, info};
 #[path = "clickhouse.rs"]
 mod clickhouse_writer;
 
-use clickhouse_writer::AccountEquityWriter;
+use clickhouse_writer::{AccountEquityWriter, FactorSnapshotWriter};
 
 /// Default max publishers for IPC service
 pub const DEFAULT_MAX_PUBLISHERS: usize = 16;
@@ -40,6 +40,7 @@ pub struct RecordingService {
     config: ServiceConfig,
     writer: ClickHouseWriter,
     account_writer: AccountEquityWriter,
+    factor_writer: FactorSnapshotWriter,
 }
 
 impl RecordingService {
@@ -47,10 +48,12 @@ impl RecordingService {
     pub fn new(config: ServiceConfig) -> Self {
         let writer = ClickHouseWriter::new(config.writer.clone());
         let account_writer = AccountEquityWriter::new(&config.writer.url, &config.writer.database);
+        let factor_writer = FactorSnapshotWriter::new(&config.writer.url, &config.writer.database);
         Self {
             config,
             writer,
             account_writer,
+            factor_writer,
         }
     }
 
@@ -173,6 +176,15 @@ impl RecordingService {
                     error!("Failed to write income: {:?}", e);
                 }
             }
+            RecordingEvent::Factor(ref snapshot) => {
+                debug!(
+                    "Factor: {} {} factors={}",
+                    snapshot.symbol, snapshot.strategy_id, snapshot.factors.len()
+                );
+                if let Err(e) = self.factor_writer.write_factors(snapshot).await {
+                    error!("Failed to write factor snapshot: {:?}", e);
+                }
+            }
         }
     }
 
@@ -254,5 +266,10 @@ impl RecordingPublisher {
     /// Publish an income event
     pub fn publish_income(&self, income: crate::events::IncomeEvent) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Income(income))
+    }
+
+    /// Publish a factor snapshot
+    pub fn publish_factors(&self, snapshot: crate::events::FactorSnapshot) -> Result<(), Box<dyn std::error::Error>> {
+        self.publish(&RecordingEvent::Factor(snapshot))
     }
 }

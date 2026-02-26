@@ -1,6 +1,6 @@
-//! ClickHouse helpers for account equity snapshots.
+//! ClickHouse helpers for account equity and factor snapshots.
 
-use crate::events::AccountSnapshot;
+use crate::events::{AccountSnapshot, FactorSnapshot};
 use ::clickhouse::{Client, Row};
 use serde::Serialize;
 use time::OffsetDateTime;
@@ -54,6 +54,51 @@ impl AccountEquityWriter {
     ) -> Result<(), ::clickhouse::error::Error> {
         let mut inserter = self.client.insert("account_equity")?;
         inserter.write(&AccountEquityRow::from(snapshot)).await?;
+        inserter.end().await
+    }
+}
+
+// ---- Factor Snapshot Writer ----
+
+#[derive(Row, Serialize, Debug)]
+struct FactorSnapshotRow {
+    #[serde(with = "clickhouse::serde::time::datetime64::nanos")]
+    timestamp: OffsetDateTime,
+    connector: String,
+    strategy_id: String,
+    symbol: String,
+    factor_name: String,
+    factor_value: f64,
+}
+
+pub struct FactorSnapshotWriter {
+    client: Client,
+}
+
+impl FactorSnapshotWriter {
+    pub fn new(url: &str, database: &str) -> Self {
+        let client = Client::default().with_url(url).with_database(database);
+        Self { client }
+    }
+
+    pub async fn write_factors(
+        &self,
+        snapshot: &FactorSnapshot,
+    ) -> Result<(), ::clickhouse::error::Error> {
+        let mut inserter = self.client.insert("factor_snapshots")?;
+        let ts = nanos_to_datetime(snapshot.timestamp);
+        for (name, value) in &snapshot.factors {
+            inserter
+                .write(&FactorSnapshotRow {
+                    timestamp: ts,
+                    connector: snapshot.connector.clone(),
+                    strategy_id: snapshot.strategy_id.clone(),
+                    symbol: snapshot.symbol.clone(),
+                    factor_name: name.clone(),
+                    factor_value: *value,
+                })
+                .await?;
+        }
         inserter.end().await
     }
 }

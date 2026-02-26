@@ -234,6 +234,22 @@ pub struct StrategyStatus {
     pub message: String,
 }
 
+/// Factor snapshot - periodic factor values from strategy for alignment verification
+#[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
+pub struct FactorSnapshot {
+    /// Local timestamp (nanoseconds)
+    pub timestamp: i64,
+    /// Connector name (e.g., "bf", "bybit")
+    pub connector: String,
+    /// Strategy identifier
+    pub strategy_id: String,
+    /// Trading symbol
+    pub symbol: String,
+    /// Factor values as key-value pairs
+    /// Keys follow convention: "obi.zscore", "obi.raw", "vol.value", "sl.status"
+    pub factors: Vec<(String, f64)>,
+}
+
 /// Income event - realized PnL, commissions, funding fees, etc.
 #[derive(Clone, Debug, Encode, Decode, Serialize, Deserialize)]
 pub struct IncomeEvent {
@@ -268,6 +284,7 @@ pub enum RecordingEvent {
     Account(AccountSnapshot),
     Status(StrategyStatus),
     Income(IncomeEvent),
+    Factor(FactorSnapshot),
 }
 
 impl RecordingEvent {
@@ -279,6 +296,7 @@ impl RecordingEvent {
             RecordingEvent::Account(e) => e.timestamp,
             RecordingEvent::Status(e) => e.timestamp,
             RecordingEvent::Income(e) => e.timestamp,
+            RecordingEvent::Factor(e) => e.timestamp,
         }
     }
 
@@ -290,6 +308,7 @@ impl RecordingEvent {
             RecordingEvent::Account(e) => &e.strategy_id,
             RecordingEvent::Status(e) => &e.strategy_id,
             RecordingEvent::Income(e) => &e.strategy_id,
+            RecordingEvent::Factor(e) => &e.strategy_id,
         }
     }
 }

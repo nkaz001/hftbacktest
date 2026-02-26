@@ -218,6 +218,26 @@ where
                 );
             }
         }
+
+        // Publish factor snapshot periodically (every 20 iterations = 10 seconds)
+        if iteration % 20 == 0 {
+            if let Some(ref ctx) = hook_ctx {
+                ctx.publish_factors(vec![
+                    ("obi.zscore", strategy.obi_factor.zscore()),
+                    ("obi.raw", strategy.obi_factor.raw()),
+                    ("obi.mean", strategy.obi_factor.mean()),
+                    ("obi.std", strategy.obi_factor.std()),
+                    ("obi.sample_count", strategy.obi_factor.sample_count() as f64),
+                    ("vol.value", strategy.volatility_factor.volatility()),
+                    ("vol.mean_return", strategy.volatility_factor.mean_return()),
+                    ("vol.sample_count", strategy.volatility_factor.sample_count() as f64),
+                    ("sl.status", strategy.stop_loss.status() as u8 as f64),
+                    ("price.mid", mid_price),
+                    ("price.bid", best_bid),
+                    ("price.ask", best_ask),
+                ]);
+            }
+        }
     }
 
     Ok(())
