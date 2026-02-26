@@ -54,7 +54,9 @@ pub struct OrderHookContext {
     connector: String,
     strategy_id: String,
     symbol: String,
-    tick_size: f64,
+    /// Tick size stored as AtomicU64 (f64 bits) so it can be updated after construction
+    /// when auto-resolution provides the real tick_size from the exchange.
+    tick_size_bits: AtomicU64,
     fill_id_counter: AtomicU64,
     /// Cache of order_id -> latency_ns for first acknowledgment
     /// Each order's latency is calculated once on first ack and reused for all subsequent events
@@ -82,7 +84,7 @@ impl OrderHookContext {
             connector,
             strategy_id,
             symbol,
-            tick_size,
+            tick_size_bits: AtomicU64::new(tick_size.to_bits()),
             fill_id_counter: AtomicU64::new(1),
             latency_cache: RwLock::new(HashMap::new()),
         }
@@ -105,7 +107,12 @@ impl OrderHookContext {
 
     /// Get the tick size
     pub fn tick_size(&self) -> f64 {
-        self.tick_size
+        f64::from_bits(self.tick_size_bits.load(Ordering::Relaxed))
+    }
+
+    /// Update tick size (called when auto-resolution provides real tick_size from exchange)
+    pub fn set_tick_size(&self, tick_size: f64) {
+        self.tick_size_bits.store(tick_size.to_bits(), Ordering::Relaxed);
     }
 
     /// Handle an order update from the order_recv_hook.
@@ -151,7 +158,7 @@ impl OrderHookContext {
             &self.strategy_id,
             &self.symbol,
             timestamp,
-            self.tick_size,
+            self.tick_size(),
             cached_latency,
         );
 
@@ -174,7 +181,8 @@ impl OrderHookContext {
             let fill_id = self.fill_id_counter.fetch_add(1, Ordering::Relaxed);
 
             // Use exec_price as approximation for mid_price
-            let mid_price = new_order.exec_price_tick as f64 * self.tick_size;
+            let tick_size = self.tick_size();
+            let mid_price = new_order.exec_price_tick as f64 * tick_size;
 
             let fill_event = create_fill_event(
                 prev_order,
@@ -185,7 +193,7 @@ impl OrderHookContext {
                 timestamp,
                 mid_price,
                 fill_id,
-                self.tick_size,
+                tick_size,
             );
 
             info!(

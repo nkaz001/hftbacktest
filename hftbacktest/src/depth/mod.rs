@@ -58,6 +58,12 @@ pub trait MarketDepth {
 
     /// Returns the quantity at the ask market depth for a given price in ticks.
     fn ask_qty_at_tick(&self, price_tick: i64) -> f64;
+
+    /// Updates the tick size. Used for auto-resolution from exchange.
+    fn set_tick_size(&mut self, _tick_size: f64) {}
+
+    /// Updates the lot size. Used for auto-resolution from exchange.
+    fn set_lot_size(&mut self, _lot_size: f64) {}
 }
 
 /// Provides Level2-specific market depth functions.

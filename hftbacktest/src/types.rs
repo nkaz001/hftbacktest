@@ -141,6 +141,11 @@ pub enum LiveEvent {
         qty: f64,
         exch_ts: i64,
     },
+    InstrumentInfo {
+        symbol: String,
+        tick_size: f64,
+        lot_size: f64,
+    },
     Error(LiveError),
 }
 

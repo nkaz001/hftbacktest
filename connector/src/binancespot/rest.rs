@@ -84,17 +84,20 @@ impl BinanceSpotClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_ed25519(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_ed25519(&self.secret, &query);
         let resp = self
             .client
             .put(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -108,17 +111,20 @@ impl BinanceSpotClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_ed25519(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_ed25519(&self.secret, &query);
         let resp = self
             .client
             .post(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -132,22 +138,31 @@ impl BinanceSpotClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_ed25519(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_ed25519(&self.secret, &query);
         let resp = self
             .client
             .delete(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
             .await?;
         Ok(resp)
+    }
+
+    /// Get exchange info for all symbols (public, no auth required)
+    /// GET /api/v3/exchangeInfo
+    pub async fn get_exchange_info(&self) -> Result<rest::ExchangeInfo, reqwest::Error> {
+        self.get_noauth("/api/v3/exchangeInfo", String::new()).await
     }
 
     pub async fn get_depth(&self, symbol: &str) -> Result<rest::Depth, reqwest::Error> {

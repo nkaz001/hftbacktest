@@ -26,13 +26,10 @@ find "$DATA_DIR" -name "*.jsonl" -type f -mmin +$((JSONL_MAX_AGE_HOURS * 60)) -p
 DISK_PCT=$(df / | tail -1 | awk '{print $5}' | tr -d '%')
 if [ "$DISK_PCT" -gt 85 ]; then
     echo "WARNING: Disk at ${DISK_PCT}%, running emergency cleanup..."
-    # Delete oldest .gz file for each symbol
-    for sym in btcusdt ethusdt adausdt; do
-        OLDEST=$(ls -t "$DATA_DIR"/${sym}_*.gz 2>/dev/null | tail -1)
-        if [ -n "$OLDEST" ]; then
-            echo "Emergency delete: $OLDEST"
-            rm -f "$OLDEST"
-        fi
+    # Delete oldest .gz files (auto-detect symbols from existing files)
+    for gz in $(ls -t "$DATA_DIR"/*.gz 2>/dev/null | tail -5); do
+        echo "Emergency delete: $gz"
+        rm -f "$gz"
     done
 fi
 

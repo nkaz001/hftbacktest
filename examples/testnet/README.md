@@ -439,7 +439,7 @@ The OBI (Order Book Imbalance) Market Making strategy uses order book imbalance 
 ./examples/testnet/scripts/start_obi_mm.sh --dry-run
 
 # Or manually with cargo:
-RUST_LOG=info cargo run --release -p obi-mm --bin obi_mm_testnet --features live -- \
+RUST_LOG=info cargo run --release -p obi-mm --bin obi_mm_live --features live -- \
     --connector bf --symbol btcusdt
 ```
 

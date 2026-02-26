@@ -16,8 +16,8 @@ name = "obi_mm_backtest"
 path = "src/backtest.rs"
 
 [[bin]]
-name = "obi_mm_testnet"
-path = "src/testnet.rs"
+name = "obi_mm_live"
+path = "src/live.rs"
 required-features = ["live"]
 
 [dependencies]

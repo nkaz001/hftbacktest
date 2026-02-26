@@ -89,7 +89,7 @@ lot_size = 0.001
 [[bots]]
 id = "obi_mm_btcusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "btcusdt"
 config_file = "/path/to/obi_mm.toml"
 auto_restart = true

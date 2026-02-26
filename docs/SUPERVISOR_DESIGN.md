@@ -339,7 +339,7 @@ dashboard/
 ├─────────────────────────────────────────────────────────────┤
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │ obi_mm_btcusdt                                        │  │
-│  │ Strategy: obi_mm_testnet  Symbol: BTCUSDT             │  │
+│  │ Strategy: obi_mm_live  Symbol: BTCUSDT             │  │
 │  │ Status: ● Running   PID: 12345   Uptime: 2h 3m        │  │
 │  │                                                        │  │
 │  │ [Stop] [Restart] [View Logs] [Edit Config]            │  │
@@ -347,7 +347,7 @@ dashboard/
 │                                                             │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │ obi_mm_ethusdt                                        │  │
-│  │ Strategy: obi_mm_testnet  Symbol: ETHUSDT             │  │
+│  │ Strategy: obi_mm_live  Symbol: ETHUSDT             │  │
 │  │ Status: ● Running   PID: 12346   Uptime: 2h 3m        │  │
 │  │                                                        │  │
 │  │ [Stop] [Restart] [View Logs] [Edit Config]            │  │

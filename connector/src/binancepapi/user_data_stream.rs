@@ -77,6 +77,15 @@ impl UserDataStream {
                 }
             }
             EventStream::OrderTradeUpdate(data) => {
+                debug!(
+                    symbol = %data.order.symbol,
+                    client_order_id = %data.order.client_order_id,
+                    side = ?data.order.side,
+                    status = ?data.order.order_status,
+                    price = %data.order.original_price,
+                    qty = %data.order.original_qty,
+                    "Received OrderTradeUpdate from user data stream"
+                );
                 match self.order_manager.lock().unwrap().update_from_ws(&data) {
                     Ok(Some(order)) => {
                         // Ignore send errors during shutdown

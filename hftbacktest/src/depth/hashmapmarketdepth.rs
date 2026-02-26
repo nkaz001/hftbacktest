@@ -308,6 +308,14 @@ impl MarketDepth for HashMapMarketDepth {
     fn ask_qty_at_tick(&self, price_tick: i64) -> f64 {
         *self.ask_depth.get(&price_tick).unwrap_or(&0.0)
     }
+
+    fn set_tick_size(&mut self, tick_size: f64) {
+        self.tick_size = tick_size;
+    }
+
+    fn set_lot_size(&mut self, lot_size: f64) {
+        self.lot_size = lot_size;
+    }
 }
 
 impl ApplySnapshot for HashMapMarketDepth {

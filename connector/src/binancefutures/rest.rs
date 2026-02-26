@@ -81,17 +81,20 @@ impl BinanceFuturesClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .put(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -105,17 +108,20 @@ impl BinanceFuturesClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .post(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -129,17 +135,20 @@ impl BinanceFuturesClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .delete(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -367,6 +376,18 @@ impl BinanceFuturesClient {
         let resp: Vec<PositionInformationV2> =
             self.get("/fapi/v2/positionRisk", String::new()).await?;
         Ok(resp)
+    }
+
+    /// Get futures account information
+    /// GET /fapi/v2/account
+    pub async fn get_account(&self) -> Result<rest::FuturesAccountInfo, reqwest::Error> {
+        self.get("/fapi/v2/account", String::new()).await
+    }
+
+    /// Get exchange info for all symbols (public, no auth required)
+    /// GET /fapi/v1/exchangeInfo
+    pub async fn get_exchange_info(&self) -> Result<rest::ExchangeInfo, reqwest::Error> {
+        self.get_noauth("/fapi/v1/exchangeInfo", String::new()).await
     }
 
     pub async fn get_depth(&self, symbol: &str) -> Result<rest::Depth, reqwest::Error> {

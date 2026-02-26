@@ -136,6 +136,38 @@ pub struct Fill {
     pub trade_id: u64,
 }
 
+/// Exchange info response from /api/v3/exchangeInfo
+#[derive(Deserialize, Debug)]
+pub struct ExchangeInfo {
+    pub symbols: Vec<SymbolInfo>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SymbolInfo {
+    #[serde(deserialize_with = "to_lowercase")]
+    pub symbol: String,
+    pub filters: Vec<SymbolFilter>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "filterType")]
+pub enum SymbolFilter {
+    #[serde(rename = "PRICE_FILTER")]
+    PriceFilter {
+        #[serde(rename = "tickSize")]
+        #[serde(deserialize_with = "from_str_to_f64")]
+        tick_size: f64,
+    },
+    #[serde(rename = "LOT_SIZE")]
+    LotSize {
+        #[serde(rename = "stepSize")]
+        #[serde(deserialize_with = "from_str_to_f64")]
+        step_size: f64,
+    },
+    #[serde(other)]
+    Other,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountInfomation {

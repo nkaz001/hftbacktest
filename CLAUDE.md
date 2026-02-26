@@ -309,6 +309,26 @@ print(metrics.summary())
 plot_comparison(rust_df, python_df, merged, metrics, 'comparison.png')
 ```
 
+### Binance PAPI Test Server (Vultr)
+
+Use `tmux-cli` to manage the Binance PAPI test server:
+
+```bash
+# Launch a shell and connect
+tmux-cli launch "zsh"
+tmux-cli send "ssh Vultur_mmtest0" --pane=<pane_id>
+
+# Wait and capture output
+tmux-cli wait_idle --pane=<pane_id> --idle-time=3.0
+tmux-cli capture --pane=<pane_id>
+```
+
+**Server info:**
+- **SSH alias:** `Vultur_mmtest0`
+- **IP:** 45.32.34.210
+- **Purpose:** Binance PAPI testnet/mainnet testing
+- **Config path:** `~/hftbacktest/deploy/docker/`
+
 ### Key Documentation
 - `docs/LIVE_TRADING_ARCHITECTURE.md`: Detailed live trading system architecture (Chinese)
 - `docs/FACTOR_FRAMEWORK_DESIGN.md`: Factor computation framework design

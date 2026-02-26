@@ -146,7 +146,7 @@ echo "   Warmup data: $DATA_DIR"
 echo ""
 
 # Run strategy for 60 seconds to verify warmup
-timeout 60 ./target/release/obi_mm_testnet \
+timeout 60 ./target/release/obi_mm_live \
     --connector "$CONNECTOR_NAME" \
     --symbol "$SYMBOL" \
     --config "$STRATEGY_CONFIG" \
@@ -163,7 +163,7 @@ echo "========================================="
 echo ""
 echo "To run the full live strategy:"
 echo ""
-echo "  ./target/release/obi_mm_testnet \\"
+echo "  ./target/release/obi_mm_live \\"
 echo "    --connector $CONNECTOR_NAME \\"
 echo "    --symbol $SYMBOL \\"
 echo "    --config $STRATEGY_CONFIG \\"

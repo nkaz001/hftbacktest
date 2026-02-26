@@ -142,7 +142,7 @@ lot_size = 0.001
 [[bots]]
 id = "obi_mm_btcusdt_bf"                  # 唯一标识
 enabled = true                            # 是否启用
-strategy = "obi_mm_testnet"               # 策略二进制名称
+strategy = "obi_mm_live"               # 策略二进制名称
 symbol = "btcusdt"                        # 交易对 (Binance 用小写)
 connector = "bf"                          # 使用的连接器
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
@@ -153,7 +153,7 @@ restart_backoff_secs = 5                  # 重启间隔
 [[bots]]
 id = "obi_mm_btcusdt_bybit"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "BTCUSDT"                        # 交易对 (Bybit 用大写)
 connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
@@ -248,7 +248,7 @@ symbols = ["btcusdt", "ethusdt", "xrpusdt"]  # 添加 xrpusdt
 [[bots]]
 id = "obi_mm_xrpusdt_bf"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "xrpusdt"                        # Binance: 小写
 connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_xrp.toml"

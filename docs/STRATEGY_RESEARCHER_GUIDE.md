@@ -81,7 +81,7 @@ cp deploy/docker/config/strategies/obi_mm_btc.toml \
 [[bots]]
 id = "obi_mm_xrpusdt_bf"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "xrpusdt"          # Binance 用小写
 connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_xrp.toml"
@@ -108,7 +108,7 @@ docker compose restart hft
 │  │              │             │                     │  │  │
 │  │       ┌──────▼──────┐      │                     │  │  │
 │  │       │  IPC Bus    │◄─────┤   Trading Bots     │  │  │
-│  │       │ (iceoryx2)  │      │  (obi_mm_testnet)  │  │  │
+│  │       │ (iceoryx2)  │      │  (obi_mm_live)  │  │  │
 │  │       └──────┬──────┘      └─────────────────────┘  │  │
 │  │              │                                      │  │
 │  │       ┌──────▼──────┐                              │  │

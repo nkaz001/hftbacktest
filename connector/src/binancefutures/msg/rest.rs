@@ -143,6 +143,27 @@ pub struct PositionInformationV2 {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct FuturesAccountInfo {
+    #[serde(rename = "totalWalletBalance")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_wallet_balance: f64,
+    #[serde(rename = "totalUnrealizedProfit")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_unrealized_profit: f64,
+    #[serde(rename = "totalMarginBalance")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_margin_balance: f64,
+    #[serde(rename = "totalInitialMargin")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_initial_margin: f64,
+    #[serde(rename = "totalMaintMargin")]
+    #[serde(deserialize_with = "from_str_to_f64")]
+    pub total_maint_margin: f64,
+    #[serde(rename = "updateTime")]
+    pub update_time: i64,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Depth {
     #[serde(rename = "lastUpdateId")]
     pub last_update_id: i64,
@@ -152,6 +173,38 @@ pub struct Depth {
     pub transaction_time: i64,
     pub bids: Vec<(String, String)>,
     pub asks: Vec<(String, String)>,
+}
+
+/// Exchange info response from /fapi/v1/exchangeInfo
+#[derive(Deserialize, Debug)]
+pub struct ExchangeInfo {
+    pub symbols: Vec<SymbolInfo>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SymbolInfo {
+    #[serde(deserialize_with = "to_lowercase")]
+    pub symbol: String,
+    pub filters: Vec<SymbolFilter>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "filterType")]
+pub enum SymbolFilter {
+    #[serde(rename = "PRICE_FILTER")]
+    PriceFilter {
+        #[serde(rename = "tickSize")]
+        #[serde(deserialize_with = "from_str_to_f64")]
+        tick_size: f64,
+    },
+    #[serde(rename = "LOT_SIZE")]
+    LotSize {
+        #[serde(rename = "stepSize")]
+        #[serde(deserialize_with = "from_str_to_f64")]
+        step_size: f64,
+    },
+    #[serde(other)]
+    Other,
 }
 
 /// Income history entry from /fapi/v1/income

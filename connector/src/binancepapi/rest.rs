@@ -8,6 +8,7 @@ use super::{
         AccountInfo, Balance, ListenKey, OrderResponse, OrderResponseResult, UmPositionRisk,
     },
 };
+use crate::binancefutures::msg::rest::{ExchangeInfo, IncomeEntry};
 use crate::utils::sign_hmac_sha256;
 
 #[derive(Clone)]
@@ -62,17 +63,20 @@ impl BinancePapiClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .put(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.api_url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.api_url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -86,17 +90,20 @@ impl BinancePapiClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .post(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.api_url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.api_url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
             .send()
             .await?
             .json()
@@ -110,17 +117,35 @@ impl BinancePapiClient {
         body: String,
     ) -> Result<T, reqwest::Error> {
         let time = Utc::now().timestamp_millis() - 1000;
-        let sign_body = format!("recvWindow=5000&timestamp={time}{body}");
-        let signature = sign_hmac_sha256(&self.secret, &sign_body);
+        let mut query = format!("recvWindow=5000&timestamp={time}");
+        if !body.is_empty() {
+            query.push('&');
+            query.push_str(&body);
+        }
+        let signature = sign_hmac_sha256(&self.secret, &query);
         let resp = self
             .client
             .delete(format!(
-                "{}{}?recvWindow=5000&timestamp={}&signature={}",
-                self.api_url, path, time, signature
+                "{}{}?{}&signature={}",
+                self.api_url, path, query, signature
             ))
             .header("Accept", "application/json")
             .header("X-MBX-APIKEY", &self.api_key)
-            .body(body)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    /// Get UM futures exchange info (public, no auth required).
+    /// Uses fapi.binance.com since PAPI UM symbols use futures exchange info.
+    /// GET https://fapi.binance.com/fapi/v1/exchangeInfo
+    pub async fn get_exchange_info(&self) -> Result<ExchangeInfo, reqwest::Error> {
+        let resp = self
+            .client
+            .get("https://fapi.binance.com/fapi/v1/exchangeInfo")
+            .header("Accept", "application/json")
             .send()
             .await?
             .json()
@@ -168,11 +193,12 @@ impl BinancePapiClient {
         time_in_force: TimeInForce,
         reduce_only: bool,
     ) -> Result<OrderResponse, BinancePapiError> {
+        let symbol_upper = symbol.to_uppercase();
         let mut body = String::with_capacity(200);
         body.push_str("newClientOrderId=");
         body.push_str(client_order_id);
         body.push_str("&symbol=");
-        body.push_str(symbol);
+        body.push_str(&symbol_upper);
         body.push_str("&side=");
         body.push_str(side.as_ref());
         body.push_str("&price=");
@@ -209,9 +235,10 @@ impl BinancePapiClient {
         price_prec: usize,
         qty: f64,
     ) -> Result<OrderResponse, BinancePapiError> {
+        let symbol_upper = symbol.to_uppercase();
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
-        body.push_str(symbol);
+        body.push_str(&symbol_upper);
         body.push_str("&origClientOrderId=");
         body.push_str(client_order_id);
         body.push_str("&side=");
@@ -238,9 +265,10 @@ impl BinancePapiClient {
         client_order_id: &str,
         symbol: &str,
     ) -> Result<OrderResponse, BinancePapiError> {
+        let symbol_upper = symbol.to_uppercase();
         let mut body = String::with_capacity(100);
         body.push_str("symbol=");
-        body.push_str(symbol);
+        body.push_str(&symbol_upper);
         body.push_str("&origClientOrderId=");
         body.push_str(client_order_id);
 
@@ -261,7 +289,7 @@ impl BinancePapiClient {
         exchange_order_id: i64,
         symbol: &str,
     ) -> Result<OrderResponse, BinancePapiError> {
-        let body = format!("symbol={}&orderId={}", symbol, exchange_order_id);
+        let body = format!("symbol={}&orderId={}", symbol.to_uppercase(), exchange_order_id);
 
         let resp: OrderResponseResult = self.delete("/papi/v1/um/order", body).await?;
         match resp {
@@ -277,7 +305,10 @@ impl BinancePapiClient {
     /// DELETE /papi/v1/um/allOpenOrders
     pub async fn cancel_all_um_orders(&self, symbol: &str) -> Result<(), reqwest::Error> {
         let _: serde_json::Value = self
-            .delete("/papi/v1/um/allOpenOrders", format!("symbol={symbol}"))
+            .delete(
+                "/papi/v1/um/allOpenOrders",
+                format!("symbol={}", symbol.to_uppercase()),
+            )
             .await?;
         Ok(())
     }
@@ -302,13 +333,63 @@ impl BinancePapiClient {
         self.get("/papi/v1/um/positionRisk", String::new()).await
     }
 
+    /// Get UM futures income history
+    /// GET /papi/v1/um/income
+    pub async fn get_um_income(
+        &self,
+        symbol: Option<&str>,
+        income_type: Option<&str>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<IncomeEntry>, reqwest::Error> {
+        let mut query = String::new();
+        if let Some(s) = symbol {
+            query.push_str("symbol=");
+            query.push_str(&s.to_uppercase());
+        }
+        if let Some(t) = income_type {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("incomeType=");
+            query.push_str(t);
+        }
+        if let Some(t) = start_time {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("startTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(t) = end_time {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("endTime=");
+            query.push_str(&t.to_string());
+        }
+        if let Some(l) = limit {
+            if !query.is_empty() {
+                query.push('&');
+            }
+            query.push_str("limit=");
+            query.push_str(&l.to_string());
+        }
+        let resp: Vec<IncomeEntry> = self.get("/papi/v1/um/income", query).await?;
+        Ok(resp)
+    }
+
     /// Get UM position information for a specific symbol
     /// GET /papi/v1/um/positionRisk?symbol=xxx
     pub async fn get_um_position_risk_for_symbol(
         &self,
         symbol: &str,
     ) -> Result<Vec<UmPositionRisk>, reqwest::Error> {
-        self.get("/papi/v1/um/positionRisk", format!("symbol={symbol}"))
-            .await
+        self.get(
+            "/papi/v1/um/positionRisk",
+            format!("symbol={}", symbol.to_uppercase()),
+        )
+        .await
     }
 }

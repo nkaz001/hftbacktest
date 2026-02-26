@@ -160,7 +160,7 @@ Add multiple `[[bots]]` sections in `config/cluster.toml`:
 [[bots]]
 id = "obi_mm_btcusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "btcusdt"
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
 auto_restart = true
@@ -173,7 +173,7 @@ restart_backoff_secs = 5
 [[bots]]
 id = "obi_mm_ethusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "ethusdt"
 config_file = "/etc/hft/strategies/obi_mm_eth.toml"
 auto_restart = true
@@ -186,7 +186,7 @@ restart_backoff_secs = 5
 [[bots]]
 id = "obi_mm_solusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "solusdt"
 config_file = "/etc/hft/strategies/obi_mm_sol.toml"
 auto_restart = true
@@ -361,7 +361,7 @@ lot_size = 0.001
 [[bots]]
 id = "obi_mm_btcusdt_bf"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "btcusdt"
 connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
@@ -372,7 +372,7 @@ restart_backoff_secs = 5
 [[bots]]
 id = "obi_mm_ethusdt_bf"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "ethusdt"
 connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_eth.toml"
@@ -387,7 +387,7 @@ restart_backoff_secs = 5
 [[bots]]
 id = "obi_mm_btcusdt_bybit"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "BTCUSDT"
 connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_btc.toml"
@@ -398,7 +398,7 @@ restart_backoff_secs = 5
 [[bots]]
 id = "obi_mm_solusdt_bybit"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "SOLUSDT"
 connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_sol.toml"

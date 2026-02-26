@@ -459,6 +459,14 @@ impl MarketDepth for ROIVectorMarketDepth {
             }
         }
     }
+
+    fn set_tick_size(&mut self, tick_size: f64) {
+        self.tick_size = tick_size;
+    }
+
+    fn set_lot_size(&mut self, lot_size: f64) {
+        self.lot_size = lot_size;
+    }
 }
 
 impl ApplySnapshot for ROIVectorMarketDepth {

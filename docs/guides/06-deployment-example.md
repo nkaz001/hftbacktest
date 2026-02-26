@@ -71,7 +71,7 @@ symbols = ["btcusdt", "ethusdt", "solusdt", "linkusdt"]  # 添加 linkusdt
 [[bots]]
 id = "obi_mm_linkusdt_bf"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "linkusdt"          # Binance 用小写
 connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_link.toml"
@@ -211,7 +211,7 @@ symbols = ["btcusdt", "ethusdt", "solusdt", "linkusdt"]
 [[bots]]
 id = "obi_mm_linkusdt_bf"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "linkusdt"
 connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_link.toml"

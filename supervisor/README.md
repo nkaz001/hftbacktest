@@ -26,7 +26,7 @@ cargo build --release -p connector -p collector -p hft-supervisor
 cargo build --release -p obi_mm
 
 # 确认二进制文件
-ls -la target/release/{connector,collector,hft-supervisor,hftctl,obi_mm_testnet}
+ls -la target/release/{connector,collector,hft-supervisor,hftctl,obi_mm_live}
 ```
 
 ### 2. 验证配置
@@ -121,9 +121,9 @@ min_duration_seconds = 60
 [[bots]]
 id = "obi_mm_btcusdt_testnet"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "btcusdt"
-config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/obi_mm_testnet.toml"
+config_file = "/home/b0qi/bookdisco/hftbacktest/examples/testnet/config/obi_mm_live.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5
@@ -206,7 +206,7 @@ lot_size = 0.001
 [[bots]]                        # Bot 配置数组
 id = "unique_bot_id"            # 唯一标识符
 enabled = true                  # 是否启用
-strategy = "obi_mm_testnet"     # 策略二进制名称
+strategy = "obi_mm_live"     # 策略二进制名称
 symbol = "btcusdt"              # 交易对
 config_file = "/path/to/strategy.toml"  # 策略配置文件
 auto_restart = true             # 崩溃后自动重启
@@ -214,7 +214,7 @@ max_restarts = 5                # 最大重启次数
 restart_backoff_secs = 10       # 重启间隔
 ```
 
-### 策略配置示例 (obi_mm_testnet.toml)
+### 策略配置示例 (obi_mm_live.toml)
 
 ```toml
 [global]
@@ -288,21 +288,21 @@ hft-supervisor \
 [[bots]]
 id = "obi_mm_btcusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "btcusdt"
 config_file = "/path/to/obi_mm_btcusdt.toml"
 
 [[bots]]
 id = "obi_mm_ethusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "ethusdt"
 config_file = "/path/to/obi_mm_ethusdt.toml"
 
 [[bots]]
 id = "obi_mm_solusdt"
 enabled = false  # 暂时禁用
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "solusdt"
 config_file = "/path/to/obi_mm_solusdt.toml"
 ```
@@ -340,7 +340,7 @@ hftctl restart-all
 # 做市策略
 [[bots]]
 id = "mm_btcusdt"
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "btcusdt"
 config_file = "/path/to/mm_config.toml"
 
@@ -396,11 +396,11 @@ hftctl reload
 
 ### 修改策略参数
 
-策略配置文件 (如 `obi_mm_testnet.toml`) 的修改需要重启 Bot：
+策略配置文件 (如 `obi_mm_live.toml`) 的修改需要重启 Bot：
 
 ```bash
 # 1. 编辑策略配置
-vim examples/testnet/config/obi_mm_testnet.toml
+vim examples/testnet/config/obi_mm_live.toml
 
 # 2. 重启 Bot 使配置生效
 hftctl restart obi_mm_btcusdt_testnet

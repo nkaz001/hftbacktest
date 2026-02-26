@@ -85,7 +85,7 @@ echo "Press Ctrl+C to stop"
 echo ""
 
 cd "$ROOT_DIR"
-RUST_LOG=info cargo run --release -p obi-mm --bin obi_mm_testnet --features live -- \
+RUST_LOG=info cargo run --release -p obi-mm --bin obi_mm_live --features live -- \
     --connector "$CONNECTOR_NAME" \
     --symbol "$SYMBOL" \
     $DRY_RUN \

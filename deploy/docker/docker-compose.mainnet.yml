@@ -32,7 +32,7 @@ services:
       - ../../server/dashboard/dist:/var/lib/hft/dashboard
       # Binary files (bind mount for hot-reload without image rebuild)
       # After `cargo build --release`, just restart the service to pick up new binary
-      - ../../target/release/obi_mm_testnet:/usr/local/bin/obi_mm_testnet:ro
+      - ../../target/release/obi_mm_live:/usr/local/bin/obi_mm_live:ro
       - ../../target/release/order-recorder:/usr/local/bin/order-recorder:ro
       - ../../target/release/connector:/usr/local/bin/connector:ro
       - ../../target/release/collector:/usr/local/bin/collector:ro

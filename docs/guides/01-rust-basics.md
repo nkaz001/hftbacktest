@@ -312,7 +312,7 @@ name = "backtest"
 path = "src/backtest.rs"
 
 [[bin]]
-name = "obi_mm_testnet"
+name = "obi_mm_live"
 path = "src/testnet.rs"
 
 [dependencies]

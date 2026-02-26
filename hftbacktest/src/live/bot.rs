@@ -279,6 +279,15 @@ where
                     .state
                     .position = qty;
             }
+            LiveEvent::InstrumentInfo {
+                tick_size, lot_size, ..
+            } => {
+                let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
+                instrument.tick_size = tick_size;
+                instrument.lot_size = lot_size;
+                instrument.depth.set_tick_size(tick_size);
+                instrument.depth.set_lot_size(lot_size);
+            }
             LiveEvent::Error(error) => {
                 if let Some(handler) = self.error_handler.as_mut() {
                     handler(error)?;

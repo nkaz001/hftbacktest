@@ -66,7 +66,7 @@ lot_size = 0.001
 [[bots]]
 id = "obi_mm_btcusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "BTCUSDT"
 connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_btc_mainnet.toml"
@@ -77,7 +77,7 @@ restart_backoff_secs = 5
 [[bots]]
 id = "obi_mm_ethusdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "ETHUSDT"
 connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_eth_mainnet.toml"
@@ -90,7 +90,7 @@ restart_backoff_secs = 5
 [[bots]]
 id = "obi_mm_adausdt"
 enabled = true
-strategy = "obi_mm_testnet"
+strategy = "obi_mm_live"
 symbol = "ADAUSDT"
 connector = "bybit"
 config_file = "/etc/hft/strategies/obi_mm_ada_mainnet.toml"

@@ -1,0 +1,33 @@
+# NAORISUSDT - OBI MM Strategy Config
+# Generated from fitted parameters
+# Capital allocation: $400 per coin
+# Price at generation: $0.03206
+# Order notional: $19.97, Max position: $399.98
+
+[global]
+order_qty = 623.0
+max_position = 12476.0
+grid_num = 1
+grid_interval = 0.001
+roi_lb = 0.00593
+roi_ub = 0.1599
+
+[params]
+looking_depth = 0.03
+window = 186
+volatility_window = 60
+half_spread = 0.0081
+skew = 0.00013
+c1 = 0.00018
+power = 0.3
+live_seconds = 175
+update_interval_ns = 10000000000
+volatility_interval_ns = 60000000000
+
+[stop_loss]
+volatility_mean = 0.0031014062022777
+volatility_std = 0.0039930216275803196
+change_mean = 2.7618009787700668e-05
+change_std = 0.005060801135947065
+volatility_threshold = 2.5
+change_threshold = 2.5

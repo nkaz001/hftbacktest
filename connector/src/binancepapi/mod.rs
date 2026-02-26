@@ -87,7 +87,7 @@ impl From<BinancePapiError> for Value {
 #[derive(Deserialize)]
 pub struct Config {
     /// REST API URL for PAPI (https://papi.binance.com)
-    api_url: String,
+    pub api_url: String,
     /// WebSocket stream URL for market data (wss://fstream.binance.com/ws)
     stream_url: String,
     /// WebSocket stream URL for user data (wss://fstream.binance.com/pm)
@@ -97,9 +97,9 @@ pub struct Config {
     #[serde(default)]
     order_prefix: String,
     #[serde(default)]
-    api_key: String,
+    pub api_key: String,
     #[serde(default)]
-    secret: String,
+    pub secret: String,
 }
 
 type SharedSymbolSet = Arc<Mutex<HashSet<String>>>;
@@ -177,6 +177,7 @@ impl BinancePapi {
 
     pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<PublishEvent>) {
         // User data stream URL: wss://fstream.binance.com/pm/ws/{listenKey}
+        // The base URL should end with /ws so that appending /{listenKey} gives the correct path.
         let user_stream_base = if self.config.user_stream_url.is_empty() {
             // Default to stream_url with /pm path
             self.config
@@ -185,7 +186,13 @@ impl BinancePapi {
                 .trim_end_matches('/')
                 .to_string()
         } else {
-            self.config.user_stream_url.trim_end_matches('/').to_string()
+            let base = self.config.user_stream_url.trim_end_matches('/').to_string();
+            // Ensure URL ends with /ws for correct path format
+            if base.ends_with("/ws") {
+                base
+            } else {
+                format!("{}/ws", base)
+            }
         };
 
         let client = self.client.clone();
@@ -217,12 +224,12 @@ impl BinancePapi {
                         symbol_tx.subscribe(),
                     );
 
-                    debug!("Requesting the listen key for the PAPI user data stream...");
+                    info!("Requesting the listen key for the PAPI user data stream...");
                     let listen_key = stream.get_listen_key().await?;
 
                     // PAPI user data stream URL format: wss://fstream.binance.com/pm/ws/{listenKey}
                     let url = format!("{}/{}", user_stream_base, listen_key);
-                    debug!("Connecting to the PAPI user data stream: {}", url);
+                    info!("Connecting to the PAPI user data stream: {}", url);
                     stream.connect(&url).await?;
                     debug!("The user data stream connection is permanently closed.");
                     Ok(())
@@ -466,5 +473,50 @@ impl Connector for BinancePapi {
             }
             info!("BinancePapi connector shutdown complete");
         })
+    }
+
+    fn resolve_instrument_info(&self, symbol: &str) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
+        let symbol = symbol.to_string();
+        Box::pin(async move {
+            use crate::binancefutures::msg::rest::SymbolFilter;
+            match self.client.get_exchange_info().await {
+                Ok(info) => {
+                    let symbol_upper = symbol.to_uppercase();
+                    for sym in &info.symbols {
+                        if sym.symbol.to_uppercase() == symbol_upper {
+                            let mut tick_size = None;
+                            let mut lot_size = None;
+                            for filter in &sym.filters {
+                                match filter {
+                                    SymbolFilter::PriceFilter { tick_size: ts } => {
+                                        tick_size = Some(*ts);
+                                    }
+                                    SymbolFilter::LotSize { step_size } => {
+                                        lot_size = Some(*step_size);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            if let (Some(ts), Some(ls)) = (tick_size, lot_size) {
+                                return Some((ts, ls));
+                            }
+                        }
+                    }
+                    error!(%symbol, "Symbol not found in exchange info");
+                    None
+                }
+                Err(error) => {
+                    error!(?error, "Failed to fetch exchange info");
+                    None
+                }
+            }
+        })
+    }
+
+    fn set_symbol_tick_size(&self, symbol: &str, tick_size: f64) {
+        self.order_manager
+            .lock()
+            .unwrap()
+            .set_tick_size(symbol, tick_size);
     }
 }

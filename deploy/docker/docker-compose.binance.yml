@@ -1,0 +1,148 @@
+version: "3.8"
+
+# Docker Compose for Binance PAPI Mainnet Trading
+# Usage: docker compose -f docker-compose.binance.yml --env-file .env.binance up -d
+
+services:
+  hft:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: hft-binance-mainnet
+    hostname: hft-binance-mainnet
+    restart: unless-stopped
+    environment:
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_SECRET=${BINANCE_SECRET}
+      - CLUSTER_CONFIG=/etc/hft/cluster_binance_mainnet.toml
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - RUST_LOG=info
+      - NO_AUTH=1
+    env_file:
+      - .env.binance
+    expose:
+      - "3000"
+    volumes:
+      # Configuration files (bind mount for easy editing)
+      - ./config:/etc/hft:ro
+      # Persistent data storage
+      - ./data:/var/lib/hft/data
+      - ./logs:/var/lib/hft/logs
+    # Use tmpfs for iceoryx2 IPC state to ensure clean state on restart
+    tmpfs:
+      - /tmp/iceoryx2:mode=1777,uid=999,gid=999
+    # Increase shared memory for iceoryx2
+    shm_size: '256mb'
+    networks:
+      - hft-network
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: hft-clickhouse-binance
+    hostname: clickhouse
+    restart: unless-stopped
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - hft-network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - CLICKHOUSE_DB=hft
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_MAX_MEMORY_USAGE=2000000000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: hft-grafana-binance
+    hostname: grafana
+    restart: unless-stopped
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    expose:
+      - "3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-admin}
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=disabled
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+      - GF_SERVER_ROOT_URL=${GF_ROOT_URL:-http://localhost/grafana/}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    networks:
+      - hft-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    container_name: hft-nginx-binance
+    hostname: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx-binance.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - hft-network
+    depends_on:
+      - hft
+      - grafana
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Cloudflare Tunnel - exposes nginx to the internet via CF
+  # Create tunnel at https://one.dash.cloudflare.com → Networks → Tunnels
+  # Set CLOUDFLARE_TUNNEL_TOKEN in .env.binance
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: hft-cloudflared-binance
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - hft-network
+    depends_on:
+      - nginx
+
+networks:
+  hft-network:
+    driver: bridge
+
+volumes:
+  clickhouse-data:
+  grafana-data:

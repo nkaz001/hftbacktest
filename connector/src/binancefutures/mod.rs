@@ -505,4 +505,41 @@ impl Connector for BinanceFutures {
             info!("BinanceFutures connector shutdown complete");
         })
     }
+
+    fn resolve_instrument_info(&self, symbol: &str) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
+        let symbol = symbol.to_string();
+        Box::pin(async move {
+            match self.client.get_exchange_info().await {
+                Ok(info) => {
+                    let symbol_upper = symbol.to_uppercase();
+                    for sym in &info.symbols {
+                        if sym.symbol.to_uppercase() == symbol_upper {
+                            let mut tick_size = None;
+                            let mut lot_size = None;
+                            for filter in &sym.filters {
+                                match filter {
+                                    msg::rest::SymbolFilter::PriceFilter { tick_size: ts } => {
+                                        tick_size = Some(*ts);
+                                    }
+                                    msg::rest::SymbolFilter::LotSize { step_size } => {
+                                        lot_size = Some(*step_size);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            if let (Some(ts), Some(ls)) = (tick_size, lot_size) {
+                                return Some((ts, ls));
+                            }
+                        }
+                    }
+                    error!(%symbol, "Symbol not found in exchange info");
+                    None
+                }
+                Err(error) => {
+                    error!(?error, "Failed to fetch exchange info");
+                    None
+                }
+            }
+        })
+    }
 }
