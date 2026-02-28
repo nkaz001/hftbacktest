@@ -80,6 +80,17 @@ if [ -f /etc/hft/binancepapi_mainnet.toml ]; then
     fi
 fi
 
+# Generic connector.toml - substitute all known API key patterns
+if [ -f /etc/hft/connector.toml ]; then
+    echo "Processing connector.toml..."
+    sed -e "s|\${BINANCE_API_KEY}|${BINANCE_API_KEY:-}|g" \
+        -e "s|\${BINANCE_SECRET}|${BINANCE_SECRET:-}|g" \
+        -e "s|\${BYBIT_API_KEY}|${BYBIT_API_KEY:-}|g" \
+        -e "s|\${BYBIT_SECRET}|${BYBIT_SECRET:-}|g" \
+        /etc/hft/connector.toml > "$CONFIG_DIR/connector.toml"
+    chown hft:hft "$CONFIG_DIR/connector.toml"
+fi
+
 # Copy strategy configs to temp directory
 if [ -d /etc/hft/strategies ]; then
     echo "Processing strategy configs..."
@@ -98,6 +109,7 @@ if [ -f "$CLUSTER_CONFIG_FILE" ]; then
     echo "Processing $CLUSTER_CONFIG_BASENAME..."
     sed -e "s|/etc/hft/binancefutures.toml|$CONFIG_DIR/binancefutures.toml|g" \
         -e "s|/etc/hft/binancepapi_mainnet.toml|$CONFIG_DIR/binancepapi_mainnet.toml|g" \
+        -e "s|/etc/hft/connector.toml|$CONFIG_DIR/connector.toml|g" \
         -e "s|/etc/hft/bybit.toml|$CONFIG_DIR/bybit.toml|g" \
         -e "s|/etc/hft/bybit_mainnet.toml|$CONFIG_DIR/bybit_mainnet.toml|g" \
         -e "s|/etc/hft/strategies|$CONFIG_DIR/strategies|g" \
