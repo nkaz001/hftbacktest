@@ -41,6 +41,9 @@ pub struct MarketDataStream {
     /// Channel for receiving REST snapshot responses
     rest_tx: UnboundedSender<(String, rest::Depth)>,
     rest_rx: UnboundedReceiver<(String, rest::Depth)>,
+    /// Channel for receiving snapshot failure notifications
+    rest_fail_tx: UnboundedSender<String>,
+    rest_fail_rx: UnboundedReceiver<String>,
 }
 
 impl MarketDataStream {
@@ -50,6 +53,7 @@ impl MarketDataStream {
         symbol_rx: Receiver<String>,
     ) -> Self {
         let (rest_tx, rest_rx) = unbounded_channel::<(String, rest::Depth)>();
+        let (rest_fail_tx, rest_fail_rx) = unbounded_channel::<String>();
         Self {
             client,
             ev_tx,
@@ -57,30 +61,48 @@ impl MarketDataStream {
             order_book_manager: OrderBookManager::new(),
             rest_tx,
             rest_rx,
+            rest_fail_tx,
+            rest_fail_rx,
         }
     }
 
-    /// Request depth snapshot for a symbol
-    fn request_snapshot(&self, symbol: String) {
+    /// Request depth snapshot for a symbol with retry logic.
+    /// Retries up to 3 times with exponential backoff (1s, 2s, 4s).
+    /// On final failure, sends symbol to rest_fail_tx for orderbookmanager notification.
+    fn request_snapshot(&mut self, symbol: String) {
+        self.order_book_manager.mark_snapshot_requested(&symbol);
+
         let client = self.client.clone();
         let rest_tx = self.rest_tx.clone();
+        let rest_fail_tx = self.rest_fail_tx.clone();
 
         tokio::spawn(async move {
-            debug!(symbol = %symbol, "Requesting depth snapshot via REST");
-            match client.get_depth(&symbol).await {
-                Ok(depth) => {
-                    if let Err(e) = rest_tx.send((symbol.clone(), depth)) {
-                        error!(symbol = %symbol, error = ?e, "Failed to send snapshot to channel");
+            const MAX_RETRIES: u32 = 3;
+
+            for attempt in 0..MAX_RETRIES {
+                if attempt > 0 {
+                    let delay = Duration::from_secs(1 << attempt); // 2s, 4s
+                    warn!(symbol = %symbol, attempt = attempt + 1, delay_secs = delay.as_secs(), "Retrying snapshot request");
+                    tokio::time::sleep(delay).await;
+                }
+
+                debug!(symbol = %symbol, attempt = attempt + 1, "Requesting depth snapshot via REST");
+                match client.get_depth(&symbol).await {
+                    Ok(depth) => {
+                        if let Err(e) = rest_tx.send((symbol.clone(), depth)) {
+                            error!(symbol = %symbol, error = ?e, "Failed to send snapshot to channel");
+                        }
+                        return; // Success
+                    }
+                    Err(error) => {
+                        error!(?error, %symbol, attempt = attempt + 1, "Couldn't get depth snapshot via REST");
                     }
                 }
-                Err(error) => {
-                    error!(
-                        ?error,
-                        %symbol,
-                        "Couldn't get the market depth via REST. Will retry on next event."
-                    );
-                }
             }
+
+            // All retries exhausted — notify failure
+            error!(symbol = %symbol, "Depth snapshot request failed after {MAX_RETRIES} attempts");
+            let _ = rest_fail_tx.send(symbol);
         });
     }
 
@@ -283,6 +305,7 @@ impl MarketDataStream {
         let (ws_stream, _) = connect_async(request).await?;
         let (mut write, mut read) = ws_stream.split();
         let mut ping_checker = time::interval(Duration::from_secs(10));
+        let mut health_checker = time::interval(Duration::from_secs(10));
         let mut last_ping = Instant::now();
 
         info!("Connected to market data stream: {}", url);
@@ -295,6 +318,18 @@ impl MarketDataStream {
                 // Handle REST snapshot responses
                 Some((symbol, data)) = self.rest_rx.recv() => {
                     self.process_snapshot(symbol, data);
+                }
+                // Handle REST snapshot failure notifications
+                Some(symbol) = self.rest_fail_rx.recv() => {
+                    self.order_book_manager.mark_snapshot_failed(&symbol);
+                }
+                // Periodic health check: retry snapshots for stuck symbols
+                _ = health_checker.tick() => {
+                    let symbols = self.order_book_manager.symbols_needing_snapshot_retry();
+                    for symbol in symbols {
+                        warn!(symbol = %symbol, "Health check: retrying snapshot for stuck symbol");
+                        self.request_snapshot(symbol);
+                    }
                 }
                 // Ping timeout check
                 _ = ping_checker.tick() => {

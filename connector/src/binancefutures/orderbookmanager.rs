@@ -1,8 +1,12 @@
 use std::collections::{HashMap, VecDeque};
+use std::time::Instant;
 
 use tracing::{debug, info, warn};
 
 use super::msg::{rest, stream};
+
+/// Maximum number of buffered pending events per symbol to prevent memory leak
+const MAX_PENDING_EVENTS: usize = 1000;
 
 /// Order book synchronization state for a single symbol
 #[derive(Debug)]
@@ -31,6 +35,12 @@ pub struct SymbolOrderBook {
     /// When true, we synced from snapshot only (no buffered events processed)
     /// The next event must be validated as a "first event" before using pu continuity
     pub awaiting_first_event: bool,
+    /// Whether a REST snapshot request is currently in flight
+    pub snapshot_in_flight: bool,
+    /// Number of consecutive snapshot request failures
+    pub snapshot_failures: u32,
+    /// When the last snapshot request was initiated
+    pub last_snapshot_request: Option<Instant>,
 }
 
 impl SymbolOrderBook {
@@ -42,6 +52,9 @@ impl SymbolOrderBook {
             last_update_id: None,
             snapshot_last_update_id: None,
             awaiting_first_event: false,
+            snapshot_in_flight: false,
+            snapshot_failures: 0,
+            last_snapshot_request: None,
         }
     }
 
@@ -52,7 +65,30 @@ impl SymbolOrderBook {
         self.last_update_id = None;
         self.snapshot_last_update_id = None;
         self.awaiting_first_event = false;
+        self.snapshot_in_flight = false;
+        self.snapshot_failures = 0;
+        self.last_snapshot_request = None;
         info!(symbol = %self.symbol, "Order book reset to initializing state");
+    }
+
+    /// Calculate backoff duration based on failure count: min(2^failures * 1s, 30s)
+    pub fn backoff_duration(&self) -> std::time::Duration {
+        let secs = (1u64 << self.snapshot_failures.min(5)).min(30);
+        std::time::Duration::from_secs(secs)
+    }
+
+    /// Whether a snapshot retry is due (not in-flight and backoff elapsed)
+    pub fn should_retry_snapshot(&self) -> bool {
+        if self.snapshot_in_flight {
+            return false;
+        }
+        if self.snapshot_failures == 0 {
+            return false; // No failures, normal trigger path handles this
+        }
+        match self.last_snapshot_request {
+            Some(t) => t.elapsed() >= self.backoff_duration(),
+            None => true,
+        }
     }
 }
 
@@ -117,6 +153,10 @@ impl OrderBookManager {
                     bids: data.bids.clone(),
                     asks: data.asks.clone(),
                 });
+                // Cap buffer to prevent memory leak
+                while book.pending_events.len() > MAX_PENDING_EVENTS {
+                    book.pending_events.pop_front();
+                }
                 debug!(
                     symbol = %data.symbol,
                     first_update_id = data.first_update_id,
@@ -124,8 +164,10 @@ impl OrderBookManager {
                     buffered_count = book.pending_events.len(),
                     "Buffered depth update during initialization"
                 );
-                // Don't process, might need snapshot if not already requested
-                (false, book.pending_events.len() == 1)
+                // Request snapshot on first event, or retry after backoff on failure
+                let should_request = !book.snapshot_in_flight
+                    && (book.pending_events.len() == 1 || book.should_retry_snapshot());
+                (false, should_request)
             }
             SyncState::Synchronized => {
                 // If we're awaiting the first event after snapshot-only sync,
@@ -205,7 +247,7 @@ impl OrderBookManager {
                 (true, false)
             }
             SyncState::NeedResync => {
-                // Buffer and wait for snapshot
+                // Buffer and wait for snapshot, same retry logic as Initializing
                 book.pending_events.push_back(stream::Depth {
                     transaction_time: data.transaction_time,
                     event_time: data.event_time,
@@ -216,7 +258,14 @@ impl OrderBookManager {
                     bids: data.bids.clone(),
                     asks: data.asks.clone(),
                 });
-                (false, false)
+                // Cap buffer to prevent memory leak
+                while book.pending_events.len() > MAX_PENDING_EVENTS {
+                    book.pending_events.pop_front();
+                }
+                // Request snapshot: first event in this state, or retry after backoff
+                let should_request = !book.snapshot_in_flight
+                    && (book.pending_events.len() == 1 || book.should_retry_snapshot());
+                (false, should_request)
             }
         }
     }
@@ -307,6 +356,7 @@ impl OrderBookManager {
                         // Put event back and mark for resync
                         book.pending_events.push_front(event);
                         book.state = SyncState::NeedResync;
+                        book.snapshot_in_flight = false;
                         return vec![]; // Return empty, caller should re-request snapshot
                     }
                     debug!(
@@ -330,6 +380,7 @@ impl OrderBookManager {
                         // Put remaining events back (including this one) and mark for resync
                         book.pending_events.push_front(event);
                         book.state = SyncState::NeedResync;
+                        book.snapshot_in_flight = false;
                         return events_to_process; // Return what we have so far
                     }
                 }
@@ -346,9 +397,11 @@ impl OrderBookManager {
             }
         }
 
-        // Successfully synchronized
+        // Successfully synchronized — reset retry tracking
         book.state = SyncState::Synchronized;
         book.snapshot_last_update_id = Some(last_update_id);
+        book.snapshot_in_flight = false;
+        book.snapshot_failures = 0;
 
         if let Some(u) = current_u {
             // We processed some buffered events, use the last one's u
@@ -398,6 +451,42 @@ impl OrderBookManager {
             .filter(|(_, book)| matches!(book.state, SyncState::Initializing | SyncState::NeedResync))
             .map(|(symbol, _)| symbol.clone())
             .collect()
+    }
+
+    /// Get symbols that need a snapshot retry (backoff elapsed, not in-flight)
+    pub fn symbols_needing_snapshot_retry(&self) -> Vec<String> {
+        self.books
+            .iter()
+            .filter(|(_, book)| {
+                matches!(book.state, SyncState::Initializing | SyncState::NeedResync)
+                    && book.should_retry_snapshot()
+            })
+            .map(|(symbol, _)| symbol.clone())
+            .collect()
+    }
+
+    /// Mark that a snapshot request has been sent for a symbol
+    pub fn mark_snapshot_requested(&mut self, symbol: &str) {
+        if let Some(book) = self.books.get_mut(symbol) {
+            book.snapshot_in_flight = true;
+            book.last_snapshot_request = Some(Instant::now());
+            debug!(symbol = %symbol, "Snapshot request marked as in-flight");
+        }
+    }
+
+    /// Mark that a snapshot request has failed for a symbol
+    pub fn mark_snapshot_failed(&mut self, symbol: &str) {
+        if let Some(book) = self.books.get_mut(symbol) {
+            book.snapshot_in_flight = false;
+            book.snapshot_failures += 1;
+            let backoff = book.backoff_duration();
+            warn!(
+                symbol = %symbol,
+                failures = book.snapshot_failures,
+                next_retry_secs = backoff.as_secs(),
+                "Snapshot request failed, will retry after backoff"
+            );
+        }
     }
 }
 
@@ -631,5 +720,179 @@ mod tests {
         let (should_process, should_request) = manager.on_depth_update(&event5);
         assert!(!should_process);
         assert!(should_request); // Gap detected
+    }
+
+    #[test]
+    fn test_snapshot_failure_retry_on_next_event_after_backoff() {
+        let mut manager = OrderBookManager::new();
+        manager.start_init("btcusdt");
+
+        // First event triggers snapshot request
+        let event1 = make_depth_event("btcusdt", 100, 105, 99);
+        let (_, should_request) = manager.on_depth_update(&event1);
+        assert!(should_request);
+
+        // Mark snapshot as requested, then failed
+        manager.mark_snapshot_requested("btcusdt");
+        manager.mark_snapshot_failed("btcusdt");
+
+        // Immediate next event should NOT trigger retry (backoff not elapsed)
+        let event2 = make_depth_event("btcusdt", 106, 110, 105);
+        let (_, should_request) = manager.on_depth_update(&event2);
+        assert!(!should_request); // Backoff hasn't elapsed yet
+
+        // Simulate backoff elapsed by setting last_snapshot_request to the past
+        let book = manager.books.get_mut("btcusdt").unwrap();
+        book.last_snapshot_request = Some(Instant::now() - std::time::Duration::from_secs(5));
+
+        // Now event should trigger retry
+        let event3 = make_depth_event("btcusdt", 111, 115, 110);
+        let (_, should_request) = manager.on_depth_update(&event3);
+        assert!(should_request); // Backoff elapsed, should retry
+    }
+
+    #[test]
+    fn test_need_resync_can_trigger_snapshot() {
+        let mut manager = OrderBookManager::new();
+        manager.start_init("btcusdt");
+
+        // Sync first
+        let event1 = make_depth_event("btcusdt", 100, 105, 99);
+        manager.on_depth_update(&event1);
+        let snapshot = make_snapshot(102);
+        manager.on_snapshot("btcusdt", &snapshot);
+
+        // Trigger gap → goes to Initializing via reset
+        let event2 = make_depth_event("btcusdt", 120, 125, 118);
+        let (_, should_request) = manager.on_depth_update(&event2);
+        assert!(should_request); // First event in new Initializing state
+
+        // Mark snapshot requested then failed
+        manager.mark_snapshot_requested("btcusdt");
+        manager.mark_snapshot_failed("btcusdt");
+
+        // Force the state to NeedResync to test that path specifically
+        let book = manager.books.get_mut("btcusdt").unwrap();
+        book.state = SyncState::NeedResync;
+        book.last_snapshot_request = Some(Instant::now() - std::time::Duration::from_secs(5));
+
+        // Event in NeedResync should trigger snapshot after backoff
+        let event3 = make_depth_event("btcusdt", 126, 130, 125);
+        let (should_process, should_request) = manager.on_depth_update(&event3);
+        assert!(!should_process);
+        assert!(should_request); // NeedResync can now trigger snapshot!
+    }
+
+    #[test]
+    fn test_buffer_overflow_drops_oldest() {
+        let mut manager = OrderBookManager::new();
+        manager.start_init("btcusdt");
+
+        // Fill buffer beyond MAX_PENDING_EVENTS
+        let total = MAX_PENDING_EVENTS + 50;
+        for i in 0..total {
+            let base = (i as i64 + 1) * 5;
+            let event = make_depth_event(
+                "btcusdt",
+                base,
+                base + 4,
+                base - 1,
+            );
+            manager.on_depth_update(&event);
+        }
+
+        let book = manager.books.get("btcusdt").unwrap();
+        assert_eq!(book.pending_events.len(), MAX_PENDING_EVENTS);
+
+        // The oldest events should have been dropped — first event's id should be > 5
+        let first = book.pending_events.front().unwrap();
+        assert!(first.first_update_id > 5);
+    }
+
+    #[test]
+    fn test_in_flight_prevents_duplicate_request() {
+        let mut manager = OrderBookManager::new();
+        manager.start_init("btcusdt");
+
+        // First event triggers snapshot
+        let event1 = make_depth_event("btcusdt", 100, 105, 99);
+        let (_, should_request) = manager.on_depth_update(&event1);
+        assert!(should_request);
+
+        // Mark as in-flight
+        manager.mark_snapshot_requested("btcusdt");
+
+        // Mark as failed with elapsed backoff
+        manager.mark_snapshot_failed("btcusdt");
+        let book = manager.books.get_mut("btcusdt").unwrap();
+        book.last_snapshot_request = Some(Instant::now() - std::time::Duration::from_secs(5));
+
+        // Should retry since backoff elapsed and not in-flight
+        assert!(book.should_retry_snapshot());
+
+        // Mark as in-flight again
+        manager.mark_snapshot_requested("btcusdt");
+
+        // Should NOT retry while in-flight
+        let book = manager.books.get("btcusdt").unwrap();
+        assert!(!book.should_retry_snapshot());
+    }
+
+    #[test]
+    fn test_successful_snapshot_resets_retry_state() {
+        let mut manager = OrderBookManager::new();
+        manager.start_init("btcusdt");
+
+        let event1 = make_depth_event("btcusdt", 100, 105, 99);
+        manager.on_depth_update(&event1);
+
+        // Simulate some failures
+        manager.mark_snapshot_requested("btcusdt");
+        manager.mark_snapshot_failed("btcusdt");
+        manager.mark_snapshot_requested("btcusdt");
+        manager.mark_snapshot_failed("btcusdt");
+
+        let book = manager.books.get("btcusdt").unwrap();
+        assert_eq!(book.snapshot_failures, 2);
+
+        // Successful snapshot should reset
+        let snapshot = make_snapshot(102);
+        manager.on_snapshot("btcusdt", &snapshot);
+
+        let book = manager.books.get("btcusdt").unwrap();
+        assert_eq!(book.snapshot_failures, 0);
+        assert!(!book.snapshot_in_flight);
+    }
+
+    #[test]
+    fn test_symbols_needing_snapshot_retry() {
+        let mut manager = OrderBookManager::new();
+        manager.start_init("btcusdt");
+        manager.start_init("ethusdt");
+
+        // Buffer first events
+        let event1 = make_depth_event("btcusdt", 100, 105, 99);
+        manager.on_depth_update(&event1);
+        let event2 = make_depth_event("ethusdt", 200, 205, 199);
+        manager.on_depth_update(&event2);
+
+        // Fail btcusdt snapshot, ethusdt still in-flight
+        manager.mark_snapshot_requested("btcusdt");
+        manager.mark_snapshot_failed("btcusdt");
+        manager.mark_snapshot_requested("ethusdt");
+
+        // btcusdt needs retry but backoff not elapsed yet
+        assert!(manager.symbols_needing_snapshot_retry().is_empty());
+
+        // Simulate backoff elapsed for btcusdt
+        let book = manager.books.get_mut("btcusdt").unwrap();
+        book.last_snapshot_request = Some(Instant::now() - std::time::Duration::from_secs(5));
+
+        let retries = manager.symbols_needing_snapshot_retry();
+        assert_eq!(retries.len(), 1);
+        assert_eq!(retries[0], "btcusdt");
+
+        // ethusdt should NOT be in retry list (still in-flight)
+        assert!(!retries.contains(&"ethusdt".to_string()));
     }
 }
