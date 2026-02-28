@@ -114,34 +114,101 @@ When canceling orders, the connector first tries `client_order_id`. If not found
 
 ### Docker Deployment
 
-The system can be deployed via Docker for production use:
+The system is deployed via Docker on two servers. Each server has its own compose file and env file.
 
-```bash
-cd deploy/docker
+**Compose files** (in `deploy/docker/`):
 
-# Build the image
-docker compose build
+| File | Server | Exchange |
+|------|--------|----------|
+| `docker-compose.binance.yml` | Vultr | Binance PAPI |
+| `docker-compose.mainnet.yml` | Hetzner | Bybit |
 
-# Start the system
-docker compose up -d
+**Docker stack:** hft (supervisor + bots + connector + collector), ClickHouse, Grafana, nginx, cloudflared
 
-# Check status
-docker compose exec hft hftctl --socket /tmp/hft-supervisor.sock status
+### Configuration Repository
 
-# View logs
-docker compose logs -f hft
-docker compose exec hft cat /var/lib/hft/logs/infra/connector.log
-docker compose exec hft cat /var/lib/hft/logs/bots/obi_mm_btcusdt.log
+Runtime configs (API keys, strategy params, cluster topology) live in a **separate private repo**: [`bookdisco/hft-configs`](https://github.com/bookdisco/hft-configs)
+
+**Why separated:** Strategy configs change frequently and differ per server. Code changes less often. Mixing them causes unnecessary rebuilds and deployment complexity.
+
+**Repo structure:**
+```
+hft-configs/
+├── binance/              # Vultr server (Binance PAPI)
+│   ├── cluster.toml      # Supervisor config: which bots to run, warmup settings
+│   ├── connector.toml    # API endpoint + credential placeholders (${BINANCE_API_KEY})
+│   └── strategies/       # Per-symbol strategy configs
+│       ├── obi_mm_alpine.toml
+│       ├── obi_mm_esports.toml
+│       ├── obi_mm_f.toml
+│       ├── obi_mm_idol.toml
+│       ├── obi_mm_naoris.toml
+│       ├── obi_mm_sys.toml
+│       ├── obi_mm_ta.toml
+│       ├── obi_mm_xpin.toml
+│       └── obi_mm_zerebro.toml
+└── bybit/                # Hetzner server (Bybit)
+    ├── cluster.toml
+    ├── connector.toml
+    └── strategies/
+        ├── obi_mm_btc_mainnet.toml
+        ├── obi_mm_eth_mainnet.toml
+        └── obi_mm_ada_mainnet.toml
 ```
 
-Docker components:
-- **hft-supervisor**: Process manager for connectors, collectors, and bots
-- **hft-server**: HTTP API server for monitoring and control
-- **ClickHouse**: Order recording database
+**Mount mechanism:** Docker compose mounts the config repo subdirectory as `/etc/hft:ro`:
+```yaml
+volumes:
+  - ${HFT_CONFIG_DIR:-./config}:/etc/hft:ro
+```
 
-Configuration:
-- `deploy/docker/config/cluster.toml`: Bot and infrastructure configuration
-- `deploy/docker/config/*.toml`: Individual bot configs
+**Environment files** (`.env.binance` / `.env.mainnet`, NOT in git):
+```bash
+# API credentials (substituted by entrypoint.sh into connector.toml)
+BINANCE_API_KEY=xxx
+BINANCE_SECRET=xxx
+# Config repo path relative to deploy/docker/
+HFT_CONFIG_DIR=./hft-configs/binance
+# Other services
+CLOUDFLARE_TUNNEL_TOKEN=xxx
+GF_ROOT_URL=https://hft-bn.bookdisco.space/grafana/
+```
+
+**API key substitution:** `entrypoint.sh` runs `sed` on `/etc/hft/connector.toml` at container startup to replace `${BINANCE_API_KEY}`, `${BINANCE_SECRET}`, `${BYBIT_API_KEY}`, `${BYBIT_SECRET}` with actual values from environment.
+
+### Config Update Workflow
+
+**To update strategy parameters or add/remove bots:**
+
+```bash
+# 1. On the server, cd to the config repo
+cd ~/hftbacktest/deploy/docker/hft-configs
+
+# 2. Edit configs (or pull changes from git)
+git pull origin main
+# Or edit directly: vim binance/strategies/obi_mm_sys.toml
+
+# 3. Commit and push if edited directly
+git add -A && git commit -m "update SYS params" && git push
+
+# 4. Restart the hft container to pick up changes
+cd ~/hftbacktest/deploy/docker
+docker compose -f docker-compose.binance.yml --env-file .env.binance restart hft
+
+# 5. Verify
+docker compose -f docker-compose.binance.yml --env-file .env.binance exec hft \
+  hftctl --socket /tmp/hft-supervisor.sock status
+```
+
+**To generate strategy configs from fitted YAML:**
+```bash
+python scripts/yaml_to_toml_configs.py \
+  --yaml /path/to/selected_coins_params.yaml \
+  --output hft-configs/binance/strategies/ \
+  --capital 2000
+```
+
+**Important:** Always sync config changes back to git so both servers and local dev stay consistent. Avoid modifying configs only on the server without committing — they will be lost on next `git pull`.
 
 ### hftctl Commands
 
@@ -178,22 +245,25 @@ hftctl infra restart order_recorder
 - Warmup is controlled by `[warmup].min_duration_seconds` in cluster config
 - Set `min_duration_seconds` >= factor window size (e.g., 1800 for 30-min window)
 
-### Mainnet Deployment
+### Server Operations
 
+**Binance PAPI (Vultr):**
 ```bash
-cd deploy/docker
-
-# Mainnet (Bybit)
-docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet up -d
-docker compose -f docker-compose.mainnet.yml exec hft hftctl --socket /tmp/hft-supervisor.sock status
-docker compose -f docker-compose.mainnet.yml logs -f hft
+cd ~/hftbacktest/deploy/docker
+docker compose -f docker-compose.binance.yml --env-file .env.binance up -d
+docker compose -f docker-compose.binance.yml --env-file .env.binance exec hft \
+  hftctl --socket /tmp/hft-supervisor.sock status
+docker compose -f docker-compose.binance.yml --env-file .env.binance logs -f hft
 ```
 
-Configuration files:
-- `config/bybit_mainnet.toml`: Bybit mainnet API config (WebSocket trade stream)
-- `config/cluster_mainnet.toml`: Cluster config for mainnet
-- `config/strategies/obi_mm_btc_mainnet.toml`: BTC strategy parameters
-- `.env.mainnet`: API credentials (not in git)
+**Bybit (Hetzner):**
+```bash
+cd ~/hftbacktest/deploy/docker
+docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet up -d
+docker compose -f docker-compose.mainnet.yml exec hft \
+  hftctl --socket /tmp/hft-supervisor.sock status
+docker compose -f docker-compose.mainnet.yml logs -f hft
+```
 
 **Bybit Connector Types:**
 - `type = "bybit"`: WebSocket Trade stream for order submission (lower latency)
@@ -247,7 +317,9 @@ docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet up -d
 - **SSH alias:** `Hetzner_bybit`
 - **IP:** 5.223.54.76
 - **Bybit latency:** ~17ms
-- **Config path:** `~/hftbacktest/deploy/docker/`
+- **Code path:** `~/hftbacktest/deploy/docker/`
+- **Config repo:** `~/hft-configs/` (cloned from `bookdisco/hft-configs`)
+- **Compose file:** `docker-compose.mainnet.yml` + `.env.mainnet`
 
 ### Backtest Alignment Tools
 
@@ -326,8 +398,10 @@ tmux-cli capture --pane=<pane_id>
 **Server info:**
 - **SSH alias:** `Vultur_mmtest0`
 - **IP:** 45.32.34.210
-- **Purpose:** Binance PAPI testnet/mainnet testing
-- **Config path:** `~/hftbacktest/deploy/docker/`
+- **Purpose:** Binance PAPI mainnet (9 altcoins)
+- **Code path:** `~/hftbacktest/deploy/docker/`
+- **Config repo:** `~/hftbacktest/deploy/docker/hft-configs/` (cloned from `bookdisco/hft-configs`)
+- **Compose file:** `docker-compose.binance.yml` + `.env.binance`
 
 ### Key Documentation
 - `docs/LIVE_TRADING_ARCHITECTURE.md`: Detailed live trading system architecture (Chinese)

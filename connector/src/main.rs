@@ -211,6 +211,7 @@ async fn run_publish_task(
                         tick_size,
                         lot_size,
                     } => {
+
                         // Sends the current state (orders, position, and market depth) to the bot that
                         // requested to add this instrument in batch mode.
                         bot_tx.send(id, &LiveEvent::BatchStart)?;

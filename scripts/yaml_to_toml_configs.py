@@ -153,9 +153,11 @@ def generate_toml(symbol: str, params: dict, price: float, capital_per_coin: flo
     final_notional = order_qty_coins * price
     max_notional = max_position_coins * price
 
-    # ROI bounds from YAML
-    roi_lb = fixed["roi_lb"]
-    roi_ub = fixed["roi_ub"]
+    # ROI bounds: use defaults for live trading (HashMapMarketDepth doesn't need ROI clipping).
+    # The YAML roi_lb/roi_ub are for ROIVectorMarketDepth (backtest) array sizing only.
+    # Using them in live causes OBI to produce 0 when price drifts outside the backtest range.
+    roi_lb = 0.0
+    roi_ub = 200000.0
 
     # Grid interval: with grid_num=1, not used. Set to tick_size * 100 as placeholder.
     tick_size = info.get("tick_size", symbol_config.get("tick_size", 0.0001))
@@ -167,6 +169,7 @@ def generate_toml(symbol: str, params: dict, price: float, capital_per_coin: flo
     print(f"  {symbol}")
     print(f"{'='*60}")
     print(f"  Price:          ${price}")
+    print(f"  Tick size:      {tick_size}")
     print(f"  Lot size:       {lot_size}")
     print(f"  Min notional:   ${min_notional}")
     print(f"  Backtest ratio: {bt_ratio:.0f}x (max_pos/order_qty)")
@@ -186,6 +189,8 @@ def generate_toml(symbol: str, params: dict, price: float, capital_per_coin: flo
 # Order notional: ${final_notional:.2f}, Max position: ${max_notional:.2f}
 
 [global]
+tick_size = {tick_size}
+lot_size = {lot_size}
 order_qty = {order_qty_coins}
 max_position = {max_position_coins}
 grid_num = {fixed['grid_num']}

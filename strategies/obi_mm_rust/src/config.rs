@@ -17,6 +17,14 @@ pub struct GlobalConfig {
     pub roi_lb: f64,
     /// Upper bound for ROI
     pub roi_ub: f64,
+    /// Tick size (price precision). Each symbol has its own tick_size from the exchange.
+    /// If 0.0 or absent, falls back to CLI arg or connector auto-resolve.
+    #[serde(default)]
+    pub tick_size: f64,
+    /// Lot size (quantity precision). Each symbol has its own lot_size from the exchange.
+    /// If 0.0 or absent, falls back to CLI arg or connector auto-resolve.
+    #[serde(default)]
+    pub lot_size: f64,
 }
 
 impl Default for GlobalConfig {
@@ -28,6 +36,8 @@ impl Default for GlobalConfig {
             grid_interval: 0.1,
             roi_lb: 0.0,
             roi_ub: 200000.0,
+            tick_size: 0.0,
+            lot_size: 0.0,
         }
     }
 }

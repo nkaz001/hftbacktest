@@ -90,15 +90,17 @@ struct Args {
 
 fn prepare_live_with_hook(
     args: &Args,
+    tick_size: f64,
+    lot_size: f64,
     hook_ctx: Option<Arc<OrderHookContext>>,
 ) -> LiveBot<IceoryxUnifiedChannel, HashMapMarketDepth> {
     let mut builder = LiveBotBuilder::new()
         .register(Instrument::new(
             &args.connector,
             &args.symbol,
-            args.tick_size,
-            args.lot_size,
-            HashMapMarketDepth::new(args.tick_size, args.lot_size),
+            tick_size,
+            lot_size,
+            HashMapMarketDepth::new(tick_size, lot_size),
             0,
         ));
 
@@ -291,6 +293,18 @@ pub fn main() -> Result<()> {
         }
     };
 
+    // Resolve effective tick_size/lot_size: config > CLI arg > 0.0 (auto-resolve from exchange)
+    let effective_tick_size = if config.global.tick_size > 0.0 {
+        config.global.tick_size
+    } else {
+        args.tick_size
+    };
+    let effective_lot_size = if config.global.lot_size > 0.0 {
+        config.global.lot_size
+    } else {
+        args.lot_size
+    };
+
     println!("======================================");
     println!(" OBI MM Strategy (Live + Recording)");
     println!("======================================");
@@ -298,8 +312,8 @@ pub fn main() -> Result<()> {
     println!("Symbol: {}", args.symbol);
     println!("Strategy ID: {}", args.strategy_id);
     println!("Recording Service: {}", args.recording_service);
-    println!("Tick Size: {}", args.tick_size);
-    println!("Lot Size: {}", args.lot_size);
+    println!("Tick Size: {} (config: {}, cli: {})", effective_tick_size, config.global.tick_size, args.tick_size);
+    println!("Lot Size: {} (config: {}, cli: {})", effective_lot_size, config.global.lot_size, args.lot_size);
     println!("Dry Run: {}", args.dry_run);
     println!("--------------------------------------");
     println!("Order Qty: {}", config.global.order_qty);
@@ -317,7 +331,7 @@ pub fn main() -> Result<()> {
         args.connector.clone(),
         args.strategy_id.clone(),
         args.symbol.clone(),
-        args.tick_size,
+        effective_tick_size,
     );
 
     if hook_ctx.is_some() {
@@ -331,7 +345,7 @@ pub fn main() -> Result<()> {
 
     // Create live bot with order hook
     info!("Connecting to connector '{}'...", args.connector);
-    let mut hbt = prepare_live_with_hook(&args, hook_ctx.clone());
+    let mut hbt = prepare_live_with_hook(&args, effective_tick_size, effective_lot_size, hook_ctx.clone());
 
     let tick_size = hbt.depth(0).tick_size();
     info!("Connected! Using tick size: {}", tick_size);

@@ -292,6 +292,12 @@ where
                 // If tick_size transitions from 0 to a valid value, clear any depth
                 // that may have been corrupted by processing events with tick_size=0
                 if instrument.tick_size == 0.0 && tick_size > 0.0 {
+                    info!(
+                        %inst_no,
+                        %tick_size,
+                        %lot_size,
+                        "InstrumentInfo received: tick_size 0 -> valid, clearing depth"
+                    );
                     instrument.depth.clear_depth(Side::None, 0.0);
                 }
                 instrument.tick_size = tick_size;
