@@ -14,7 +14,7 @@ services:
     environment:
       - BYBIT_API_KEY=${BYBIT_API_KEY}
       - BYBIT_SECRET=${BYBIT_SECRET}
-      - CLUSTER_CONFIG=/etc/hft/cluster_mainnet.toml
+      - CLUSTER_CONFIG=/etc/hft/cluster.toml
       - CLICKHOUSE_URL=http://clickhouse:8123
       - RUST_LOG=info
     env_file:
@@ -23,8 +23,8 @@ services:
     expose:
       - "3000"
     volumes:
-      # Configuration files (bind mount for easy editing)
-      - ./config:/etc/hft:ro
+      # Configuration files from separate hft-configs repo
+      - ${HFT_CONFIG_DIR:-./config}:/etc/hft:ro
       # Persistent data storage (bind mount for easy access)
       - ./data:/var/lib/hft/data
       - ./logs:/var/lib/hft/logs
