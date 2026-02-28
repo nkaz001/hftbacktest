@@ -269,6 +269,8 @@ pub fn main() -> Result<()> {
                 grid_interval: 1.0,    // $1 grid interval
                 roi_lb: 0.0,
                 roi_ub: 200000.0,
+                tick_size: 0.0,        // auto-resolve from exchange
+                lot_size: 0.0,
             },
             params: StrategyParams {
                 looking_depth: 0.001,                      // 0.1% depth
