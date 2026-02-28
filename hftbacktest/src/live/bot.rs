@@ -217,13 +217,19 @@ where
                     // Clear depth on snapshot - Bybit sends this before initial orderbook data
                     instrument.depth.clear_depth(Side::None, 0.0);
                 } else if event.is(LOCAL_BID_DEPTH_EVENT) {
-                    instrument
-                        .depth
-                        .update_bid_depth(event.px, event.qty, event.exch_ts);
+                    // Skip depth updates if tick_size not yet set (prevents corruption
+                    // from (price / 0.0) = Infinity → i64::MAX tick values)
+                    if instrument.tick_size > 0.0 {
+                        instrument
+                            .depth
+                            .update_bid_depth(event.px, event.qty, event.exch_ts);
+                    }
                 } else if event.is(LOCAL_ASK_DEPTH_EVENT) {
-                    instrument
-                        .depth
-                        .update_ask_depth(event.px, event.qty, event.exch_ts);
+                    if instrument.tick_size > 0.0 {
+                        instrument
+                            .depth
+                            .update_ask_depth(event.px, event.qty, event.exch_ts);
+                    }
                 } else if (event.is(LOCAL_BUY_TRADE_EVENT) || event.is(LOCAL_SELL_TRADE_EVENT))
                     && instrument.last_trades.capacity() > 0
                 {
@@ -283,6 +289,11 @@ where
                 tick_size, lot_size, ..
             } => {
                 let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
+                // If tick_size transitions from 0 to a valid value, clear any depth
+                // that may have been corrupted by processing events with tick_size=0
+                if instrument.tick_size == 0.0 && tick_size > 0.0 {
+                    instrument.depth.clear_depth(Side::None, 0.0);
+                }
                 instrument.tick_size = tick_size;
                 instrument.lot_size = lot_size;
                 instrument.depth.set_tick_size(tick_size);
