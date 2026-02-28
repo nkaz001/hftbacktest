@@ -333,7 +333,12 @@ pub fn main() -> Result<()> {
     info!("Connecting to connector '{}'...", args.connector);
     let mut hbt = prepare_live_with_hook(&args, hook_ctx.clone());
 
-    // Wait for connection and get tick size
+    // Drain IPC to receive InstrumentInfo before warmup.
+    // Without this, long warmup periods can cause the IPC subscriber buffer to overflow
+    // with TO_ALL depth broadcasts, dropping the InstrumentInfo message and leaving
+    // tick_size=0 which corrupts all depth calculations.
+    let _ = hbt.elapse(200_000_000); // 200ms
+
     let tick_size = hbt.depth(0).tick_size();
     info!("Connected! Using tick size: {}", tick_size);
 
