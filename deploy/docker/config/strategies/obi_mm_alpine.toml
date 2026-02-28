@@ -1,0 +1,33 @@
+# ALPINEUSDT - OBI MM Strategy Config
+# Generated from fitted parameters
+# Capital allocation: $400 per coin
+# Price at generation: $0.4152
+# Order notional: $19.97, Max position: $399.96
+
+[global]
+order_qty = 48.1
+max_position = 963.3
+grid_num = 1
+grid_interval = 0.01
+roi_lb = 0.2019
+roi_ub = 17.935
+
+[params]
+looking_depth = 0.03
+window = 336
+volatility_window = 60
+half_spread = 0.0019
+skew = 4.5e-05
+c1 = 0.000195
+power = 0.5
+live_seconds = 135
+update_interval_ns = 10000000000
+volatility_interval_ns = 60000000000
+
+[stop_loss]
+volatility_mean = 0.0015532334979083896
+volatility_std = 0.0025539584851078496
+change_mean = -5.603399256653808e-06
+change_std = 0.0029946360867249312
+volatility_threshold = 2.5
+change_threshold = 2.5

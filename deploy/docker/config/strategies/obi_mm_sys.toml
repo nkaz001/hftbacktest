@@ -1,0 +1,33 @@
+# SYSUSDT - OBI MM Strategy Config
+# Generated from fitted parameters
+# Capital allocation: $400 per coin
+# Price at generation: $0.01019
+# Order notional: $19.99, Max position: $400.00
+
+[global]
+order_qty = 1962.0
+max_position = 39254.0
+grid_num = 1
+grid_interval = 0.001
+roi_lb = 0.01448
+roi_ub = 0.12978
+
+[params]
+looking_depth = 0.025
+window = 216
+volatility_window = 60
+half_spread = 0.0018
+skew = 0.00011
+c1 = 9.5e-05
+power = 0.3
+live_seconds = 165
+update_interval_ns = 10000000000
+volatility_interval_ns = 60000000000
+
+[stop_loss]
+volatility_mean = 0.0012719867596327726
+volatility_std = 0.0011241180116374253
+change_mean = -1.0004703963351839e-05
+change_std = 0.0017183593957290249
+volatility_threshold = 4.0
+change_threshold = 4.0

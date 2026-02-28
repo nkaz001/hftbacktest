@@ -30,7 +30,7 @@ enabled = true
 mode = "ipc"
 output_dir = "/var/lib/hft/data"
 # Binance uses lowercase symbols
-symbols = ["esportsusdt", "fusdt", "idolusdt", "naorisusdt", "xpinusdt"]
+symbols = ["alpineusdt", "esportsusdt", "fusdt", "idolusdt", "naorisusdt", "sysusdt", "tausdt", "xpinusdt", "zerebrousdt"]
 retention_days = 7
 auto_start = true
 
@@ -115,6 +115,50 @@ strategy = "obi_mm_live"
 symbol = "xpinusdt"
 connector = "bf"
 config_file = "/etc/hft/strategies/obi_mm_xpin.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_alpineusdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "alpineusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_alpine.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_sysusdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "sysusdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_sys.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_tausdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "tausdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_ta.toml"
+auto_restart = true
+max_restarts = 3
+restart_backoff_secs = 5
+
+[[bots]]
+id = "obi_mm_zerebrousdt"
+enabled = true
+strategy = "obi_mm_live"
+symbol = "zerebrousdt"
+connector = "bf"
+config_file = "/etc/hft/strategies/obi_mm_zerebro.toml"
 auto_restart = true
 max_restarts = 3
 restart_backoff_secs = 5

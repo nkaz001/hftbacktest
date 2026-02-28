@@ -8,7 +8,7 @@
 order_qty = 3505.0
 max_position = 70113.0
 grid_num = 1
-grid_interval = 9.999999999999999e-05
+grid_interval = 0.0001
 roi_lb = 0.004579
 roi_ub = 0.033714
 

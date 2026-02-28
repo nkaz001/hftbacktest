@@ -64,10 +64,13 @@ def fetch_exchange_info(symbols: list[str]) -> dict[str, dict]:
 
 
 def round_to_lot(qty: float, lot_size: float) -> float:
-    """Round quantity down to nearest lot_size."""
+    """Round quantity down to nearest lot_size, with float cleanup."""
     if lot_size <= 0:
         return qty
-    return math.floor(qty / lot_size) * lot_size
+    result = math.floor(qty / lot_size) * lot_size
+    # Clean up floating point artifacts (e.g. 963.3000000000001 -> 963.3)
+    decimals = max(0, -int(math.floor(math.log10(lot_size)))) if lot_size < 1 else 0
+    return round(result, decimals)
 
 
 def generate_toml(symbol: str, params: dict, price: float, capital_per_coin: float,
@@ -128,7 +131,9 @@ def generate_toml(symbol: str, params: dict, price: float, capital_per_coin: flo
 
     if order_notional < min_notional:
         # Bump order_qty to meet minimum notional
-        min_order_coins = math.ceil(min_notional / price / lot_size) * lot_size
+        min_order_coins = round_to_lot(
+            math.ceil(min_notional / price / lot_size) * lot_size, lot_size
+        )
         warnings.append(
             f"order_qty bumped from {order_qty_coins} to {min_order_coins} "
             f"(notional {order_qty_coins * price:.2f} < min {min_notional})"
@@ -152,9 +157,10 @@ def generate_toml(symbol: str, params: dict, price: float, capital_per_coin: flo
     roi_lb = fixed["roi_lb"]
     roi_ub = fixed["roi_ub"]
 
-    # Grid interval: with grid_num=1, not used. Set to tick_size * 10 as placeholder.
+    # Grid interval: with grid_num=1, not used. Set to tick_size * 100 as placeholder.
     tick_size = info.get("tick_size", symbol_config.get("tick_size", 0.0001))
-    grid_interval = tick_size * 100
+    tick_decimals = max(0, -int(math.floor(math.log10(tick_size)))) if tick_size < 1 else 0
+    grid_interval = round(tick_size * 100, max(0, tick_decimals - 2))
 
     # --- Print summary ---
     print(f"\n{'='*60}")
@@ -284,7 +290,9 @@ def main():
 
         min_notional = info.get("min_notional", 5.0)
         if ord_qty_coins * price < min_notional:
-            ord_qty_coins = math.ceil(min_notional / price / lot_size) * lot_size
+            ord_qty_coins = round_to_lot(
+                math.ceil(min_notional / price / lot_size) * lot_size, lot_size
+            )
             if max_pos_coins < ord_qty_coins * 2:
                 max_pos_coins = round_to_lot(ord_qty_coins * 2, lot_size)
 
