@@ -91,12 +91,11 @@ if [ -f /etc/hft/connector.toml ]; then
     chown hft:hft "$CONFIG_DIR/connector.toml"
 fi
 
-# Copy strategy configs to temp directory
+# Symlink strategy configs (no envsubst needed, and symlink ensures
+# config changes on the host are visible immediately without container restart)
 if [ -d /etc/hft/strategies ]; then
-    echo "Processing strategy configs..."
-    mkdir -p "$CONFIG_DIR/strategies"
-    cp -r /etc/hft/strategies/* "$CONFIG_DIR/strategies/"
-    chown -R hft:hft "$CONFIG_DIR/strategies"
+    echo "Linking strategy configs..."
+    ln -sfn /etc/hft/strategies "$CONFIG_DIR/strategies"
 fi
 
 # Determine which cluster config to use
