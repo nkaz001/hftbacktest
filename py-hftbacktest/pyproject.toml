@@ -3,12 +3,15 @@ requires = ["maturin~=1.7"]
 build-backend = "maturin"
 
 [project]
-name = "hftbacktest"
+name = "bookdisco-hftbacktest"
 description = "A high-frequency trading and market-making backtesting tool accounts for limit orders, queue positions, and latencies, utilizing full tick data for trades and order books."
 readme = "README.rst"
-authors = [{ name = "nkaz001", email = "nkaz001@protonmail.com" }]
+authors = [
+  { name = "nkaz001", email = "nkaz001@protonmail.com" },
+  { name = "bookdisco" },
+]
 license = { file = "LICENSE" }
-version = "2.4.4"
+version = "2.5.0"
 requires-python = ">=3.11"
 dependencies = [
  "numpy >=2.0, <2.3",
@@ -39,7 +42,7 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/nkaz001/hftbacktest"
+Repository = "https://github.com/bookdisco/hftbacktest"
 
 [project.optional-dependencies]
 databento = ["databento"]

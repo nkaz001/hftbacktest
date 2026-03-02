@@ -1,0 +1,64 @@
+name: Release Python (Private PyPI)
+
+on:
+  push:
+    tags:
+      - 'py-v*'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Dry run (build only, skip publish)
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.12'
+  RUST_VERSION: '1.91.1'
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          rust-toolchain: ${{ env.RUST_VERSION }}
+          args: --manifest-path=py-hftbacktest/Cargo.toml --release --out dist --find-interpreter
+          manylinux: 2_28
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-x86_64
+          path: dist
+
+  publish:
+    name: Publish to Private PyPI
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.dry-run }}
+    needs: [linux]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          for f in dist/*.whl; do
+            echo "Uploading $f"
+            curl -s \
+              -F ":action=file_upload" \
+              -F "content=@$f" \
+              -u "pypi:${PYPI_PASSWORD}" \
+              https://pypi.bookdisco.space/ \
+              --fail-with-body
+          done
