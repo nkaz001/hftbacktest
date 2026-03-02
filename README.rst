@@ -4,6 +4,29 @@ HftBacktest
 
 |codeql| |python| |pypi| |downloads| |rustc| |crates| |license| |docs| |roadmap| |github|
 
+.. note::
+
+   **Private Fork (bookdisco)** — This is a private fork with production live-trading infrastructure.
+   The codebase is split across multiple repositories:
+
+   - ``bookdisco/hftbacktest`` — Core framework (backtesting engine, connectors, collector, supervisor, order-recorder)
+   - ``bookdisco/factor-engine`` — Streaming O(1) factor computation (OBI, volatility, stop-loss)
+   - ``bookdisco/hft-strategies`` — Trading strategies (Rust + Python)
+   - ``bookdisco/hft-configs`` — Per-server strategy parameters (TOML)
+
+   **Setup:**
+
+   .. code-block:: bash
+
+      git clone --recurse-submodules git@github.com:bookdisco/hftbacktest.git
+      cd hftbacktest
+      # Build core framework
+      cargo build --release
+      # Build strategies (separate workspace)
+      cd submodules/hft-strategies && cargo build --release
+
+   See ``CLAUDE.md`` for full architecture documentation.
+
 High-Frequency Trading Backtesting Tool
 =======================================
 
