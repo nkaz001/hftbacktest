@@ -37,10 +37,10 @@ COPY collector ./collector
 COPY supervisor ./supervisor
 COPY server ./server
 COPY order-recorder ./order-recorder
-COPY factor-engine ./factor-engine
-COPY strategies ./strategies
+COPY submodules/factor-engine ./submodules/factor-engine
+COPY submodules/hft-strategies ./submodules/hft-strategies
 
-# Build all components in release mode
+# Build main workspace components in release mode
 # Uses BuildKit cache mounts to persist cargo registry and target dir across builds.
 # Only changed crates are recompiled (~1-2 min instead of 5-10 min).
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -51,13 +51,20 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     -p collector \
     -p order-recorder \
     -p hft-supervisor \
-    -p hft-server \
-    -p template_strategy && \
-    cargo build --release -p obi-mm --features live && \
+    -p hft-server && \
     cp target/release/connector target/release/collector \
        target/release/order-recorder target/release/hft-supervisor \
        target/release/hft-server target/release/hftctl \
-       target/release/obi_mm_live target/release/template_strategy \
+       /tmp/
+
+# Build strategies (separate workspace with path overrides pointing to main workspace)
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/submodules/hft-strategies/target \
+    cd submodules/hft-strategies && \
+    cargo build --release -p obi-mm --features live && \
+    cargo build --release -p template_strategy && \
+    cp target/release/obi_mm_live target/release/template_strategy \
        /tmp/
 
 # =============================================================================

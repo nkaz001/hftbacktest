@@ -8,9 +8,9 @@ HftBacktest is a high-frequency trading and market-making backtesting framework.
 
 ## Build Commands
 
-### Rust
+### Rust (主仓库)
 ```bash
-# Build all workspace members
+# Build all workspace members (核心框架 + 实盘组件)
 cargo build
 
 # Build with release optimizations
@@ -19,13 +19,24 @@ cargo build --release
 # Run tests
 cargo test
 
-# Run a specific example
-cargo run --release --example gridtrading_backtest
-
 # Build specific packages
 cargo build --release -p connector
 cargo build --release -p collector
 cargo build --release -p order-recorder
+```
+
+### Rust (策略, 在 submodules/hft-strategies/ 下)
+```bash
+# 策略是独立 workspace，需要 cd 进去编译
+cd submodules/hft-strategies
+
+# 回测
+cargo build --release -p obi-mm
+
+# 实盘 (需要 live feature)
+cargo build --release -p obi-mm --features live
+
+# path override 由 .cargo/config.toml 自动处理，无需手动配置
 ```
 
 ### Python
@@ -38,7 +49,7 @@ maturin develop --release
 pytest py-hftbacktest/tests/
 
 # Run Python strategy
-python strategies/gridtrading.py
+python submodules/hft-strategies/gridtrading.py
 ```
 
 ### Running Live Trading
@@ -46,25 +57,55 @@ python strategies/gridtrading.py
 # 1. Start connector (must run on same machine as bot)
 ./target/release/connector --name bf --connector binancefutures --config config.toml
 
-# 2. Run strategy (Rust example)
-cargo run --release --example gridtrading_live
+# 2. Run strategy (built from submodules/hft-strategies/)
+./submodules/hft-strategies/target/release/obi_mm_live --config config.toml
 ```
 
 ## Architecture
 
-### Workspace Structure
+### Multi-Repo Structure
+
+The project is split across multiple private repos with git submodules:
+
+```
+bookdisco/hftbacktest          ← 主仓库 (本仓库: 核心框架 + 实盘组件)
+bookdisco/factor-engine        ← 独立仓库 (因子计算引擎)
+bookdisco/hft-strategies       ← 独立仓库 (交易策略: Rust + Python)
+bookdisco/hft-configs          ← 独立仓库 (策略参数 TOML)
+```
+
+**Git submodules** (在 `submodules/` 下，用于本地开发):
+```
+submodules/
+├── factor-engine/       → git@github.com:bookdisco/factor-engine.git
+└── hft-strategies/      → git@github.com:bookdisco/hft-strategies.git
+```
+
+**克隆时需要初始化 submodules:**
+```bash
+git clone --recurse-submodules git@github.com:bookdisco/hftbacktest.git
+# 或已克隆后:
+git submodule update --init
+```
+
+### Workspace Structure (本仓库)
 - **hftbacktest/**: Core Rust library - backtesting engine, live trading bot, market depth implementations
 - **hftbacktest-derive/**: Procedural macros (NpyDTyped derive)
 - **py-hftbacktest/**: Python bindings (PyO3) and pure Python utilities
 - **collector/**: Standalone binary for collecting market data from exchanges (Binance, Bybit, Hyperliquid)
 - **connector/**: Standalone binary for live trading connections (Binance Futures/Spot/PAPI, Bybit)
-- **factor-engine/**: Streaming O(1) factor computation library (OBI, volatility, trade imbalance)
 - **order-recorder/**: Order recording service for live trading analytics (writes to ClickHouse)
-- **hft-supervisor/**: Process supervisor for managing connectors, collectors, and trading bots
-- **hft-server/**: HTTP API server for monitoring and control (dashboard backend)
-- **hftctl/**: CLI tool for interacting with hft-supervisor
-- **strategies/**: Example strategies (Python in `obi_mm/`, Rust in `obi_mm_rust/`)
+- **supervisor/**: Process supervisor for managing connectors, collectors, and trading bots (hft-supervisor + hftctl)
+- **server/**: HTTP API server for monitoring and control (dashboard backend)
 - **deploy/**: Deployment configurations (Docker, systemd)
+
+### External Repos (git submodules)
+- **submodules/factor-engine/**: Streaming O(1) factor computation library (OBI, volatility, trade imbalance) — `bookdisco/factor-engine`
+- **submodules/hft-strategies/**: Trading strategies — `bookdisco/hft-strategies`
+  - `obi_mm_rust/`: Rust OBI market making strategy (backtest + live)
+  - `template_strategy/`: Template for new strategies
+  - `obi_mm/`: Python OBI strategy
+  - `gridtrading.py`: Python grid trading example
 
 ### Core Concepts
 
@@ -96,11 +137,12 @@ cargo run --release --example gridtrading_live
 ### Python Integration
 Python code uses Numba JIT compilation. The `@njit` decorated functions receive opaque pointers to Rust structures, calling through `cffi` bindings defined in `py-hftbacktest/hftbacktest/binding.py`.
 
-### Factor Engine
-The `factor-engine` crate provides streaming O(1) incremental computation:
+### Factor Engine (独立仓库: `bookdisco/factor-engine`)
+The `factor-engine` crate provides streaming O(1) incremental computation. It has **zero dependencies** on the main workspace and is maintained in its own repo.
 - **Primitives**: `RingBuffer`, `WelfordRolling` (mean/std), `EMA`, `TimeWindowQueue`
 - **Factors**: `OBIFactor` (order book imbalance), `VolatilityFactor`, `StopLossChecker`
 - **Combiner**: `LinearCombiner` for multi-factor weighted combination
+- **Local path**: `submodules/factor-engine/`
 
 ### Connector Order Tracking
 
@@ -124,6 +166,8 @@ The system is deployed via Docker on two servers. Each server has its own compos
 | `docker-compose.mainnet.yml` | Hetzner | Bybit |
 
 **Docker stack:** hft (supervisor + bots + connector + collector), ClickHouse, Grafana, nginx, cloudflared
+
+**Docker build requires submodules:** The Dockerfile copies `submodules/factor-engine` and `submodules/hft-strategies` into the build context. Run `git submodule update --init` before building.
 
 ### Configuration Repository
 
@@ -175,6 +219,33 @@ GF_ROOT_URL=https://hft-bn.bookdisco.space/grafana/
 ```
 
 **API key substitution:** `entrypoint.sh` runs `sed` on `/etc/hft/connector.toml` at container startup to replace `${BINANCE_API_KEY}`, `${BINANCE_SECRET}`, `${BYBIT_API_KEY}`, `${BYBIT_SECRET}` with actual values from environment.
+
+### Cross-Repo Development
+
+**Strategy repo** (`hft-strategies`) uses SSH git dependencies:
+```toml
+hftbacktest    = { git = "ssh://git@github.com/bookdisco/hftbacktest", features = ["backtest"] }
+factor-engine  = { git = "ssh://git@github.com/bookdisco/factor-engine" }
+order-recorder = { git = "ssh://git@github.com/bookdisco/hftbacktest", optional = true }
+```
+
+**Local development** uses path overrides via `submodules/hft-strategies/.cargo/config.toml`:
+```toml
+[patch."ssh://git@github.com/bookdisco/hftbacktest"]
+hftbacktest = { path = "../../hftbacktest" }
+order-recorder = { path = "../../order-recorder" }
+
+[patch."ssh://git@github.com/bookdisco/factor-engine"]
+factor-engine = { path = "../factor-engine" }
+```
+
+This means changes to `hftbacktest/` or `submodules/factor-engine/` are **immediately visible** when building strategies locally — no need to push/pull.
+
+**Workspace layout:**
+- Main workspace (`Cargo.toml`): only framework crates, `exclude = ["submodules"]`
+- Strategy workspace (`submodules/hft-strategies/Cargo.toml`): independent, uses git deps + path overrides
+- `cargo build` in root → builds framework only
+- `cargo build` in `submodules/hft-strategies/` → builds strategies with local overrides
 
 ### Config Update Workflow
 
@@ -409,3 +480,10 @@ tmux-cli capture --pane=<pane_id>
 - `docs/STRATEGY_GUIDE.md`: Strategy implementation guide
 - `deploy/docker/README.md`: Docker deployment guide
 - `tools/backtest_alignment/README.md`: Backtest alignment tools guide
+
+### Related Repositories
+| Repo | Purpose | URL |
+|------|---------|-----|
+| `bookdisco/factor-engine` | O(1) factor computation | `git@github.com:bookdisco/factor-engine.git` |
+| `bookdisco/hft-strategies` | Trading strategies (Rust + Python) | `git@github.com:bookdisco/hft-strategies.git` |
+| `bookdisco/hft-configs` | Strategy parameters (TOML) | `git@github.com:bookdisco/hft-configs.git` |
