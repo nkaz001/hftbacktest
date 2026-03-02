@@ -1,0 +1,6 @@
+[submodule "submodules/factor-engine"]
+	path = submodules/factor-engine
+	url = git@github.com:bookdisco/factor-engine.git
+[submodule "submodules/hft-strategies"]
+	path = submodules/hft-strategies
+	url = git@github.com:bookdisco/hft-strategies.git

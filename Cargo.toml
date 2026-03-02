@@ -6,12 +6,12 @@ members = [
   "py-hftbacktest",
   "collector",
   "connector",
-  "factor-engine",
   "order-recorder",
-  "strategies/obi_mm_rust",
-  "strategies/template_strategy",
   "supervisor",
   "server",
+]
+exclude = [
+  "submodules",
 ]
 
 [profile.dev]
