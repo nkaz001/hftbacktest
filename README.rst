@@ -25,6 +25,17 @@ HftBacktest
       # Build strategies (separate workspace)
       cd submodules/hft-strategies && cargo build --release
 
+   **Python bindings** are published as ``bookdisco-hftbacktest`` on our private PyPI:
+
+   .. code-block:: bash
+
+      pip install bookdisco-hftbacktest \
+        --extra-index-url https://pypi:$PYPI_PASSWORD@pypi.bookdisco.space/simple/
+
+   ``import hftbacktest`` works as usual — only the PyPI package name differs from upstream.
+
+   **Release:** push a ``py-v*`` tag (e.g. ``git tag py-v2.5.1``) to trigger CI build + publish.
+
    See ``CLAUDE.md`` for full architecture documentation.
 
 High-Frequency Trading Backtesting Tool
