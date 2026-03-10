@@ -149,15 +149,13 @@ where
                 self.queue_model.trade(order, qty, &self.depth);
                 let filled_qty = self.queue_model.is_filled(order, &self.depth);
                 if filled_qty > 0.0 {
-                    // q_ahead is negative since is_filled is true and its value represents the
-                    // executable quantity of this order after execution in the queue ahead of this
-                    // order.
-                    let exec_qty = if filled_qty > order.leaves_qty {
+                    let exec_qty = filled_qty.min(order.leaves_qty);
+                    // Check if this fill will complete the order (leaves_qty after fill rounds
+                    // to zero lots). Must enqueue for removal to avoid stale Filled orders
+                    // remaining in the HashMap and triggering InvalidOrderStatus on re-hit.
+                    if ((order.leaves_qty - exec_qty) / self.depth.lot_size()).round() <= 0f64 {
                         self.filled_orders.push(order.order_id);
-                        order.leaves_qty
-                    } else {
-                        filled_qty
-                    };
+                    }
                     return self.fill::<true>(order, timestamp, true, order.price_tick, exec_qty);
                 }
             }
@@ -189,15 +187,11 @@ where
                 self.queue_model.trade(order, qty, &self.depth);
                 let filled_qty = self.queue_model.is_filled(order, &self.depth);
                 if filled_qty > 0.0 {
-                    // q_ahead is negative since is_filled is true and its value represents the
-                    // executable quantity of this order after execution in the queue ahead of this
-                    // order.
-                    let exec_qty = if filled_qty > order.leaves_qty {
+                    let exec_qty = filled_qty.min(order.leaves_qty);
+                    // Check if this fill will complete the order (same logic as sell side).
+                    if ((order.leaves_qty - exec_qty) / self.depth.lot_size()).round() <= 0f64 {
                         self.filled_orders.push(order.order_id);
-                        order.leaves_qty
-                    } else {
-                        filled_qty
-                    };
+                    }
                     return self.fill::<true>(order, timestamp, true, order.price_tick, exec_qty);
                 }
             }
@@ -248,17 +242,17 @@ where
         if !self.filled_orders.is_empty() {
             let mut orders = self.orders.borrow_mut();
             for order_id in self.filled_orders.drain(..) {
-                let order = orders.remove(&order_id).unwrap();
-                if order.side == Side::Buy {
-                    self.buy_orders
-                        .get_mut(&order.price_tick)
-                        .unwrap()
-                        .remove(&order_id);
+                let Some(order) = orders.remove(&order_id) else {
+                    // Order already removed (e.g. duplicate ID in filled_orders); skip.
+                    continue;
+                };
+                let price_ladder = if order.side == Side::Buy {
+                    &mut self.buy_orders
                 } else {
-                    self.sell_orders
-                        .get_mut(&order.price_tick)
-                        .unwrap()
-                        .remove(&order_id);
+                    &mut self.sell_orders
+                };
+                if let Some(ids) = price_ladder.get_mut(&order.price_tick) {
+                    ids.remove(&order_id);
                 }
             }
         }
@@ -427,7 +421,12 @@ where
                                             }
                                         }
                                     }
-                                    unreachable!();
+                                    // Floating-point rounding edge case: pre-check passed
+                                    // but fill loop did not reach Filled status. Expire the
+                                    // remainder to avoid a hard panic.
+                                    order.status = Status::Expired;
+                                    order.exch_timestamp = timestamp;
+                                    Ok(())
                                 } else {
                                     order.status = Status::Expired;
                                     order.exch_timestamp = timestamp;
@@ -555,7 +554,12 @@ where
                                             }
                                         }
                                     }
-                                    unreachable!();
+                                    // Floating-point rounding edge case: pre-check passed
+                                    // but fill loop did not reach Filled status. Expire the
+                                    // remainder to avoid a hard panic.
+                                    order.status = Status::Expired;
+                                    order.exch_timestamp = timestamp;
+                                    Ok(())
                                 } else {
                                     order.status = Status::Expired;
                                     order.exch_timestamp = timestamp;
@@ -598,8 +602,8 @@ where
                                 let (price_tick, leaves_qty) = (order.price_tick, order.leaves_qty);
                                 self.fill::<false>(order, timestamp, false, price_tick, leaves_qty)
                             }
-                            _ => {
-                                unreachable!();
+                            TimeInForce::Unsupported => {
+                                Err(BacktestError::InvalidOrderRequest)
                             }
                         }
                     } else {

@@ -99,7 +99,9 @@ where
             }
 
             // Processes receiving order response.
-            if order.status == Status::Filled {
+            if order.status == Status::Filled
+                || order.status == Status::PartiallyFilled
+            {
                 self.state.apply_fill(&order);
             }
             // Applies the received order response to the local orders.
