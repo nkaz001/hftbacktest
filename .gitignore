@@ -5,7 +5,7 @@ build
 __pycache__
 venv
 docs/_build
-**/Cargo.lock
+submodules/**/Cargo.lock
 **/target
 **/tmp_*
 **/*.so
