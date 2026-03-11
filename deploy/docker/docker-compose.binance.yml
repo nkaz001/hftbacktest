@@ -14,7 +14,7 @@ services:
     environment:
       - BINANCE_API_KEY=${BINANCE_API_KEY}
       - BINANCE_SECRET=${BINANCE_SECRET}
-      - CLUSTER_CONFIG=/etc/hft/cluster.toml
+      - CLUSTER_CONFIG=/etc/hft/deploy/cluster.toml
       - CLICKHOUSE_URL=http://clickhouse:8123
       - RUST_LOG=info
       - NO_AUTH=1
@@ -23,8 +23,10 @@ services:
     expose:
       - "3000"
     volumes:
-      # Configuration files from separate hft-configs repo
-      - ${HFT_CONFIG_DIR:-./config}:/etc/hft:ro
+      # Per-server config (cluster.toml + connector.toml)
+      - ${HFT_DEPLOYMENT_DIR:-./config}:/etc/hft/deploy:ro
+      # Shared symbol configs
+      - ${HFT_SYMBOLS_DIR:-./config/symbols}:/etc/hft/symbols:ro
       # Persistent data storage
       - ./data:/var/lib/hft/data
       - ./logs:/var/lib/hft/logs

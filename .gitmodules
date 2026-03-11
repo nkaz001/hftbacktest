@@ -4,3 +4,6 @@
 [submodule "submodules/hft-strategies"]
 	path = submodules/hft-strategies
 	url = git@github.com:bookdisco/hft-strategies.git
+[submodule "submodules/hft-configs"]
+	path = submodules/hft-configs
+	url = git@github.com:bookdisco/hft-configs.git

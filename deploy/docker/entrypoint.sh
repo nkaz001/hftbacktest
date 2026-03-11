@@ -81,20 +81,25 @@ if [ -f /etc/hft/binancepapi_mainnet.toml ]; then
 fi
 
 # Generic connector.toml - substitute all known API key patterns
-if [ -f /etc/hft/connector.toml ]; then
-    echo "Processing connector.toml..."
+# Check both /etc/hft/deploy/ (new layout) and /etc/hft/ (legacy)
+CONNECTOR_SRC="/etc/hft/deploy/connector.toml"
+[ ! -f "$CONNECTOR_SRC" ] && CONNECTOR_SRC="/etc/hft/connector.toml"
+if [ -f "$CONNECTOR_SRC" ]; then
+    echo "Processing connector.toml from $CONNECTOR_SRC..."
     sed -e "s|\${BINANCE_API_KEY}|${BINANCE_API_KEY:-}|g" \
         -e "s|\${BINANCE_SECRET}|${BINANCE_SECRET:-}|g" \
         -e "s|\${BYBIT_API_KEY}|${BYBIT_API_KEY:-}|g" \
         -e "s|\${BYBIT_SECRET}|${BYBIT_SECRET:-}|g" \
-        /etc/hft/connector.toml > "$CONFIG_DIR/connector.toml"
+        "$CONNECTOR_SRC" > "$CONFIG_DIR/connector.toml"
     chown hft:hft "$CONFIG_DIR/connector.toml"
 fi
 
-# Symlink strategy configs (no envsubst needed, and symlink ensures
-# config changes on the host are visible immediately without container restart)
-if [ -d /etc/hft/strategies ]; then
-    echo "Linking strategy configs..."
+# Symlink symbol/strategy configs (no envsubst needed)
+if [ -d /etc/hft/symbols ]; then
+    echo "Linking symbol configs..."
+    ln -sfn /etc/hft/symbols "$CONFIG_DIR/symbols"
+elif [ -d /etc/hft/strategies ]; then
+    echo "Linking strategy configs (legacy)..."
     ln -sfn /etc/hft/strategies "$CONFIG_DIR/strategies"
 fi
 
@@ -109,8 +114,10 @@ if [ -f "$CLUSTER_CONFIG_FILE" ]; then
     sed -e "s|/etc/hft/binancefutures.toml|$CONFIG_DIR/binancefutures.toml|g" \
         -e "s|/etc/hft/binancepapi_mainnet.toml|$CONFIG_DIR/binancepapi_mainnet.toml|g" \
         -e "s|/etc/hft/connector.toml|$CONFIG_DIR/connector.toml|g" \
+        -e "s|/etc/hft/deploy/connector.toml|$CONFIG_DIR/connector.toml|g" \
         -e "s|/etc/hft/bybit.toml|$CONFIG_DIR/bybit.toml|g" \
         -e "s|/etc/hft/bybit_mainnet.toml|$CONFIG_DIR/bybit_mainnet.toml|g" \
+        -e "s|/etc/hft/symbols|$CONFIG_DIR/symbols|g" \
         -e "s|/etc/hft/strategies|$CONFIG_DIR/strategies|g" \
         "$CLUSTER_CONFIG_FILE" > "$CONFIG_DIR/$CLUSTER_CONFIG_BASENAME"
     chown hft:hft "$CONFIG_DIR/$CLUSTER_CONFIG_BASENAME"
