@@ -24,12 +24,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup SSH for private submodules
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.FACTOR_ENGINE_DEPLOY_KEY }}
-            ${{ secrets.HFT_STRATEGIES_DEPLOY_KEY }}
-            ${{ secrets.HFT_CONFIGS_DEPLOY_KEY }}
+        env:
+          FACTOR_ENGINE_KEY: ${{ secrets.FACTOR_ENGINE_DEPLOY_KEY }}
+          HFT_STRATEGIES_KEY: ${{ secrets.HFT_STRATEGIES_DEPLOY_KEY }}
+          HFT_CONFIGS_KEY: ${{ secrets.HFT_CONFIGS_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$FACTOR_ENGINE_KEY" > ~/.ssh/factor_engine
+          echo "$HFT_STRATEGIES_KEY" > ~/.ssh/hft_strategies
+          echo "$HFT_CONFIGS_KEY" > ~/.ssh/hft_configs
+          chmod 600 ~/.ssh/factor_engine ~/.ssh/hft_strategies ~/.ssh/hft_configs
+
+          cat >> ~/.ssh/config <<'SSHEOF'
+          Host fe.github.com
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/factor_engine
+            IdentitiesOnly yes
+          Host hs.github.com
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/hft_strategies
+            IdentitiesOnly yes
+          Host hc.github.com
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/hft_configs
+            IdentitiesOnly yes
+          SSHEOF
+
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Route each submodule to its dedicated deploy key via host alias
+          git config --global url."git@fe.github.com:bookdisco/factor-engine".insteadOf "git@github.com:bookdisco/factor-engine"
+          git config --global url."git@hs.github.com:bookdisco/hft-strategies".insteadOf "git@github.com:bookdisco/hft-strategies"
+          git config --global url."git@hc.github.com:bookdisco/hft-configs".insteadOf "git@github.com:bookdisco/hft-configs"
 
       - name: Checkout
         uses: actions/checkout@v4
