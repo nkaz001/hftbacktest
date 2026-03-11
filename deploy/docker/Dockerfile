@@ -60,15 +60,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # Build strategies (separate workspace)
 # Replace SSH git deps with local path deps to avoid needing SSH in Docker build.
 # The .cargo/config.toml [patch] isn't enough - Cargo still tries to fetch the original URL.
-# Path deps are relative to the Cargo.toml location (obi_mm_rust/)
-# ../../.. = /build, so ../../../hftbacktest = /build/hftbacktest
-RUN cd submodules/hft-strategies/obi_mm_rust && \
+# Replace SSH git deps with local path deps in ALL strategy packages.
+# Cargo tries to fetch the original URL even with [patch] overrides.
+# Paths are relative to each Cargo.toml's location (one level below hft-strategies/).
+RUN find submodules/hft-strategies -name Cargo.toml -not -path '*/target/*' -exec \
     sed -i \
-      -e 's|git = "ssh://git@github.com/bookdisco/hftbacktest", default-features = false, features = \["backtest"\]|path = "../../../hftbacktest", default-features = false, features = ["backtest"]|' \
+      -e 's|git = "ssh://git@github.com/bookdisco/hftbacktest",\(.*\)features = \["backtest"\]|path = "../../../hftbacktest",\1features = ["backtest"]|' \
+      -e 's|git = "ssh://git@github.com/bookdisco/hftbacktest",\(.*\)features = \["live"\]|path = "../../../hftbacktest",\1features = ["live"]|' \
       -e 's|git = "ssh://git@github.com/bookdisco/factor-engine"|path = "../../factor-engine"|' \
       -e 's|git = "ssh://git@github.com/bookdisco/hftbacktest", optional = true|path = "../../../order-recorder", optional = true|' \
-      Cargo.toml && \
-    cat Cargo.toml
+      -e 's|git = "ssh://git@github.com/bookdisco/hftbacktest"|path = "../../../order-recorder"|' \
+      {} \; && \
+    echo "=== obi_mm_rust/Cargo.toml ===" && cat submodules/hft-strategies/obi_mm_rust/Cargo.toml && \
+    echo "=== template_strategy/Cargo.toml ===" && cat submodules/hft-strategies/template_strategy/Cargo.toml
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
