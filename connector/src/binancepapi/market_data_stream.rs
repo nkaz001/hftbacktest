@@ -372,7 +372,19 @@ impl MarketDataStream {
         // Mark all order books for resync on new connection
         self.order_book_manager.mark_all_resync();
 
+        // Batch subscription timer: collect symbols for 500ms before sending one SUBSCRIBE
+        let mut pending_symbols: Vec<String> = Vec::new();
+        let mut batch_deadline: Option<time::Instant> = None;
+
         loop {
+            // Determine batch timeout
+            let batch_sleep = async {
+                match batch_deadline {
+                    Some(deadline) => time::sleep_until(deadline).await,
+                    None => std::future::pending().await,
+                }
+            };
+
             select! {
                 // Handle REST snapshot responses
                 Some((symbol, data)) = self.rest_rx.recv() => {
@@ -397,23 +409,47 @@ impl MarketDataStream {
                         return Err(BinancePapiError::ConnectionInterrupted);
                     }
                 }
-                // Handle new symbol subscriptions
+                // Batch subscription deadline reached: send combined SUBSCRIBE
+                _ = batch_sleep => {
+                    if !pending_symbols.is_empty() {
+                        let symbols = std::mem::take(&mut pending_symbols);
+                        batch_deadline = None;
+
+                        // Initialize order books
+                        for symbol in &symbols {
+                            self.order_book_manager.start_init(symbol);
+                        }
+
+                        // Build combined params: ["sym1@trade", "sym1@depth@0ms", "sym2@trade", ...]
+                        let params: Vec<String> = symbols.iter()
+                            .flat_map(|s| vec![format!("{s}@trade"), format!("{s}@depth@0ms")])
+                            .collect();
+                        let params_json: Vec<String> = params.iter()
+                            .map(|p| format!("\"{p}\""))
+                            .collect();
+                        let id = generate_rand_string(16);
+                        let msg = format!(
+                            r#"{{"method":"SUBSCRIBE","params":[{}],"id":"{}"}}"#,
+                            params_json.join(","),
+                            id
+                        );
+                        write.send(Message::Text(msg.into())).await?;
+
+                        info!(
+                            count = symbols.len(),
+                            symbols = ?symbols,
+                            "Batch subscribed to trade and depth streams"
+                        );
+                    }
+                }
+                // Handle new symbol subscriptions (collect into batch)
                 msg = self.symbol_rx.recv() => match msg {
                     Ok(symbol) => {
-                        // Initialize order book for this symbol
-                        self.order_book_manager.start_init(&symbol);
-
-                        let id = generate_rand_string(16);
-                        write.send(Message::Text(format!(r#"{{
-                            "method": "SUBSCRIBE",
-                            "params": [
-                                "{symbol}@trade",
-                                "{symbol}@depth@0ms"
-                            ],
-                            "id": "{id}"
-                        }}"#).into())).await?;
-
-                        info!(symbol = %symbol, "Subscribed to trade and depth streams");
+                        pending_symbols.push(symbol);
+                        // Set batch deadline: wait 500ms to collect more symbols
+                        if batch_deadline.is_none() {
+                            batch_deadline = Some(time::Instant::now() + Duration::from_millis(500));
+                        }
                     }
                     Err(RecvError::Closed) => {
                         info!("Symbol subscription channel closed");
