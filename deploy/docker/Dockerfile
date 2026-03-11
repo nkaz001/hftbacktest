@@ -57,8 +57,17 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
        target/release/hft-server target/release/hftctl \
        /tmp/
 
-# Build strategies (separate workspace with path overrides pointing to main workspace)
-# Note: cd into package dir to avoid "cannot specify features for packages outside of workspace"
+# Build strategies (separate workspace)
+# Replace SSH git deps with local path deps to avoid needing SSH in Docker build.
+# The .cargo/config.toml [patch] isn't enough - Cargo still tries to fetch the original URL.
+RUN cd submodules/hft-strategies/obi_mm_rust && \
+    sed -i \
+      -e 's|git = "ssh://git@github.com/bookdisco/hftbacktest", default-features = false, features = \["backtest"\]|path = "../../hftbacktest", default-features = false, features = ["backtest"]|' \
+      -e 's|git = "ssh://git@github.com/bookdisco/factor-engine"|path = "../factor-engine"|' \
+      -e 's|git = "ssh://git@github.com/bookdisco/hftbacktest", optional = true|path = "../../order-recorder", optional = true|' \
+      Cargo.toml && \
+    cat Cargo.toml
+
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/submodules/hft-strategies/target \
