@@ -58,11 +58,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
        /tmp/
 
 # Build strategies (separate workspace with path overrides pointing to main workspace)
+# Note: cd into package dir to avoid "cannot specify features for packages outside of workspace"
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/submodules/hft-strategies/target \
-    cd submodules/hft-strategies && \
-    cargo build --release -p obi-mm --features live && \
+    cd submodules/hft-strategies/obi_mm_rust && \
+    cargo build --release --features live && \
+    cd /build/submodules/hft-strategies && \
     cargo build --release -p template_strategy && \
     cp target/release/obi_mm_live target/release/template_strategy \
        /tmp/

@@ -5,9 +5,7 @@ version: "3.8"
 
 services:
   hft:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile
+    image: ghcr.io/bookdisco/hftbacktest:${HFT_IMAGE_TAG:-latest}
     container_name: hft-binance-mainnet
     hostname: hft-binance-mainnet
     restart: unless-stopped

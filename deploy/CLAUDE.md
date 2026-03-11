@@ -11,7 +11,9 @@ Two production servers, each with its own Docker Compose stack:
 
 **Docker stack:** hft (supervisor + bots + connector + collector), ClickHouse, Grafana, nginx, cloudflared
 
-**Docker build requires submodules:** Dockerfile copies `submodules/factor-engine` and `submodules/hft-strategies`. Run `git submodule update --init` before building.
+**Docker images** are built by GitHub Actions (`docker.yml`) on tag push or manual trigger, pushed to `ghcr.io/bookdisco/hftbacktest`. Servers pull pre-built images — no local builds needed.
+
+**To build locally** (rare): `git submodule update --init && docker build -f deploy/docker/Dockerfile .`
 
 ## hft-configs Repository
 
@@ -99,19 +101,39 @@ CLOUDFLARE_TUNNEL_TOKEN=xxx
 - `live_seconds` is NOT warmup — it controls how long orders stay before cancellation
 - Warmup: `[warmup].min_duration_seconds` in cluster config, set >= factor window size
 
-## Config Update Workflow
+## Deployment
 
+### Automated (recommended)
 ```bash
-# 1. Update config repo on server
-cd ~/hftbacktest/deploy/docker/hft-configs && git pull origin main
+# Config-only update (no new image)
+./scripts/deploy.sh binance --skip-pull
 
-# 2. Restart hft container
-cd ~/hftbacktest/deploy/docker
-docker compose -f docker-compose.binance.yml --env-file .env.binance restart hft
+# Full deploy with new image
+./scripts/deploy.sh binance --tag v1.2.0
 
-# 3. Verify
-docker compose -f docker-compose.binance.yml --env-file .env.binance exec hft \
-  hftctl --socket /tmp/hft-supervisor.sock status
+# Deploy latest image
+./scripts/deploy.sh bybit
+```
+
+### Building a new image
+```bash
+# Option 1: Tag push triggers CI
+git tag v1.2.0 && git push origin v1.2.0
+
+# Option 2: Manual trigger via GitHub Actions UI
+# Go to Actions → "Build & Push Docker Image" → Run workflow
+
+# Option 3: Local build (rare)
+docker build -f deploy/docker/Dockerfile -t ghcr.io/bookdisco/hftbacktest:test .
+```
+
+### Manual config-only update (no image change)
+```bash
+# 1. Push config changes to hft-configs repo
+cd submodules/hft-configs && git push origin main
+
+# 2. Deploy (pulls configs + restarts)
+./scripts/deploy.sh binance --skip-pull
 ```
 
 **Important:** Always sync config changes back to git. Avoid server-only edits.
