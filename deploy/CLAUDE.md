@@ -2,12 +2,13 @@
 
 ## Docker Deployment
 
-Two production servers, each with its own Docker Compose stack:
+Three production servers, each with its own Docker Compose stack:
 
-| Compose File | Server | SSH Alias | IP | Exchange |
-|---|---|---|---|---|
-| `docker-compose.binance.yml` | Vultr | `Vultur_mmtest0` | 45.32.34.210 | Binance PAPI |
-| `docker-compose.mainnet.yml` | Hetzner | `Hetzner_bybit` | 5.223.54.76 | Bybit (~17ms) |
+| Compose File | Server | SSH Alias | IP | Exchange | Symbols |
+|---|---|---|---|---|---|
+| `docker-compose.binance.yml` | Vultr | `Vultur_mmtest0` | 45.32.34.210 | Binance PAPI | 9 (binance-prod) |
+| `docker-compose.binance.yml` | AWS Tokyo | `AWS_LEE_ACCOUNT` | 18.177.52.187 | Binance PAPI | 15 (binance-expansion) |
+| `docker-compose.mainnet.yml` | Hetzner | `Hetzner_bybit` | 5.223.54.76 | Bybit | 3 (bybit-mainnet) |
 
 **Docker stack:** hft (supervisor + bots + connector + collector), ClickHouse, Grafana, nginx, cloudflared
 
@@ -152,13 +153,20 @@ hftctl infra restart order_recorder
 
 ## Server Operations
 
-### Binance PAPI (Vultr)
+### Binance PAPI — Vultr (9 symbols, binance-prod)
 ```bash
 cd ~/hftbacktest/deploy/docker
 docker compose -f docker-compose.binance.yml --env-file .env.binance up -d
 docker compose -f docker-compose.binance.yml --env-file .env.binance exec hft \
   hftctl --socket /tmp/hft-supervisor.sock status
-docker compose -f docker-compose.binance.yml --env-file .env.binance logs -f hft
+```
+
+### Binance PAPI — AWS Tokyo (15 symbols, binance-expansion)
+```bash
+cd ~/hftbacktest/deploy/docker
+docker compose -f docker-compose.binance.yml --env-file .env.bn2 up -d
+docker compose -f docker-compose.binance.yml --env-file .env.bn2 exec hft \
+  hftctl --socket /tmp/hft-supervisor.sock status
 ```
 
 ### Bybit (Hetzner)
@@ -189,12 +197,14 @@ docker compose -f docker-compose.mainnet.yml --env-file .env.mainnet up -d
 
 ### Server Paths
 
-| | Vultr (Binance) | Hetzner (Bybit) |
-|---|---|---|
-| SSH | `Vultur_mmtest0` | `Hetzner_bybit` |
-| Code | `~/hftbacktest/deploy/docker/` | `~/hftbacktest/deploy/docker/` |
-| Config | `~/hftbacktest/deploy/docker/hft-configs/` | `~/hft-configs/` |
-| Compose | `docker-compose.binance.yml` + `.env.binance` | `docker-compose.mainnet.yml` + `.env.mainnet` |
+| | Vultr (Binance 9) | AWS Tokyo (Binance 15) | Hetzner (Bybit) |
+|---|---|---|---|
+| SSH | `Vultur_mmtest0` | `AWS_LEE_ACCOUNT` | `Hetzner_bybit` |
+| User | root | ubuntu | root |
+| Code | `~/hftbacktest/deploy/docker/` | `~/hftbacktest/deploy/docker/` | `~/hftbacktest/deploy/docker/` |
+| Config | `./hft-configs/` | `./hft-configs/` | `~/hft-configs/` |
+| Env file | `.env.binance` | `.env.bn2` | `.env.mainnet` |
+| Deployment | `binance-prod` | `binance-expansion` | `bybit-mainnet` |
 
 ## Remote Server Management with tmux-cli
 

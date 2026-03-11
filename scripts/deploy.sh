@@ -5,11 +5,13 @@ set -euo pipefail
 # Usage: ./scripts/deploy.sh <target> [--tag <image_tag>] [--skip-pull]
 #
 # Targets:
-#   binance    - Vultr server (Binance PAPI)
+#   binance    - Vultr server (Binance PAPI, 9 symbols)
+#   binance2   - AWS Tokyo server (Binance PAPI, 15 expansion symbols)
 #   bybit      - Hetzner server (Bybit)
 #
 # Examples:
 #   ./scripts/deploy.sh binance                  # Deploy latest to Vultr
+#   ./scripts/deploy.sh binance2                 # Deploy latest to AWS
 #   ./scripts/deploy.sh bybit --tag v1.2.0       # Deploy specific tag to Hetzner
 #   ./scripts/deploy.sh binance --skip-pull       # Restart with current image (config-only change)
 
@@ -17,18 +19,22 @@ set -euo pipefail
 
 declare -A SSH_HOST=(
     [binance]="Vultur_mmtest0"
+    [binance2]="AWS_LEE_ACCOUNT"
     [bybit]="Hetzner_bybit"
 )
 declare -A COMPOSE_FILE=(
     [binance]="docker-compose.binance.yml"
+    [binance2]="docker-compose.binance.yml"
     [bybit]="docker-compose.mainnet.yml"
 )
 declare -A ENV_FILE=(
     [binance]=".env.binance"
+    [binance2]=".env.bn2"
     [bybit]=".env.mainnet"
 )
 declare -A CONFIG_REPO_PATH=(
     [binance]="hft-configs"
+    [binance2]="hft-configs"
     [bybit]="../../hft-configs"
 )
 
@@ -51,7 +57,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$TARGET" ]] || [[ -z "${SSH_HOST[$TARGET]+x}" ]]; then
-    echo "Usage: $0 <binance|bybit> [--tag <tag>] [--skip-pull]"
+    echo "Usage: $0 <binance|binance2|bybit> [--tag <tag>] [--skip-pull]"
     exit 1
 fi
 
