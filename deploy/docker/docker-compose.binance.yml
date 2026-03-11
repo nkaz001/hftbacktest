@@ -16,8 +16,6 @@ services:
       - CLICKHOUSE_URL=http://clickhouse:8123
       - RUST_LOG=info
       - NO_AUTH=1
-    env_file:
-      - .env.binance
     expose:
       - "3000"
     volumes:
