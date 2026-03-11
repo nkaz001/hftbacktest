@@ -126,6 +126,9 @@ else
     exit 1
 fi
 
+# Ensure data/log directories exist (volume mounts may override Dockerfile-created dirs)
+mkdir -p /var/lib/hft/data /var/lib/hft/logs/bots /var/lib/hft/logs/infra
+
 # Ensure data directories are owned by hft user
 chown -R hft:hft /var/lib/hft
 
