@@ -27,6 +27,8 @@ services:
       - ${HFT_DEPLOYMENT_DIR:-./config}:/etc/hft/deploy:ro
       # Shared symbol configs
       - ${HFT_SYMBOLS_DIR:-./config/symbols}:/etc/hft/symbols:ro
+      # Entrypoint override (until next image rebuild)
+      - ./entrypoint.sh:/entrypoint.sh:ro
       # Persistent data storage
       - ./data:/var/lib/hft/data
       - ./logs:/var/lib/hft/logs
