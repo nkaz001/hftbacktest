@@ -201,14 +201,19 @@ impl BinancePapiClient {
         body.push_str(&symbol_upper);
         body.push_str("&side=");
         body.push_str(side.as_ref());
-        body.push_str("&price=");
-        body.push_str(&format!("{price:.price_prec$}"));
+        // MARKET orders must not include price or timeInForce
+        if order_type != OrdType::Market {
+            body.push_str("&price=");
+            body.push_str(&format!("{price:.price_prec$}"));
+        }
         body.push_str("&quantity=");
         body.push_str(&format!("{qty:.5}"));
         body.push_str("&type=");
         body.push_str(order_type.as_ref());
-        body.push_str("&timeInForce=");
-        body.push_str(time_in_force.as_ref());
+        if order_type != OrdType::Market {
+            body.push_str("&timeInForce=");
+            body.push_str(time_in_force.as_ref());
+        }
         // Add reduceOnly for position-closing orders (bypasses min notional)
         if reduce_only {
             body.push_str("&reduceOnly=true");
