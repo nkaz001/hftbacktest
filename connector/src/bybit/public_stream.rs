@@ -62,24 +62,10 @@ impl PublicStream {
                     let data: OrderBook = serde_json::from_value(stream.data)?;
                     let (bids, asks) = parse_depth(data.bids, data.asks)?;
 
-                    // Send clear event before snapshot data to properly initialize orderbook
-                    if is_snapshot {
-                        self.ev_tx
-                            .send(PublishEvent::LiveEvent(LiveEvent::Feed {
-                                symbol: data.symbol.clone(),
-                                event: Event {
-                                    ev: LOCAL_DEPTH_CLEAR_EVENT,
-                                    exch_ts: stream.cts.unwrap_or(stream.ts) * 1_000_000,
-                                    local_ts: Utc::now().timestamp_nanos_opt().unwrap(),
-                                    order_id: 0,
-                                    px: 0.0,
-                                    qty: 0.0,
-                                    ival: 0,
-                                    fval: 0.0,
-                                },
-                            }))
-                            .unwrap();
-                    }
+                    // orderbook.1 sends every message as type "snapshot" (only 1 level,
+                    // no delta concept). Do NOT clear depth here — it would wipe out all
+                    // levels from orderbook.50/200/1000 on every ~10ms update.
+                    // Depth clearing is handled by the deeper orderbook streams' snapshots.
 
                     for (px, qty) in bids {
                         self.ev_tx
