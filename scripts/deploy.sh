@@ -35,7 +35,7 @@ declare -A ENV_FILE=(
 declare -A CONFIG_REPO_PATH=(
     [binance]="hft-configs"
     [binance2]="hft-configs"
-    [bybit]="../../hft-configs"
+    [bybit]="hft-configs"
 )
 
 DEPLOY_DIR="~/hftbacktest/deploy/docker"
@@ -103,11 +103,15 @@ echo "▶ Step 3: Pulling latest deploy files..."
 remote "cd ../.. && git pull --ff-only origin master"
 remote "chmod +x entrypoint.sh"
 
-# ─── Step 4: Restart hft service ──────────────────────────────────────────────
+# ─── Step 4: Set image tag and restart hft service ───────────────────────────
 
 echo ""
-echo "▶ Step 4: Restarting hft service..."
-remote "docker compose -f $COMPOSE --env-file $ENVFILE up -d hft"
+echo "▶ Step 4: Setting HFT_IMAGE_TAG=${IMAGE_TAG} and restarting..."
+# Update HFT_IMAGE_TAG in env file (add if missing, replace if exists)
+remote "grep -q '^HFT_IMAGE_TAG=' $ENVFILE \
+    && sed -i 's/^HFT_IMAGE_TAG=.*/HFT_IMAGE_TAG=${IMAGE_TAG}/' $ENVFILE \
+    || echo 'HFT_IMAGE_TAG=${IMAGE_TAG}' >> $ENVFILE"
+remote "HFT_IMAGE_TAG=${IMAGE_TAG} docker compose -f $COMPOSE --env-file $ENVFILE up -d --force-recreate hft"
 
 # ─── Step 5: Verify ──────────────────────────────────────────────────────────
 
