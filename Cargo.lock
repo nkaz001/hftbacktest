@@ -3452,7 +3452,7 @@ dependencies = [
 
 [[package]]
 name = "py-hftbacktest"
-version = "2.5.1"
+version = "2.6.0"
 dependencies = [
  "hftbacktest",
  "hftbacktest-derive",

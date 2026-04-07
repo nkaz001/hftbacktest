@@ -151,6 +151,29 @@ Connectors track orders via multiple ID mappings:
 | Factor Framework | `docs/FACTOR_FRAMEWORK_DESIGN.md` | Factor computation design |
 | Strategy Guide | `docs/STRATEGY_GUIDE.md` | Strategy implementation |
 
+### Versioning & Release Tags
+
+两条 tag 线，分别触发对应 CI：
+
+| 用途 | Tag 格式 | CI Workflow | 示例 |
+|------|---------|-------------|------|
+| 主版本 (Rust crate + Docker image) | `v*` | `docker.yml` → GHCR | `v0.10.0` |
+| Python wheel | `py-v*` | `release-python-private.yml` → Private PyPI | `py-v2.6.0` |
+
+发布流程：
+```bash
+# Rust + Docker
+git tag v0.10.0 && git push origin v0.10.0
+
+# Python wheel
+git tag py-v2.6.0 && git push origin py-v2.6.0
+```
+
+注意：
+- 不再使用 `rust-v*` 前缀（已清理）
+- `v1.x` 系列为 upstream 遗留（已清理）
+- Rust crate 版本在 `hftbacktest/Cargo.toml`，Python 版本在 `py-hftbacktest/pyproject.toml` + `py-hftbacktest/Cargo.toml`
+
 ### Related Repositories
 | Repo | Purpose | URL |
 |------|---------|-----|
