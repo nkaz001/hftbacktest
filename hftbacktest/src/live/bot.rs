@@ -9,29 +9,13 @@ use thiserror::Error;
 use tracing::{debug, error, info};
 
 use crate::{
-    depth::{L2MarketDepth, MarketDepth},
+    depth::{L1MarketDepth, L2MarketDepth, MarketDepth},
     live::{Instrument, ipc::Channel},
     types::{
-        Bot,
-        BuildError,
-        ElapseResult,
-        Event,
-        LOCAL_ASK_DEPTH_EVENT,
-        LOCAL_BID_DEPTH_EVENT,
-        LOCAL_BUY_TRADE_EVENT,
-        LOCAL_DEPTH_CLEAR_EVENT,
-        LOCAL_SELL_TRADE_EVENT,
-        LiveError,
-        LiveEvent,
-        LiveRequest,
-        OrdType,
-        Order,
-        OrderId,
-        OrderRequest,
-        Side,
-        StateValues,
-        Status,
-        TimeInForce,
+        Bot, BuildError, ElapseResult, Event, LOCAL_ASK_DEPTH_BBO_EVENT, LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_BID_DEPTH_BBO_EVENT, LOCAL_BID_DEPTH_EVENT, LOCAL_BUY_TRADE_EVENT,
+        LOCAL_DEPTH_CLEAR_EVENT, LOCAL_SELL_TRADE_EVENT, LiveError, LiveEvent, LiveRequest,
+        OrdType, Order, OrderId, OrderRequest, Side, StateValues, Status, TimeInForce,
         WaitOrderResponse,
     },
 };
@@ -201,7 +185,7 @@ pub struct LiveBot<CH, MD> {
 impl<CH, MD> LiveBot<CH, MD>
 where
     CH: Channel,
-    MD: MarketDepth + L2MarketDepth,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth,
 {
     fn process_event<const WAIT_NEXT_FEED: bool>(
         &mut self,
@@ -216,6 +200,18 @@ where
                 if event.is(LOCAL_DEPTH_CLEAR_EVENT) {
                     // Clear depth on snapshot - Bybit sends this before initial orderbook data
                     instrument.depth.clear_depth(Side::None, 0.0);
+                } else if event.is(LOCAL_BID_DEPTH_BBO_EVENT) {
+                    if instrument.tick_size > 0.0 {
+                        instrument
+                            .depth
+                            .update_best_bid(event.px, event.qty, event.exch_ts);
+                    }
+                } else if event.is(LOCAL_ASK_DEPTH_BBO_EVENT) {
+                    if instrument.tick_size > 0.0 {
+                        instrument
+                            .depth
+                            .update_best_ask(event.px, event.qty, event.exch_ts);
+                    }
                 } else if event.is(LOCAL_BID_DEPTH_EVENT) {
                     // Skip depth updates if tick_size not yet set (prevents corruption
                     // from (price / 0.0) = Infinity → i64::MAX tick values)
@@ -286,7 +282,9 @@ where
                     .position = qty;
             }
             LiveEvent::InstrumentInfo {
-                tick_size, lot_size, ..
+                tick_size,
+                lot_size,
+                ..
             } => {
                 let instrument = unsafe { self.instruments.get_unchecked_mut(inst_no) };
                 // If tick_size transitions from 0 to a valid value, clear any depth
@@ -454,7 +452,7 @@ where
 impl<CH, MD> Bot<MD> for LiveBot<CH, MD>
 where
     CH: Channel,
-    MD: MarketDepth + L2MarketDepth,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth,
 {
     type Error = BotError;
 

@@ -14,8 +14,10 @@ use std::path::Path;
 use std::time::Instant;
 
 use chrono::{Duration, NaiveDate};
-use hftbacktest::data::{convert_and_save_fast, write_npz_file, SnapshotMode, TardisConvertConfig};
-use hftbacktest::types::{Event, BUY_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT};
+use hftbacktest::data::{SnapshotMode, TardisConvertConfig, convert_and_save_fast, write_npz_file};
+use hftbacktest::types::{
+    BUY_EVENT, DEPTH_BBO_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, Event, SELL_EVENT,
+};
 use std::collections::BTreeMap;
 
 const BASE_PATH: &str = "/mnt/data/samba/users/Data/tardis/datasets/binance-futures";
@@ -25,7 +27,14 @@ fn get_trades_path(symbol: &str, date: &str) -> String {
 }
 
 fn get_depth_path(symbol: &str, date: &str) -> String {
-    format!("{}/incremental_book_L2/{}/{}.csv.gz", BASE_PATH, symbol, date)
+    format!(
+        "{}/incremental_book_L2/{}/{}.csv.gz",
+        BASE_PATH, symbol, date
+    )
+}
+
+fn get_bookticker_path(symbol: &str, date: &str) -> String {
+    format!("{}/book_ticker/{}/{}.csv.gz", BASE_PATH, symbol, date)
 }
 
 fn get_output_dir(symbol: &str) -> String {
@@ -75,7 +84,10 @@ fn list_symbols() -> Vec<String> {
         })
         .unwrap_or_default();
 
-    let mut common: Vec<String> = trades_symbols.intersection(&depth_symbols).cloned().collect();
+    let mut common: Vec<String> = trades_symbols
+        .intersection(&depth_symbols)
+        .cloned()
+        .collect();
     common.sort();
     common
 }
@@ -160,6 +172,48 @@ fn generate_last_snapshot(
 
             last_timestamp = event.exch_ts;
             last_local_timestamp = event.local_ts;
+        } else if ev_type == DEPTH_BBO_EVENT {
+            let price_key = (event.px * 1e8) as i64;
+            let is_bid = (event.ev & BUY_EVENT) != 0;
+
+            if is_bid {
+                // BBO bid: set qty at new best, clear stale levels above
+                if event.qty > 0.0 {
+                    bids.insert(price_key, event.qty);
+                } else {
+                    bids.remove(&price_key);
+                }
+                // Remove all bid levels above the new best bid (backoff)
+                let stale: Vec<i64> = bids.range((price_key + 1)..).map(|(&k, _)| k).collect();
+                for k in stale {
+                    bids.remove(&k);
+                }
+                // Prevent crossing: remove asks at or below the new best bid
+                let crossed: Vec<i64> = asks.range(..=price_key).map(|(&k, _)| k).collect();
+                for k in crossed {
+                    asks.remove(&k);
+                }
+            } else {
+                // BBO ask: set qty at new best, clear stale levels below
+                if event.qty > 0.0 {
+                    asks.insert(price_key, event.qty);
+                } else {
+                    asks.remove(&price_key);
+                }
+                // Remove all ask levels below the new best ask (backoff)
+                let stale: Vec<i64> = asks.range(..price_key).map(|(&k, _)| k).collect();
+                for k in stale {
+                    asks.remove(&k);
+                }
+                // Prevent crossing: remove bids at or above the new best ask
+                let crossed: Vec<i64> = bids.range(price_key..).map(|(&k, _)| k).collect();
+                for k in crossed {
+                    bids.remove(&k);
+                }
+            }
+
+            last_timestamp = event.exch_ts;
+            last_local_timestamp = event.local_ts;
         }
     }
 
@@ -226,7 +280,12 @@ fn convert_single_day(
     println!("  [CONVERT] {} {} ...", symbol, date);
     let start = Instant::now();
 
-    let input_files = vec![trades_path, depth_path];
+    let bookticker_path = get_bookticker_path(symbol, date);
+    let mut input_files = vec![trades_path, depth_path];
+    if Path::new(&bookticker_path).exists() {
+        input_files.push(bookticker_path);
+        println!("    (including book_ticker data)");
+    }
     let events = convert_and_save_fast(&input_files, output_path, config)?;
 
     let elapsed = start.elapsed();
@@ -245,6 +304,7 @@ fn convert_single_day(
     let mut depth_count = 0;
     let mut snapshot_count = 0;
     let mut clear_count = 0;
+    let mut bbo_count = 0;
 
     for event in &events {
         let ev_type = event.ev & 0xFF;
@@ -253,13 +313,14 @@ fn convert_single_day(
             1 => depth_count += 1,
             4 => snapshot_count += 1,
             3 => clear_count += 1,
+            5 => bbo_count += 1,
             _ => {}
         }
     }
 
     println!(
-        "    Stats: trades={}, depth={}, snapshot={}, clear={}",
-        trade_count, depth_count, snapshot_count, clear_count
+        "    Stats: trades={}, depth={}, snapshot={}, clear={}, bbo={}",
+        trade_count, depth_count, snapshot_count, clear_count, bbo_count
     );
 
     Ok(true)
@@ -280,14 +341,26 @@ fn print_usage(program: &str) {
     println!("  --help               Show this help message");
     println!();
     println!("Examples:");
-    println!("  {}                              # Convert all symbols", program);
-    println!("  {} --symbol BTCUSDT             # Convert all dates for BTCUSDT", program);
+    println!(
+        "  {}                              # Convert all symbols",
+        program
+    );
+    println!(
+        "  {} --symbol BTCUSDT             # Convert all dates for BTCUSDT",
+        program
+    );
     println!(
         "  {} --symbol BTCUSDT --date 2025-06-30  # Convert specific date",
         program
     );
-    println!("  {} --list                       # List available symbols", program);
-    println!("  {} --dry-run                    # Preview without converting", program);
+    println!(
+        "  {} --list                       # List available symbols",
+        program
+    );
+    println!(
+        "  {} --dry-run                    # Preview without converting",
+        program
+    );
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -402,7 +475,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("========================================");
     println!("Tardis Batch Converter");
-    println!("Started: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+    println!(
+        "Started: {}",
+        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+    );
     println!("========================================\n");
 
     let total_start = Instant::now();

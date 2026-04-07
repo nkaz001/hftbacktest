@@ -6,8 +6,7 @@ use crate::{
         BybitError,
         msg::{
             ClosedPnlEntry, ClosedPnlResponse, InstrumentsInfoResponse, Order as BybitOrder,
-            OrderResponseData, Position, RestResponse, TransactionLogEntry,
-            TransactionLogResponse,
+            OrderResponseData, Position, RestResponse, TransactionLogEntry, TransactionLogResponse,
             WalletBalanceAccount, WalletBalanceResponse,
         },
     },

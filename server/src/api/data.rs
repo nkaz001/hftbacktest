@@ -166,11 +166,7 @@ pub async fn get_data_stats(State(state): State<AppState>) -> ApiResult<DataStat
             .unwrap_or("")
             .to_string();
 
-        let symbol = name
-            .split('_')
-            .next()
-            .unwrap_or("unknown")
-            .to_string();
+        let symbol = name.split('_').next().unwrap_or("unknown").to_string();
 
         total_files += 1;
         total_size += metadata.len();

@@ -7,9 +7,7 @@ use std::{
 };
 
 use bincode::{
-    Decode,
-    Encode,
-    config,
+    Decode, Encode, config,
     error::{DecodeError, EncodeError},
 };
 use iceoryx2::{
@@ -20,8 +18,7 @@ use thiserror::Error;
 
 use crate::{
     live::{
-        BotError,
-        Instrument,
+        BotError, Instrument,
         ipc::{
             Channel,
             config::{ChannelConfig, MAX_PAYLOAD_SIZE},

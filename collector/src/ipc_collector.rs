@@ -8,6 +8,7 @@
 //! - Data consistency with live trading
 //! - No additional WebSocket connections needed
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -16,8 +17,8 @@ use chrono::{DateTime, Utc};
 use hftbacktest::{
     live::ipc::iceoryx::{IceoryxBuilder, IceoryxReceiver, IceoryxSender},
     types::{
-        Event, LiveEvent, LiveRequest, DEPTH_BBO_EVENT, DEPTH_CLEAR_EVENT, DEPTH_EVENT,
-        DEPTH_SNAPSHOT_EVENT, TRADE_EVENT,
+        DEPTH_BBO_EVENT, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, Event, LiveEvent,
+        LiveRequest, TRADE_EVENT,
     },
 };
 use iceoryx2::node::NodeWaitFailure;
@@ -76,6 +77,8 @@ pub struct IpcCollector {
     node: Node<ipc::Service>,
     writer_tx: UnboundedSender<(DateTime<Utc>, String, String)>,
     symbols: Vec<String>,
+    /// Buffer for pairing BBO bid+ask events before writing.
+    bbo_buffer: HashMap<String, (f64, f64)>,
     event_count: u64,
     shutdown: Arc<AtomicBool>,
 }
@@ -114,6 +117,7 @@ impl IpcCollector {
             node,
             writer_tx,
             symbols,
+            bbo_buffer: HashMap::new(),
             event_count: 0,
             shutdown,
         })
@@ -126,7 +130,7 @@ impl IpcCollector {
             let request = LiveRequest::RegisterInstrument {
                 symbol: symbol.clone(),
                 tick_size: 0.0, // Auto-resolve from exchange
-                lot_size: 0.0, // Auto-resolve from exchange
+                lot_size: 0.0,  // Auto-resolve from exchange
             };
             self.sender
                 .send(COLLECTOR_ID, &request)
@@ -208,6 +212,13 @@ impl IpcCollector {
                 debug!("Batch start");
             }
             LiveEvent::BatchEnd => {
+                if !self.bbo_buffer.is_empty() {
+                    debug!(
+                        buffered = self.bbo_buffer.len(),
+                        "Dropping incomplete BBO buffer at batch end"
+                    );
+                    self.bbo_buffer.clear();
+                }
                 debug!("Batch end");
             }
             LiveEvent::Order { symbol, order } => {
@@ -219,7 +230,11 @@ impl IpcCollector {
             LiveEvent::Error(err) => {
                 warn!(?err, "Received error event from connector");
             }
-            LiveEvent::InstrumentInfo { symbol, tick_size, lot_size } => {
+            LiveEvent::InstrumentInfo {
+                symbol,
+                tick_size,
+                lot_size,
+            } => {
                 debug!(%symbol, %tick_size, %lot_size, "InstrumentInfo event (ignored for data collection)");
             }
         }
@@ -277,31 +292,24 @@ impl IpcCollector {
                     .map_err(|e| ConnectorError::IpcError(e.to_string()))?
             }
             DEPTH_BBO_EVENT => {
-                // BBO event - we need to handle this differently
-                // The event contains either bid or ask based on is_buy flag
+                if is_buy {
+                    self.bbo_buffer
+                        .insert(symbol.to_string(), (event.px, event.qty));
+                    return Ok(());
+                }
+
+                let Some((bid_px, bid_qty)) = self.bbo_buffer.remove(symbol) else {
+                    debug!(%symbol, "Skipping ask-side BBO without buffered bid");
+                    return Ok(());
+                };
+
                 let ticker = BookTicker {
                     e: "bookTicker",
                     s: symbol.to_uppercase(),
-                    b: if is_buy {
-                        format!("{}", event.px)
-                    } else {
-                        "0".to_string()
-                    },
-                    B: if is_buy {
-                        format!("{}", event.qty)
-                    } else {
-                        "0".to_string()
-                    },
-                    a: if !is_buy {
-                        format!("{}", event.px)
-                    } else {
-                        "0".to_string()
-                    },
-                    A: if !is_buy {
-                        format!("{}", event.qty)
-                    } else {
-                        "0".to_string()
-                    },
+                    b: format!("{}", bid_px),
+                    B: format!("{}", bid_qty),
+                    a: format!("{}", event.px),
+                    A: format!("{}", event.qty),
                     E: exch_ts_ms,
                 };
                 serde_json::to_string(&ticker)
@@ -309,6 +317,7 @@ impl IpcCollector {
             }
             DEPTH_CLEAR_EVENT => {
                 // Depth clear event - skip or log
+                self.bbo_buffer.remove(symbol);
                 debug!(%symbol, "Depth clear event");
                 return Ok(());
             }

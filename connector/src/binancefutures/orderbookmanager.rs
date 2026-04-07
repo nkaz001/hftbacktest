@@ -272,11 +272,7 @@ impl OrderBookManager {
 
     /// Handle REST snapshot response
     /// Returns events that should be processed (snapshot + valid buffered events)
-    pub fn on_snapshot(
-        &mut self,
-        symbol: &str,
-        snapshot: &rest::Depth,
-    ) -> Vec<DepthEvent> {
+    pub fn on_snapshot(&mut self, symbol: &str, snapshot: &rest::Depth) -> Vec<DepthEvent> {
         let book = self.get_or_create(symbol);
         let last_update_id = snapshot.last_update_id;
 
@@ -323,7 +319,8 @@ impl OrderBookManager {
                 // Note: For Futures, the condition is slightly different:
                 // U <= lastUpdateId + 1 AND u >= lastUpdateId + 1
                 // But we use the more permissive check: U <= lastUpdateId AND u > lastUpdateId
-                if event.first_update_id <= last_update_id && event.last_update_id > last_update_id {
+                if event.first_update_id <= last_update_id && event.last_update_id > last_update_id
+                {
                     found_first_valid = true;
                     current_u = Some(event.last_update_id);
 
@@ -448,7 +445,9 @@ impl OrderBookManager {
     pub fn symbols_needing_snapshot(&self) -> Vec<String> {
         self.books
             .iter()
-            .filter(|(_, book)| matches!(book.state, SyncState::Initializing | SyncState::NeedResync))
+            .filter(|(_, book)| {
+                matches!(book.state, SyncState::Initializing | SyncState::NeedResync)
+            })
             .map(|(symbol, _)| symbol.clone())
             .collect()
     }
@@ -522,12 +521,7 @@ pub enum DepthEvent {
 mod tests {
     use super::*;
 
-    fn make_depth_event(
-        symbol: &str,
-        first_u: i64,
-        last_u: i64,
-        prev_u: i64,
-    ) -> stream::Depth {
+    fn make_depth_event(symbol: &str, first_u: i64, last_u: i64, prev_u: i64) -> stream::Depth {
         stream::Depth {
             transaction_time: 1000,
             event_time: 1000,
@@ -548,6 +542,30 @@ mod tests {
             bids: vec![("100.0".to_string(), "10.0".to_string())],
             asks: vec![("101.0".to_string(), "10.0".to_string())],
         }
+    }
+
+    #[test]
+    fn test_needs_snapshot_gates_bbo() {
+        let mut manager = OrderBookManager::new();
+
+        assert!(manager.needs_snapshot("btcusdt"));
+
+        manager.start_init("btcusdt");
+        assert!(manager.needs_snapshot("btcusdt"));
+
+        let event1 = make_depth_event("btcusdt", 100, 105, 99);
+        let (_, should_request) = manager.on_depth_update(&event1);
+        assert!(should_request);
+
+        let event2 = make_depth_event("btcusdt", 106, 110, 105);
+        let (_, should_request) = manager.on_depth_update(&event2);
+        assert!(!should_request);
+
+        let snapshot = make_snapshot(102);
+        let events = manager.on_snapshot("btcusdt", &snapshot);
+        assert_eq!(events.len(), 3);
+
+        assert!(!manager.needs_snapshot("btcusdt"));
     }
 
     #[test]
@@ -577,8 +595,20 @@ mod tests {
         // Should have: snapshot + event1 (U=100 <= 102, u=105 > 102) + event2 (pu=105 matches)
         assert_eq!(events.len(), 3);
         assert!(matches!(events[0], DepthEvent::Snapshot { .. }));
-        assert!(matches!(events[1], DepthEvent::Update { first_update_id: 100, .. }));
-        assert!(matches!(events[2], DepthEvent::Update { first_update_id: 106, .. }));
+        assert!(matches!(
+            events[1],
+            DepthEvent::Update {
+                first_update_id: 100,
+                ..
+            }
+        ));
+        assert!(matches!(
+            events[2],
+            DepthEvent::Update {
+                first_update_id: 106,
+                ..
+            }
+        ));
 
         // Should now be synchronized
         assert!(!manager.is_initializing("btcusdt"));
@@ -591,7 +621,7 @@ mod tests {
         manager.start_init("btcusdt");
 
         // Buffer events with u <= snapshot's lastUpdateId
-        let event1 = make_depth_event("btcusdt", 90, 95, 89);  // Will be dropped
+        let event1 = make_depth_event("btcusdt", 90, 95, 89); // Will be dropped
         let event2 = make_depth_event("btcusdt", 96, 100, 95); // Will be dropped (u == lastUpdateId)
         let event3 = make_depth_event("btcusdt", 98, 105, 100); // Valid: U <= 100, u > 100
 
@@ -605,7 +635,14 @@ mod tests {
         // Only snapshot + event3 should be processed
         assert_eq!(events.len(), 2);
         assert!(matches!(events[0], DepthEvent::Snapshot { .. }));
-        assert!(matches!(events[1], DepthEvent::Update { first_update_id: 98, last_update_id: 105, .. }));
+        assert!(matches!(
+            events[1],
+            DepthEvent::Update {
+                first_update_id: 98,
+                last_update_id: 105,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -792,12 +829,7 @@ mod tests {
         let total = MAX_PENDING_EVENTS + 50;
         for i in 0..total {
             let base = (i as i64 + 1) * 5;
-            let event = make_depth_event(
-                "btcusdt",
-                base,
-                base + 4,
-                base - 1,
-            );
+            let event = make_depth_event("btcusdt", base, base + 4, base - 1);
             manager.on_depth_update(&event);
         }
 

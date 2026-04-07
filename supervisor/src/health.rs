@@ -218,19 +218,10 @@ impl HealthChecker {
 
         for line in content.lines() {
             if line.starts_with("MemTotal:") {
-                total = line
-                    .split_whitespace()
-                    .nth(1)?
-                    .parse::<u64>()
-                    .ok()?
-                    / 1024; // Convert KB to MB
+                total = line.split_whitespace().nth(1)?.parse::<u64>().ok()? / 1024;
+            // Convert KB to MB
             } else if line.starts_with("MemAvailable:") {
-                available = line
-                    .split_whitespace()
-                    .nth(1)?
-                    .parse::<u64>()
-                    .ok()?
-                    / 1024;
+                available = line.split_whitespace().nth(1)?.parse::<u64>().ok()? / 1024;
             }
         }
 

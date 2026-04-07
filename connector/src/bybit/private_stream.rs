@@ -18,9 +18,7 @@ use tokio::{
     time,
 };
 use tokio_tungstenite::{
-    MaybeTlsStream,
-    WebSocketStream,
-    connect_async,
+    MaybeTlsStream, WebSocketStream, connect_async,
     tungstenite::{Bytes, Message, client::IntoClientRequest},
 };
 use tracing::{debug, error, info};
@@ -36,8 +34,7 @@ struct CommissionData {
 
 use crate::{
     bybit::{
-        BybitError,
-        SharedSymbolSet,
+        BybitError, SharedSymbolSet,
         msg::{Execution, Op, PrivateStreamMsg, PrivateStreamTopicMsg},
         ordermanager::{OrderExt, SharedOrderManager},
         rest::BybitClient,
@@ -98,7 +95,10 @@ impl PrivateStream {
             // Create publisher once for the entire thread lifetime
             let publisher = match RecordingPublisher::new(&recording_service) {
                 Ok(p) => {
-                    info!("Commission publisher created for connector {}", connector_name);
+                    info!(
+                        "Commission publisher created for connector {}",
+                        connector_name
+                    );
                     p
                 }
                 Err(e) => {

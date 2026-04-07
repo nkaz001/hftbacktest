@@ -132,9 +132,7 @@ pub async fn restart_bot(
 }
 
 /// POST /api/bots/restart-all - Restart all bots
-pub async fn restart_all_bots(
-    State(state): State<AppState>,
-) -> ApiResult<ApiSuccess<()>> {
+pub async fn restart_all_bots(State(state): State<AppState>) -> ApiResult<ApiSuccess<()>> {
     if !state.supervisor.is_available().await {
         return Err(ApiErrorResponse::service_unavailable(
             ApiError::supervisor_unavailable(),
@@ -147,5 +145,7 @@ pub async fn restart_all_bots(
         .await
         .map_err(ApiErrorResponse::from)?;
 
-    Ok(Json(ApiSuccess::<()>::with_message("All bots restart command sent")))
+    Ok(Json(ApiSuccess::<()>::with_message(
+        "All bots restart command sent",
+    )))
 }

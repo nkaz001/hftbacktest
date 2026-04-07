@@ -92,15 +92,26 @@ async fn main() -> Result<()> {
                     for connector in &connectors {
                         println!("    - {} ({})", connector.name, connector.connector_type);
                     }
-                    println!("  Collector: {}", if cfg.collector.enabled { "enabled" } else { "disabled" });
-                    println!("  Bots: {} total, {} enabled",
+                    println!(
+                        "  Collector: {}",
+                        if cfg.collector.enabled {
+                            "enabled"
+                        } else {
+                            "disabled"
+                        }
+                    );
+                    println!(
+                        "  Bots: {} total, {} enabled",
                         cfg.bots.len(),
                         cfg.bots.iter().filter(|b| b.enabled).count()
                     );
                     for bot in &cfg.bots {
                         let status = if bot.enabled { "enabled" } else { "disabled" };
                         let connector_info = bot.connector.as_deref().unwrap_or("default");
-                        println!("    - {} ({}) [{}] -> {}", bot.id, bot.symbol, status, connector_info);
+                        println!(
+                            "    - {} ({}) [{}] -> {}",
+                            bot.id, bot.symbol, status, connector_info
+                        );
                     }
                     Ok(())
                 }
@@ -132,7 +143,10 @@ async fn main() -> Result<()> {
                 Commands::Validate { .. } => unreachable!(),
             };
 
-            let response = client.send(request).await.context("Failed to communicate with supervisor")?;
+            let response = client
+                .send(request)
+                .await
+                .context("Failed to communicate with supervisor")?;
 
             match response {
                 ControlResponse::Ok { data } => {
@@ -159,7 +173,11 @@ async fn main() -> Result<()> {
 }
 
 fn print_status(status: &StatusResponse) {
-    println!("Cluster: {} (uptime: {})", status.cluster_name, format_duration(status.uptime_secs));
+    println!(
+        "Cluster: {} (uptime: {})",
+        status.cluster_name,
+        format_duration(status.uptime_secs)
+    );
     println!();
 
     // Connectors status
@@ -169,15 +187,33 @@ fn print_status(status: &StatusResponse) {
     } else {
         for connector in &status.connectors {
             let icon = if connector.healthy { "●" } else { "○" };
-            let color = if connector.healthy { "\x1b[32m" } else { "\x1b[31m" };
-            println!("{}{}  {}: {}\x1b[0m", color, icon, connector.name, connector.status);
+            let color = if connector.healthy {
+                "\x1b[32m"
+            } else {
+                "\x1b[31m"
+            };
+            println!(
+                "{}{}  {}: {}\x1b[0m",
+                color, icon, connector.name, connector.status
+            );
         }
     }
 
     // Collector status
-    let collector_icon = if status.collector.healthy { "●" } else { "○" };
-    let collector_color = if status.collector.healthy { "\x1b[32m" } else { "\x1b[31m" };
-    println!("\n{}{}  Collector: {}\x1b[0m", collector_color, collector_icon, status.collector.status);
+    let collector_icon = if status.collector.healthy {
+        "●"
+    } else {
+        "○"
+    };
+    let collector_color = if status.collector.healthy {
+        "\x1b[32m"
+    } else {
+        "\x1b[31m"
+    };
+    println!(
+        "\n{}{}  Collector: {}\x1b[0m",
+        collector_color, collector_icon, status.collector.status
+    );
 
     println!();
     println!("Bots:");
@@ -194,13 +230,12 @@ fn print_status(status: &StatusResponse) {
                 _ => ("?", "\x1b[90m"),
             };
 
-            let uptime_str = bot.uptime_secs
+            let uptime_str = bot
+                .uptime_secs
                 .map(|s| format!(" ({})", format_duration(s)))
                 .unwrap_or_default();
 
-            let pid_str = bot.pid
-                .map(|p| format!(" [pid {}]", p))
-                .unwrap_or_default();
+            let pid_str = bot.pid.map(|p| format!(" [pid {}]", p)).unwrap_or_default();
 
             println!(
                 "  {}{}  {}: {}{}{}\x1b[0m",

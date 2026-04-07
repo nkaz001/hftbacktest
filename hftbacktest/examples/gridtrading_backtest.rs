@@ -1,17 +1,11 @@
 use algo::gridtrading;
 use hftbacktest::{
     backtest::{
-        Backtest,
-        ExchangeKind,
-        L2AssetBuilder,
+        Backtest, ExchangeKind, L2AssetBuilder,
         assettype::LinearAsset,
         data::{DataSource, read_npz_file},
         models::{
-            CommonFees,
-            IntpOrderLatency,
-            PowerProbQueueFunc3,
-            ProbQueueModel,
-            TradingValueFeeModel,
+            CommonFees, IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
     },

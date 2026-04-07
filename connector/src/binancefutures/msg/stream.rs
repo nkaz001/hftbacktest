@@ -30,8 +30,29 @@ pub enum EventStream {
     TradeLite(TradeLite),
     #[serde(rename = "ACCOUNT_UPDATE")]
     AccountUpdate(AccountUpdate),
+    #[serde(rename = "bookTicker")]
+    BookTicker(BookTicker),
     #[serde(rename = "listenKeyExpired")]
     ListenKeyExpired(ListenKeyStream),
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BookTicker {
+    #[serde(rename = "T")]
+    pub transaction_time: i64,
+    #[serde(rename = "E")]
+    pub event_time: i64,
+    #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
+    pub symbol: String,
+    #[serde(rename = "b")]
+    pub bid_price: String,
+    #[serde(rename = "B")]
+    pub bid_qty: String,
+    #[serde(rename = "a")]
+    pub ask_price: String,
+    #[serde(rename = "A")]
+    pub ask_qty: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -271,4 +292,90 @@ pub struct ListenKeyStream {
     pub event_time: i64,
     #[serde(rename = "listenKey")]
     pub listen_key: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Real Binance Futures bookTicker payload from the WebSocket docs.
+    const BOOKTICKER_JSON: &str = r#"{
+        "e": "bookTicker",
+        "u": 400900217,
+        "E": 1568014460893,
+        "T": 1568014460891,
+        "s": "BTCUSDT",
+        "b": "25001.50",
+        "B": "1.200",
+        "a": "25002.00",
+        "A": "0.800"
+    }"#;
+
+    #[test]
+    fn parse_bookticker_struct() {
+        let bt: BookTicker = serde_json::from_str(BOOKTICKER_JSON).unwrap();
+        assert_eq!(bt.symbol, "btcusdt");
+        assert_eq!(bt.transaction_time, 1568014460891);
+        assert_eq!(bt.event_time, 1568014460893);
+        assert_eq!(bt.bid_price, "25001.50");
+        assert_eq!(bt.bid_qty, "1.200");
+        assert_eq!(bt.ask_price, "25002.00");
+        assert_eq!(bt.ask_qty, "0.800");
+    }
+
+    #[test]
+    fn parse_bookticker_via_event_stream_enum() {
+        let ev: EventStream = serde_json::from_str(BOOKTICKER_JSON).unwrap();
+        match ev {
+            EventStream::BookTicker(bt) => {
+                assert_eq!(bt.symbol, "btcusdt");
+                assert_eq!(bt.bid_price, "25001.50");
+                assert_eq!(bt.ask_price, "25002.00");
+            }
+            other => panic!("expected BookTicker, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_bookticker_via_stream_envelope() {
+        let stream: Stream = serde_json::from_str(BOOKTICKER_JSON).unwrap();
+        match stream {
+            Stream::EventStream(EventStream::BookTicker(bt)) => {
+                assert_eq!(bt.symbol, "btcusdt");
+                assert_eq!(bt.transaction_time, 1568014460891);
+            }
+            other => panic!("expected Stream::EventStream(BookTicker), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_bookticker_small_prices() {
+        // Edge case: very small altcoin prices
+        let json = r#"{
+            "e": "bookTicker", "u": 1,
+            "E": 1000, "T": 999,
+            "s": "SIRENUSDT",
+            "b": "0.00234", "B": "100000.0",
+            "a": "0.00235", "A": "50000.0"
+        }"#;
+        let bt: BookTicker = serde_json::from_str(json).unwrap();
+        assert_eq!(bt.symbol, "sirenusdt");
+        assert_eq!(bt.bid_price, "0.00234");
+        assert_eq!(bt.ask_price, "0.00235");
+    }
+
+    /// Ensure depthUpdate still parses correctly alongside bookTicker.
+    #[test]
+    fn parse_depth_update_not_broken() {
+        let json = r#"{
+            "e": "depthUpdate",
+            "E": 1000, "T": 999,
+            "s": "BTCUSDT",
+            "U": 100, "u": 105, "pu": 99,
+            "b": [["25000.0", "1.0"]],
+            "a": [["25001.0", "2.0"]]
+        }"#;
+        let ev: EventStream = serde_json::from_str(json).unwrap();
+        assert!(matches!(ev, EventStream::DepthUpdate(_)));
+    }
 }

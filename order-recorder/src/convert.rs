@@ -87,9 +87,8 @@ pub fn create_order_update(
     cached_latency: Option<i64>,
 ) -> OrderUpdate {
     // Use cached latency if available, otherwise try to calculate for first acknowledgment
-    let latency_ns = cached_latency.unwrap_or_else(|| {
-        calculate_first_ack_latency(prev_order, new_order).unwrap_or(0)
-    });
+    let latency_ns = cached_latency
+        .unwrap_or_else(|| calculate_first_ack_latency(prev_order, new_order).unwrap_or(0));
 
     let ts = resolve_tick_size(new_order, tick_size);
 

@@ -368,11 +368,18 @@ impl Connector for BybitRest {
         })
     }
 
-    fn resolve_instrument_info(&self, symbol: &str) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
+    fn resolve_instrument_info(
+        &self,
+        symbol: &str,
+    ) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
         let symbol = symbol.to_string();
         Box::pin(async move {
             let symbol_upper = symbol.to_uppercase();
-            match self.client.get_instruments_info(&self.config.category, &symbol_upper).await {
+            match self
+                .client
+                .get_instruments_info(&self.config.category, &symbol_upper)
+                .await
+            {
                 Ok(resp) => {
                     if resp.ret_code != 0 {
                         error!(ret_code = resp.ret_code, ret_msg = %resp.ret_msg, "Bybit instruments info error");

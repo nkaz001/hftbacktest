@@ -302,11 +302,10 @@ impl Database {
         .execute(&self.pool)
         .await?;
 
-        let session =
-            sqlx::query_as::<_, Session>("SELECT * FROM sessions WHERE id = ?")
-                .bind(result.last_insert_rowid())
-                .fetch_one(&self.pool)
-                .await?;
+        let session = sqlx::query_as::<_, Session>("SELECT * FROM sessions WHERE id = ?")
+            .bind(result.last_insert_rowid())
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(session)
     }

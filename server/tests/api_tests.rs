@@ -198,9 +198,7 @@ async fn test_login_without_database() {
                 .method("POST")
                 .uri("/api/auth/login")
                 .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"username": "admin", "password": "admin"}"#,
-                ))
+                .body(Body::from(r#"{"username": "admin", "password": "admin"}"#))
                 .unwrap(),
         )
         .await

@@ -264,7 +264,11 @@ impl InfraManager {
     /// Get all connector names
     pub async fn connector_names(&self) -> Vec<String> {
         let config = self.config.read().await;
-        config.all_connectors().iter().map(|c| c.name.clone()).collect()
+        config
+            .all_connectors()
+            .iter()
+            .map(|c| c.name.clone())
+            .collect()
     }
 
     /// Subscribe to infrastructure events
@@ -280,7 +284,11 @@ impl InfraManager {
 
     /// Get status of all components (IPC-friendly format)
     pub async fn get_all_status_ipc(&self) -> Vec<InfraStatusIpc> {
-        self.get_all_status().await.into_iter().map(Into::into).collect()
+        self.get_all_status()
+            .await
+            .into_iter()
+            .map(Into::into)
+            .collect()
     }
 
     /// Get status of a specific component
@@ -300,7 +308,9 @@ impl InfraManager {
             if name.is_empty() {
                 // Legacy: resolve to first connector
                 let config = self.config.read().await;
-                config.default_connector_name().map(|n| InfraComponent::Connector(n.to_string()))
+                config
+                    .default_connector_name()
+                    .map(|n| InfraComponent::Connector(n.to_string()))
             } else {
                 Some(component.clone())
             }
@@ -313,9 +323,7 @@ impl InfraManager {
     async fn is_enabled(&self, component: &InfraComponent) -> bool {
         let config = self.config.read().await;
         match component {
-            InfraComponent::Connector(name) => {
-                config.get_connector(name).is_some()
-            }
+            InfraComponent::Connector(name) => config.get_connector(name).is_some(),
             InfraComponent::Collector => config.collector.enabled,
             InfraComponent::OrderRecorder => config
                 .order_recorder
@@ -329,9 +337,10 @@ impl InfraManager {
     async fn should_auto_start(&self, component: &InfraComponent) -> bool {
         let config = self.config.read().await;
         match component {
-            InfraComponent::Connector(name) => {
-                config.get_connector(name).map(|c| c.auto_start).unwrap_or(false)
-            }
+            InfraComponent::Connector(name) => config
+                .get_connector(name)
+                .map(|c| c.auto_start)
+                .unwrap_or(false),
             InfraComponent::Collector => config.collector.enabled && config.collector.auto_start,
             InfraComponent::OrderRecorder => config
                 .order_recorder
@@ -344,7 +353,9 @@ impl InfraManager {
     /// Start a component
     pub async fn start_component(&self, component: InfraComponent) -> Result<()> {
         // Resolve connector if needed
-        let component = self.resolve_connector(&component).await
+        let component = self
+            .resolve_connector(&component)
+            .await
             .ok_or_else(|| anyhow::anyhow!("No connectors configured"))?;
 
         // Check if enabled
@@ -354,7 +365,8 @@ impl InfraManager {
 
         {
             let mut components = self.components.write().await;
-            let comp = components.get_mut(&component)
+            let comp = components
+                .get_mut(&component)
                 .ok_or_else(|| anyhow::anyhow!("Component not found: {}", component))?;
 
             match &comp.state {
@@ -394,11 +406,14 @@ impl InfraManager {
     /// Stop a component
     pub async fn stop_component(&self, component: InfraComponent) -> Result<()> {
         // Resolve connector if needed
-        let component = self.resolve_connector(&component).await
+        let component = self
+            .resolve_connector(&component)
+            .await
             .ok_or_else(|| anyhow::anyhow!("No connectors configured"))?;
 
         let mut components = self.components.write().await;
-        let comp = components.get_mut(&component)
+        let comp = components
+            .get_mut(&component)
             .ok_or_else(|| anyhow::anyhow!("Component not found: {}", component))?;
 
         if let Some(pid) = comp.pid {
@@ -512,7 +527,10 @@ impl InfraManager {
         // Stop order recorder and collector first
         for component in [InfraComponent::OrderRecorder, InfraComponent::Collector] {
             if let Some(status) = self.get_status(&component).await {
-                if matches!(status.state, ComponentState::Running | ComponentState::Starting) {
+                if matches!(
+                    status.state,
+                    ComponentState::Running | ComponentState::Starting
+                ) {
                     info!(component = %component, "Stopping component");
                     if let Err(e) = self.stop_component(component.clone()).await {
                         error!(component = %component, error = %e, "Failed to stop component");
@@ -526,7 +544,10 @@ impl InfraManager {
         for name in connector_names.into_iter().rev() {
             let component = InfraComponent::Connector(name);
             if let Some(status) = self.get_status(&component).await {
-                if matches!(status.state, ComponentState::Running | ComponentState::Starting) {
+                if matches!(
+                    status.state,
+                    ComponentState::Running | ComponentState::Starting
+                ) {
                     info!(component = %component, "Stopping connector");
                     if let Err(e) = self.stop_component(component.clone()).await {
                         error!(component = %component, error = %e, "Failed to stop connector");
@@ -563,8 +584,8 @@ impl InfraManager {
                                     let will_restart = comp.restart_count < self.max_restarts;
 
                                     if will_restart {
-                                        let restart_at =
-                                            Instant::now() + Duration::from_secs(self.restart_backoff_secs);
+                                        let restart_at = Instant::now()
+                                            + Duration::from_secs(self.restart_backoff_secs);
                                         comp.state = ComponentState::Crashed {
                                             exit_code,
                                             restart_at: Some(restart_at),
@@ -656,7 +677,8 @@ impl InfraManager {
 
         let (binary_name, args, log_name) = match component {
             InfraComponent::Connector(name) => {
-                let connector_config = config.get_connector(name)
+                let connector_config = config
+                    .get_connector(name)
                     .ok_or_else(|| anyhow::anyhow!("Connector '{}' not found in config", name))?;
                 let (bin, args) = self.build_connector_args(connector_config)?;
                 // Use connector name for log file (e.g., connector_bf.log)
@@ -665,7 +687,8 @@ impl InfraManager {
             InfraComponent::Collector => {
                 // Use first connector for collector's IPC
                 let connectors = config.all_connectors();
-                let first_connector = connectors.first()
+                let first_connector = connectors
+                    .first()
                     .ok_or_else(|| anyhow::anyhow!("No connectors configured"))?;
                 let (bin, args) = self.build_collector_args(first_connector, &config.collector)?;
                 (bin, args, "collector".to_string())
@@ -698,16 +721,17 @@ impl InfraManager {
         cmd.stderr(Stdio::from(log_file));
 
         // Spawn process
-        let child = cmd.spawn().with_context(|| {
-            format!("Failed to spawn {} process", component)
-        })?;
+        let child = cmd
+            .spawn()
+            .with_context(|| format!("Failed to spawn {} process", component))?;
 
         let pid = child.id().unwrap_or(0);
         info!(component = %component, pid = pid, "Component process started");
 
         // Update state
         let mut components = self.components.write().await;
-        let comp = components.get_mut(component)
+        let comp = components
+            .get_mut(component)
             .ok_or_else(|| anyhow::anyhow!("Component not found: {}", component))?;
         comp.process = Some(child);
         comp.pid = Some(pid);
@@ -715,7 +739,10 @@ impl InfraManager {
 
         let old_state = std::mem::replace(&mut comp.state, ComponentState::Running);
 
-        self.emit_event(InfraEvent::ComponentStarted { component: component.clone(), pid });
+        self.emit_event(InfraEvent::ComponentStarted {
+            component: component.clone(),
+            pid,
+        });
         self.emit_event(InfraEvent::ComponentStateChanged {
             component: component.clone(),
             old_state,
@@ -760,9 +787,7 @@ impl InfraManager {
         // IPC mode: collector <output_dir> "" <symbols...> --ipc <connector_name>
         // Direct mode: collector <output_dir> <exchange> [symbols...]
 
-        let mut args = vec![
-            config.output_dir.to_string_lossy().to_string(),
-        ];
+        let mut args = vec![config.output_dir.to_string_lossy().to_string()];
 
         if config.mode == "ipc" {
             // IPC mode - subscribe to running connector
@@ -788,7 +813,10 @@ impl InfraManager {
     }
 
     /// Build order recorder command arguments
-    fn build_order_recorder_args(&self, config: &OrderRecorderConfig) -> Result<(String, Vec<String>)> {
+    fn build_order_recorder_args(
+        &self,
+        config: &OrderRecorderConfig,
+    ) -> Result<(String, Vec<String>)> {
         let args = vec![
             "--ipc-service".to_string(),
             config.ipc_service.clone(),
@@ -871,11 +899,7 @@ impl From<ClusterHealth> for ClusterHealthIpc {
 }
 
 impl ClusterHealth {
-    pub fn new(
-        infra_status: &[InfraStatus],
-        bots_running: usize,
-        bots_total: usize,
-    ) -> Self {
+    pub fn new(infra_status: &[InfraStatus], bots_running: usize, bots_total: usize) -> Self {
         // Collect all connector statuses
         let connectors: Vec<ConnectorHealth> = infra_status
             .iter()
@@ -905,7 +929,9 @@ impl ClusterHealth {
 
         // All connectors must be running for cluster to be healthy
         let connectors_healthy = !connectors.is_empty()
-            && connectors.iter().all(|c| matches!(c.state, ComponentState::Running));
+            && connectors
+                .iter()
+                .all(|c| matches!(c.state, ComponentState::Running));
         let collector_healthy = matches!(
             collector,
             ComponentState::Running | ComponentState::Disabled | ComponentState::Stopped

@@ -13,8 +13,27 @@ pub enum MarketEventStream {
     AggTrade(AggTrade),
     #[serde(rename = "trade")]
     Trade(Trade),
+    #[serde(rename = "bookTicker")]
+    BookTicker(BookTicker),
     #[serde(rename = "kline")]
     Kline(KlineEvent),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BookTicker {
+    #[serde(rename = "E")]
+    pub event_time: i64,
+    #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
+    pub symbol: String,
+    #[serde(rename = "b")]
+    pub bid_price: String,
+    #[serde(rename = "B")]
+    pub bid_qty: String,
+    #[serde(rename = "a")]
+    pub ask_price: String,
+    #[serde(rename = "A")]
+    pub ask_qty: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -435,4 +454,71 @@ pub struct UserDataRequest {
 pub struct UserStreamSubscribeRequest {
     pub id: String,
     pub method: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Spot bookTicker has no "T" field — uses "E" (event_time) only.
+    #[test]
+    fn parse_spot_bookticker() {
+        let json = r#"{
+            "e": "bookTicker",
+            "u": 400900217,
+            "E": 1568014460893,
+            "s": "BTCUSDT",
+            "b": "25001.50",
+            "B": "1.200",
+            "a": "25002.00",
+            "A": "0.800"
+        }"#;
+        let bt: BookTicker = serde_json::from_str(json).unwrap();
+        assert_eq!(bt.symbol, "btcusdt");
+        assert_eq!(bt.event_time, 1568014460893);
+        assert_eq!(bt.bid_price, "25001.50");
+        assert_eq!(bt.bid_qty, "1.200");
+        assert_eq!(bt.ask_price, "25002.00");
+        assert_eq!(bt.ask_qty, "0.800");
+    }
+
+    #[test]
+    fn parse_spot_bookticker_via_enum() {
+        let json = r#"{
+            "e": "bookTicker",
+            "u": 1,
+            "E": 1000,
+            "s": "ETHUSDT",
+            "b": "1800.50",
+            "B": "10.0",
+            "a": "1800.60",
+            "A": "5.0"
+        }"#;
+        let ev: MarketEventStream = serde_json::from_str(json).unwrap();
+        match ev {
+            MarketEventStream::BookTicker(bt) => {
+                assert_eq!(bt.symbol, "ethusdt");
+                assert_eq!(bt.bid_price, "1800.50");
+            }
+            other => panic!("expected BookTicker, got {:?}", other),
+        }
+    }
+
+    /// Spot bookTicker must NOT have "T" field — parsing should fail if it's required.
+    #[test]
+    fn spot_bookticker_rejects_futures_format() {
+        // Futures format includes "T" which spot BookTicker struct doesn't expect.
+        // serde should still parse it successfully (extra fields are ignored by default).
+        let json = r#"{
+            "e": "bookTicker",
+            "u": 1, "E": 1000, "T": 999,
+            "s": "BTCUSDT",
+            "b": "25000.0", "B": "1.0",
+            "a": "25001.0", "A": "1.0"
+        }"#;
+        // Spot struct has no T field but serde(deny_unknown_fields) is NOT set,
+        // so extra fields are silently ignored. This is fine.
+        let bt: BookTicker = serde_json::from_str(json).unwrap();
+        assert_eq!(bt.symbol, "btcusdt");
+    }
 }

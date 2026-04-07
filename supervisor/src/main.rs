@@ -77,7 +77,8 @@ async fn main() -> Result<()> {
     info!(config = %cli.config.display(), "Loading configuration");
 
     // Load configuration
-    let config = ClusterConfig::load(&cli.config).context("Failed to load cluster configuration")?;
+    let config =
+        ClusterConfig::load(&cli.config).context("Failed to load cluster configuration")?;
 
     info!(
         cluster = config.cluster.name,
@@ -116,8 +117,8 @@ async fn main() -> Result<()> {
     let config_path = cli.config.clone();
     let config_path_for_watcher = config_path.clone();
 
-    let mut watcher: RecommendedWatcher = notify::recommended_watcher(
-        move |res: Result<Event, notify::Error>| match res {
+    let mut watcher: RecommendedWatcher =
+        notify::recommended_watcher(move |res: Result<Event, notify::Error>| match res {
             Ok(event) => {
                 if event.kind.is_modify() {
                     for path in event.paths {
@@ -128,8 +129,7 @@ async fn main() -> Result<()> {
             Err(e) => {
                 warn!(error = %e, "File watcher error");
             }
-        },
-    )?;
+        })?;
 
     watcher.watch(&config_path_for_watcher, RecursiveMode::NonRecursive)?;
     info!(path = %config_path.display(), "Watching configuration file for changes");

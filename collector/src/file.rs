@@ -56,7 +56,7 @@ impl RotatingFile {
         let date = datetime.date_naive().format("%Y%m%d");
         let file = File::options()
             .create(true)
-            .append(true)  // Append mode so we don't lose data on restart
+            .append(true) // Append mode so we don't lose data on restart
             .open(format!("{path}_{date}.jsonl"))?;
         Ok(BufWriter::new(file))
     }
@@ -153,9 +153,7 @@ impl Writer {
                 if let Some(ext) = file_path.extension() {
                     if ext == "jsonl" {
                         // Check if this is from a previous day
-                        let filename = file_path.file_stem()
-                            .and_then(|s| s.to_str())
-                            .unwrap_or("");
+                        let filename = file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
 
                         // Extract date from filename (e.g., "btcusdt_20251227")
                         if let Some(date_part) = filename.rsplit('_').next() {

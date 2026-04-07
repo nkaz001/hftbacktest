@@ -21,8 +21,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     binancefutures::{
-        BinanceFuturesError,
-        SharedSymbolSet,
+        BinanceFuturesError, SharedSymbolSet,
         msg::stream::{EventStream, OrderTradeUpdate, Stream},
         ordermanager::SharedOrderManager,
         rest::BinanceFuturesClient,
@@ -80,8 +79,14 @@ impl UserDataStream {
         connector_name: &str,
         publisher: &RecordingPublisher,
     ) {
-        let asset = data.order.commission_asset.clone().unwrap_or_else(|| "USDT".to_string());
-        let commission = data.order.commission
+        let asset = data
+            .order
+            .commission_asset
+            .clone()
+            .unwrap_or_else(|| "USDT".to_string());
+        let commission = data
+            .order
+            .commission
             .as_ref()
             .and_then(|c| c.parse::<f64>().ok())
             .unwrap_or(0.0);
@@ -103,7 +108,10 @@ impl UserDataStream {
 
             info!(
                 "Publishing income: {} {} = {:.4} {}",
-                income_event.symbol, income_event.income_type, income_event.income, income_event.asset
+                income_event.symbol,
+                income_event.income_type,
+                income_event.income,
+                income_event.asset
             );
 
             if let Err(e) = publisher.publish(&RecordingEvent::Income(income_event)) {
@@ -138,14 +146,17 @@ impl UserDataStream {
         #[cfg(feature = "recording")] income_publisher: Option<&RecordingPublisher>,
     ) -> Result<(), BinanceFuturesError> {
         match stream {
-            EventStream::DepthUpdate(_) | EventStream::Trade(_) => unreachable!(),
+            EventStream::DepthUpdate(_) | EventStream::Trade(_) | EventStream::BookTicker(_) => {
+                unreachable!()
+            }
             EventStream::ListenKeyExpired(_) => {
                 return Err(BinanceFuturesError::ListenKeyExpired);
             }
             EventStream::AccountUpdate(data) => {
                 for position in data.account.position {
                     // Ignore send errors during shutdown
-                    let _ = self.ev_tx
+                    let _ = self
+                        .ev_tx
                         .send(PublishEvent::LiveEvent(LiveEvent::Position {
                             symbol: position.symbol,
                             qty: position.position_amount,
@@ -163,11 +174,10 @@ impl UserDataStream {
                 match self.order_manager.lock().unwrap().update_from_ws(&data) {
                     Ok(Some(order)) => {
                         // Ignore send errors during shutdown
-                        let _ = self.ev_tx
-                            .send(PublishEvent::LiveEvent(LiveEvent::Order {
-                                symbol: data.order.symbol,
-                                order,
-                            }));
+                        let _ = self.ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
+                            symbol: data.order.symbol,
+                            order,
+                        }));
                     }
                     Ok(None) => {
                         // This order is already deleted.
@@ -211,7 +221,10 @@ impl UserDataStream {
         let income_publisher = self.recording_service.as_ref().and_then(|service| {
             match RecordingPublisher::new(service) {
                 Ok(publisher) => {
-                    info!("Income publisher created for connector {}", self.connector_name);
+                    info!(
+                        "Income publisher created for connector {}",
+                        self.connector_name
+                    );
                     Some(publisher)
                 }
                 Err(e) => {
@@ -351,11 +364,10 @@ pub async fn cancel_all(
     let orders = order_manager.lock().unwrap().cancel_all_from_rest(&symbol);
     for order in orders {
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Order {
-                symbol: symbol.clone(),
-                order,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
+            symbol: symbol.clone(),
+            order,
+        }));
     }
     Ok(())
 }
@@ -370,21 +382,19 @@ pub async fn get_position_information(
     position_information.into_iter().for_each(|position| {
         symbols.remove(&position.symbol);
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                symbol: position.symbol,
-                qty: position.position_amount,
-                exch_ts: position.update_time * 1_000_000,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Position {
+            symbol: position.symbol,
+            qty: position.position_amount,
+            exch_ts: position.update_time * 1_000_000,
+        }));
     });
     for symbol in symbols {
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                symbol,
-                qty: 0.0,
-                exch_ts: 0,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Position {
+            symbol,
+            qty: 0.0,
+            exch_ts: 0,
+        }));
     }
     Ok(())
 }

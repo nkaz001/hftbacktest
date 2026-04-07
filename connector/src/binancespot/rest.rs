@@ -7,10 +7,7 @@ use crate::{
     binancespot::{
         BinanceSpotError,
         msg::rest::{
-            AccountInfomation,
-            CancelOrderResponse,
-            CancelOrderResponseResult,
-            OrderResponse,
+            AccountInfomation, CancelOrderResponse, CancelOrderResponseResult, OrderResponse,
             OrderResponseResult,
         },
     },

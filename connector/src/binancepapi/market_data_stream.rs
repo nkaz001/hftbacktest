@@ -21,8 +21,7 @@ use crate::{
     binancepapi::{
         BinancePapiError,
         msg::{
-            rest,
-            stream,
+            rest, stream,
             stream::{EventStream, Stream},
         },
         rest::BinancePapiClient,
@@ -346,6 +345,63 @@ impl MarketDataStream {
         }
     }
 
+    /// Process a bookTicker event (real-time BBO updates)
+    fn process_book_ticker(&self, data: stream::BookTicker) {
+        if self.order_book_manager.needs_snapshot(&data.symbol) {
+            return;
+        }
+        match parse_px_qty_tup(data.bid_price, data.bid_qty) {
+            Ok((bid_px, bid_qty)) => match parse_px_qty_tup(data.ask_price, data.ask_qty) {
+                Ok((ask_px, ask_qty)) => {
+                    let exch_ts = data.transaction_time * 1_000_000;
+                    let local_ts = Utc::now().timestamp_nanos_opt().unwrap();
+
+                    self.ev_tx.send(PublishEvent::BatchStart(TO_ALL)).unwrap();
+
+                    self.ev_tx
+                        .send(PublishEvent::LiveEvent(LiveEvent::Feed {
+                            symbol: data.symbol.clone(),
+                            event: Event {
+                                ev: LOCAL_BID_DEPTH_BBO_EVENT,
+                                exch_ts,
+                                local_ts,
+                                order_id: 0,
+                                px: bid_px,
+                                qty: bid_qty,
+                                ival: 0,
+                                fval: 0.0,
+                            },
+                        }))
+                        .unwrap();
+
+                    self.ev_tx
+                        .send(PublishEvent::LiveEvent(LiveEvent::Feed {
+                            symbol: data.symbol,
+                            event: Event {
+                                ev: LOCAL_ASK_DEPTH_BBO_EVENT,
+                                exch_ts,
+                                local_ts,
+                                order_id: 0,
+                                px: ask_px,
+                                qty: ask_qty,
+                                ival: 0,
+                                fval: 0.0,
+                            },
+                        }))
+                        .unwrap();
+
+                    self.ev_tx.send(PublishEvent::BatchEnd(TO_ALL)).unwrap();
+                }
+                Err(e) => {
+                    error!(error = ?e, "Couldn't parse bookTicker ask.");
+                }
+            },
+            Err(e) => {
+                error!(error = ?e, "Couldn't parse bookTicker bid.");
+            }
+        }
+    }
+
     /// Process incoming WebSocket message
     fn process_message(&mut self, stream: EventStream) {
         match stream {
@@ -354,6 +410,9 @@ impl MarketDataStream {
             }
             EventStream::Trade(data) => {
                 self.process_trade(data);
+            }
+            EventStream::BookTicker(data) => {
+                self.process_book_ticker(data);
             }
             _ => unreachable!(),
         }
@@ -420,9 +479,9 @@ impl MarketDataStream {
                             self.order_book_manager.start_init(symbol);
                         }
 
-                        // Build combined params: ["sym1@trade", "sym1@depth@0ms", "sym2@trade", ...]
+                        // Build combined params: ["sym1@trade", "sym1@depth@0ms", "sym1@bookTicker", ...]
                         let params: Vec<String> = symbols.iter()
-                            .flat_map(|s| vec![format!("{s}@trade"), format!("{s}@depth@0ms")])
+                            .flat_map(|s| vec![format!("{s}@trade"), format!("{s}@depth@0ms"), format!("{s}@bookTicker")])
                             .collect();
                         let params_json: Vec<String> = params.iter()
                             .map(|p| format!("\"{p}\""))
@@ -438,7 +497,7 @@ impl MarketDataStream {
                         info!(
                             count = symbols.len(),
                             symbols = ?symbols,
-                            "Batch subscribed to trade and depth streams"
+                            "Batch subscribed to trade, depth and bookTicker streams"
                         );
                     }
                 }

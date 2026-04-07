@@ -7,9 +7,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
 
-use hftbacktest::data::{
-    convert_collector_to_events, CollectorConvertConfig,
-};
+use hftbacktest::data::{CollectorConvertConfig, convert_collector_to_events};
 use hftbacktest::types::{
     BUY_EVENT, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT, TRADE_EVENT,
 };
@@ -37,11 +35,8 @@ fn main() -> Result<(), String> {
 
     // Convert
     let config = CollectorConvertConfig::default();
-    let (events, stats) = convert_collector_to_events(
-        &[&input_file],
-        output_file.as_ref(),
-        &config,
-    )?;
+    let (events, stats) =
+        convert_collector_to_events(&[&input_file], output_file.as_ref(), &config)?;
 
     println!("\n=== Conversion Stats ===");
     println!("Trades: {}", stats.trades);
@@ -112,10 +107,7 @@ fn main() -> Result<(), String> {
         println!("Duration: {:.2} seconds", duration_sec);
 
         // Latency stats
-        let latencies: Vec<i64> = events
-            .iter()
-            .map(|e| e.local_ts - e.exch_ts)
-            .collect();
+        let latencies: Vec<i64> = events.iter().map(|e| e.local_ts - e.exch_ts).collect();
 
         let min_latency = *latencies.iter().min().unwrap();
         let max_latency = *latencies.iter().max().unwrap();

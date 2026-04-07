@@ -330,23 +330,21 @@ async fn handle_request(
             ControlResponse::ok_with_data(status)
         }
 
-        ControlRequest::BotStatus { bot_id } => {
-            match manager.get_bot_info(&bot_id).await {
-                Some(info) => {
-                    let status_info = BotStatusInfo {
-                        id: info.id,
-                        symbol: info.symbol,
-                        connector: info.connector,
-                        state: info.state,
-                        pid: info.pid,
-                        uptime_secs: info.uptime_secs,
-                        restart_count: info.restart_count,
-                    };
-                    ControlResponse::ok_with_data(status_info)
-                }
-                None => ControlResponse::error(format!("Bot not found: {}", bot_id)),
+        ControlRequest::BotStatus { bot_id } => match manager.get_bot_info(&bot_id).await {
+            Some(info) => {
+                let status_info = BotStatusInfo {
+                    id: info.id,
+                    symbol: info.symbol,
+                    connector: info.connector,
+                    state: info.state,
+                    pid: info.pid,
+                    uptime_secs: info.uptime_secs,
+                    restart_count: info.restart_count,
+                };
+                ControlResponse::ok_with_data(status_info)
             }
-        }
+            None => ControlResponse::error(format!("Bot not found: {}", bot_id)),
+        },
 
         ControlRequest::StartBot { bot_id } => match manager.start_bot(&bot_id).await {
             Ok(()) => ControlResponse::ok(),
@@ -392,45 +390,37 @@ async fn handle_request(
             ControlResponse::ok_with_data(status)
         }
 
-        ControlRequest::InfraStatus { component } => {
-            match component.parse::<InfraComponent>() {
-                Ok(comp) => {
-                    let status = infra_manager.get_status_ipc(&comp).await;
-                    ControlResponse::ok_with_data(status)
-                }
-                Err(e) => ControlResponse::error(e.to_string()),
+        ControlRequest::InfraStatus { component } => match component.parse::<InfraComponent>() {
+            Ok(comp) => {
+                let status = infra_manager.get_status_ipc(&comp).await;
+                ControlResponse::ok_with_data(status)
             }
-        }
+            Err(e) => ControlResponse::error(e.to_string()),
+        },
 
-        ControlRequest::StartInfra { component } => {
-            match component.parse::<InfraComponent>() {
-                Ok(comp) => match infra_manager.start_component(comp).await {
-                    Ok(()) => ControlResponse::ok(),
-                    Err(e) => ControlResponse::error(e.to_string()),
-                },
+        ControlRequest::StartInfra { component } => match component.parse::<InfraComponent>() {
+            Ok(comp) => match infra_manager.start_component(comp).await {
+                Ok(()) => ControlResponse::ok(),
                 Err(e) => ControlResponse::error(e.to_string()),
-            }
-        }
+            },
+            Err(e) => ControlResponse::error(e.to_string()),
+        },
 
-        ControlRequest::StopInfra { component } => {
-            match component.parse::<InfraComponent>() {
-                Ok(comp) => match infra_manager.stop_component(comp).await {
-                    Ok(()) => ControlResponse::ok(),
-                    Err(e) => ControlResponse::error(e.to_string()),
-                },
+        ControlRequest::StopInfra { component } => match component.parse::<InfraComponent>() {
+            Ok(comp) => match infra_manager.stop_component(comp).await {
+                Ok(()) => ControlResponse::ok(),
                 Err(e) => ControlResponse::error(e.to_string()),
-            }
-        }
+            },
+            Err(e) => ControlResponse::error(e.to_string()),
+        },
 
-        ControlRequest::RestartInfra { component } => {
-            match component.parse::<InfraComponent>() {
-                Ok(comp) => match infra_manager.restart_component(comp).await {
-                    Ok(()) => ControlResponse::ok(),
-                    Err(e) => ControlResponse::error(e.to_string()),
-                },
+        ControlRequest::RestartInfra { component } => match component.parse::<InfraComponent>() {
+            Ok(comp) => match infra_manager.restart_component(comp).await {
+                Ok(()) => ControlResponse::ok(),
                 Err(e) => ControlResponse::error(e.to_string()),
-            }
-        }
+            },
+            Err(e) => ControlResponse::error(e.to_string()),
+        },
 
         ControlRequest::StartAll => {
             // Start infra first, then bots

@@ -4,16 +4,18 @@
 //! with any live trading strategy to record orders and fills.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::sync::RwLock;
 
 use hftbacktest::types::Order;
-use tracing::{info, error};
+use tracing::{error, info};
 
+use crate::convert::{
+    calculate_first_ack_latency, create_fill_event, create_order_update, detect_fill,
+};
 use crate::events::{FactorSnapshot, PositionSnapshot, StrategyState, StrategyStatus};
 use crate::service::RecordingPublisher;
-use crate::convert::{create_order_update, create_fill_event, detect_fill, calculate_first_ack_latency};
 
 /// Get current timestamp in nanoseconds
 fn current_timestamp_ns() -> i64 {
@@ -112,7 +114,8 @@ impl OrderHookContext {
 
     /// Update tick size (called when auto-resolution provides real tick_size from exchange)
     pub fn set_tick_size(&self, tick_size: f64) {
-        self.tick_size_bits.store(tick_size.to_bits(), Ordering::Relaxed);
+        self.tick_size_bits
+            .store(tick_size.to_bits(), Ordering::Relaxed);
     }
 
     /// Handle an order update from the order_recv_hook.
@@ -254,7 +257,15 @@ impl OrderHookContext {
         unrealized_pnl: f64,
         realized_pnl: f64,
     ) {
-        self.publish_position_full(position, avg_price, mid_price, unrealized_pnl, realized_pnl, avg_price, mid_price)
+        self.publish_position_full(
+            position,
+            avg_price,
+            mid_price,
+            unrealized_pnl,
+            realized_pnl,
+            avg_price,
+            mid_price,
+        )
     }
 
     /// Publish a position snapshot with all fields.

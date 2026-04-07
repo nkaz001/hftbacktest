@@ -80,7 +80,8 @@ impl OrderManager {
         }
 
         // Look up resolved tick_size before borrowing orders mutably
-        let resolved_ts = self.tick_sizes
+        let resolved_ts = self
+            .tick_sizes
             .get(&resp.order.symbol)
             .copied()
             .filter(|&ts| ts > 0.0);
@@ -97,8 +98,7 @@ impl OrderManager {
             if tick_size > 0.0 {
                 order_ext.order.tick_size = tick_size;
                 // Update price_tick from exchange's float price
-                order_ext.order.price_tick =
-                    (resp.order.original_price / tick_size).round() as i64;
+                order_ext.order.price_tick = (resp.order.original_price / tick_size).round() as i64;
                 if resp.order.last_filled_price > 0.0 {
                     order_ext.order.exec_price_tick =
                         (resp.order.last_filled_price / tick_size).round() as i64;
@@ -117,10 +117,8 @@ impl OrderManager {
             order_ext.order.maker = resp.order.is_maker_side;
 
             // Store exchange order ID for fallback cancellation
-            let symbol_order_id = SymbolOrderId::new(
-                order_ext.symbol.clone(),
-                order_ext.order.order_id,
-            );
+            let symbol_order_id =
+                SymbolOrderId::new(order_ext.symbol.clone(), order_ext.order.order_id);
             self.exchange_order_id_map
                 .insert(symbol_order_id, resp.order.order_id);
         }
@@ -136,10 +134,8 @@ impl OrderManager {
         {
             order_ext.removed_by_ws = true;
             if !already_removed {
-                let symbol_order_id = RefSymbolOrderId::new(
-                    &order_ext.symbol,
-                    order_ext.order.order_id,
-                );
+                let symbol_order_id =
+                    RefSymbolOrderId::new(&order_ext.symbol, order_ext.order.order_id);
                 self.order_id_map.remove(&symbol_order_id);
                 // Also remove from exchange_order_id_map when order is done
                 self.exchange_order_id_map.remove(&symbol_order_id);
@@ -240,7 +236,8 @@ impl OrderManager {
         resp: &OrderResponse,
     ) -> Option<Order> {
         // Look up resolved tick_size before borrowing orders mutably
-        let resolved_ts = self.tick_sizes
+        let resolved_ts = self
+            .tick_sizes
             .get(&resp.symbol)
             .copied()
             .filter(|&ts| ts > 0.0);
@@ -255,8 +252,7 @@ impl OrderManager {
                 order_ext.order.tick_size = tick_size;
                 // Update price_tick from exchange's float price
                 if resp.price > 0.0 {
-                    order_ext.order.price_tick =
-                        (resp.price / tick_size).round() as i64;
+                    order_ext.order.price_tick = (resp.price / tick_size).round() as i64;
                 }
             }
 
@@ -271,10 +267,8 @@ impl OrderManager {
             order_ext.order.req = Status::None;
 
             // Store exchange order ID for fallback cancellation
-            let symbol_order_id = SymbolOrderId::new(
-                order_ext.symbol.clone(),
-                order_ext.order.order_id,
-            );
+            let symbol_order_id =
+                SymbolOrderId::new(order_ext.symbol.clone(), order_ext.order.order_id);
             self.exchange_order_id_map
                 .insert(symbol_order_id, resp.order_id);
         }
@@ -290,10 +284,8 @@ impl OrderManager {
         {
             order_ext.removed_by_rest = true;
             if !already_removed {
-                let symbol_order_id = RefSymbolOrderId::new(
-                    &order_ext.symbol,
-                    order_ext.order.order_id,
-                );
+                let symbol_order_id =
+                    RefSymbolOrderId::new(&order_ext.symbol, order_ext.order.order_id);
                 self.order_id_map.remove(&symbol_order_id);
                 // Also remove from exchange_order_id_map when order is done
                 self.exchange_order_id_map.remove(&symbol_order_id);
@@ -339,7 +331,11 @@ impl OrderManager {
     }
 
     /// Get exchange order ID for fallback cancellation when client_order_id is not found
-    pub fn get_exchange_order_id(&self, symbol: &str, order_id: OrderId) -> Option<ExchangeOrderId> {
+    pub fn get_exchange_order_id(
+        &self,
+        symbol: &str,
+        order_id: OrderId,
+    ) -> Option<ExchangeOrderId> {
         self.exchange_order_id_map
             .get(&RefSymbolOrderId::new(symbol, order_id))
             .copied()

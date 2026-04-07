@@ -2,25 +2,18 @@ use std::collections::HashMap;
 
 use hftbacktest::{
     backtest::{
-        Backtest,
-        BacktestError,
-        DataSource,
+        Backtest, BacktestError, DataSource,
         assettype::{AssetType, LinearAsset},
         data::Reader,
         models::{
-            CommonFees,
-            ConstantLatency,
-            FeeModel,
-            LatencyModel,
-            PowerProbQueueFunc3,
-            ProbQueueModel,
-            TradingValueFeeModel,
+            CommonFees, ConstantLatency, FeeModel, LatencyModel, PowerProbQueueFunc3,
+            ProbQueueModel, TradingValueFeeModel,
         },
         order::order_bus,
         proc::{Local, LocalProcessor, NoPartialFillExchange, Processor},
         state::State,
     },
-    depth::{HashMapMarketDepth, L2MarketDepth, MarketDepth},
+    depth::{HashMapMarketDepth, L1MarketDepth, L2MarketDepth, MarketDepth},
     prelude::{Bot, Event, OrdType, Order, OrderId, Side, StateValues, TimeInForce},
 };
 
@@ -42,7 +35,7 @@ impl<AT, LM, MD, FM> LocalProcessor<MD> for LocalEvHandler<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
-    MD: MarketDepth + L2MarketDepth,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth,
     FM: FeeModel,
 {
     fn submit_order(
@@ -123,7 +116,7 @@ impl<AT, LM, MD, FM> Processor for LocalEvHandler<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
-    MD: MarketDepth + L2MarketDepth,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth,
     FM: FeeModel,
 {
     fn event_seen_timestamp(&self, event: &Event) -> Option<i64> {

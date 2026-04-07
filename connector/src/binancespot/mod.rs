@@ -445,7 +445,10 @@ impl Connector for BinanceSpot {
         })
     }
 
-    fn resolve_instrument_info(&self, symbol: &str) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
+    fn resolve_instrument_info(
+        &self,
+        symbol: &str,
+    ) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
         let symbol = symbol.to_string();
         Box::pin(async move {
             match self.client.get_exchange_info().await {

@@ -13,8 +13,8 @@
 //!   --flush-interval <SECS>  Flush interval in seconds (default: 5)
 
 use clap::Parser;
-use order_recorder::{RecordingService, WriterConfig};
 use order_recorder::service::ServiceConfig;
+use order_recorder::{RecordingService, WriterConfig};
 use std::time::Duration;
 use tracing::info;
 use tracing_subscriber::EnvFilter;

@@ -186,7 +186,11 @@ impl BinancePapi {
                 .trim_end_matches('/')
                 .to_string()
         } else {
-            let base = self.config.user_stream_url.trim_end_matches('/').to_string();
+            let base = self
+                .config
+                .user_stream_url
+                .trim_end_matches('/')
+                .to_string();
             // Ensure URL ends with /ws for correct path format
             if base.ends_with("/ws") {
                 base
@@ -475,7 +479,10 @@ impl Connector for BinancePapi {
         })
     }
 
-    fn resolve_instrument_info(&self, symbol: &str) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
+    fn resolve_instrument_info(
+        &self,
+        symbol: &str,
+    ) -> crate::connector::BoxFuture<'_, Option<(f64, f64)>> {
         let symbol = symbol.to_string();
         Box::pin(async move {
             use crate::binancefutures::msg::rest::SymbolFilter;

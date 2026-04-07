@@ -22,8 +22,7 @@ use iceoryx2::{
 };
 use tokio::{
     runtime::Builder,
-    select,
-    signal,
+    select, signal,
     sync::{
         Notify,
         mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
@@ -109,11 +108,12 @@ fn run_receive_task(
                             );
 
                             // Auto-resolve tick_size/lot_size from exchange if either is 0.0
-                            let (resolved_tick, resolved_lot) = if tick_size == 0.0 || lot_size == 0.0 {
+                            let (resolved_tick, resolved_lot) = if tick_size == 0.0
+                                || lot_size == 0.0
+                            {
                                 match tokio::task::block_in_place(|| {
-                                    tokio::runtime::Handle::current().block_on(
-                                        connector.resolve_instrument_info(&symbol)
-                                    )
+                                    tokio::runtime::Handle::current()
+                                        .block_on(connector.resolve_instrument_info(&symbol))
                                 }) {
                                     Some((t, l)) => {
                                         info!(
@@ -174,15 +174,17 @@ fn run_receive_task(
 /// Clean up stale IPC resources from dead nodes
 fn cleanup_stale_ipc_resources() {
     info!("Cleaning up stale IPC resources...");
-    if let Err(e) = iceoryx2::node::Node::<ipc::Service>::list(Config::global_config(), |node_state| {
-        if let NodeState::<ipc::Service>::Dead(view) = node_state {
-            info!("Found dead node, cleaning up resources: {:?}", view.id());
-            if let Err(e) = view.remove_stale_resources() {
-                error!("Failed to cleanup stale resources: {:?}", e);
+    if let Err(e) =
+        iceoryx2::node::Node::<ipc::Service>::list(Config::global_config(), |node_state| {
+            if let NodeState::<ipc::Service>::Dead(view) = node_state {
+                info!("Found dead node, cleaning up resources: {:?}", view.id());
+                if let Err(e) = view.remove_stale_resources() {
+                    error!("Failed to cleanup stale resources: {:?}", e);
+                }
             }
-        }
-        CallbackProgression::Continue
-    }) {
+            CallbackProgression::Continue
+        })
+    {
         error!("Failed to list nodes for cleanup: {:?}", e);
     }
     info!("IPC cleanup complete");
@@ -582,7 +584,9 @@ async fn main() {
 
                 match connector_type.as_str() {
                     "binancefutures" => {
-                        use connector::binancefutures::{Config as BfConfig, rest::BinanceFuturesClient};
+                        use connector::binancefutures::{
+                            Config as BfConfig, rest::BinanceFuturesClient,
+                        };
                         use connector::sync::recording::binance::BinanceFuturesProvider;
 
                         let bf_config: BfConfig = toml::from_str(&config_str).unwrap();
@@ -595,7 +599,9 @@ async fn main() {
 
                         match SyncTask::new(sync_config, symbols) {
                             Ok(sync_task) => {
-                                info!("Started position, account, and income sync for binancefutures");
+                                info!(
+                                    "Started position, account, and income sync for binancefutures"
+                                );
                                 // Run sync loops concurrently on this thread
                                 let provider2 = provider.clone();
                                 let provider3 = provider.clone();
@@ -639,8 +645,8 @@ async fn main() {
                         }
                     }
                     "bybit_rest" => {
-                        use connector::bybit_rest::Config as BybitRestConfig;
                         use connector::bybit::rest::BybitClient;
+                        use connector::bybit_rest::Config as BybitRestConfig;
                         use connector::sync::recording::bybit::BybitProvider;
 
                         let bybit_config: BybitRestConfig = toml::from_str(&config_str).unwrap();
@@ -668,7 +674,7 @@ async fn main() {
                         }
                     }
                     "binancepapi" => {
-                        use connector::binancepapi::{Config as PapiConfig};
+                        use connector::binancepapi::Config as PapiConfig;
                         use connector::binancepapi::rest::BinancePapiClient;
                         use connector::sync::recording::binancepapi::BinancePapiProvider;
 
@@ -700,7 +706,10 @@ async fn main() {
                         info!("Skipping account sync for binancespot");
                     }
                     _ => {
-                        info!("Position/income sync not implemented for connector: {}", connector_type);
+                        info!(
+                            "Position/income sync not implemented for connector: {}",
+                            connector_type
+                        );
                     }
                 }
             });

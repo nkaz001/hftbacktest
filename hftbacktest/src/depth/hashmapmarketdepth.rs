@@ -1,6 +1,8 @@
 use std::collections::{HashMap, hash_map::Entry};
 
-use super::{ApplySnapshot, INVALID_MAX, INVALID_MIN, L3MarketDepth, L3Order, MarketDepth};
+use super::{
+    ApplySnapshot, INVALID_MAX, INVALID_MIN, L1MarketDepth, L3MarketDepth, L3Order, MarketDepth,
+};
 use crate::{
     backtest::{BacktestError, data::Data},
     prelude::{L2MarketDepth, OrderId, Side},
@@ -247,6 +249,106 @@ impl L2MarketDepth for HashMapMarketDepth {
                 unreachable!();
             }
         }
+    }
+}
+
+impl L1MarketDepth for HashMapMarketDepth {
+    fn update_best_bid(
+        &mut self,
+        px: f64,
+        qty: f64,
+        timestamp: i64,
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (px / self.tick_size).round() as i64;
+        let prev_best_bid_tick = self.best_bid_tick;
+        let prev_qty = self.bid_depth.get(&price_tick).copied().unwrap_or(0.0);
+        let qty_lot = (qty / self.lot_size).round() as i64;
+
+        // Update qty at BBO level
+        if qty_lot > 0 {
+            self.bid_depth.insert(price_tick, qty);
+        } else {
+            self.bid_depth.remove(&price_tick);
+        }
+
+        self.best_bid_tick = price_tick;
+        self.low_bid_tick = self.low_bid_tick.min(price_tick);
+        self.timestamp = timestamp;
+
+        // Bid backed off: remove stale bid levels above new best
+        if price_tick < prev_best_bid_tick {
+            for t in (price_tick + 1)..=prev_best_bid_tick {
+                self.bid_depth.remove(&t);
+            }
+        }
+
+        // Prevent crossing: push best ask above new best bid
+        if price_tick >= self.best_ask_tick {
+            let prev_best_ask = self.best_ask_tick;
+            self.best_ask_tick = depth_above(&self.ask_depth, price_tick, self.high_ask_tick);
+            // Remove crossed ask levels
+            for t in prev_best_ask..=price_tick {
+                self.ask_depth.remove(&t);
+            }
+        }
+
+        (
+            price_tick,
+            prev_best_bid_tick,
+            self.best_bid_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
+    }
+
+    fn update_best_ask(
+        &mut self,
+        px: f64,
+        qty: f64,
+        timestamp: i64,
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (px / self.tick_size).round() as i64;
+        let prev_best_ask_tick = self.best_ask_tick;
+        let prev_qty = self.ask_depth.get(&price_tick).copied().unwrap_or(0.0);
+        let qty_lot = (qty / self.lot_size).round() as i64;
+
+        // Update qty at BBO level
+        if qty_lot > 0 {
+            self.ask_depth.insert(price_tick, qty);
+        } else {
+            self.ask_depth.remove(&price_tick);
+        }
+
+        self.best_ask_tick = price_tick;
+        self.high_ask_tick = self.high_ask_tick.max(price_tick);
+        self.timestamp = timestamp;
+
+        // Ask backed off: remove stale ask levels below new best
+        if price_tick > prev_best_ask_tick {
+            for t in prev_best_ask_tick..price_tick {
+                self.ask_depth.remove(&t);
+            }
+        }
+
+        // Prevent crossing: push best bid below new best ask
+        if price_tick <= self.best_bid_tick {
+            let prev_best_bid = self.best_bid_tick;
+            self.best_bid_tick = depth_below(&self.bid_depth, price_tick, self.low_bid_tick);
+            // Remove crossed bid levels
+            for t in price_tick..=prev_best_bid {
+                self.bid_depth.remove(&t);
+            }
+        }
+
+        (
+            price_tick,
+            prev_best_ask_tick,
+            self.best_ask_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
     }
 }
 

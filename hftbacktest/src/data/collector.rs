@@ -20,9 +20,9 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
+use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use flate2::Compression;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -115,6 +115,23 @@ struct DepthData {
     asks: Vec<(String, String)>,
 }
 
+/// Book ticker data from WebSocket or IPC collector
+#[derive(Deserialize, Debug)]
+struct BookTickerData {
+    #[serde(rename = "E")]
+    event_time: i64, // milliseconds
+    #[serde(rename = "s")]
+    symbol: String,
+    #[serde(rename = "b")]
+    bid_price: String,
+    #[serde(rename = "B")]
+    bid_qty: String,
+    #[serde(rename = "a")]
+    ask_price: String,
+    #[serde(rename = "A")]
+    ask_qty: String,
+}
+
 /// REST depth snapshot
 #[derive(Deserialize, Debug)]
 struct SnapshotData {
@@ -159,14 +176,16 @@ fn parse_line(line: &str) -> Option<(i64, &str)> {
 /// * `input_files` - Input collector .gz files
 /// * `trades_output` - Output path for trades CSV
 /// * `depth_output` - Output path for depth CSV
+/// * `book_ticker_output` - Output path for book ticker CSV
 /// * `config` - Conversion configuration
 ///
 /// # Returns
 /// Conversion statistics
-pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
+pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>, P4: AsRef<Path>>(
     input_files: &[P1],
     trades_output: P2,
     depth_output: P3,
+    book_ticker_output: P4,
     config: &CollectorConvertConfig,
 ) -> Result<ConversionStats, String> {
     let mut stats = ConversionStats::default();
@@ -176,9 +195,12 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
         .map_err(|e| format!("Failed to create trades output: {}", e))?;
     let depth_file = File::create(depth_output.as_ref())
         .map_err(|e| format!("Failed to create depth output: {}", e))?;
+    let book_ticker_file = File::create(book_ticker_output.as_ref())
+        .map_err(|e| format!("Failed to create book ticker output: {}", e))?;
 
     let mut trades_writer = GzEncoder::new(trades_file, Compression::default());
     let mut depth_writer = GzEncoder::new(depth_file, Compression::default());
+    let mut bt_writer = GzEncoder::new(book_ticker_file, Compression::default());
 
     // Write headers
     writeln!(
@@ -192,6 +214,12 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
         "exchange,symbol,timestamp,local_timestamp,is_snapshot,side,price,amount"
     )
     .map_err(|e| format!("Failed to write depth header: {}", e))?;
+
+    writeln!(
+        bt_writer,
+        "exchange,symbol,timestamp,local_timestamp,ask_amount,ask_price,bid_price,bid_amount"
+    )
+    .map_err(|e| format!("Failed to write book ticker header: {}", e))?;
 
     let mut trade_id_counter: i64 = 0;
 
@@ -282,7 +310,25 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         }
                     }
                     "bookTicker" => {
-                        stats.book_ticker_count += 1;
+                        if let Ok(bt) = serde_json::from_value::<BookTickerData>(stream_msg.data) {
+                            let exch_ts_micros = bt.event_time * 1000;
+
+                            writeln!(
+                                bt_writer,
+                                "{},{},{},{},{},{},{},{}",
+                                config.exchange,
+                                bt.symbol,
+                                exch_ts_micros,
+                                local_ts_micros,
+                                bt.ask_qty,
+                                bt.ask_price,
+                                bt.bid_price,
+                                bt.bid_qty
+                            )
+                            .map_err(|e| format!("Failed to write book ticker: {}", e))?;
+
+                            stats.book_ticker_count += 1;
+                        }
                     }
                     _ => {}
                 }
@@ -383,7 +429,25 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         }
                     }
                     "bookTicker" => {
-                        stats.book_ticker_count += 1;
+                        if let Ok(bt) = serde_json::from_str::<BookTickerData>(json_str) {
+                            let exch_ts_micros = bt.event_time * 1000;
+
+                            writeln!(
+                                bt_writer,
+                                "{},{},{},{},{},{},{},{}",
+                                config.exchange,
+                                bt.symbol,
+                                exch_ts_micros,
+                                local_ts_micros,
+                                bt.ask_qty,
+                                bt.ask_price,
+                                bt.bid_price,
+                                bt.bid_qty
+                            )
+                            .map_err(|e| format!("Failed to write book ticker: {}", e))?;
+
+                            stats.book_ticker_count += 1;
+                        }
                     }
                     _ => {}
                 }
@@ -402,12 +466,7 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         writeln!(
                             depth_writer,
                             "{},{},{},{},true,bid,{},{}",
-                            config.exchange,
-                            symbol,
-                            exch_ts_micros,
-                            local_ts_micros,
-                            price,
-                            qty
+                            config.exchange, symbol, exch_ts_micros, local_ts_micros, price, qty
                         )
                         .map_err(|e| format!("Failed to write snapshot: {}", e))?;
                         stats.snapshot_entries += 1;
@@ -417,12 +476,7 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
                         writeln!(
                             depth_writer,
                             "{},{},{},{},true,ask,{},{}",
-                            config.exchange,
-                            symbol,
-                            exch_ts_micros,
-                            local_ts_micros,
-                            price,
-                            qty
+                            config.exchange, symbol, exch_ts_micros, local_ts_micros, price, qty
                         )
                         .map_err(|e| format!("Failed to write snapshot: {}", e))?;
                         stats.snapshot_entries += 1;
@@ -439,10 +493,13 @@ pub fn convert_to_tardis_csv<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
     depth_writer
         .finish()
         .map_err(|e| format!("Failed to finish depth file: {}", e))?;
+    bt_writer
+        .finish()
+        .map_err(|e| format!("Failed to finish book ticker file: {}", e))?;
 
     println!(
-        "Conversion complete: {} trades, {} depth updates, {} snapshot entries",
-        stats.trades, stats.depth_updates, stats.snapshot_entries
+        "Conversion complete: {} trades, {} depth updates, {} snapshot entries, {} book tickers",
+        stats.trades, stats.depth_updates, stats.snapshot_entries, stats.book_ticker_count
     );
 
     Ok(stats)
@@ -468,20 +525,25 @@ pub fn convert_collector_to_events<P: AsRef<Path>>(
     use std::fs;
     use tempfile::tempdir;
 
-    use super::{convert_tardis, write_npz_file, TardisConvertConfig};
+    use super::{TardisConvertConfig, convert_tardis_fast, write_npz_file};
 
     // Create temp directory for intermediate files
     let temp_dir = tempdir().map_err(|e| format!("Failed to create temp dir: {}", e))?;
 
     let trades_path = temp_dir.path().join("trades.csv.gz");
     let depth_path = temp_dir.path().join("depth.csv.gz");
+    let bt_path = temp_dir.path().join("book_ticker.csv.gz");
 
     // Step 1: Convert to Tardis CSV
-    let stats = convert_to_tardis_csv(input_files, &trades_path, &depth_path, config)?;
+    let stats = convert_to_tardis_csv(input_files, &trades_path, &depth_path, &bt_path, config)?;
 
     // Step 2: Convert Tardis CSV to Events
     let tardis_config = TardisConvertConfig::default();
-    let events = convert_tardis(&[&trades_path, &depth_path], &tardis_config)?;
+    let mut input_paths: Vec<&Path> = vec![trades_path.as_ref(), depth_path.as_ref()];
+    if stats.book_ticker_count > 0 {
+        input_paths.push(bt_path.as_ref());
+    }
+    let events = convert_tardis_fast(&input_paths, &tardis_config)?;
 
     // Step 3: Optionally save to NPZ
     if let Some(path) = output_path {
@@ -491,6 +553,7 @@ pub fn convert_collector_to_events<P: AsRef<Path>>(
     // Cleanup temp files
     let _ = fs::remove_file(&trades_path);
     let _ = fs::remove_file(&depth_path);
+    let _ = fs::remove_file(&bt_path);
 
     Ok((events, stats))
 }
@@ -498,7 +561,7 @@ pub fn convert_collector_to_events<P: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use std::io::{Read, Write};
     use tempfile::NamedTempFile;
 
     fn create_test_collector_file() -> NamedTempFile {
@@ -510,6 +573,8 @@ mod tests {
             r#"1700000000000000000 {"stream":"btcusdt@trade","data":{"E":1700000000000,"s":"BTCUSDT","t":123456,"p":"50000.50","q":"0.001","m":false}}"#,
             // Depth update
             r#"1700000001000000000 {"stream":"btcusdt@depth@0ms","data":{"E":1700000001000,"s":"BTCUSDT","b":[["50000.00","1.5"]],"a":[["50001.00","2.0"]]}}"#,
+            // Book ticker
+            r#"1700000001500000000 {"stream":"btcusdt@bookTicker","data":{"e":"bookTicker","E":1700000001500,"T":1700000001500,"s":"BTCUSDT","b":"50000.0","B":"1.0","a":"50001.0","A":"2.0"}}"#,
             // Snapshot
             r#"1700000002000000000 {"lastUpdateId":1000,"E":1700000002000,"T":1700000002000,"bids":[["49999.00","10.0"]],"asks":[["50002.00","5.0"]]}"#,
         ];
@@ -519,6 +584,14 @@ mod tests {
         }
 
         file
+    }
+
+    fn read_gzip_to_string(path: &Path) -> String {
+        let file = File::open(path).unwrap();
+        let mut decoder = GzDecoder::new(file);
+        let mut contents = String::new();
+        decoder.read_to_string(&mut contents).unwrap();
+        contents
     }
 
     #[test]
@@ -531,10 +604,7 @@ mod tests {
 
     #[test]
     fn test_extract_symbol() {
-        assert_eq!(
-            extract_symbol("btcusdt@trade"),
-            Some("BTCUSDT".to_string())
-        );
+        assert_eq!(extract_symbol("btcusdt@trade"), Some("BTCUSDT".to_string()));
         assert_eq!(
             extract_symbol("ethusdt@depth@0ms"),
             Some("ETHUSDT".to_string())
@@ -546,12 +616,14 @@ mod tests {
         let input = create_test_collector_file();
         let trades_output = NamedTempFile::new().unwrap();
         let depth_output = NamedTempFile::new().unwrap();
+        let bt_output = NamedTempFile::new().unwrap();
 
         let config = CollectorConvertConfig::default();
         let stats = convert_to_tardis_csv(
             &[input.path()],
             trades_output.path(),
             depth_output.path(),
+            bt_output.path(),
             &config,
         )
         .unwrap();
@@ -559,14 +631,30 @@ mod tests {
         assert_eq!(stats.trades, 1);
         assert_eq!(stats.depth_updates, 2); // 1 bid + 1 ask
         assert_eq!(stats.snapshot_entries, 2); // 1 bid + 1 ask
+        assert_eq!(stats.book_ticker_count, 1);
+
+        let bt_csv = read_gzip_to_string(bt_output.path());
+        let mut lines = bt_csv.lines();
+        assert_eq!(
+            lines.next(),
+            Some(
+                "exchange,symbol,timestamp,local_timestamp,ask_amount,ask_price,bid_price,bid_amount"
+            )
+        );
+        assert_eq!(
+            lines.next(),
+            Some(
+                "binance-futures,BTCUSDT,1700000001500000,1700000001500000,2.0,50001.0,50000.0,1.0"
+            )
+        );
     }
 
     fn create_test_ipc_collector_file() -> NamedTempFile {
         let mut file = NamedTempFile::new().unwrap();
 
         let lines = vec![
-            // IPC bookTicker (bid side)
-            r#"1770281275681188238 {"e":"bookTicker","s":"ADAUSDT","b":"0.2819","B":"168493","a":"0","A":"0","E":1770281275474}"#,
+            // IPC bookTicker (complete BBO)
+            r#"1770281275681188238 {"e":"bookTicker","s":"ADAUSDT","b":"0.2819","B":"168493","a":"0.2820","A":"50000","E":1770281275474}"#,
             // IPC depthUpdate (bid)
             r#"1770281275681192795 {"e":"depthUpdate","E":1770281275474,"s":"ADAUSDT","b":[["0.28","0"]],"a":[]}"#,
             // IPC depthUpdate (ask)
@@ -591,12 +679,14 @@ mod tests {
         let input = create_test_ipc_collector_file();
         let trades_output = NamedTempFile::new().unwrap();
         let depth_output = NamedTempFile::new().unwrap();
+        let bt_output = NamedTempFile::new().unwrap();
 
         let config = CollectorConvertConfig::default();
         let stats = convert_to_tardis_csv(
             &[input.path()],
             trades_output.path(),
             depth_output.path(),
+            bt_output.path(),
             &config,
         )
         .unwrap();
@@ -605,5 +695,20 @@ mod tests {
         assert_eq!(stats.depth_updates, 2); // 1 bid + 1 ask
         assert_eq!(stats.snapshot_entries, 2); // 1 bid + 1 ask from depthSnapshot
         assert_eq!(stats.book_ticker_count, 1);
+
+        let bt_csv = read_gzip_to_string(bt_output.path());
+        let mut lines = bt_csv.lines();
+        assert_eq!(
+            lines.next(),
+            Some(
+                "exchange,symbol,timestamp,local_timestamp,ask_amount,ask_price,bid_price,bid_amount"
+            )
+        );
+        assert_eq!(
+            lines.next(),
+            Some(
+                "binance-futures,ADAUSDT,1770281275474000,1770281275681188,50000,0.2820,0.2819,168493"
+            )
+        );
     }
 }

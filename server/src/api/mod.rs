@@ -65,7 +65,10 @@ impl ApiErrorResponse {
     }
 
     pub fn internal(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::INTERNAL_SERVER_ERROR, ApiError::internal(message))
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::internal(message),
+        )
     }
 
     pub fn not_found(message: impl Into<String>) -> Self {

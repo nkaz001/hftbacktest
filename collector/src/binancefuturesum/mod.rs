@@ -46,14 +46,8 @@ fn handle(
         if ev == "depthUpdate" {
             // Parse the depth update
             let depth_data = stream::Depth {
-                transaction_time: j_data
-                    .get("T")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0),
-                event_time: j_data
-                    .get("E")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0),
+                transaction_time: j_data.get("T").and_then(|v| v.as_i64()).unwrap_or(0),
+                event_time: j_data.get("E").and_then(|v| v.as_i64()).unwrap_or(0),
                 symbol: symbol.clone(),
                 first_update_id: j_data
                     .get("U")

@@ -9,24 +9,12 @@ use crate::{
         proc::{LocalProcessor, Processor},
         state::State,
     },
-    depth::{L2MarketDepth, MarketDepth},
+    depth::{L1MarketDepth, L2MarketDepth, MarketDepth},
     types::{
-        Event,
-        LOCAL_ASK_DEPTH_CLEAR_EVENT,
-        LOCAL_ASK_DEPTH_EVENT,
-        LOCAL_ASK_DEPTH_SNAPSHOT_EVENT,
-        LOCAL_BID_DEPTH_CLEAR_EVENT,
-        LOCAL_BID_DEPTH_EVENT,
-        LOCAL_BID_DEPTH_SNAPSHOT_EVENT,
-        LOCAL_DEPTH_CLEAR_EVENT,
-        LOCAL_EVENT,
-        LOCAL_TRADE_EVENT,
-        OrdType,
-        Order,
-        OrderId,
-        Side,
-        StateValues,
-        Status,
+        Event, LOCAL_ASK_DEPTH_BBO_EVENT, LOCAL_ASK_DEPTH_CLEAR_EVENT, LOCAL_ASK_DEPTH_EVENT,
+        LOCAL_ASK_DEPTH_SNAPSHOT_EVENT, LOCAL_BID_DEPTH_BBO_EVENT, LOCAL_BID_DEPTH_CLEAR_EVENT,
+        LOCAL_BID_DEPTH_EVENT, LOCAL_BID_DEPTH_SNAPSHOT_EVENT, LOCAL_DEPTH_CLEAR_EVENT,
+        LOCAL_EVENT, LOCAL_TRADE_EVENT, OrdType, Order, OrderId, Side, StateValues, Status,
         TimeInForce,
     },
 };
@@ -99,9 +87,7 @@ where
             }
 
             // Processes receiving order response.
-            if order.status == Status::Filled
-                || order.status == Status::PartiallyFilled
-            {
+            if order.status == Status::Filled || order.status == Status::PartiallyFilled {
                 self.state.apply_fill(&order);
             }
             // Applies the received order response to the local orders.
@@ -142,7 +128,7 @@ impl<AT, LM, MD, FM> LocalProcessor<MD> for Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
-    MD: MarketDepth + L2MarketDepth,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth,
     FM: FeeModel,
 {
     fn submit_order(
@@ -280,7 +266,7 @@ impl<AT, LM, MD, FM> Processor for Local<AT, LM, MD, FM>
 where
     AT: AssetType,
     LM: LatencyModel,
-    MD: MarketDepth + L2MarketDepth,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth,
     FM: FeeModel,
 {
     fn event_seen_timestamp(&self, event: &Event) -> Option<i64> {
@@ -289,12 +275,19 @@ where
 
     fn process(&mut self, ev: &Event) -> Result<(), BacktestError> {
         // Processes a depth event
+        // BBO checks MUST come before DEPTH checks because DEPTH_BBO_EVENT (5=0b101)
+        // bitmask matches DEPTH_EVENT (1=0b001). BBO needs update_best_bid/ask for
+        // correct backoff and crossing prevention.
         if ev.is(LOCAL_BID_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::Buy, ev.px);
         } else if ev.is(LOCAL_ASK_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::Sell, ev.px);
         } else if ev.is(LOCAL_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::None, 0.0);
+        } else if ev.is(LOCAL_BID_DEPTH_BBO_EVENT) {
+            self.depth.update_best_bid(ev.px, ev.qty, ev.local_ts);
+        } else if ev.is(LOCAL_ASK_DEPTH_BBO_EVENT) {
+            self.depth.update_best_ask(ev.px, ev.qty, ev.local_ts);
         } else if ev.is(LOCAL_BID_DEPTH_EVENT) || ev.is(LOCAL_BID_DEPTH_SNAPSHOT_EVENT) {
             self.depth.update_bid_depth(ev.px, ev.qty, ev.local_ts);
         } else if ev.is(LOCAL_ASK_DEPTH_EVENT) || ev.is(LOCAL_ASK_DEPTH_SNAPSHOT_EVENT) {

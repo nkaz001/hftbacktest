@@ -19,7 +19,7 @@
 ```toml
 # WebSocket 数据流
 stream_url = "wss://fstream.binancefuture.com/ws"  # 测试网
-# stream_url = "wss://fstream.binance.com/ws"      # 主网
+# stream_url = "wss://fstream.binance.com/public/ws"  # 主网 (2026-04-23 后必须用 /public/ws)
 
 # REST API
 api_url = "https://demo-fapi.binance.com"          # 测试网

@@ -1,6 +1,6 @@
 //! Event order validation and correction utilities.
 
-use crate::types::{Event, EXCH_EVENT, LOCAL_EVENT};
+use crate::types::{EXCH_EVENT, Event, LOCAL_EVENT};
 
 /// Adjusts the local timestamp if the feed latency is negative by offsetting it
 /// by the maximum negative latency value.
@@ -86,9 +86,7 @@ pub fn correct_event_order(
                 if exch.exch_ts == local.exch_ts && exch.local_ts == local.local_ts {
                     // Same event - merge with both flags
                     debug_assert_eq!(exch.ev, local.ev);
-                    debug_assert!(
-                        exch.px == local.px || (exch.px.is_nan() && local.px.is_nan())
-                    );
+                    debug_assert!(exch.px == local.px || (exch.px.is_nan() && local.px.is_nan()));
                     debug_assert_eq!(exch.qty, local.qty);
 
                     let mut event = exch.clone();
@@ -186,7 +184,7 @@ pub fn argsort_by_local_ts(data: &[Event]) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{DEPTH_EVENT, BUY_EVENT, TRADE_EVENT, SELL_EVENT};
+    use crate::types::{BUY_EVENT, DEPTH_EVENT, SELL_EVENT, TRADE_EVENT};
 
     #[test]
     fn test_correct_local_timestamp_positive_latency() {

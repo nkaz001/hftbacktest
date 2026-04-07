@@ -20,7 +20,7 @@ use tokio_tungstenite::{
     connect_async,
     tungstenite::{Message, client::IntoClientRequest},
 };
-use tracing::{debug, error, info, warn, Level};
+use tracing::{Level, debug, error, info, warn};
 
 // Use the actual implementation from the connector library
 use connector::binancefutures::{
@@ -34,9 +34,9 @@ const API_URL: &str = "https://fapi.binance.com";
 /// Simple orderbook using BTreeMap for sorted price levels
 struct OrderBook {
     /// Bids: price -> quantity (sorted descending by price)
-    bids: BTreeMap<i64, f64>,  // price in ticks
+    bids: BTreeMap<i64, f64>, // price in ticks
     /// Asks: price -> quantity (sorted ascending by price)
-    asks: BTreeMap<i64, f64>,  // price in ticks
+    asks: BTreeMap<i64, f64>, // price in ticks
     /// Price precision (tick size)
     tick_size: f64,
 }
@@ -113,16 +113,25 @@ impl OrderBook {
     }
 
     fn best_bid(&self) -> Option<(f64, f64)> {
-        self.bids.iter().next_back().map(|(&tick, &qty)| (self.tick_to_price(tick), qty))
+        self.bids
+            .iter()
+            .next_back()
+            .map(|(&tick, &qty)| (self.tick_to_price(tick), qty))
     }
 
     fn best_ask(&self) -> Option<(f64, f64)> {
-        self.asks.iter().next().map(|(&tick, &qty)| (self.tick_to_price(tick), qty))
+        self.asks
+            .iter()
+            .next()
+            .map(|(&tick, &qty)| (self.tick_to_price(tick), qty))
     }
 
     fn display_top(&self, levels: usize) {
         println!("\n{:=^60}", " ORDER BOOK ");
-        println!("{:>15} {:>15} | {:>15} {:>15}", "Bid Qty", "Bid Price", "Ask Price", "Ask Qty");
+        println!(
+            "{:>15} {:>15} | {:>15} {:>15}",
+            "Bid Qty", "Bid Price", "Ask Price", "Ask Qty"
+        );
         println!("{:-^60}", "");
 
         let top_bids: Vec<_> = self.bids.iter().rev().take(levels).collect();
@@ -150,9 +159,18 @@ impl OrderBook {
             let spread = ask_px - bid_px;
             let mid = (bid_px + ask_px) / 2.0;
             println!("{:-^60}", "");
-            println!("Mid: {:.2}  Spread: {:.2} ({:.4}%)", mid, spread, spread / mid * 100.0);
+            println!(
+                "Mid: {:.2}  Spread: {:.2} ({:.4}%)",
+                mid,
+                spread,
+                spread / mid * 100.0
+            );
         }
-        println!("Total levels: {} bids, {} asks", self.bids.len(), self.asks.len());
+        println!(
+            "Total levels: {} bids, {} asks",
+            self.bids.len(),
+            self.asks.len()
+        );
         println!("{:=^60}\n", "");
     }
 
@@ -185,9 +203,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     let args = Args::parse();
     let symbol = args.symbol.to_lowercase();
@@ -256,7 +272,10 @@ async fn main() -> anyhow::Result<()> {
                             match client.get(&snapshot_url).send().await {
                                 Ok(resp) => match resp.json::<rest::Depth>().await {
                                     Ok(snap) => {
-                                        info!("Received snapshot: lastUpdateId={}", snap.last_update_id);
+                                        info!(
+                                            "Received snapshot: lastUpdateId={}",
+                                            snap.last_update_id
+                                        );
                                         snapshot = Some(snap);
                                     }
                                     Err(e) => error!("Failed to parse snapshot: {:?}", e),
@@ -280,8 +299,11 @@ async fn main() -> anyhow::Result<()> {
                                         match event {
                                             DepthEvent::Snapshot { bids, asks, .. } => {
                                                 orderbook.apply_snapshot(bids, asks);
-                                                info!("Applied snapshot: {} bids, {} asks",
-                                                    orderbook.bids.len(), orderbook.asks.len());
+                                                info!(
+                                                    "Applied snapshot: {} bids, {} asks",
+                                                    orderbook.bids.len(),
+                                                    orderbook.asks.len()
+                                                );
                                             }
                                             DepthEvent::Update { bids, asks, .. } => {
                                                 orderbook.apply_update(bids, asks);
@@ -290,7 +312,10 @@ async fn main() -> anyhow::Result<()> {
                                     }
 
                                     if !order_book_manager.needs_snapshot(&symbol) {
-                                        info!("Order book synchronized! Processed {} events", events.len());
+                                        info!(
+                                            "Order book synchronized! Processed {} events",
+                                            events.len()
+                                        );
                                         sync_complete = true;
                                         orderbook.display_top(5);
                                     }

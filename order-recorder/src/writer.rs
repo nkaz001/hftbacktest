@@ -12,8 +12,7 @@ use tracing::{debug, error, info};
 
 /// Convert nanoseconds since epoch to OffsetDateTime
 fn nanos_to_datetime(nanos: i64) -> OffsetDateTime {
-    OffsetDateTime::from_unix_timestamp_nanos(nanos as i128)
-        .unwrap_or(OffsetDateTime::UNIX_EPOCH)
+    OffsetDateTime::from_unix_timestamp_nanos(nanos as i128).unwrap_or(OffsetDateTime::UNIX_EPOCH)
 }
 
 /// ClickHouse row for orders table
@@ -254,43 +253,57 @@ impl ClickHouseWriter {
 
     /// Write an order update
     pub async fn write_order(&self, order: &OrderUpdate) -> Result<(), WriterError> {
-        self.tx.send(WriteCommand::Order(OrderRow::from(order))).await
+        self.tx
+            .send(WriteCommand::Order(OrderRow::from(order)))
+            .await
             .map_err(|_| WriterError::ChannelClosed)
     }
 
     /// Write a fill event
     pub async fn write_fill(&self, fill: &FillEvent) -> Result<(), WriterError> {
-        self.tx.send(WriteCommand::Fill(FillRow::from(fill))).await
+        self.tx
+            .send(WriteCommand::Fill(FillRow::from(fill)))
+            .await
             .map_err(|_| WriterError::ChannelClosed)
     }
 
     /// Write a position snapshot
     pub async fn write_position(&self, pos: &PositionSnapshot) -> Result<(), WriterError> {
-        self.tx.send(WriteCommand::Position(PositionRow::from(pos))).await
+        self.tx
+            .send(WriteCommand::Position(PositionRow::from(pos)))
+            .await
             .map_err(|_| WriterError::ChannelClosed)
     }
 
     /// Write a strategy status
     pub async fn write_status(&self, status: &StrategyStatus) -> Result<(), WriterError> {
-        self.tx.send(WriteCommand::Status(StatusRow::from(status))).await
+        self.tx
+            .send(WriteCommand::Status(StatusRow::from(status)))
+            .await
             .map_err(|_| WriterError::ChannelClosed)
     }
 
     /// Write an income event
     pub async fn write_income(&self, income: &IncomeEvent) -> Result<(), WriterError> {
-        self.tx.send(WriteCommand::Income(IncomeRow::from(income))).await
+        self.tx
+            .send(WriteCommand::Income(IncomeRow::from(income)))
+            .await
             .map_err(|_| WriterError::ChannelClosed)
     }
 
     /// Force flush all pending writes
     pub async fn flush(&self) -> Result<(), WriterError> {
-        self.tx.send(WriteCommand::Flush).await
+        self.tx
+            .send(WriteCommand::Flush)
+            .await
             .map_err(|_| WriterError::ChannelClosed)
     }
 
     /// Shutdown the writer
     pub async fn shutdown(&self) -> Result<(), WriterError> {
-        self.tx.send(WriteCommand::Shutdown).await
+        self.tx
+            .send(WriteCommand::Shutdown)
+            .await
             .map_err(|_| WriterError::ChannelClosed)
     }
 
@@ -308,7 +321,10 @@ impl ClickHouseWriter {
 
         let mut flush_interval = tokio::time::interval(config.flush_interval);
 
-        info!("ClickHouse writer started, url={}, db={}", config.url, config.database);
+        info!(
+            "ClickHouse writer started, url={}, db={}",
+            config.url, config.database
+        );
 
         loop {
             tokio::select! {

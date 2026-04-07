@@ -9,8 +9,13 @@
 use std::collections::HashMap;
 
 use hftbacktest::{
-    live::{Instrument, LiveBot, LiveBotBuilder, LoggingRecorder, ipc::iceoryx::IceoryxUnifiedChannel},
-    prelude::{Bot, HashMapMarketDepth, MarketDepth, OrdType, Recorder, Side, TimeInForce, INVALID_MAX, INVALID_MIN},
+    live::{
+        Instrument, LiveBot, LiveBotBuilder, LoggingRecorder, ipc::iceoryx::IceoryxUnifiedChannel,
+    },
+    prelude::{
+        Bot, HashMapMarketDepth, INVALID_MAX, INVALID_MIN, MarketDepth, OrdType, Recorder, Side,
+        TimeInForce,
+    },
 };
 
 /// Strategy configuration
@@ -49,11 +54,7 @@ fn prepare_live(config: &Config) -> LiveBot<IceoryxUnifiedChannel, HashMapMarket
         .unwrap()
 }
 
-fn run_strategy<MD, I, R>(
-    hbt: &mut I,
-    recorder: &mut R,
-    config: &Config,
-) -> Result<(), i64>
+fn run_strategy<MD, I, R>(hbt: &mut I, recorder: &mut R, config: &Config) -> Result<(), i64>
 where
     MD: MarketDepth,
     I: Bot<MD>,
@@ -149,7 +150,9 @@ where
             // Cancel orders not in new grid
             let cancel_ids: Vec<u64> = orders
                 .values()
-                .filter(|o| o.side == Side::Buy && o.cancellable() && !new_orders.contains_key(&o.order_id))
+                .filter(|o| {
+                    o.side == Side::Buy && o.cancellable() && !new_orders.contains_key(&o.order_id)
+                })
                 .map(|o| o.order_id)
                 .collect();
 
@@ -163,10 +166,15 @@ where
             if iteration <= 5 || !submit_orders.is_empty() || !cancel_ids.is_empty() {
                 println!(
                     "[DEBUG] BID: existing_orders={} new_orders_to_submit={} orders_to_cancel={}",
-                    existing_count, submit_orders.len(), cancel_ids.len()
+                    existing_count,
+                    submit_orders.len(),
+                    cancel_ids.len()
                 );
                 for (id, price) in &submit_orders {
-                    println!("[DEBUG]   -> Submit BUY: id={} price={:.2} qty={}", id, price, config.order_qty);
+                    println!(
+                        "[DEBUG]   -> Submit BUY: id={} price={:.2} qty={}",
+                        id, price, config.order_qty
+                    );
                 }
             }
 
@@ -176,7 +184,16 @@ where
                 println!("[DEBUG]      Cancel result: {:?}", result);
             }
             for (id, price) in submit_orders {
-                let result = hbt.submit_buy_order(0, id, price, config.order_qty, TimeInForce::GTX, OrdType::Limit, false, false);
+                let result = hbt.submit_buy_order(
+                    0,
+                    id,
+                    price,
+                    config.order_qty,
+                    TimeInForce::GTX,
+                    OrdType::Limit,
+                    false,
+                    false,
+                );
                 println!("[DEBUG]      Submit BUY result: {:?}", result);
             }
         }
@@ -198,7 +215,9 @@ where
             // Cancel orders not in new grid
             let cancel_ids: Vec<u64> = orders
                 .values()
-                .filter(|o| o.side == Side::Sell && o.cancellable() && !new_orders.contains_key(&o.order_id))
+                .filter(|o| {
+                    o.side == Side::Sell && o.cancellable() && !new_orders.contains_key(&o.order_id)
+                })
                 .map(|o| o.order_id)
                 .collect();
 
@@ -212,10 +231,15 @@ where
             if iteration <= 5 || !submit_orders.is_empty() || !cancel_ids.is_empty() {
                 println!(
                     "[DEBUG] ASK: existing_orders={} new_orders_to_submit={} orders_to_cancel={}",
-                    existing_count, submit_orders.len(), cancel_ids.len()
+                    existing_count,
+                    submit_orders.len(),
+                    cancel_ids.len()
                 );
                 for (id, price) in &submit_orders {
-                    println!("[DEBUG]   -> Submit SELL: id={} price={:.2} qty={}", id, price, config.order_qty);
+                    println!(
+                        "[DEBUG]   -> Submit SELL: id={} price={:.2} qty={}",
+                        id, price, config.order_qty
+                    );
                 }
             }
 
@@ -225,7 +249,16 @@ where
                 println!("[DEBUG]      Cancel result: {:?}", result);
             }
             for (id, price) in submit_orders {
-                let result = hbt.submit_sell_order(0, id, price, config.order_qty, TimeInForce::GTX, OrdType::Limit, false, false);
+                let result = hbt.submit_sell_order(
+                    0,
+                    id,
+                    price,
+                    config.order_qty,
+                    TimeInForce::GTX,
+                    OrdType::Limit,
+                    false,
+                    false,
+                );
                 println!("[DEBUG]      Submit SELL result: {:?}", result);
             }
         }
@@ -241,15 +274,15 @@ fn main() {
     // Note: Binance requires minimum notional of $100 per order
     // At BTC ~$90,000, minimum qty ≈ 0.0012 BTC
     let config = Config {
-        connector_name: "bf",           // Must match connector startup name
-        symbol: "btcusdt",              // Lowercase
-        tick_size: 0.1,                 // BTCUSDT tick size
-        lot_size: 0.001,                // BTCUSDT lot size
-        half_spread: 0.001,             // 0.1% half spread (wider for testnet)
-        grid_interval: 0.0005,          // 0.05% grid interval
-        grid_num: 3,                    // 3 orders per side (reduce rate limit)
-        order_qty: 0.002,               // ~$180 per order (above $100 minimum)
-        max_position: 0.01,             // Max position
+        connector_name: "bf",  // Must match connector startup name
+        symbol: "btcusdt",     // Lowercase
+        tick_size: 0.1,        // BTCUSDT tick size
+        lot_size: 0.001,       // BTCUSDT lot size
+        half_spread: 0.001,    // 0.1% half spread (wider for testnet)
+        grid_interval: 0.0005, // 0.05% grid interval
+        grid_num: 3,           // 3 orders per side (reduce rate limit)
+        order_qty: 0.002,      // ~$180 per order (above $100 minimum)
+        max_position: 0.01,    // Max position
     };
 
     println!("======================================");

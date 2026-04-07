@@ -21,14 +21,9 @@ use tracing::{debug, error, warn};
 
 use crate::{
     binancespot::{
-        BinanceSpotError,
-        SharedSymbolSet,
+        BinanceSpotError, SharedSymbolSet,
         msg::stream::{
-            SignParams,
-            SignRequest,
-            UserEventStream,
-            UserStream,
-            UserStreamSubscribeRequest,
+            SignParams, SignRequest, UserEventStream, UserStream, UserStreamSubscribeRequest,
         },
         ordermanager::SharedOrderManager,
         rest::BinanceSpotClient,
@@ -72,7 +67,8 @@ impl UserDataStream {
                 let event_time = data.event_time;
                 for balance in data.balances {
                     // Ignore send errors during shutdown
-                    let _ = self.ev_tx
+                    let _ = self
+                        .ev_tx
                         .send(PublishEvent::LiveEvent(LiveEvent::Position {
                             symbol: balance.asset,
                             qty: balance.free,
@@ -85,11 +81,10 @@ impl UserDataStream {
                 match self.order_manager.lock().unwrap().update_from_ws(&data) {
                     Ok(Some(order)) => {
                         // Ignore send errors during shutdown
-                        let _ = self.ev_tx
-                            .send(PublishEvent::LiveEvent(LiveEvent::Order {
-                                symbol: data.symbol.clone(),
-                                order,
-                            }));
+                        let _ = self.ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
+                            symbol: data.symbol.clone(),
+                            order,
+                        }));
                     }
                     Ok(None) => {
                         // order已经删除
@@ -263,11 +258,10 @@ pub async fn cancel_all(
     let orders = order_manager.lock().unwrap().cancel_all_from_rest(&symbol);
     for order in orders {
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Order {
-                symbol: symbol.clone(),
-                order,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
+            symbol: symbol.clone(),
+            order,
+        }));
     }
     Ok(())
 }
@@ -283,21 +277,19 @@ pub async fn get_position_information(
     account_infomation.balances.into_iter().for_each(|balance| {
         symbols.remove(&balance.asset);
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                symbol: balance.asset,
-                qty: balance.free,
-                exch_ts,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Position {
+            symbol: balance.asset,
+            qty: balance.free,
+            exch_ts,
+        }));
     });
     for symbol in symbols {
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                symbol,
-                qty: 0.0,
-                exch_ts: 0,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Position {
+            symbol,
+            qty: 0.0,
+            exch_ts: 0,
+        }));
     }
     Ok(())
 }

@@ -5,17 +5,11 @@ use std::{collections::HashMap, fmt::Debug, path::PathBuf};
 use clap::Parser;
 use hftbacktest::{
     backtest::{
-        Backtest,
-        ExchangeKind,
-        L2AssetBuilder,
+        Backtest, ExchangeKind, L2AssetBuilder,
         assettype::LinearAsset,
         data::{DataSource, read_npz_file},
         models::{
-            CommonFees,
-            ConstantLatency,
-            PowerProbQueueFunc3,
-            ProbQueueModel,
-            TradingValueFeeModel,
+            CommonFees, ConstantLatency, PowerProbQueueFunc3, ProbQueueModel, TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
     },
@@ -237,9 +231,7 @@ fn main() {
         .filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().to_string())
         .filter(|name| {
-            name.starts_with(&args.symbol)
-                && name.ends_with(".npz")
-                && !name.contains("_last")
+            name.starts_with(&args.symbol) && name.ends_with(".npz") && !name.contains("_last")
         })
         .collect();
     data_files.sort();
@@ -249,7 +241,10 @@ fn main() {
     }
 
     if data_files.is_empty() {
-        eprintln!("No data files found for {} in {}", args.symbol, args.data_dir);
+        eprintln!(
+            "No data files found for {} in {}",
+            args.symbol, args.data_dir
+        );
         std::process::exit(1);
     }
 
@@ -314,12 +309,8 @@ fn main() {
     let mut hbt = hbt;
     let mut recorder = BacktestRecorder::new(&hbt);
 
-    let result = gridtrading::<HashMapMarketDepth, _, _>(
-        &mut hbt,
-        &mut recorder,
-        order_qty,
-        max_position,
-    );
+    let result =
+        gridtrading::<HashMapMarketDepth, _, _>(&mut hbt, &mut recorder, order_qty, max_position);
 
     match result {
         Ok(()) => eprintln!("Backtest completed successfully."),
@@ -333,9 +324,7 @@ fn main() {
 
     let prefix = format!(
         "{}_{}_{:.0}x_",
-        args.symbol,
-        args.exchange_kind,
-        args.qty_multiplier,
+        args.symbol, args.exchange_kind, args.qty_multiplier,
     );
     recorder.to_csv(&prefix, &args.output).unwrap();
     eprintln!("Results written to {}/{prefix}0.csv", args.output);

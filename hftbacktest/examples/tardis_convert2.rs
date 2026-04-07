@@ -10,9 +10,7 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
-use hftbacktest::data::{
-    convert_and_save_fast, TardisConvertConfig, SnapshotMode,
-};
+use hftbacktest::data::{SnapshotMode, TardisConvertConfig, convert_and_save_fast};
 
 const BASE_PATH: &str = "/mnt/data/samba/users/Data/tardis/datasets/binance-futures";
 
@@ -21,7 +19,10 @@ fn get_trades_path(symbol: &str, date: &str) -> String {
 }
 
 fn get_depth_path(symbol: &str, date: &str) -> String {
-    format!("{}/incremental_book_L2/{}/{}.csv.gz", BASE_PATH, symbol, date)
+    format!(
+        "{}/incremental_book_L2/{}/{}.csv.gz",
+        BASE_PATH, symbol, date
+    )
 }
 
 fn get_output_dir(symbol: &str) -> String {
@@ -29,15 +30,25 @@ fn get_output_dir(symbol: &str) -> String {
 }
 
 fn get_output_path(symbol: &str, date: &str) -> String {
-    format!("{}/{}_{}.npz", get_output_dir(symbol), symbol, date.replace("-", ""))
+    format!(
+        "{}/{}_{}.npz",
+        get_output_dir(symbol),
+        symbol,
+        date.replace("-", "")
+    )
 }
 
 fn get_last_output_path(symbol: &str, date: &str) -> String {
-    format!("{}/{}_{}_last.npz", get_output_dir(symbol), symbol, date.replace("-", ""))
+    format!(
+        "{}/{}_{}_last.npz",
+        get_output_dir(symbol),
+        symbol,
+        date.replace("-", "")
+    )
 }
 
 fn generate_date_range(start_date: &str, end_date: &str) -> Vec<String> {
-    use chrono::{NaiveDate, Duration};
+    use chrono::{Duration, NaiveDate};
 
     let start = NaiveDate::parse_from_str(start_date, "%Y-%m-%d")
         .expect("Invalid start date format, expected YYYY-MM-DD");
@@ -53,7 +64,11 @@ fn generate_date_range(start_date: &str, end_date: &str) -> Vec<String> {
     dates
 }
 
-fn convert_single_day(symbol: &str, date: &str, config: &TardisConvertConfig) -> Result<(), Box<dyn std::error::Error>> {
+fn convert_single_day(
+    symbol: &str,
+    date: &str,
+    config: &TardisConvertConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
     let trades_path = get_trades_path(symbol, date);
     let depth_path = get_depth_path(symbol, date);
     let output_path = get_output_path(symbol, date);
@@ -75,7 +90,7 @@ fn convert_single_day(symbol: &str, date: &str, config: &TardisConvertConfig) ->
 
     println!("  Converting {} {} ...", symbol, date);
     let start = Instant::now();
- 
+
     let input_files = vec![trades_path, depth_path];
 
     // Convert and save main npz file
@@ -103,27 +118,32 @@ fn convert_single_day(symbol: &str, date: &str, config: &TardisConvertConfig) ->
     for event in &events {
         let ev_type = event.ev & 0xFF;
         match ev_type {
-            2 => trade_count += 1,      // TRADE_EVENT
-            1 => depth_count += 1,      // DEPTH_EVENT
-            4 => snapshot_count += 1,   // DEPTH_SNAPSHOT_EVENT
-            3 => clear_count += 1,      // DEPTH_CLEAR_EVENT
+            2 => trade_count += 1,    // TRADE_EVENT
+            1 => depth_count += 1,    // DEPTH_EVENT
+            4 => snapshot_count += 1, // DEPTH_SNAPSHOT_EVENT
+            3 => clear_count += 1,    // DEPTH_CLEAR_EVENT
             _ => {}
         }
     }
 
-    println!("    Stats: trades={}, depth={}, snapshot={}, clear={}",
-             trade_count, depth_count, snapshot_count, clear_count);
+    println!(
+        "    Stats: trades={}, depth={}, snapshot={}, clear={}",
+        trade_count, depth_count, snapshot_count, clear_count
+    );
 
     Ok(())
 }
 
-fn generate_last_snapshot(events: &[hftbacktest::types::Event], output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use std::collections::BTreeMap;
-    use hftbacktest::types::{Event, BUY_EVENT, SELL_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT};
+fn generate_last_snapshot(
+    events: &[hftbacktest::types::Event],
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     use hftbacktest::data::write_npz_file;
+    use hftbacktest::types::{BUY_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, Event, SELL_EVENT};
+    use std::collections::BTreeMap;
 
     // Build final orderbook state from events
-    let mut bids: BTreeMap<i64, f64> = BTreeMap::new();  // price (as i64) -> qty
+    let mut bids: BTreeMap<i64, f64> = BTreeMap::new(); // price (as i64) -> qty
     let mut asks: BTreeMap<i64, f64> = BTreeMap::new();
 
     let mut last_timestamp = 0i64;
@@ -132,7 +152,7 @@ fn generate_last_snapshot(events: &[hftbacktest::types::Event], output_path: &st
     for event in events {
         let ev_type = event.ev & 0xFF;
         if ev_type == DEPTH_EVENT || ev_type == DEPTH_SNAPSHOT_EVENT {
-            let price_key = (event.px * 1e8) as i64;  // Use fixed point for price key
+            let price_key = (event.px * 1e8) as i64; // Use fixed point for price key
             let is_bid = (event.ev & BUY_EVENT) != 0;
 
             if is_bid {
@@ -188,23 +208,36 @@ fn generate_last_snapshot(events: &[hftbacktest::types::Event], output_path: &st
     }
 
     // Save as NPZ using the same format as main file
-    write_npz_file(&snapshot_events, output_path)
-        .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn std::error::Error>)
+    write_npz_file(&snapshot_events, output_path).map_err(|e| {
+        Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)) as Box<dyn std::error::Error>
+    })
 }
 
 fn print_usage(program: &str) {
     println!("Usage:");
     println!("  {} --symbol <SYMBOL> --date <DATE>", program);
-    println!("  {} --symbol <SYMBOL> --date <DATE1> --date <DATE2> ...", program);
-    println!("  {} --symbol <SYMBOL> --start-date <START> --end-date <END>", program);
+    println!(
+        "  {} --symbol <SYMBOL> --date <DATE1> --date <DATE2> ...",
+        program
+    );
+    println!(
+        "  {} --symbol <SYMBOL> --start-date <START> --end-date <END>",
+        program
+    );
     println!();
     println!("Examples:");
     println!("  {} --symbol BTCUSDT --date 2024-01-01", program);
-    println!("  {} --symbol ETHUSDT --start-date 2024-01-01 --end-date 2024-01-31", program);
+    println!(
+        "  {} --symbol ETHUSDT --start-date 2024-01-01 --end-date 2024-01-31",
+        program
+    );
     println!();
     println!("Input:");
     println!("  trades: {}/trades/<SYMBOL>/<DATE>.csv.gz", BASE_PATH);
-    println!("  depth:  {}/incremental_book_L2/<SYMBOL>/<DATE>.csv.gz", BASE_PATH);
+    println!(
+        "  depth:  {}/incremental_book_L2/<SYMBOL>/<DATE>.csv.gz",
+        BASE_PATH
+    );
     println!();
     println!("Output:");
     println!("  {}/hft_npz/<SYMBOL>/<SYMBOL>_<DATE>.npz", BASE_PATH);
@@ -302,7 +335,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         buffer_size: 100_000_000,
         ss_buffer_size: 1_000_000,
         base_latency: 0,
-        snapshot_mode: SnapshotMode::Process,  // Keep all snapshots
+        snapshot_mode: SnapshotMode::Process, // Keep all snapshots
     };
 
     println!("========================================");

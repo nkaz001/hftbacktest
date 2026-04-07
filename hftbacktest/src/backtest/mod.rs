@@ -23,18 +23,10 @@ use crate::{
         proc::{Local, LocalProcessor, NoPartialFillExchange, PartialFillExchange, Processor},
         state::State,
     },
-    depth::{L2MarketDepth, L3MarketDepth, MarketDepth},
+    depth::{L1MarketDepth, L2MarketDepth, L3MarketDepth, MarketDepth},
     prelude::{
-        Bot,
-        OrdType,
-        Order,
-        OrderId,
-        OrderRequest,
-        Side,
-        StateValues,
-        TimeInForce,
-        UNTIL_END_OF_DATA,
-        WaitOrderResponse,
+        Bot, OrdType, Order, OrderId, OrderRequest, Side, StateValues, TimeInForce,
+        UNTIL_END_OF_DATA, WaitOrderResponse,
     },
     types::{BuildError, ElapseResult, Event},
 };
@@ -100,7 +92,7 @@ impl<L, E, D: NpyDTyped + Clone> Asset<L, E, D> {
     pub fn l2_builder<LM, AT, QM, MD, FM>() -> L2AssetBuilder<LM, AT, QM, MD, FM>
     where
         AT: AssetType + Clone + 'static,
-        MD: MarketDepth + L2MarketDepth + 'static,
+        MD: MarketDepth + L2MarketDepth + L1MarketDepth + 'static,
         QM: QueueModel<MD> + 'static,
         LM: LatencyModel + Clone + 'static,
         FM: FeeModel + Clone + 'static,
@@ -147,7 +139,7 @@ pub struct L2AssetBuilder<LM, AT, QM, MD, FM> {
 impl<LM, AT, QM, MD, FM> L2AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
-    MD: MarketDepth + L2MarketDepth + 'static,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth + 'static,
     QM: QueueModel<MD> + 'static,
     LM: LatencyModel + Clone + 'static,
     FM: FeeModel + Clone + 'static,
@@ -341,7 +333,7 @@ where
 impl<LM, AT, QM, MD, FM> Default for L2AssetBuilder<LM, AT, QM, MD, FM>
 where
     AT: AssetType + Clone + 'static,
-    MD: MarketDepth + L2MarketDepth + 'static,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth + 'static,
     QM: QueueModel<MD> + 'static,
     LM: LatencyModel + Clone + 'static,
     FM: FeeModel + Clone + 'static,
@@ -1149,17 +1141,13 @@ mod test {
 
     use crate::{
         backtest::{
-            Backtest,
-            DataSource,
+            Backtest, DataSource,
             ExchangeKind::NoPartialFillExchange,
             L2AssetBuilder,
             assettype::LinearAsset,
             data::Data,
             models::{
-                CommonFees,
-                ConstantLatency,
-                PowerProbQueueFunc3,
-                ProbQueueModel,
+                CommonFees, ConstantLatency, PowerProbQueueFunc3, ProbQueueModel,
                 TradingValueFeeModel,
             },
         },

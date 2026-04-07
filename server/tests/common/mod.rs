@@ -90,7 +90,9 @@ pub async fn create_test_app_with_db() -> Router {
     };
 
     // Create in-memory database
-    let db = Database::in_memory().await.expect("Failed to create test database");
+    let db = Database::in_memory()
+        .await
+        .expect("Failed to create test database");
 
     let state = AppState::new(config).with_db(db);
 

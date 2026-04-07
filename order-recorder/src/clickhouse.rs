@@ -6,8 +6,7 @@ use serde::Serialize;
 use time::OffsetDateTime;
 
 fn nanos_to_datetime(nanos: i64) -> OffsetDateTime {
-    OffsetDateTime::from_unix_timestamp_nanos(nanos as i128)
-        .unwrap_or(OffsetDateTime::UNIX_EPOCH)
+    OffsetDateTime::from_unix_timestamp_nanos(nanos as i128).unwrap_or(OffsetDateTime::UNIX_EPOCH)
 }
 
 #[derive(Row, Serialize, Debug)]

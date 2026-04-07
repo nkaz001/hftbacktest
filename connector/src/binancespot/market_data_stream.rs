@@ -24,8 +24,7 @@ use crate::{
     binancespot::{
         BinanceSpotError,
         msg::{
-            rest,
-            stream,
+            rest, stream,
             stream::{MarketEventStream, MarketStream},
         },
         rest::BinanceSpotClient,
@@ -180,7 +179,68 @@ impl MarketDataStream {
                     error!(error = ?e, "Couldn't parse trade stream.");
                 }
             },
+            MarketEventStream::BookTicker(data) => {
+                self.process_book_ticker(data);
+            }
             _ => unreachable!(),
+        }
+    }
+
+    /// Process a bookTicker event (real-time BBO updates)
+    fn process_book_ticker(&self, data: stream::BookTicker) {
+        // Skip BBO before the first depth update has been received for this symbol.
+        if !self.prev_u.contains_key(&data.symbol) {
+            return;
+        }
+        match parse_px_qty_tup(data.bid_price, data.bid_qty) {
+            Ok((bid_px, bid_qty)) => match parse_px_qty_tup(data.ask_price, data.ask_qty) {
+                Ok((ask_px, ask_qty)) => {
+                    let exch_ts = data.event_time * 1_000_000;
+                    let local_ts = Utc::now().timestamp_nanos_opt().unwrap();
+
+                    self.ev_tx.send(PublishEvent::BatchStart(TO_ALL)).unwrap();
+
+                    self.ev_tx
+                        .send(PublishEvent::LiveEvent(LiveEvent::Feed {
+                            symbol: data.symbol.clone(),
+                            event: Event {
+                                ev: LOCAL_BID_DEPTH_BBO_EVENT,
+                                exch_ts,
+                                local_ts,
+                                order_id: 0,
+                                px: bid_px,
+                                qty: bid_qty,
+                                ival: 0,
+                                fval: 0.0,
+                            },
+                        }))
+                        .unwrap();
+
+                    self.ev_tx
+                        .send(PublishEvent::LiveEvent(LiveEvent::Feed {
+                            symbol: data.symbol,
+                            event: Event {
+                                ev: LOCAL_ASK_DEPTH_BBO_EVENT,
+                                exch_ts,
+                                local_ts,
+                                order_id: 0,
+                                px: ask_px,
+                                qty: ask_qty,
+                                ival: 0,
+                                fval: 0.0,
+                            },
+                        }))
+                        .unwrap();
+
+                    self.ev_tx.send(PublishEvent::BatchEnd(TO_ALL)).unwrap();
+                }
+                Err(e) => {
+                    error!(error = ?e, "Couldn't parse bookTicker ask.");
+                }
+            },
+            Err(e) => {
+                error!(error = ?e, "Couldn't parse bookTicker bid.");
+            }
         }
     }
 
@@ -287,7 +347,8 @@ impl MarketDataStream {
                             "method": "SUBSCRIBE",
                             "params": [
                                 "{symbol}@trade",
-                                "{symbol}@depth@0ms"
+                                "{symbol}@depth@0ms",
+                                "{symbol}@bookTicker"
                             ],
                             "id": "{id}"
                         }}"#).into())).await?;

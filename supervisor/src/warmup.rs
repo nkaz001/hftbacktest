@@ -51,9 +51,14 @@ impl WarmupChecker {
 
         // First try today's .jsonl file (can be read while being written)
         let today = Local::now().format("%Y%m%d").to_string();
-        let jsonl_pattern = self.data_dir.join(format!("{}_{}*.jsonl", symbol_lower, today));
+        let jsonl_pattern = self
+            .data_dir
+            .join(format!("{}_{}*.jsonl", symbol_lower, today));
 
-        if let Some(status) = self.check_jsonl_file(&jsonl_pattern.to_string_lossy()).await {
+        if let Some(status) = self
+            .check_jsonl_file(&jsonl_pattern.to_string_lossy())
+            .await
+        {
             if status.ready {
                 return status;
             }
@@ -63,7 +68,9 @@ impl WarmupChecker {
         let yesterday = (Local::now() - chrono::Duration::days(1))
             .format("%Y%m%d")
             .to_string();
-        let gz_pattern = self.data_dir.join(format!("{}_{}.gz", symbol_lower, yesterday));
+        let gz_pattern = self
+            .data_dir
+            .join(format!("{}_{}.gz", symbol_lower, yesterday));
 
         if let Some(status) = self.check_gz_file(&gz_pattern).await {
             if status.ready {
@@ -73,7 +80,10 @@ impl WarmupChecker {
 
         // Try any recent .jsonl files
         let any_jsonl_pattern = self.data_dir.join(format!("{}_*.jsonl", symbol_lower));
-        if let Some(status) = self.check_any_jsonl(&any_jsonl_pattern.to_string_lossy()).await {
+        if let Some(status) = self
+            .check_any_jsonl(&any_jsonl_pattern.to_string_lossy())
+            .await
+        {
             if status.ready {
                 return status;
             }
@@ -117,7 +127,9 @@ impl WarmupChecker {
 
         let metadata = std::fs::metadata(newest).ok()?;
         let modified = metadata.modified().ok()?;
-        let age = SystemTime::now().duration_since(modified).unwrap_or_default();
+        let age = SystemTime::now()
+            .duration_since(modified)
+            .unwrap_or_default();
 
         // Check file size (needs to have meaningful content)
         let file_size = metadata.len();
@@ -294,7 +306,9 @@ impl WarmupChecker {
 
         let metadata = std::fs::metadata(path).ok()?;
         let modified = metadata.modified().ok()?;
-        let age = SystemTime::now().duration_since(modified).unwrap_or_default();
+        let age = SystemTime::now()
+            .duration_since(modified)
+            .unwrap_or_default();
 
         // For .gz files, we assume they contain at least 1 hour of data
         // since they are created by rotating complete days

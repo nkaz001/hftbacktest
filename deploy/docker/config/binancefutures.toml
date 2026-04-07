@@ -5,8 +5,8 @@
 #   ${BINANCE_API_KEY} and ${BINANCE_SECRET}
 
 # WebSocket stream URL
-# Testnet: wss://fstream.binancefuture.com
-# Mainnet: wss://fstream.binance.com/ws
+# Testnet: wss://fstream.binancefuture.com/ws
+# Mainnet: wss://fstream.binance.com/public/ws  (use /public/ws after 2026-04-23)
 stream_url = "wss://fstream.binancefuture.com/ws"
 
 # REST API URL

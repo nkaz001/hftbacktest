@@ -1,6 +1,8 @@
 use std::collections::{HashMap, hash_map::Entry};
 
-use super::{ApplySnapshot, INVALID_MAX, INVALID_MIN, L3MarketDepth, L3Order, MarketDepth};
+use super::{
+    ApplySnapshot, INVALID_MAX, INVALID_MIN, L1MarketDepth, L3MarketDepth, L3Order, MarketDepth,
+};
 use crate::{
     backtest::{BacktestError, data::Data},
     prelude::{L2MarketDepth, OrderId, Side},
@@ -362,6 +364,218 @@ impl L2MarketDepth for ROIVectorMarketDepth {
                 unreachable!();
             }
         }
+    }
+}
+
+impl L1MarketDepth for ROIVectorMarketDepth {
+    fn update_best_bid(
+        &mut self,
+        px: f64,
+        qty: f64,
+        timestamp: i64,
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (px / self.tick_size).round() as i64;
+        let prev_best_bid_tick = self.best_bid_tick;
+
+        if price_tick < self.roi_lb || price_tick > self.roi_ub {
+            self.best_bid_tick = price_tick;
+            self.timestamp = timestamp;
+            // BBO backed off below ROI: clear stale in-ROI bid levels
+            if price_tick < prev_best_bid_tick {
+                let from = 0usize;
+                let to = ((prev_best_bid_tick + 1) - self.roi_lb)
+                    .max(0)
+                    .min(self.bid_depth.len() as i64) as usize;
+                for i in from..to {
+                    unsafe {
+                        *self.bid_depth.get_unchecked_mut(i) = 0.0;
+                    }
+                }
+            }
+            // Prevent crossing: push best ask above new best bid
+            if price_tick >= self.best_ask_tick {
+                let prev_best_ask = self.best_ask_tick;
+                self.best_ask_tick = depth_above(
+                    &self.ask_depth,
+                    price_tick,
+                    self.high_ask_tick,
+                    self.roi_lb,
+                    self.roi_ub,
+                );
+                let from = ((prev_best_ask - self.roi_lb).max(0)) as usize;
+                let to = (((price_tick + 1) - self.roi_lb)
+                    .max(0)
+                    .min(self.ask_depth.len() as i64)) as usize;
+                for i in from..to {
+                    unsafe {
+                        *self.ask_depth.get_unchecked_mut(i) = 0.0;
+                    }
+                }
+            }
+            return (
+                price_tick,
+                prev_best_bid_tick,
+                self.best_bid_tick,
+                0.0,
+                qty,
+                timestamp,
+            );
+        }
+
+        let t = (price_tick - self.roi_lb) as usize;
+        let prev_qty = unsafe { *self.bid_depth.get_unchecked(t) };
+        unsafe {
+            *self.bid_depth.get_unchecked_mut(t) = qty;
+        }
+
+        self.best_bid_tick = price_tick;
+        self.low_bid_tick = self.low_bid_tick.min(price_tick);
+        self.timestamp = timestamp;
+
+        // Bid backed off: clear stale bid levels above new best
+        if price_tick < prev_best_bid_tick {
+            let from = ((price_tick + 1) - self.roi_lb).max(0) as usize;
+            let to =
+                ((prev_best_bid_tick + 1) - self.roi_lb).min(self.bid_depth.len() as i64) as usize;
+            for i in from..to {
+                unsafe {
+                    *self.bid_depth.get_unchecked_mut(i) = 0.0;
+                }
+            }
+        }
+
+        // Prevent crossing: push best ask above new best bid
+        if price_tick >= self.best_ask_tick {
+            let prev_best_ask = self.best_ask_tick;
+            self.best_ask_tick = depth_above(
+                &self.ask_depth,
+                price_tick,
+                self.high_ask_tick,
+                self.roi_lb,
+                self.roi_ub,
+            );
+            // Clear crossed ask levels
+            let from = ((prev_best_ask - self.roi_lb).max(0)) as usize;
+            let to = (((price_tick + 1) - self.roi_lb).min(self.ask_depth.len() as i64)) as usize;
+            for i in from..to {
+                unsafe {
+                    *self.ask_depth.get_unchecked_mut(i) = 0.0;
+                }
+            }
+        }
+
+        (
+            price_tick,
+            prev_best_bid_tick,
+            self.best_bid_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
+    }
+
+    fn update_best_ask(
+        &mut self,
+        px: f64,
+        qty: f64,
+        timestamp: i64,
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (px / self.tick_size).round() as i64;
+        let prev_best_ask_tick = self.best_ask_tick;
+
+        if price_tick < self.roi_lb || price_tick > self.roi_ub {
+            self.best_ask_tick = price_tick;
+            self.timestamp = timestamp;
+            // BBO backed off above ROI: clear stale in-ROI ask levels
+            if price_tick > prev_best_ask_tick {
+                let from = ((prev_best_ask_tick - self.roi_lb).max(0)) as usize;
+                let to = self.ask_depth.len();
+                for i in from..to {
+                    unsafe {
+                        *self.ask_depth.get_unchecked_mut(i) = 0.0;
+                    }
+                }
+            }
+            // Prevent crossing: push best bid below new best ask
+            if price_tick <= self.best_bid_tick {
+                let prev_best_bid = self.best_bid_tick;
+                self.best_bid_tick = depth_below(
+                    &self.bid_depth,
+                    price_tick,
+                    self.low_bid_tick,
+                    self.roi_lb,
+                    self.roi_ub,
+                );
+                let from = ((price_tick - self.roi_lb).max(0)) as usize;
+                let to = (((prev_best_bid + 1) - self.roi_lb)
+                    .max(0)
+                    .min(self.bid_depth.len() as i64)) as usize;
+                for i in from..to {
+                    unsafe {
+                        *self.bid_depth.get_unchecked_mut(i) = 0.0;
+                    }
+                }
+            }
+            return (
+                price_tick,
+                prev_best_ask_tick,
+                self.best_ask_tick,
+                0.0,
+                qty,
+                timestamp,
+            );
+        }
+
+        let t = (price_tick - self.roi_lb) as usize;
+        let prev_qty = unsafe { *self.ask_depth.get_unchecked(t) };
+        unsafe {
+            *self.ask_depth.get_unchecked_mut(t) = qty;
+        }
+
+        self.best_ask_tick = price_tick;
+        self.high_ask_tick = self.high_ask_tick.max(price_tick);
+        self.timestamp = timestamp;
+
+        // Ask backed off: clear stale ask levels below new best
+        if price_tick > prev_best_ask_tick {
+            let from = ((prev_best_ask_tick - self.roi_lb).max(0)) as usize;
+            let to = ((price_tick - self.roi_lb).min(self.ask_depth.len() as i64)) as usize;
+            for i in from..to {
+                unsafe {
+                    *self.ask_depth.get_unchecked_mut(i) = 0.0;
+                }
+            }
+        }
+
+        // Prevent crossing: push best bid below new best ask
+        if price_tick <= self.best_bid_tick {
+            let prev_best_bid = self.best_bid_tick;
+            self.best_bid_tick = depth_below(
+                &self.bid_depth,
+                price_tick,
+                self.low_bid_tick,
+                self.roi_lb,
+                self.roi_ub,
+            );
+            // Clear crossed bid levels
+            let from = ((price_tick - self.roi_lb).max(0)) as usize;
+            let to =
+                (((prev_best_bid + 1) - self.roi_lb).min(self.bid_depth.len() as i64)) as usize;
+            for i in from..to {
+                unsafe {
+                    *self.bid_depth.get_unchecked_mut(i) = 0.0;
+                }
+            }
+        }
+
+        (
+            price_tick,
+            prev_best_ask_tick,
+            self.best_ask_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
     }
 }
 
@@ -813,7 +1027,10 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 #[cfg(test)]
 mod tests {
     use crate::{
-        depth::{INVALID_MAX, INVALID_MIN, L3MarketDepth, MarketDepth, ROIVectorMarketDepth},
+        depth::{
+            INVALID_MAX, INVALID_MIN, L1MarketDepth, L2MarketDepth, L3MarketDepth, MarketDepth,
+            ROIVectorMarketDepth,
+        },
         types::Side,
     };
 
@@ -824,6 +1041,65 @@ mod tests {
                 ($b / $lot_size).round() as i64
             );
         }};
+    }
+
+    #[test]
+    fn test_l1_bbo_bid_backoff_in_roi() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 0.0, 2000.0);
+
+        depth.update_bid_depth(1000.0, 1.0, 1);
+        depth.update_bid_depth(999.0, 1.0, 1);
+        depth.update_bid_depth(998.0, 1.0, 1);
+
+        depth.update_best_bid(997.0, 4.0, 2);
+
+        assert_eq!(depth.best_bid_tick(), 9970);
+        assert_eq_qty!(depth.bid_qty_at_tick(10000), 0.0, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(9990), 0.0, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(9980), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l1_bbo_bid_outside_roi() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 90.0, 110.0);
+
+        depth.update_bid_depth(100.0, 1.0, 1);
+        depth.update_ask_depth(100.1, 1.0, 1);
+
+        depth.update_best_bid(80.0, 1.0, 2);
+
+        assert_eq!(depth.best_bid_tick(), 800);
+        assert_eq_qty!(depth.bid_qty_at_tick(1000), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l1_bbo_outside_roi_crossing_prevention() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 90.0, 110.0);
+
+        depth.update_ask_depth(100.0, 1.0, 1);
+
+        depth.update_best_bid(111.0, 1.0, 2);
+
+        assert_eq!(depth.best_bid_tick(), 1110);
+        assert!(depth.best_ask_tick() > 1110);
+        assert_eq_qty!(depth.ask_qty_at_tick(1000), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l1_bbo_ask_outside_roi_clearing() {
+        let lot_size = 0.001;
+        let mut depth = ROIVectorMarketDepth::new(0.1, lot_size, 90.0, 110.0);
+
+        depth.update_ask_depth(100.0, 1.0, 1);
+        depth.update_bid_depth(99.9, 1.0, 1);
+
+        depth.update_best_ask(120.0, 1.0, 2);
+
+        assert_eq!(depth.best_ask_tick(), 1200);
+        assert_eq_qty!(depth.ask_qty_at_tick(1000), 0.0, lot_size);
     }
 
     #[test]

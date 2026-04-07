@@ -21,9 +21,7 @@ pub struct ConfigFileInfo {
 }
 
 /// GET /api/config/cluster - Get cluster config content
-pub async fn get_cluster_config(
-    State(state): State<AppState>,
-) -> ApiResult<serde_json::Value> {
+pub async fn get_cluster_config(State(state): State<AppState>) -> ApiResult<serde_json::Value> {
     let config_path = &state.config.cluster_config_path;
 
     if !config_path.exists() {
@@ -41,8 +39,8 @@ pub async fn get_cluster_config(
     let value: toml::Value = toml::from_str(&content)
         .map_err(|e| ApiErrorResponse::internal(format!("Failed to parse config: {}", e)))?;
 
-    let json_value = serde_json::to_value(value)
-        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+    let json_value =
+        serde_json::to_value(value).map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
     Ok(Json(json_value))
 }
@@ -102,7 +100,9 @@ pub async fn update_cluster_config(
         }
     }
 
-    Ok(Json(ApiSuccess::<()>::with_message("Configuration updated")))
+    Ok(Json(ApiSuccess::<()>::with_message(
+        "Configuration updated",
+    )))
 }
 
 /// Strategy config info
@@ -128,8 +128,8 @@ pub async fn list_strategy_configs(
         .await
         .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
-    let config: toml::Value = toml::from_str(&content)
-        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+    let config: toml::Value =
+        toml::from_str(&content).map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
     let mut strategies = Vec::new();
 
@@ -163,8 +163,8 @@ pub async fn get_strategy_config(
         .await
         .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
-    let config: toml::Value = toml::from_str(&content)
-        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+    let config: toml::Value =
+        toml::from_str(&content).map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
     let config_path = config
         .get("bots")
@@ -183,15 +183,13 @@ pub async fn get_strategy_config(
 
     let strategy_content = tokio::fs::read_to_string(config_path)
         .await
-        .map_err(|e| {
-            ApiErrorResponse::not_found(format!("Strategy config not found: {}", e))
-        })?;
+        .map_err(|e| ApiErrorResponse::not_found(format!("Strategy config not found: {}", e)))?;
 
     let value: toml::Value = toml::from_str(&strategy_content)
         .map_err(|e| ApiErrorResponse::internal(format!("Failed to parse config: {}", e)))?;
 
-    let json_value = serde_json::to_value(value)
-        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+    let json_value =
+        serde_json::to_value(value).map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
     Ok(Json(json_value))
 }
@@ -207,8 +205,8 @@ pub async fn get_strategy_config_raw(
         .await
         .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
-    let config: toml::Value = toml::from_str(&content)
-        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+    let config: toml::Value =
+        toml::from_str(&content).map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
     let config_path = config
         .get("bots")
@@ -242,8 +240,8 @@ pub async fn update_strategy_config(
         .await
         .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
-    let config: toml::Value = toml::from_str(&content)
-        .map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
+    let config: toml::Value =
+        toml::from_str(&content).map_err(|e| ApiErrorResponse::internal(e.to_string()))?;
 
     let config_path = config
         .get("bots")

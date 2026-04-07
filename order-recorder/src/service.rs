@@ -75,7 +75,7 @@ impl RecordingService {
             .service_builder(&service_name)
             .publish_subscribe::<RecordingMessage>()
             .max_publishers(self.config.max_publishers)
-            .max_subscribers(2)  // Recording service + potential monitoring
+            .max_subscribers(2) // Recording service + potential monitoring
             .open_or_create()?;
 
         let subscriber = service.subscriber_builder().create()?;
@@ -121,7 +121,13 @@ impl RecordingService {
                 // Debug: log full order details
                 info!(
                     "RECV Order: id={} symbol={} side={:?} price={} qty={} status={:?} latency={}",
-                    order.order_id, order.symbol, order.side, order.price, order.qty, order.status, order.latency_ns
+                    order.order_id,
+                    order.symbol,
+                    order.side,
+                    order.price,
+                    order.qty,
+                    order.status,
+                    order.latency_ns
                 );
                 if let Err(e) = self.writer.write_order(order).await {
                     error!("Failed to write order: {:?}", e);
@@ -170,7 +176,11 @@ impl RecordingService {
             RecordingEvent::Income(ref income) => {
                 info!(
                     "RECV Income: connector={} symbol={} type={} amount={:.4} {}",
-                    income.connector, income.symbol, income.income_type, income.income, income.asset
+                    income.connector,
+                    income.symbol,
+                    income.income_type,
+                    income.income,
+                    income.asset
                 );
                 if let Err(e) = self.writer.write_income(income).await {
                     error!("Failed to write income: {:?}", e);
@@ -179,7 +189,9 @@ impl RecordingService {
             RecordingEvent::Factor(ref snapshot) => {
                 debug!(
                     "Factor: {} {} factors={}",
-                    snapshot.symbol, snapshot.strategy_id, snapshot.factors.len()
+                    snapshot.symbol,
+                    snapshot.strategy_id,
+                    snapshot.factors.len()
                 );
                 if let Err(e) = self.factor_writer.write_factors(snapshot).await {
                     error!("Failed to write factor snapshot: {:?}", e);
@@ -199,11 +211,7 @@ impl RecordingService {
 
 /// Publisher for recording events (used by strategy bot)
 pub struct RecordingPublisher {
-    publisher: iceoryx2::port::publisher::Publisher<
-        ipc::Service,
-        RecordingMessage,
-        (),
-    >,
+    publisher: iceoryx2::port::publisher::Publisher<ipc::Service, RecordingMessage, ()>,
 }
 
 impl RecordingPublisher {
@@ -213,7 +221,10 @@ impl RecordingPublisher {
     }
 
     /// Create a new publisher with custom max_publishers
-    pub fn with_max_publishers(service_name: &str, max_publishers: usize) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn with_max_publishers(
+        service_name: &str,
+        max_publishers: usize,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let node = NodeBuilder::new().create::<ipc::Service>()?;
         let service_name = ServiceName::new(service_name)?;
 
@@ -221,7 +232,7 @@ impl RecordingPublisher {
             .service_builder(&service_name)
             .publish_subscribe::<RecordingMessage>()
             .max_publishers(max_publishers)
-            .max_subscribers(2)  // Recording service + potential monitoring
+            .max_subscribers(2) // Recording service + potential monitoring
             .open_or_create()?;
 
         let publisher = service.publisher_builder().create()?;
@@ -239,37 +250,58 @@ impl RecordingPublisher {
     }
 
     /// Publish an order update
-    pub fn publish_order(&self, order: crate::events::OrderUpdate) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn publish_order(
+        &self,
+        order: crate::events::OrderUpdate,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Order(order))
     }
 
     /// Publish a fill event
-    pub fn publish_fill(&self, fill: crate::events::FillEvent) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn publish_fill(
+        &self,
+        fill: crate::events::FillEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Fill(fill))
     }
 
     /// Publish a position snapshot
-    pub fn publish_position(&self, pos: crate::events::PositionSnapshot) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn publish_position(
+        &self,
+        pos: crate::events::PositionSnapshot,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Position(pos))
     }
 
     /// Publish an account snapshot
-    pub fn publish_account(&self, account: crate::events::AccountSnapshot) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn publish_account(
+        &self,
+        account: crate::events::AccountSnapshot,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Account(account))
     }
 
     /// Publish a strategy status
-    pub fn publish_status(&self, status: crate::events::StrategyStatus) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn publish_status(
+        &self,
+        status: crate::events::StrategyStatus,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Status(status))
     }
 
     /// Publish an income event
-    pub fn publish_income(&self, income: crate::events::IncomeEvent) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn publish_income(
+        &self,
+        income: crate::events::IncomeEvent,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Income(income))
     }
 
     /// Publish a factor snapshot
-    pub fn publish_factors(&self, snapshot: crate::events::FactorSnapshot) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn publish_factors(
+        &self,
+        snapshot: crate::events::FactorSnapshot,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.publish(&RecordingEvent::Factor(snapshot))
     }
 }

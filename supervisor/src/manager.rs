@@ -314,7 +314,10 @@ impl BotManager {
             // Force kill if still running
             if let Some(ref mut process) = bot.process {
                 if process.try_wait().ok().flatten().is_none() {
-                    warn!(bot_id = bot_id, "Bot did not exit gracefully, sending SIGKILL");
+                    warn!(
+                        bot_id = bot_id,
+                        "Bot did not exit gracefully, sending SIGKILL"
+                    );
                     if let Err(e) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGKILL) {
                         error!(bot_id = bot_id, error = %e, "Failed to send SIGKILL");
                     }
@@ -604,10 +607,7 @@ impl BotManager {
         let binary_path = self.bin_dir.join(strategy);
 
         if !binary_path.exists() {
-            anyhow::bail!(
-                "Strategy binary not found: {}",
-                binary_path.display()
-            );
+            anyhow::bail!("Strategy binary not found: {}", binary_path.display());
         }
 
         // Build command
@@ -619,7 +619,10 @@ impl BotManager {
 
         // Pass connector name if specified, otherwise use default connector
         let config = self.config.read().await;
-        let connector_name = bot.config.connector.clone()
+        let connector_name = bot
+            .config
+            .connector
+            .clone()
             .or_else(|| config.default_connector_name().map(|s| s.to_string()));
 
         // Get tick_size and lot_size from bot config or defaults
@@ -659,12 +662,9 @@ impl BotManager {
         cmd.stderr(Stdio::from(log_file));
 
         // Spawn process
-        let child = cmd.spawn().with_context(|| {
-            format!(
-                "Failed to spawn bot process: {}",
-                binary_path.display()
-            )
-        })?;
+        let child = cmd
+            .spawn()
+            .with_context(|| format!("Failed to spawn bot process: {}", binary_path.display()))?;
 
         let pid = child.id().unwrap_or(0);
         info!(bot_id = bot_id, pid = pid, "Bot process started");

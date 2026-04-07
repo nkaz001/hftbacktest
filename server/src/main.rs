@@ -169,7 +169,10 @@ async fn main() -> Result<()> {
         // Config
         .route("/api/config/cluster", get(config::get_cluster_config))
         .route("/api/config/cluster", put(config::update_cluster_config))
-        .route("/api/config/cluster/raw", get(config::get_cluster_config_raw))
+        .route(
+            "/api/config/cluster/raw",
+            get(config::get_cluster_config_raw),
+        )
         .route("/api/config/strategies", get(config::list_strategy_configs))
         .route(
             "/api/config/strategies/:bot_id",

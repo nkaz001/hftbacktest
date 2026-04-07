@@ -50,7 +50,9 @@ pub mod recording {
         /// Get all positions
         fn get_positions(
             &self,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_>>;
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_>,
+        >;
     }
 
     /// Trait for income sync providers
@@ -59,7 +61,9 @@ pub mod recording {
         fn get_income(
             &self,
             since: Option<i64>,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>>;
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>,
+        >;
     }
 
     /// Trait for account sync providers
@@ -132,10 +136,7 @@ pub mod recording {
         }
 
         /// Run position sync loop
-        pub async fn run_position_sync<P: PositionProvider>(
-            &self,
-            provider: Arc<P>,
-        ) {
+        pub async fn run_position_sync<P: PositionProvider>(&self, provider: Arc<P>) {
             // Wait for order-recorder to be ready
             tokio::time::sleep(Duration::from_secs(10)).await;
 
@@ -153,7 +154,9 @@ pub mod recording {
                         let registered = self.symbols.lock().unwrap().clone();
                         for pos in positions {
                             // Only publish positions for registered symbols
-                            if !registered.is_empty() && !registered.contains(&pos.symbol.to_lowercase()) {
+                            if !registered.is_empty()
+                                && !registered.contains(&pos.symbol.to_lowercase())
+                            {
                                 continue;
                             }
 
@@ -176,7 +179,9 @@ pub mod recording {
                                 snapshot.symbol, snapshot.position, snapshot.unrealized_pnl
                             );
 
-                            if let Err(e) = self.publisher.publish(&RecordingEvent::Position(snapshot)) {
+                            if let Err(e) =
+                                self.publisher.publish(&RecordingEvent::Position(snapshot))
+                            {
                                 error!("Failed to publish position: {:?}", e);
                             }
                         }
@@ -189,10 +194,7 @@ pub mod recording {
         }
 
         /// Run account equity sync loop
-        pub async fn run_account_sync<A: AccountProvider>(
-            &self,
-            provider: Arc<A>,
-        ) {
+        pub async fn run_account_sync<A: AccountProvider>(&self, provider: Arc<A>) {
             // Wait for order-recorder to be ready
             tokio::time::sleep(Duration::from_secs(10)).await;
 
@@ -226,7 +228,9 @@ pub mod recording {
 
                         debug!(
                             "Account sync: connector={} equity={:.2} maint_margin={:.2}",
-                            snapshot.connector, snapshot.account_equity, snapshot.account_maint_margin
+                            snapshot.connector,
+                            snapshot.account_equity,
+                            snapshot.account_maint_margin
                         );
 
                         if let Err(e) = self.publisher.publish(&RecordingEvent::Account(snapshot)) {
@@ -241,10 +245,7 @@ pub mod recording {
         }
 
         /// Run income sync loop
-        pub async fn run_income_sync<I: IncomeProvider>(
-            &self,
-            provider: Arc<I>,
-        ) {
+        pub async fn run_income_sync<I: IncomeProvider>(&self, provider: Arc<I>) {
             // Wait for order-recorder to be ready
             tokio::time::sleep(Duration::from_secs(10)).await;
 
@@ -273,13 +274,11 @@ pub mod recording {
                         let mut max_time = since.unwrap_or(0);
 
                         if incomes.is_empty() {
-                            info!(
-                                "Income sync: no new entries (since={})",
-                                since.unwrap_or(0)
-                            );
+                            info!("Income sync: no new entries (since={})", since.unwrap_or(0));
                         } else {
                             // Log income types for debugging
-                            let type_counts: std::collections::HashMap<String, usize> = incomes.iter()
+                            let type_counts: std::collections::HashMap<String, usize> = incomes
+                                .iter()
                                 .fold(std::collections::HashMap::new(), |mut acc, i| {
                                     *acc.entry(i.income_type.clone()).or_insert(0) += 1;
                                     acc
@@ -296,7 +295,9 @@ pub mod recording {
                         let mut skipped = 0;
                         for inc in incomes {
                             // Only publish income for registered symbols (or if no symbols registered)
-                            if !registered.is_empty() && !registered.contains(&inc.symbol.to_lowercase()) {
+                            if !registered.is_empty()
+                                && !registered.contains(&inc.symbol.to_lowercase())
+                            {
                                 skipped += 1;
                                 continue;
                             }
@@ -318,7 +319,11 @@ pub mod recording {
 
                             debug!(
                                 "Income sync: {} {} {} = {:.4} {}",
-                                event.symbol, event.income_type, event.trade_id, event.income, event.asset
+                                event.symbol,
+                                event.income_type,
+                                event.trade_id,
+                                event.income,
+                                event.asset
                             );
 
                             match self.publisher.publish(&RecordingEvent::Income(event)) {
@@ -369,23 +374,25 @@ pub mod recording {
         impl PositionProvider for BinanceFuturesProvider {
             fn get_positions(
                 &self,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_>> {
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_,
+                >,
+            > {
                 Box::pin(async move {
                     match self.client.get_position_information().await {
-                        Ok(positions) => {
-                            Ok(positions
-                                .into_iter()
-                                .filter(|p| p.position_amount.abs() > 0.0)
-                                .map(|p| PositionData {
-                                    symbol: p.symbol.to_lowercase(),
-                                    position: p.position_amount,
-                                    entry_price: p.entry_price,
-                                    mark_price: p.mark_price,
-                                    unrealized_pnl: p.unrealized_pnl.parse().unwrap_or(0.0),
-                                    update_time: p.update_time,
-                                })
-                                .collect())
-                        }
+                        Ok(positions) => Ok(positions
+                            .into_iter()
+                            .filter(|p| p.position_amount.abs() > 0.0)
+                            .map(|p| PositionData {
+                                symbol: p.symbol.to_lowercase(),
+                                position: p.position_amount,
+                                entry_price: p.entry_price,
+                                mark_price: p.mark_price,
+                                unrealized_pnl: p.unrealized_pnl.parse().unwrap_or(0.0),
+                                update_time: p.update_time,
+                            })
+                            .collect()),
                         Err(e) => Err(format!("Failed to get positions: {:?}", e)),
                     }
                 })
@@ -396,7 +403,9 @@ pub mod recording {
             fn get_account(
                 &self,
             ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_>,
+                Box<
+                    dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_,
+                >,
             > {
                 Box::pin(async move {
                     match self.client.get_account().await {
@@ -425,24 +434,28 @@ pub mod recording {
             fn get_income(
                 &self,
                 since: Option<i64>,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>> {
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>,
+            > {
                 Box::pin(async move {
-                    match self.client.get_income(None, None, since, None, Some(1000)).await {
-                        Ok(incomes) => {
-                            Ok(incomes
-                                .into_iter()
-                                .map(|i| IncomeData {
-                                    symbol: i.symbol,
-                                    income_type: i.income_type,
-                                    income: i.income,
-                                    asset: i.asset,
-                                    info: i.info,
-                                    time: i.time,
-                                    tran_id: i.tran_id,
-                                    trade_id: i.trade_id,
-                                })
-                                .collect())
-                        }
+                    match self
+                        .client
+                        .get_income(None, None, since, None, Some(1000))
+                        .await
+                    {
+                        Ok(incomes) => Ok(incomes
+                            .into_iter()
+                            .map(|i| IncomeData {
+                                symbol: i.symbol,
+                                income_type: i.income_type,
+                                income: i.income,
+                                asset: i.asset,
+                                info: i.info,
+                                time: i.time,
+                                tran_id: i.tran_id,
+                                trade_id: i.trade_id,
+                            })
+                            .collect()),
                         Err(e) => Err(format!("Failed to get income: {:?}", e)),
                     }
                 })
@@ -469,23 +482,25 @@ pub mod recording {
         impl PositionProvider for BinancePapiProvider {
             fn get_positions(
                 &self,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_>> {
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_,
+                >,
+            > {
                 Box::pin(async move {
                     match self.client.get_um_position_risk().await {
-                        Ok(positions) => {
-                            Ok(positions
-                                .into_iter()
-                                .filter(|p| p.position_amount.abs() > 0.0)
-                                .map(|p| PositionData {
-                                    symbol: p.symbol.to_lowercase(),
-                                    position: p.position_amount,
-                                    entry_price: p.entry_price,
-                                    mark_price: p.mark_price,
-                                    unrealized_pnl: p.unrealized_pnl,
-                                    update_time: p.update_time,
-                                })
-                                .collect())
-                        }
+                        Ok(positions) => Ok(positions
+                            .into_iter()
+                            .filter(|p| p.position_amount.abs() > 0.0)
+                            .map(|p| PositionData {
+                                symbol: p.symbol.to_lowercase(),
+                                position: p.position_amount,
+                                entry_price: p.entry_price,
+                                mark_price: p.mark_price,
+                                unrealized_pnl: p.unrealized_pnl,
+                                update_time: p.update_time,
+                            })
+                            .collect()),
                         Err(e) => Err(format!("Failed to get PAPI positions: {:?}", e)),
                     }
                 })
@@ -496,7 +511,9 @@ pub mod recording {
             fn get_account(
                 &self,
             ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_>,
+                Box<
+                    dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_,
+                >,
             > {
                 Box::pin(async move {
                     match self.client.get_account_info().await {
@@ -518,24 +535,28 @@ pub mod recording {
             fn get_income(
                 &self,
                 since: Option<i64>,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>> {
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>,
+            > {
                 Box::pin(async move {
-                    match self.client.get_um_income(None, None, since, None, Some(1000)).await {
-                        Ok(incomes) => {
-                            Ok(incomes
-                                .into_iter()
-                                .map(|i| IncomeData {
-                                    symbol: i.symbol,
-                                    income_type: i.income_type,
-                                    income: i.income,
-                                    asset: i.asset,
-                                    info: i.info,
-                                    time: i.time,
-                                    tran_id: i.tran_id,
-                                    trade_id: i.trade_id,
-                                })
-                                .collect())
-                        }
+                    match self
+                        .client
+                        .get_um_income(None, None, since, None, Some(1000))
+                        .await
+                    {
+                        Ok(incomes) => Ok(incomes
+                            .into_iter()
+                            .map(|i| IncomeData {
+                                symbol: i.symbol,
+                                income_type: i.income_type,
+                                income: i.income,
+                                asset: i.asset,
+                                info: i.info,
+                                time: i.time,
+                                tran_id: i.tran_id,
+                                trade_id: i.trade_id,
+                            })
+                            .collect()),
                         Err(e) => Err(format!("Failed to get PAPI income: {:?}", e)),
                     }
                 })
@@ -566,25 +587,27 @@ pub mod recording {
         impl PositionProvider for BybitProvider {
             fn get_positions(
                 &self,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_>> {
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<Vec<PositionData>, String>> + Send + '_,
+                >,
+            > {
                 let category = self.category.clone();
                 Box::pin(async move {
                     // settleCoin is required for unified account
                     match self.client.get_all_positions(&category, Some("USDT")).await {
-                        Ok(positions) => {
-                            Ok(positions
-                                .into_iter()
-                                .filter(|p| p.size.abs() > 0.0)
-                                .map(|p| PositionData {
-                                    symbol: p.symbol.to_lowercase(),
-                                    position: p.size,
-                                    entry_price: p.entry_price.unwrap_or(0.0),
-                                    mark_price: p.mark_price,
-                                    unrealized_pnl: p.unrealised_pnl.parse().unwrap_or(0.0),
-                                    update_time: p.updated_time,
-                                })
-                                .collect())
-                        }
+                        Ok(positions) => Ok(positions
+                            .into_iter()
+                            .filter(|p| p.size.abs() > 0.0)
+                            .map(|p| PositionData {
+                                symbol: p.symbol.to_lowercase(),
+                                position: p.size,
+                                entry_price: p.entry_price.unwrap_or(0.0),
+                                mark_price: p.mark_price,
+                                unrealized_pnl: p.unrealised_pnl.parse().unwrap_or(0.0),
+                                update_time: p.updated_time,
+                            })
+                            .collect()),
                         Err(e) => Err(format!("Failed to get positions: {:?}", e)),
                     }
                 })
@@ -595,15 +618,16 @@ pub mod recording {
             fn get_account(
                 &self,
             ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_>,
+                Box<
+                    dyn std::future::Future<Output = Result<AccountEquityData, String>> + Send + '_,
+                >,
             > {
                 Box::pin(async move {
                     match self.client.get_wallet_balance("UNIFIED").await {
                         Ok(accounts) => {
-                            let account = accounts
-                                .into_iter()
-                                .next()
-                                .ok_or_else(|| "Bybit wallet balance response was empty".to_string())?;
+                            let account = accounts.into_iter().next().ok_or_else(|| {
+                                "Bybit wallet balance response was empty".to_string()
+                            })?;
                             let uni_mmr = account.account_mm_rate.unwrap_or_else(|| {
                                 if account.total_equity.abs() > f64::EPSILON {
                                     account.total_maintenance_margin / account.total_equity
@@ -631,12 +655,21 @@ pub mod recording {
             fn get_income(
                 &self,
                 since: Option<i64>,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>> {
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<Vec<IncomeData>, String>> + Send + '_>,
+            > {
                 let category = self.category.clone();
                 Box::pin(async move {
                     match self
                         .client
-                        .get_transaction_log("UNIFIED", Some(&category), None, since, None, Some(50))
+                        .get_transaction_log(
+                            "UNIFIED",
+                            Some(&category),
+                            None,
+                            since,
+                            None,
+                            Some(50),
+                        )
                         .await
                     {
                         Ok(logs) => {

@@ -294,7 +294,11 @@ impl BinancePapiClient {
         exchange_order_id: i64,
         symbol: &str,
     ) -> Result<OrderResponse, BinancePapiError> {
-        let body = format!("symbol={}&orderId={}", symbol.to_uppercase(), exchange_order_id);
+        let body = format!(
+            "symbol={}&orderId={}",
+            symbol.to_uppercase(),
+            exchange_order_id
+        );
 
         let resp: OrderResponseResult = self.delete("/papi/v1/um/order", body).await?;
         match resp {

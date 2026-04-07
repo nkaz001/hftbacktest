@@ -2,10 +2,7 @@ use std::{collections::HashMap, fmt, fmt::Debug};
 
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
-    Deserialize,
-    Deserializer,
-    Serialize,
-    de,
+    Deserialize, Deserializer, Serialize, de,
     de::{Error, Unexpected, Visitor},
 };
 

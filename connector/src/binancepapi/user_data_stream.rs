@@ -21,8 +21,7 @@ use tracing::{debug, error, warn};
 
 use crate::{
     binancepapi::{
-        BinancePapiError,
-        SharedSymbolSet,
+        BinancePapiError, SharedSymbolSet,
         msg::stream::{EventStream, Stream},
         ordermanager::SharedOrderManager,
         rest::BinancePapiClient,
@@ -61,14 +60,17 @@ impl UserDataStream {
 
     fn process_message(&self, stream: EventStream) -> Result<(), BinancePapiError> {
         match stream {
-            EventStream::DepthUpdate(_) | EventStream::Trade(_) => unreachable!(),
+            EventStream::DepthUpdate(_) | EventStream::Trade(_) | EventStream::BookTicker(_) => {
+                unreachable!()
+            }
             EventStream::ListenKeyExpired(_) => {
                 return Err(BinancePapiError::ListenKeyExpired);
             }
             EventStream::AccountUpdate(data) => {
                 for position in data.account.position {
                     // Ignore send errors during shutdown
-                    let _ = self.ev_tx
+                    let _ = self
+                        .ev_tx
                         .send(PublishEvent::LiveEvent(LiveEvent::Position {
                             symbol: position.symbol,
                             qty: position.position_amount,
@@ -89,11 +91,10 @@ impl UserDataStream {
                 match self.order_manager.lock().unwrap().update_from_ws(&data) {
                     Ok(Some(order)) => {
                         // Ignore send errors during shutdown
-                        let _ = self.ev_tx
-                            .send(PublishEvent::LiveEvent(LiveEvent::Order {
-                                symbol: data.order.symbol,
-                                order,
-                            }));
+                        let _ = self.ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
+                            symbol: data.order.symbol,
+                            order,
+                        }));
                     }
                     Ok(None) => {
                         // This order is already deleted.
@@ -284,11 +285,10 @@ pub async fn cancel_all(
     let orders = order_manager.lock().unwrap().cancel_all_from_rest(&symbol);
     for order in orders {
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Order {
-                symbol: symbol.clone(),
-                order,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Order {
+            symbol: symbol.clone(),
+            order,
+        }));
     }
     Ok(())
 }
@@ -302,21 +302,19 @@ pub async fn get_position_information(
     position_information.into_iter().for_each(|position| {
         symbols.remove(&position.symbol);
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                symbol: position.symbol,
-                qty: position.position_amount,
-                exch_ts: position.update_time * 1_000_000,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Position {
+            symbol: position.symbol,
+            qty: position.position_amount,
+            exch_ts: position.update_time * 1_000_000,
+        }));
     });
     for symbol in symbols {
         // Ignore send errors during shutdown
-        let _ = ev_tx
-            .send(PublishEvent::LiveEvent(LiveEvent::Position {
-                symbol,
-                qty: 0.0,
-                exch_ts: 0,
-            }));
+        let _ = ev_tx.send(PublishEvent::LiveEvent(LiveEvent::Position {
+            symbol,
+            qty: 0.0,
+            exch_ts: 0,
+        }));
     }
     Ok(())
 }

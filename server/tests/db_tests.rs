@@ -21,9 +21,7 @@ async fn test_login_with_database() {
                 .method("POST")
                 .uri("/api/auth/login")
                 .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"username": "admin", "password": "admin"}"#,
-                ))
+                .body(Body::from(r#"{"username": "admin", "password": "admin"}"#))
                 .unwrap(),
         )
         .await
@@ -52,9 +50,7 @@ async fn test_login_wrong_password() {
                 .method("POST")
                 .uri("/api/auth/login")
                 .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"username": "admin", "password": "wrong"}"#,
-                ))
+                .body(Body::from(r#"{"username": "admin", "password": "wrong"}"#))
                 .unwrap(),
         )
         .await

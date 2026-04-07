@@ -177,10 +177,8 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         // Use timeout to allow checking shutdown flag
-        match tokio::time::timeout(
-            tokio::time::Duration::from_millis(100),
-            writer_rx.recv()
-        ).await {
+        match tokio::time::timeout(tokio::time::Duration::from_millis(100), writer_rx.recv()).await
+        {
             Ok(Some((recv_time, symbol, data))) => {
                 if let Err(error) = writer.write(recv_time, symbol, data) {
                     error!(?error, "write error");

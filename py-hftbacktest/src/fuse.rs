@@ -4,13 +4,8 @@ use hftbacktest::{
     depth::FusedHashMapMarketDepth,
     prelude::Event,
     types::{
-        BUY_EVENT,
-        DEPTH_BBO_EVENT,
-        DEPTH_CLEAR_EVENT,
-        DEPTH_EVENT,
-        DEPTH_SNAPSHOT_EVENT,
-        SELL_EVENT,
-        Side,
+        BUY_EVENT, DEPTH_BBO_EVENT, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT,
+        SELL_EVENT, Side,
     },
 };
 

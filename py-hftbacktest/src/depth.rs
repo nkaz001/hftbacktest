@@ -3,11 +3,7 @@
 use std::mem::forget;
 
 use hftbacktest::prelude::{
-    ApplySnapshot,
-    Event,
-    HashMapMarketDepth,
-    MarketDepth,
-    ROIVectorMarketDepth,
+    ApplySnapshot, Event, HashMapMarketDepth, MarketDepth, ROIVectorMarketDepth,
 };
 
 #[unsafe(no_mangle)]

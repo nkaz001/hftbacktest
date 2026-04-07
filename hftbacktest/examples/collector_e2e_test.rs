@@ -22,11 +22,10 @@ use clap::Parser;
 use flate2::read::GzDecoder;
 
 use hftbacktest::data::{
-    convert_collector_to_events, convert_to_tardis_csv, CollectorConvertConfig,
+    CollectorConvertConfig, convert_collector_to_events, convert_to_tardis_csv,
 };
 use hftbacktest::types::{
-    Event, BUY_EVENT, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, SELL_EVENT,
-    TRADE_EVENT,
+    BUY_EVENT, DEPTH_CLEAR_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, Event, SELL_EVENT, TRADE_EVENT,
 };
 
 #[derive(Parser, Debug)]
@@ -84,11 +83,7 @@ struct ValidationResult {
     errors: Vec<String>,
 }
 
-fn run_collector(
-    output_dir: &Path,
-    symbol: &str,
-    duration: Duration,
-) -> Result<PathBuf, String> {
+fn run_collector(output_dir: &Path, symbol: &str, duration: Duration) -> Result<PathBuf, String> {
     println!("Starting collector for {} seconds...", duration.as_secs());
 
     // Ensure output directory exists
@@ -111,15 +106,13 @@ fn run_collector(
     let collector_path = "/home/b0qi/bookdisco/hftbacktest/target/release/collector";
     let output_path = output_dir.to_string_lossy().to_string();
 
-    println!("Running collector: {} {} binancefuturesum {}",
-             collector_path, output_path, symbol);
+    println!(
+        "Running collector: {} {} binancefuturesum {}",
+        collector_path, output_path, symbol
+    );
 
     let mut child: Child = Command::new(collector_path)
-        .args([
-            &output_path,
-            "binancefuturesum",
-            symbol,
-        ])
+        .args([&output_path, "binancefuturesum", symbol])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -164,7 +157,10 @@ fn run_collector(
             }
         }
 
-        Err(format!("No collector output file found in {:?}", output_dir))
+        Err(format!(
+            "No collector output file found in {:?}",
+            output_dir
+        ))
     }
 }
 
@@ -351,8 +347,14 @@ fn print_validation_result(result: &ValidationResult) {
     println!("  Duration: {:.2} seconds", duration_sec);
 
     println!("\nLatency stats:");
-    println!("  Min: {:.3} ms", result.min_latency_ns as f64 / 1_000_000.0);
-    println!("  Max: {:.3} ms", result.max_latency_ns as f64 / 1_000_000.0);
+    println!(
+        "  Min: {:.3} ms",
+        result.min_latency_ns as f64 / 1_000_000.0
+    );
+    println!(
+        "  Max: {:.3} ms",
+        result.max_latency_ns as f64 / 1_000_000.0
+    );
     println!("  Avg: {:.3} ms", result.avg_latency_ns / 1_000_000.0);
 
     if result.trade_events > 0 {
@@ -399,7 +401,11 @@ fn main() -> Result<(), String> {
         }
         found.ok_or_else(|| format!("No existing data file found in {:?}", args.output))?
     } else {
-        run_collector(&args.output, &args.symbol, Duration::from_secs(args.duration))?
+        run_collector(
+            &args.output,
+            &args.symbol,
+            Duration::from_secs(args.duration),
+        )?
     };
 
     // Count raw lines
@@ -410,15 +416,22 @@ fn main() -> Result<(), String> {
     println!("\nConverting to Tardis CSV format...");
     let trades_csv = args.output.join("trades.csv.gz");
     let depth_csv = args.output.join("depth.csv.gz");
+    let book_ticker_csv = args.output.join("book_ticker.csv.gz");
 
     let config = CollectorConvertConfig::default();
-    let stats =
-        convert_to_tardis_csv(&[&collector_file], &trades_csv, &depth_csv, &config)?;
+    let stats = convert_to_tardis_csv(
+        &[&collector_file],
+        &trades_csv,
+        &depth_csv,
+        &book_ticker_csv,
+        &config,
+    )?;
 
     println!("Conversion stats:");
     println!("  Trades: {}", stats.trades);
     println!("  Depth updates: {}", stats.depth_updates);
     println!("  Snapshot entries: {}", stats.snapshot_entries);
+    println!("  Book tickers: {}", stats.book_ticker_count);
 
     // Step 3: Convert to Event format
     println!("\nConverting to Event format...");
@@ -447,6 +460,9 @@ fn main() -> Result<(), String> {
         println!("All validations passed!");
         Ok(())
     } else {
-        Err(format!("{} validation errors found", validation.errors.len()))
+        Err(format!(
+            "{} validation errors found",
+            validation.errors.len()
+        ))
     }
 }

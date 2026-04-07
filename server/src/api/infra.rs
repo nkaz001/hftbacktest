@@ -164,13 +164,13 @@ pub async fn stop_all(State(state): State<AppState>) -> ApiResult<ApiSuccess<()>
         .await
         .map_err(ApiErrorResponse::from)?;
 
-    Ok(Json(ApiSuccess::<()>::with_message("Stop all command sent")))
+    Ok(Json(ApiSuccess::<()>::with_message(
+        "Stop all command sent",
+    )))
 }
 
 /// GET /api/cluster/health - Get cluster health status
-pub async fn get_cluster_health(
-    State(state): State<AppState>,
-) -> ApiResult<ClusterHealthStatus> {
+pub async fn get_cluster_health(State(state): State<AppState>) -> ApiResult<ClusterHealthStatus> {
     if !state.supervisor.is_available().await {
         return Err(ApiErrorResponse::service_unavailable(
             ApiError::supervisor_unavailable(),

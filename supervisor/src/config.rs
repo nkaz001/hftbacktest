@@ -487,8 +487,14 @@ data_dir = "/tmp/data/raw"
         assert!(config.connector.is_none());
         assert_eq!(config.connectors.len(), 2);
         assert_eq!(config.all_connectors().len(), 2);
-        assert_eq!(config.get_connector("bf").unwrap().connector_type, "binancefutures");
-        assert_eq!(config.get_connector("bybit").unwrap().connector_type, "bybit_rest");
+        assert_eq!(
+            config.get_connector("bf").unwrap().connector_type,
+            "binancefutures"
+        );
+        assert_eq!(
+            config.get_connector("bybit").unwrap().connector_type,
+            "bybit_rest"
+        );
         assert_eq!(config.default_connector_name(), Some("bf"));
     }
 

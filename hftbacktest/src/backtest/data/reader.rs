@@ -16,8 +16,7 @@ use crate::{
     backtest::{
         BacktestError,
         data::{
-            Data,
-            POD,
+            Data, POD,
             npy::{NpyDTyped, read_npy_file, read_npz_file},
         },
     },

@@ -4,12 +4,12 @@
 #   stream_url = "wss://fstream.binancefuture.com/ws"
 #   api_url = "https://demo-fapi.binance.com"
 #
-# Mainnet:
-#   stream_url = "wss://fstream.binance.com/ws"
+# Mainnet (use /public/ws after 2026-04-23, legacy /ws deprecated):
+#   stream_url = "wss://fstream.binance.com/public/ws"
 #   api_url = "https://fapi.binance.com"
 #
 # Low-Latency Market Maker (Mainnet only):
-#   stream_url = "wss://fstream-mm.binance.com/ws"
+#   stream_url = "wss://fstream-mm.binance.com/public/ws"
 #   api_url = "https://fapi-mm.binance.com"
 
 # Current: Testnet

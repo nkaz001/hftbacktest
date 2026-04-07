@@ -11,9 +11,7 @@ use std::fs::File;
 use std::io::Write;
 use std::time::Instant;
 
-use hftbacktest::data::{
-    convert_and_save_fast, TardisConvertConfig, SnapshotMode,
-};
+use hftbacktest::data::{SnapshotMode, TardisConvertConfig, convert_and_save_fast};
 
 fn generate_sample_data() -> std::io::Result<(String, String)> {
     let trades_path = "/tmp/sample_trades.csv";
@@ -21,7 +19,10 @@ fn generate_sample_data() -> std::io::Result<(String, String)> {
 
     // Generate sample trades
     let mut trades_file = File::create(trades_path)?;
-    writeln!(trades_file, "exchange,symbol,timestamp,local_timestamp,id,side,price,amount")?;
+    writeln!(
+        trades_file,
+        "exchange,symbol,timestamp,local_timestamp,id,side,price,amount"
+    )?;
 
     let base_ts: i64 = 1700000000000000; // microseconds
     for i in 0..10000 {
@@ -39,7 +40,10 @@ fn generate_sample_data() -> std::io::Result<(String, String)> {
 
     // Generate sample depth updates
     let mut depth_file = File::create(depth_path)?;
-    writeln!(depth_file, "exchange,symbol,timestamp,local_timestamp,is_snapshot,side,price,amount")?;
+    writeln!(
+        depth_file,
+        "exchange,symbol,timestamp,local_timestamp,is_snapshot,side,price,amount"
+    )?;
 
     // First, add a snapshot
     let snapshot_ts = base_ts;
@@ -87,7 +91,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        println!("Usage: {} <trades.csv.gz> <depth.csv.gz> [-o output.npz]", args[0]);
+        println!(
+            "Usage: {} <trades.csv.gz> <depth.csv.gz> [-o output.npz]",
+            args[0]
+        );
         println!("   or: {} --generate-sample", args[0]);
         return Ok(());
     }
@@ -116,7 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         buffer_size: 100_000_000,
         ss_buffer_size: 1_000_000,
         base_latency: 0,
-        snapshot_mode: SnapshotMode::IgnoreSod,  // Match Python default behavior
+        snapshot_mode: SnapshotMode::IgnoreSod, // Match Python default behavior
     };
 
     println!("Converting {} files...", input_files.len());
@@ -141,10 +148,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for event in &events {
         let ev_type = event.ev & 0xFF;
         match ev_type {
-            2 => trade_count += 1,      // TRADE_EVENT
-            1 => depth_count += 1,      // DEPTH_EVENT
-            4 => snapshot_count += 1,   // DEPTH_SNAPSHOT_EVENT
-            3 => clear_count += 1,      // DEPTH_CLEAR_EVENT
+            2 => trade_count += 1,    // TRADE_EVENT
+            1 => depth_count += 1,    // DEPTH_EVENT
+            4 => snapshot_count += 1, // DEPTH_SNAPSHOT_EVENT
+            3 => clear_count += 1,    // DEPTH_CLEAR_EVENT
             _ => {}
         }
     }

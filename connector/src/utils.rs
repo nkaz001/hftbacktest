@@ -15,9 +15,7 @@ use hftbacktest::prelude::OrderId;
 use hmac::{Hmac, Mac};
 use rand::Rng;
 use serde::{
-    Deserialize,
-    Deserializer,
-    de,
+    Deserialize, Deserializer, de,
     de::{Error, Visitor},
 };
 use sha2::Sha256;
@@ -300,7 +298,7 @@ impl Default for ExponentialBackoff {
             reset_interval: Some(Duration::from_secs(300)),
             min_delay: Duration::from_millis(100),
             max_delay: Some(Duration::from_secs(60)),
-            jitter_ms: 1000, // 0-1000ms jitter to prevent reconnect storms
+            jitter_ms: 1000,       // 0-1000ms jitter to prevent reconnect storms
             immediate_first: true, // First reconnect is immediate
             is_first: true,
         }

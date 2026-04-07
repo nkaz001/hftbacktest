@@ -32,14 +32,14 @@
 //! }
 //! ```
 
-pub mod events;
-pub mod writer;
-pub mod service;
 pub mod convert;
+pub mod events;
 pub mod hook;
+pub mod service;
+pub mod writer;
 
-pub use events::*;
-pub use writer::{ClickHouseWriter, WriterConfig, WriterError};
-pub use service::{RecordingService, DEFAULT_MAX_PUBLISHERS};
 pub use convert::*;
-pub use hook::{OrderHookContext, create_order_hook};
+pub use events::*;
+pub use hook::{create_order_hook, OrderHookContext};
+pub use service::{RecordingService, DEFAULT_MAX_PUBLISHERS};
+pub use writer::{ClickHouseWriter, WriterConfig, WriterError};

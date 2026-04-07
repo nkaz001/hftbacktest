@@ -30,8 +30,29 @@ pub enum EventStream {
     TradeLite(TradeLite),
     #[serde(rename = "ACCOUNT_UPDATE")]
     AccountUpdate(AccountUpdate),
+    #[serde(rename = "bookTicker")]
+    BookTicker(BookTicker),
     #[serde(rename = "listenKeyExpired")]
     ListenKeyExpired(ListenKeyStream),
+}
+
+#[derive(Deserialize, Debug)]
+pub struct BookTicker {
+    #[serde(rename = "T")]
+    pub transaction_time: i64,
+    #[serde(rename = "E")]
+    pub event_time: i64,
+    #[serde(rename = "s")]
+    #[serde(deserialize_with = "to_lowercase")]
+    pub symbol: String,
+    #[serde(rename = "b")]
+    pub bid_price: String,
+    #[serde(rename = "B")]
+    pub bid_qty: String,
+    #[serde(rename = "a")]
+    pub ask_price: String,
+    #[serde(rename = "A")]
+    pub ask_qty: String,
 }
 
 #[derive(Deserialize, Debug)]

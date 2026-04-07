@@ -3,14 +3,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::{
-    self,
-    Data,
-    DeriveInput,
-    Error,
-    Fields,
-    Token,
-    braced,
-    bracketed,
+    self, Data, DeriveInput, Error, Fields, Token, braced, bracketed,
     parse::{Parse, ParseStream},
     parse_macro_input,
 };

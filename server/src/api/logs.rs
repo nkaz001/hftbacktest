@@ -59,11 +59,7 @@ pub async fn list_log_files(State(state): State<AppState>) -> ApiResult<Vec<LogF
             .to_string();
 
         // Extract component from filename
-        let component = name
-            .split('.')
-            .next()
-            .unwrap_or("unknown")
-            .to_string();
+        let component = name.split('.').next().unwrap_or("unknown").to_string();
 
         let modified = metadata
             .modified()
@@ -161,7 +157,12 @@ pub async fn read_logs(
 
     let mut entries: Vec<LogEntry> = Vec::new();
 
-    for (idx, line) in all_lines.iter().enumerate().skip(offset).take(lines_to_read) {
+    for (idx, line) in all_lines
+        .iter()
+        .enumerate()
+        .skip(offset)
+        .take(lines_to_read)
+    {
         // Parse log line - assumes format: "2024-01-01T12:00:00 [INFO] message"
         let (timestamp, level, message) = parse_log_line(line);
 
@@ -211,12 +212,11 @@ fn parse_log_line(line: &str) -> (Option<String>, Option<String>, String) {
             let level = parts[0].to_string();
             let message = parts[1].to_string();
 
-            if matches!(level.as_str(), "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR") {
-                return (
-                    Some(timestamp.to_string()),
-                    Some(level),
-                    message,
-                );
+            if matches!(
+                level.as_str(),
+                "TRACE" | "DEBUG" | "INFO" | "WARN" | "ERROR"
+            ) {
+                return (Some(timestamp.to_string()), Some(level), message);
             }
         }
 

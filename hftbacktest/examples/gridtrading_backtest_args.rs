@@ -2,18 +2,11 @@ use algo::gridtrading;
 use clap::Parser;
 use hftbacktest::{
     backtest::{
-        Backtest,
-        DataSource,
-        ExchangeKind,
-        L2AssetBuilder,
+        Backtest, DataSource, ExchangeKind, L2AssetBuilder,
         assettype::LinearAsset,
         data::read_npz_file,
         models::{
-            CommonFees,
-            IntpOrderLatency,
-            PowerProbQueueFunc3,
-            ProbQueueModel,
-            TradingValueFeeModel,
+            CommonFees, IntpOrderLatency, PowerProbQueueFunc3, ProbQueueModel, TradingValueFeeModel,
         },
         recorder::BacktestRecorder,
     },

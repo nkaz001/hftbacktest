@@ -1,7 +1,6 @@
 use hftbacktest::types::{OrdType, Side, Status, TimeInForce};
 use serde::{
-    Deserialize,
-    Deserializer,
+    Deserialize, Deserializer,
     de::{Error, Unexpected},
 };
 

@@ -14,25 +14,14 @@ use crate::{
         proc::Processor,
         state::State,
     },
-    depth::{INVALID_MAX, INVALID_MIN, L2MarketDepth, MarketDepth},
+    depth::{INVALID_MAX, INVALID_MIN, L1MarketDepth, L2MarketDepth, MarketDepth},
     prelude::OrdType,
     types::{
-        EXCH_ASK_DEPTH_CLEAR_EVENT,
-        EXCH_ASK_DEPTH_EVENT,
-        EXCH_ASK_DEPTH_SNAPSHOT_EVENT,
-        EXCH_BID_DEPTH_CLEAR_EVENT,
-        EXCH_BID_DEPTH_EVENT,
-        EXCH_BID_DEPTH_SNAPSHOT_EVENT,
-        EXCH_BUY_TRADE_EVENT,
-        EXCH_DEPTH_CLEAR_EVENT,
-        EXCH_EVENT,
-        EXCH_SELL_TRADE_EVENT,
-        Event,
-        Order,
-        OrderId,
-        Side,
-        Status,
-        TimeInForce,
+        EXCH_ASK_DEPTH_BBO_EVENT, EXCH_ASK_DEPTH_CLEAR_EVENT, EXCH_ASK_DEPTH_EVENT,
+        EXCH_ASK_DEPTH_SNAPSHOT_EVENT, EXCH_BID_DEPTH_BBO_EVENT, EXCH_BID_DEPTH_CLEAR_EVENT,
+        EXCH_BID_DEPTH_EVENT, EXCH_BID_DEPTH_SNAPSHOT_EVENT, EXCH_BUY_TRADE_EVENT,
+        EXCH_DEPTH_CLEAR_EVENT, EXCH_EVENT, EXCH_SELL_TRADE_EVENT, Event, Order, OrderId, Side,
+        Status, TimeInForce,
     },
 };
 
@@ -519,7 +508,7 @@ where
     AT: AssetType,
     LM: LatencyModel,
     QM: QueueModel<MD>,
-    MD: MarketDepth + L2MarketDepth,
+    MD: MarketDepth + L2MarketDepth + L1MarketDepth,
     FM: FeeModel,
 {
     fn event_seen_timestamp(&self, event: &Event) -> Option<i64> {
@@ -533,6 +522,54 @@ where
             self.depth.clear_depth(Side::Sell, event.px);
         } else if event.is(EXCH_DEPTH_CLEAR_EVENT) {
             self.depth.clear_depth(Side::None, 0.0);
+        } else if event.is(EXCH_BID_DEPTH_BBO_EVENT) {
+            let prev_best_bid_tick = self.depth.best_bid_tick();
+            let new_price_tick = (event.px / self.depth.tick_size()).round() as i64;
+
+            let mut cleared: Vec<(i64, f64)> = Vec::new();
+            if new_price_tick < prev_best_bid_tick {
+                for t in (new_price_tick + 1)..=prev_best_bid_tick {
+                    let old_qty = self.depth.bid_qty_at_tick(t);
+                    if old_qty > 0.0 {
+                        cleared.push((t, old_qty));
+                    }
+                }
+            }
+
+            let (price_tick, _, best_bid_tick, prev_qty, new_qty, timestamp) = self
+                .depth
+                .update_best_bid(event.px, event.qty, event.exch_ts);
+            self.on_bid_qty_chg(price_tick, prev_qty, new_qty);
+            for (t, old_qty) in cleared {
+                self.on_bid_qty_chg(t, old_qty, 0.0);
+            }
+            if best_bid_tick > prev_best_bid_tick {
+                self.on_best_bid_update(prev_best_bid_tick, best_bid_tick, timestamp)?;
+            }
+        } else if event.is(EXCH_ASK_DEPTH_BBO_EVENT) {
+            let prev_best_ask_tick = self.depth.best_ask_tick();
+            let new_price_tick = (event.px / self.depth.tick_size()).round() as i64;
+
+            let mut cleared: Vec<(i64, f64)> = Vec::new();
+            if new_price_tick > prev_best_ask_tick {
+                for t in prev_best_ask_tick..new_price_tick {
+                    let old_qty = self.depth.ask_qty_at_tick(t);
+                    if old_qty > 0.0 {
+                        cleared.push((t, old_qty));
+                    }
+                }
+            }
+
+            let (price_tick, _, best_ask_tick, prev_qty, new_qty, timestamp) = self
+                .depth
+                .update_best_ask(event.px, event.qty, event.exch_ts);
+            self.on_ask_qty_chg(price_tick, prev_qty, new_qty);
+            for (t, old_qty) in cleared {
+                self.on_ask_qty_chg(t, old_qty, 0.0);
+            }
+            if best_ask_tick < prev_best_ask_tick {
+                self.on_best_ask_update(prev_best_ask_tick, best_ask_tick, timestamp)?;
+            }
         } else if event.is(EXCH_BID_DEPTH_EVENT) || event.is(EXCH_BID_DEPTH_SNAPSHOT_EVENT) {
             let (price_tick, prev_best_bid_tick, best_bid_tick, prev_qty, new_qty, timestamp) =
                 self.depth

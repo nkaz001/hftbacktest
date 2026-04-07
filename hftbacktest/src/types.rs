@@ -6,9 +6,7 @@ use std::{
 
 use anyhow::Error;
 use bincode::{
-    BorrowDecode,
-    Decode,
-    Encode,
+    BorrowDecode, Decode, Encode,
     de::{BorrowDecoder, Decoder},
     enc::Encoder,
     error::{DecodeError, EncodeError},
@@ -1004,12 +1002,8 @@ mod tests {
     use crate::{
         prelude::LOCAL_EVENT,
         types::{
-            BUY_EVENT,
-            Event,
-            LOCAL_BID_DEPTH_CLEAR_EVENT,
-            LOCAL_BID_DEPTH_EVENT,
-            LOCAL_BID_DEPTH_SNAPSHOT_EVENT,
-            LOCAL_BUY_TRADE_EVENT,
+            BUY_EVENT, Event, LOCAL_BID_DEPTH_CLEAR_EVENT, LOCAL_BID_DEPTH_EVENT,
+            LOCAL_BID_DEPTH_SNAPSHOT_EVENT, LOCAL_BUY_TRADE_EVENT,
         },
     };
 

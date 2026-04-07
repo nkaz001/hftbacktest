@@ -8,16 +8,7 @@ use crate::{
     backtest::BacktestError,
     depth::{INVALID_MAX, INVALID_MIN, MarketDepth},
     types::{
-        AnyClone,
-        BUY_EVENT,
-        Event,
-        OrdType,
-        Order,
-        OrderId,
-        SELL_EVENT,
-        Side,
-        Status,
-        TimeInForce,
+        AnyClone, BUY_EVENT, Event, OrdType, Order, OrderId, SELL_EVENT, Side, Status, TimeInForce,
     },
 };
 
@@ -1133,14 +1124,7 @@ mod l3_tests {
     use crate::{
         backtest::{L3QueueModel, models::L3FIFOQueueModel},
         prelude::{
-            Event,
-            HashMapMarketDepth,
-            L3MarketDepth,
-            OrdType,
-            Order,
-            Side,
-            Status,
-            TimeInForce,
+            Event, HashMapMarketDepth, L3MarketDepth, OrdType, Order, Side, Status, TimeInForce,
         },
         types::{ADD_ORDER_EVENT, BUY_EVENT, EXCH_EVENT, FILL_EVENT, SELL_EVENT},
     };

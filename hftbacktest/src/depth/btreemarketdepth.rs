@@ -1,12 +1,7 @@
 use std::collections::{BTreeMap, HashMap, hash_map::Entry};
 
 use super::{
-    ApplySnapshot,
-    INVALID_MAX,
-    INVALID_MIN,
-    L2MarketDepth,
-    L3MarketDepth,
-    L3Order,
+    ApplySnapshot, INVALID_MAX, INVALID_MIN, L1MarketDepth, L2MarketDepth, L3MarketDepth, L3Order,
     MarketDepth,
 };
 use crate::{
@@ -58,6 +53,116 @@ impl BTreeMarketDepth {
             *self.ask_depth.entry(order.price_tick).or_insert(0.0) += order.qty;
         }
         Ok(())
+    }
+}
+
+impl L1MarketDepth for BTreeMarketDepth {
+    fn update_best_bid(
+        &mut self,
+        px: f64,
+        qty: f64,
+        timestamp: i64,
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (px / self.tick_size).round() as i64;
+        let prev_best_bid_tick = self.best_bid_tick;
+        let prev_qty = self.bid_depth.get(&price_tick).copied().unwrap_or(0.0);
+
+        if (qty / self.lot_size).round() as i64 > 0 {
+            self.bid_depth.insert(price_tick, qty);
+        } else {
+            self.bid_depth.remove(&price_tick);
+        }
+
+        // Bid backed off: remove stale levels above new best
+        if price_tick < prev_best_bid_tick {
+            let stale: Vec<i64> = self
+                .bid_depth
+                .range((price_tick + 1)..=prev_best_bid_tick)
+                .map(|(&k, _)| k)
+                .collect();
+            for k in stale {
+                self.bid_depth.remove(&k);
+            }
+        }
+
+        self.best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
+        self.timestamp = timestamp;
+
+        // Prevent crossing: remove crossed ask levels
+        if price_tick >= self.best_ask_tick {
+            let crossed: Vec<i64> = self
+                .ask_depth
+                .range(..=price_tick)
+                .map(|(&k, _)| k)
+                .collect();
+            for k in crossed {
+                self.ask_depth.remove(&k);
+            }
+            self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
+        }
+
+        (
+            price_tick,
+            prev_best_bid_tick,
+            self.best_bid_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
+    }
+
+    fn update_best_ask(
+        &mut self,
+        px: f64,
+        qty: f64,
+        timestamp: i64,
+    ) -> (i64, i64, i64, f64, f64, i64) {
+        let price_tick = (px / self.tick_size).round() as i64;
+        let prev_best_ask_tick = self.best_ask_tick;
+        let prev_qty = self.ask_depth.get(&price_tick).copied().unwrap_or(0.0);
+
+        if (qty / self.lot_size).round() as i64 > 0 {
+            self.ask_depth.insert(price_tick, qty);
+        } else {
+            self.ask_depth.remove(&price_tick);
+        }
+
+        // Ask backed off: remove stale levels below new best
+        if price_tick > prev_best_ask_tick {
+            let stale: Vec<i64> = self
+                .ask_depth
+                .range(prev_best_ask_tick..price_tick)
+                .map(|(&k, _)| k)
+                .collect();
+            for k in stale {
+                self.ask_depth.remove(&k);
+            }
+        }
+
+        self.best_ask_tick = *self.ask_depth.keys().next().unwrap_or(&INVALID_MAX);
+        self.timestamp = timestamp;
+
+        // Prevent crossing: remove crossed bid levels
+        if price_tick <= self.best_bid_tick {
+            let crossed: Vec<i64> = self
+                .bid_depth
+                .range(price_tick..)
+                .map(|(&k, _)| k)
+                .collect();
+            for k in crossed {
+                self.bid_depth.remove(&k);
+            }
+            self.best_bid_tick = *self.bid_depth.keys().last().unwrap_or(&INVALID_MIN);
+        }
+
+        (
+            price_tick,
+            prev_best_ask_tick,
+            self.best_ask_tick,
+            prev_qty,
+            qty,
+            timestamp,
+        )
     }
 }
 
@@ -452,7 +557,10 @@ impl L3MarketDepth for BTreeMarketDepth {
 #[cfg(test)]
 mod tests {
     use crate::{
-        depth::{BTreeMarketDepth, INVALID_MAX, INVALID_MIN, L3MarketDepth, MarketDepth},
+        depth::{
+            BTreeMarketDepth, INVALID_MAX, INVALID_MIN, L1MarketDepth, L2MarketDepth,
+            L3MarketDepth, MarketDepth,
+        },
         types::Side,
     };
 
@@ -463,6 +571,82 @@ mod tests {
                 ($b / $lot_size).round() as i64
             );
         }};
+    }
+
+    #[test]
+    fn test_l1_bbo_bid_backoff_clears_stale() {
+        let lot_size = 0.001;
+        let mut depth = BTreeMarketDepth::new(0.1, lot_size);
+
+        depth.update_bid_depth(500.1, 1.0, 1);
+        depth.update_bid_depth(500.2, 1.0, 1);
+        depth.update_bid_depth(500.3, 1.0, 1);
+
+        depth.update_best_bid(500.0, 1.0, 2);
+
+        assert_eq!(depth.best_bid_tick(), 5000);
+        assert_eq_qty!(depth.bid_qty_at_tick(5001), 0.0, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(5002), 0.0, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(5003), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l1_bbo_ask_backoff_clears_stale() {
+        let lot_size = 0.001;
+        let mut depth = BTreeMarketDepth::new(0.1, lot_size);
+
+        depth.update_ask_depth(499.7, 1.0, 1);
+        depth.update_ask_depth(499.8, 1.0, 1);
+        depth.update_ask_depth(499.9, 1.0, 1);
+
+        depth.update_best_ask(500.0, 1.0, 2);
+
+        assert_eq!(depth.best_ask_tick(), 5000);
+        assert_eq_qty!(depth.ask_qty_at_tick(4997), 0.0, lot_size);
+        assert_eq_qty!(depth.ask_qty_at_tick(4998), 0.0, lot_size);
+        assert_eq_qty!(depth.ask_qty_at_tick(4999), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l1_bbo_bid_prevents_crossing() {
+        let lot_size = 0.001;
+        let mut depth = BTreeMarketDepth::new(0.1, lot_size);
+
+        depth.update_ask_depth(500.0, 1.0, 1);
+        depth.update_bid_depth(499.8, 1.0, 1);
+
+        depth.update_best_bid(500.1, 1.0, 2);
+
+        assert_eq!(depth.best_bid_tick(), 5001);
+        assert!(depth.best_ask_tick() > 5001);
+        assert_eq_qty!(depth.ask_qty_at_tick(5000), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l1_bbo_ask_prevents_crossing() {
+        let lot_size = 0.001;
+        let mut depth = BTreeMarketDepth::new(0.1, lot_size);
+
+        depth.update_bid_depth(500.0, 1.0, 1);
+        depth.update_ask_depth(500.2, 1.0, 1);
+
+        depth.update_best_ask(499.9, 1.0, 2);
+
+        assert_eq!(depth.best_ask_tick(), 4999);
+        assert!(depth.best_bid_tick() < 4999);
+        assert_eq_qty!(depth.bid_qty_at_tick(5000), 0.0, lot_size);
+    }
+
+    #[test]
+    fn test_l1_bbo_qty_update_same_level() {
+        let lot_size = 0.001;
+        let mut depth = BTreeMarketDepth::new(0.1, lot_size);
+
+        depth.update_best_bid(500.0, 5.0, 1);
+        depth.update_best_bid(500.0, 8.0, 2);
+
+        assert_eq!(depth.best_bid_tick(), 5000);
+        assert_eq_qty!(depth.bid_qty_at_tick(5000), 8.0, lot_size);
     }
 
     #[test]
