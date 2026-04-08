@@ -11,7 +11,10 @@ use std::{
 };
 
 pub use npy::{Field, NpyDTyped, NpyHeader, read_npy_file, read_npz_file, write_npy};
-pub use reader::{Cache, DataPreprocess, DataSource, FeedLatencyAdjustment, Reader, ReaderBuilder};
+pub use reader::{
+    Cache, DataPreprocess, DataSource, FeedLatencyAdjustment, Reader, ReaderBuilder,
+    TardisStreamDayConfig,
+};
 
 use crate::utils::{AlignedArray, CACHE_LINE_SIZE};
 

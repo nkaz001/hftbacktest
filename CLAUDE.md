@@ -93,7 +93,9 @@ git clone --recurse-submodules git@github.com:bookdisco/hftbacktest.git
 - `ROIVectorMarketDepth`: Optimized for bounded price ranges
 - `BTreeMarketDepth`: For L3 (Market-By-Order) data
 
-**Data Format**: Numpy-compatible `.npz` files with `Event` struct (64 bytes). `EXCH_EVENT`/`LOCAL_EVENT` flags indicate processor routing.
+**Data Format**: Two modes for feeding data into backtests:
+- **NPZ (legacy)**: Pre-converted numpy `.npz` files (~30T storage). Fast load but high memory (~1GB/day).
+- **Streaming (preferred)**: Direct from raw Tardis CSV.gz via `DataSource::TardisStream`. No NPZ needed, ~7MB memory/route, auto-discovers bookTicker. See "Streaming Backtest" section below.
 
 **IPC for Live Trading**: Bot ↔ connector via iceoryx2 shared memory (zero-copy). Both must run on same machine.
 
@@ -133,6 +135,41 @@ Changes to `hftbacktest/` or `submodules/factor-engine/` are **immediately visib
 **Workspace layout:**
 - `cargo build` in root → builds framework only (main workspace excludes `submodules/`)
 - `cargo build` in `submodules/hft-strategies/` → builds strategies with local overrides
+
+### Streaming Backtest (直接从 CSV.gz 回测)
+
+直接从 Tardis raw CSV.gz 流式回测，无需 NPZ 中间文件。3 线程并行解析 + min-heap 在线合并，产出与 NPZ 完全一致的事件流。
+
+**性能**: 真实策略负载下与 NPZ 持平甚至更快（pipeline 架构），内存降 300x（~7MB vs ~2GB/route）。
+
+**API**: `DataSource::TardisStream(TardisStreamDayConfig)` — 与 `DataSource::File` 平级，可混用。每天一个条目，Reader 自动顺序消费 + 预加载。
+```rust
+use hftbacktest::backtest::data::{DataSource, TardisStreamDayConfig};
+
+let data = vec![
+    DataSource::TardisStream(TardisStreamDayConfig {
+        trades: "trades/BTCUSDT/2026-03-05.csv.gz".into(),
+        depth:  "incremental_book_L2/BTCUSDT/2026-03-05.csv.gz".into(),
+        book_ticker: Some("book_ticker/BTCUSDT/2026-03-05.csv.gz".into()),
+    }),
+    DataSource::TardisStream(TardisStreamDayConfig {
+        trades: "trades/BTCUSDT/2026-03-06.csv.gz".into(),
+        depth:  "incremental_book_L2/BTCUSDT/2026-03-06.csv.gz".into(),
+        book_ticker: None, // bookTicker 可选，per-day 级别
+    }),
+];
+// L2AssetBuilder::new().data(data)... 后面完全不变
+```
+
+**关键文件**:
+- `hftbacktest/src/data/streaming.rs` — `StreamingTardisReader`，在线合并算法
+- `hftbacktest/src/backtest/data/reader.rs` — `DataSource::TardisStream` + Reader 集成
+
+**验证工具** (`hftbacktest/examples/`):
+- `streaming_equivalence` — streaming vs NPZ 逐事件比对
+- `streaming_benchmark` — 分阶段 benchmark (parse/sort/merge/validate)
+- `streaming_e2e_bench` — 端到端回测对比（含策略负载校准）
+- `streaming_multiday_bench` — 多天流式 vs NPZ 对比
 
 ### Connector Order Tracking
 

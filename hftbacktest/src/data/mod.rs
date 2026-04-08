@@ -4,6 +4,8 @@
 //! (like Tardis.dev or collector output) into the Event format used by HftBacktest.
 
 mod collector;
+#[cfg(feature = "backtest")]
+mod streaming;
 mod tardis;
 mod tardis_fast;
 mod validation;
@@ -12,6 +14,11 @@ mod validation;
 pub use collector::convert_collector_to_events;
 pub use collector::{CollectorConvertConfig, ConversionStats, convert_to_tardis_csv};
 #[cfg(feature = "backtest")]
+pub use streaming::{
+    StreamLocalTimestampPolicy, StreamingTardisReader, StreamingTardisReaderConfig,
+    TardisStreamDayConfig, collect_tardis_stream,
+};
+#[cfg(feature = "backtest")]
 pub use tardis::write_npz_file;
 pub use tardis::{SnapshotMode, TardisConvertConfig};
 
@@ -19,6 +26,7 @@ pub use tardis::{SnapshotMode, TardisConvertConfig};
 #[cfg(feature = "backtest")]
 pub use tardis_fast::convert_and_save_fast;
 pub use tardis_fast::convert_tardis_fast;
+pub use tardis_fast::parse_tardis_files;
 
 // Convenience aliases
 #[cfg(feature = "backtest")]

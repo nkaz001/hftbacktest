@@ -1,6 +1,7 @@
 use std::{
+    any::TypeId,
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     io::{Error as IoError, ErrorKind},
     rc::Rc,
     sync::{
@@ -12,6 +13,8 @@ use std::{
 
 use uuid::Uuid;
 
+pub use crate::data::TardisStreamDayConfig;
+
 use crate::{
     backtest::{
         BacktestError,
@@ -20,6 +23,7 @@ use crate::{
             npy::{NpyDTyped, read_npy_file, read_npz_file},
         },
     },
+    data::{StreamingTardisReader, StreamingTardisReaderConfig},
     types::Event,
 };
 
@@ -36,6 +40,8 @@ where
     File(String),
     /// Data is loaded and set by the user.
     Data(Data<D>),
+    /// Data is streamed from raw Tardis CSV.gz files.
+    TardisStream(TardisStreamDayConfig),
 }
 
 #[derive(Debug)]
@@ -182,8 +188,7 @@ struct LoadDataResult<D>
 where
     D: NpyDTyped + Clone,
 {
-    key: String,
-    result: Result<DataSend<D>, IoError>,
+    payload: LoadDataPayload<D>,
 }
 
 impl<D> LoadDataResult<D>
@@ -192,17 +197,74 @@ where
 {
     pub fn ok(key: String, data: Data<D>) -> Self {
         Self {
-            key,
-            result: Ok(DataSend(data)),
+            payload: LoadDataPayload::Data {
+                key,
+                result: Ok(DataSend(data)),
+            },
         }
     }
 
     pub fn err(key: String, error: IoError) -> Self {
         Self {
-            key,
-            result: Err(error),
+            payload: LoadDataPayload::Data {
+                key,
+                result: Err(error),
+            },
         }
     }
+
+    pub fn stream_chunk(stream_key: String, chunk_key: String, data: Data<D>) -> Self {
+        Self {
+            payload: LoadDataPayload::StreamChunk {
+                stream_key,
+                chunk_key,
+                result: Ok(DataSend(data)),
+            },
+        }
+    }
+
+    pub fn stream_error(stream_key: String, error: IoError) -> Self {
+        Self {
+            payload: LoadDataPayload::StreamError { stream_key, error },
+        }
+    }
+
+    pub fn stream_end(stream_key: String) -> Self {
+        Self {
+            payload: LoadDataPayload::StreamEnd { stream_key },
+        }
+    }
+}
+
+enum LoadDataPayload<D>
+where
+    D: NpyDTyped + Clone,
+{
+    Data {
+        key: String,
+        result: Result<DataSend<D>, IoError>,
+    },
+    StreamChunk {
+        stream_key: String,
+        chunk_key: String,
+        result: Result<DataSend<D>, IoError>,
+    },
+    StreamError {
+        stream_key: String,
+        error: IoError,
+    },
+    StreamEnd {
+        stream_key: String,
+    },
+}
+
+#[derive(Default)]
+struct StreamState {
+    started: bool,
+    finished: bool,
+    ready_chunks: VecDeque<String>,
+    ack_tx: Option<Sender<()>>,
+    error: Option<IoError>,
 }
 
 /// A builder for constructing [`Reader`].
@@ -213,6 +275,7 @@ where
     data_key_list: Vec<String>,
     cache: Cache<D>,
     temporary_data: HashMap<String, Data<D>>,
+    stream_sources: HashMap<String, TardisStreamDayConfig>,
     parallel_load: bool,
     preprocessor: Option<Arc<Box<dyn DataPreprocess<D> + Sync + Send + 'static>>>,
 }
@@ -226,6 +289,7 @@ where
             data_key_list: Default::default(),
             cache: Default::default(),
             temporary_data: Default::default(),
+            stream_sources: Default::default(),
             parallel_load: false,
             preprocessor: None,
         }
@@ -270,6 +334,7 @@ where
     pub fn data(self, data: Vec<DataSource<D>>) -> Self {
         let mut data_key_list = self.data_key_list;
         let mut temporary_data = self.temporary_data;
+        let mut stream_sources = self.stream_sources;
         for item in data {
             match item {
                 DataSource::File(filepath) => {
@@ -280,11 +345,17 @@ where
                     data_key_list.push(key.clone());
                     temporary_data.insert(key, data);
                 }
+                DataSource::TardisStream(config) => {
+                    let key = format!("tardis-stream://{}", Uuid::new_v4());
+                    data_key_list.push(key.clone());
+                    stream_sources.insert(key, config);
+                }
             }
         }
         Self {
             data_key_list,
             temporary_data,
+            stream_sources,
             ..self
         }
     }
@@ -304,6 +375,8 @@ where
             data_key_list: self.data_key_list.clone(),
             cache,
             data_num: 0,
+            stream_sources: self.stream_sources,
+            stream_states: Default::default(),
             tx,
             rx: Rc::new(rx),
             parallel_load: self.parallel_load,
@@ -321,6 +394,8 @@ where
     data_key_list: Vec<String>,
     cache: Cache<D>,
     data_num: usize,
+    stream_sources: HashMap<String, TardisStreamDayConfig>,
+    stream_states: Rc<RefCell<HashMap<String, StreamState>>>,
     tx: Sender<LoadDataResult<D>>,
     rx: Rc<Receiver<LoadDataResult<D>>>,
     parallel_load: bool,
@@ -344,7 +419,7 @@ where
 
     /// Retrieves the next [`Data`] based on the order of your additions.
     pub fn next_data(&mut self) -> Result<Data<D>, BacktestError> {
-        if self.data_num < self.data_key_list.len() {
+        while self.data_num < self.data_key_list.len() {
             let key = self.data_key_list.get(self.data_num).cloned().unwrap();
             self.load_data(&key)?;
 
@@ -355,34 +430,211 @@ where
                 }
             }
 
-            while !self.cache.is_ready(&key) {
-                match self.rx.recv().unwrap() {
-                    LoadDataResult {
-                        key,
-                        result: Ok(data),
-                    } => {
-                        self.cache.set(&key, data.unwrap());
-                    }
-                    LoadDataResult {
-                        result: Err(err), ..
-                    } => {
-                        return Err(BacktestError::DataError(std::io::Error::new(
+            if self.stream_sources.contains_key(&key) {
+                {
+                    let borrowed = self.stream_states.borrow();
+                    let state = borrowed.get(&key).unwrap();
+                    if let Some(err) = &state.error {
+                        return Err(BacktestError::DataError(IoError::new(
                             err.kind(),
-                            format!("Failed to read file '{key}': {err}"),
+                            format!("Failed to stream data '{key}': {err}"),
                         )));
                     }
                 }
+
+                while {
+                    let borrowed = self.stream_states.borrow();
+                    borrowed
+                        .get(&key)
+                        .is_some_and(|state| state.ready_chunks.is_empty() && !state.finished)
+                } {
+                    let result = self.rx.recv().unwrap();
+                    self.handle_load_result(result)?;
+                }
+
+                let (chunk_key, ack_tx, should_advance) = {
+                    let mut borrowed = self.stream_states.borrow_mut();
+                    let state = borrowed.get_mut(&key).unwrap();
+                    if let Some(err) = &state.error {
+                        return Err(BacktestError::DataError(IoError::new(
+                            err.kind(),
+                            format!("Failed to stream data '{key}': {err}"),
+                        )));
+                    }
+                    if let Some(chunk_key) = state.ready_chunks.pop_front() {
+                        (
+                            Some(chunk_key),
+                            state.ack_tx.clone(),
+                            state.finished && state.ready_chunks.is_empty(),
+                        )
+                    } else {
+                        (None, None, false)
+                    }
+                };
+
+                if let Some(chunk_key) = chunk_key {
+                    if let Some(ack_tx) = ack_tx {
+                        let _ = ack_tx.send(());
+                    }
+                    let data = self.cache.get(&chunk_key);
+                    if should_advance {
+                        self.data_num += 1;
+                    }
+                    return Ok(data);
+                }
+
+                {
+                    let borrowed = self.stream_states.borrow();
+                    if let Some(err) = borrowed.get(&key).and_then(|state| state.error.as_ref()) {
+                        return Err(BacktestError::DataError(IoError::new(
+                            err.kind(),
+                            format!("Failed to stream data '{key}': {err}"),
+                        )));
+                    }
+                }
+
+                self.data_num += 1;
+                continue;
+            }
+
+            while !self.cache.is_ready(&key) {
+                let result = self.rx.recv().unwrap();
+                self.handle_load_result(result)?;
             }
 
             let data = self.cache.get(&key);
             self.data_num += 1;
-            Ok(data)
-        } else {
-            Err(BacktestError::EndOfData)
+            return Ok(data);
+        }
+
+        Err(BacktestError::EndOfData)
+    }
+
+    fn handle_load_result(&mut self, result: LoadDataResult<D>) -> Result<(), BacktestError> {
+        match result.payload {
+            LoadDataPayload::Data {
+                key,
+                result: Ok(data),
+            } => {
+                self.cache.set(&key, data.unwrap());
+                Ok(())
+            }
+            LoadDataPayload::Data {
+                key,
+                result: Err(err),
+            } => Err(BacktestError::DataError(IoError::new(
+                err.kind(),
+                format!("Failed to read file '{key}': {err}"),
+            ))),
+            LoadDataPayload::StreamChunk {
+                stream_key,
+                chunk_key,
+                result: Ok(data),
+            } => {
+                self.cache.insert(chunk_key.clone(), data.unwrap());
+                self.stream_states
+                    .borrow_mut()
+                    .get_mut(&stream_key)
+                    .unwrap()
+                    .ready_chunks
+                    .push_back(chunk_key);
+                Ok(())
+            }
+            LoadDataPayload::StreamChunk {
+                stream_key,
+                result: Err(err),
+                ..
+            } => {
+                let mut borrowed = self.stream_states.borrow_mut();
+                let state = borrowed.get_mut(&stream_key).unwrap();
+                state.error = Some(err);
+                state.finished = true;
+                Ok(())
+            }
+            LoadDataPayload::StreamError { stream_key, error } => {
+                let mut borrowed = self.stream_states.borrow_mut();
+                let state = borrowed.get_mut(&stream_key).unwrap();
+                state.error = Some(error);
+                state.finished = true;
+                Ok(())
+            }
+            LoadDataPayload::StreamEnd { stream_key } => {
+                self.stream_states.borrow_mut().get_mut(&stream_key).unwrap().finished = true;
+                Ok(())
+            }
         }
     }
 
     fn load_data(&mut self, key: &str) -> Result<(), BacktestError> {
+        if let Some(stream_config) = self.stream_sources.get(key).cloned() {
+            {
+                let mut borrowed = self.stream_states.borrow_mut();
+                let state = borrowed.entry(key.to_string()).or_default();
+                if state.started {
+                    return Ok(());
+                }
+                if TypeId::of::<D>() != TypeId::of::<Event>() {
+                    return Err(BacktestError::DataError(IoError::new(
+                        ErrorKind::InvalidData,
+                        "TardisStream sources are only supported for Event data",
+                    )));
+                }
+
+                state.started = true;
+                let (ack_tx, ack_rx) = channel();
+                state.ack_tx = Some(ack_tx);
+
+                let tx = self.tx.clone();
+                let stream_key = key.to_string();
+                let preprocessor = self.preprocessor.clone();
+                drop(borrowed);
+                let _ = thread::spawn(move || {
+                    let stream_result = (|| -> Result<(), IoError> {
+                        let mut reader = StreamingTardisReader::new(
+                            stream_config,
+                            StreamingTardisReaderConfig::default(),
+                        )
+                        .map_err(|err| IoError::new(ErrorKind::InvalidData, err))?;
+                        let mut chunk_no = 0usize;
+
+                        while let Some(chunk) = reader
+                            .next_data()
+                            .map_err(|err| IoError::new(ErrorKind::InvalidData, err))?
+                        {
+                            let mut data = cast_event_data::<D>(chunk);
+                            if let Some(preprocessor) = &preprocessor {
+                                preprocessor.preprocess(&mut data)?;
+                            }
+
+                            let chunk_key = format!("{stream_key}#chunk:{chunk_no:08}");
+                            chunk_no += 1;
+                            if tx
+                                .send(LoadDataResult::stream_chunk(
+                                    stream_key.clone(),
+                                    chunk_key,
+                                    data,
+                                ))
+                                .is_err()
+                            {
+                                return Ok(());
+                            }
+                            if ack_rx.recv().is_err() {
+                                return Ok(());
+                            }
+                        }
+
+                        let _ = tx.send(LoadDataResult::stream_end(stream_key.clone()));
+                        Ok(())
+                    })();
+
+                    if let Err(err) = stream_result {
+                        let _ = tx.send(LoadDataResult::stream_error(stream_key, err));
+                    }
+                });
+                return Ok(());
+            }
+        }
+
         if !self.cache.contains(key) {
             self.cache.prepare(key.to_string());
 
@@ -443,6 +695,14 @@ where
         }
         Ok(())
     }
+}
+
+fn cast_event_data<D>(data: Data<Event>) -> Data<D>
+where
+    D: NpyDTyped + Clone + 'static,
+{
+    debug_assert_eq!(TypeId::of::<D>(), TypeId::of::<Event>());
+    unsafe { std::mem::transmute::<Data<Event>, Data<D>>(data) }
 }
 
 /// `DataPreprocess` offers a function to preprocess data before it is fed into the backtesting.

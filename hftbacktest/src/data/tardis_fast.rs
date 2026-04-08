@@ -35,7 +35,7 @@ enum FileType {
 }
 
 /// Opens a file with optimized buffer, handling .gz compression automatically
-fn open_file_fast(path: &Path) -> std::io::Result<Box<dyn BufRead>> {
+pub(crate) fn open_file_fast(path: &Path) -> std::io::Result<Box<dyn BufRead>> {
     let file = File::open(path)?;
     if path.extension().map_or(false, |ext| ext == "gz") {
         Ok(Box::new(BufReader::with_capacity(
@@ -86,7 +86,7 @@ fn parse_f64_fast(s: &str) -> f64 {
 
 /// Column layout for book_ticker CSV, detected from header.
 #[derive(Debug, Clone, Copy)]
-struct BookTickerLayout {
+pub(crate) struct BookTickerLayout {
     ask_price: usize,
     ask_amount: usize,
     bid_price: usize,
@@ -94,7 +94,7 @@ struct BookTickerLayout {
 }
 
 impl BookTickerLayout {
-    fn from_header(header: &str) -> Option<Self> {
+    pub(crate) fn from_header(header: &str) -> Option<Self> {
         let cols: Vec<&str> = header.trim().split(',').collect();
         Some(Self {
             ask_price: cols.iter().position(|&c| c == "ask_price")?,
@@ -108,7 +108,10 @@ impl BookTickerLayout {
 /// Parses a book_ticker line into two Events (bid + ask BBO).
 /// Column order is determined by the header via BookTickerLayout.
 #[inline]
-fn parse_bookticker_to_events(line: &str, layout: &BookTickerLayout) -> Option<(Event, Event)> {
+pub(crate) fn parse_bookticker_to_events(
+    line: &str,
+    layout: &BookTickerLayout,
+) -> Option<(Event, Event)> {
     let fields: Vec<&str> = line.split(',').collect();
     if fields.len()
         <= layout
@@ -158,7 +161,7 @@ fn parse_bookticker_to_events(line: &str, layout: &BookTickerLayout) -> Option<(
 
 /// Parses a trade line directly into an Event
 #[inline]
-fn parse_trade_to_event(line: &str) -> Option<Event> {
+pub(crate) fn parse_trade_to_event(line: &str) -> Option<Event> {
     // Format: exchange,symbol,timestamp,local_timestamp,id,side,price,amount
     let mut iter = line.split(',');
 
@@ -199,7 +202,7 @@ fn parse_trade_to_event(line: &str) -> Option<Event> {
 
 /// Parses a depth line, returning parsed fields
 #[inline]
-fn parse_depth_line(line: &str) -> Option<(i64, i64, bool, bool, f64, f64)> {
+pub(crate) fn parse_depth_line(line: &str) -> Option<(i64, i64, bool, bool, f64, f64)> {
     // Format: exchange,symbol,timestamp,local_timestamp,is_snapshot,side,price,amount
     let mut iter = line.split(',');
 
@@ -234,7 +237,7 @@ fn parse_depth_line(line: &str) -> Option<(i64, i64, bool, bool, f64, f64)> {
 }
 
 /// Optimized depth converter state
-struct DepthConverterFast {
+pub(crate) struct DepthConverterFast {
     ss_bid: Vec<Event>,
     ss_ask: Vec<Event>,
     is_sod_snapshot: bool,
@@ -243,7 +246,7 @@ struct DepthConverterFast {
 }
 
 impl DepthConverterFast {
-    fn new(ss_buffer_size: usize, snapshot_mode: SnapshotMode) -> Self {
+    pub(crate) fn new(ss_buffer_size: usize, snapshot_mode: SnapshotMode) -> Self {
         Self {
             ss_bid: Vec::with_capacity(ss_buffer_size),
             ss_ask: Vec::with_capacity(ss_buffer_size),
@@ -255,7 +258,7 @@ impl DepthConverterFast {
 
     /// Processes a parsed depth record
     #[inline]
-    fn process(
+    pub(crate) fn process(
         &mut self,
         timestamp: i64,
         local_timestamp: i64,
@@ -373,8 +376,12 @@ impl DepthConverterFast {
     }
 }
 
-/// Optimized Tardis converter
-pub fn convert_tardis_fast<P: AsRef<Path>>(
+/// Parses Tardis CSV/CSV.gz files into raw events without correction or ordering.
+///
+/// Returns events in file-read order with no `EXCH_EVENT`/`LOCAL_EVENT` flags set.
+/// This is the first phase of the conversion pipeline. To get fully processed
+/// events with correct ordering and flags, use [`convert_tardis_fast`] instead.
+pub fn parse_tardis_files<P: AsRef<Path>>(
     input_files: &[P],
     config: &TardisConvertConfig,
 ) -> Result<Vec<Event>, String> {
@@ -453,6 +460,16 @@ pub fn convert_tardis_fast<P: AsRef<Path>>(
             }
         }
     }
+
+    Ok(events)
+}
+
+/// Optimized Tardis converter
+pub fn convert_tardis_fast<P: AsRef<Path>>(
+    input_files: &[P],
+    config: &TardisConvertConfig,
+) -> Result<Vec<Event>, String> {
+    let mut events = parse_tardis_files(input_files, config)?;
 
     if events.is_empty() {
         return Ok(events);
