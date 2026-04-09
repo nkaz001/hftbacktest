@@ -430,6 +430,32 @@ where
     }
 }
 
+impl<D> Drop for Reader<D>
+where
+    D: NpyDTyped + Clone,
+{
+    fn drop(&mut self) {
+        // When a Reader clone drops mid-stream, flush pending acks so the background
+        // thread is not left waiting forever.  At this point `self.stream_states` is
+        // still alive (fields drop AFTER `Drop::drop`), but strong_count still
+        // includes *this* clone, so the effective consumer count is strong_count − 1.
+        if let Ok(mut states) = self.stream_states.try_borrow_mut() {
+            let num_consumers = Rc::strong_count(&self.stream_states).saturating_sub(1);
+            for state in states.values_mut() {
+                while state.ack_cursor < state.chunk_consumed.len()
+                    && (num_consumers == 0
+                        || state.chunk_consumed[state.ack_cursor] >= num_consumers)
+                {
+                    if let Some(ack_tx) = &state.ack_tx {
+                        let _ = ack_tx.send(());
+                    }
+                    state.ack_cursor += 1;
+                }
+            }
+        }
+    }
+}
+
 impl<D> Reader<D>
 where
     D: NpyDTyped + Clone + 'static,
