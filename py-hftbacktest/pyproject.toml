@@ -11,7 +11,7 @@ authors = [
   { name = "bookdisco" },
 ]
 license = { file = "LICENSE" }
-version = "2.7.0"
+version = "2.7.1"
 requires-python = ">=3.11"
 dependencies = [
  "numpy >=2.0, <2.3",
