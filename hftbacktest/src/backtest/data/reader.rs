@@ -458,6 +458,10 @@ where
         // thread is not left waiting forever.  At this point `self.stream_states` is
         // still alive (fields drop AFTER `Drop::drop`), but strong_count still
         // includes *this* clone, so the effective consumer count is strong_count − 1.
+        //
+        // IMPORTANT: only send acks here, do NOT evict chunks.  A surviving reader
+        // may still need chunks that this clone has consumed but the other hasn't.
+        // Eviction is handled by the surviving reader's normal consumption path.
         if let Ok(mut states) = self.stream_states.try_borrow_mut() {
             let num_consumers = Rc::strong_count(&self.stream_states).saturating_sub(1);
             for state in states.values_mut() {
@@ -468,7 +472,7 @@ where
                     if let Some(ack_tx) = &state.ack_tx {
                         let _ = ack_tx.send(());
                     }
-                    self.cache.evict(&state.chunk_keys[state.ack_cursor]);
+                    // Do NOT evict here — the surviving reader still needs these chunks.
                     state.ack_cursor += 1;
                 }
             }
