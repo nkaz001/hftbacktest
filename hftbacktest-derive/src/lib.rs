@@ -282,6 +282,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 Some(DataSource::Data(data)) => {
                                     market_depth.apply_snapshot(data);
                                 }
+                                Some(_) => {}
                                 None => {}
                             }
 
@@ -301,6 +302,7 @@ pub fn build_asset(input: TokenStream) -> TokenStream {
                                 Some(DataSource::Data(data)) => {
                                     market_depth.apply_snapshot(data);
                                 }
+                                Some(_) => {}
                                 None => {}
                             }
 
