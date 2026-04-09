@@ -51,6 +51,9 @@ where
 {
     count: usize,
     ready: bool,
+    /// If true, the entry survives `turn_in` reaching 0.  Used for streaming chunks
+    /// that may be released by one consumer before another has checked them out.
+    retain: bool,
     data: Data<D>,
 }
 
@@ -62,6 +65,7 @@ where
         Self {
             count: 0,
             ready: true,
+            retain: false,
             data,
         }
     }
@@ -70,6 +74,7 @@ where
         Self {
             count: 0,
             ready: false,
+            retain: false,
             data: Data::empty(),
         }
     }
@@ -85,7 +90,7 @@ where
 
     pub fn turn_in(&mut self) -> bool {
         self.count -= 1;
-        self.count == 0
+        self.count == 0 && !self.retain
     }
 }
 
@@ -108,6 +113,20 @@ where
     /// Inserts a key-value pair into the `Cache`.
     pub fn insert(&mut self, key: String, data: Data<D>) {
         self.0.borrow_mut().insert(key, CachedData::new(data));
+    }
+
+    /// Inserts a key-value pair that is retained (not auto-evicted when all checkouts
+    /// are released).  Used for streaming chunks that may be released by one consumer
+    /// before another has checked them out.  Call [`evict`] to remove explicitly.
+    pub fn insert_retained(&mut self, key: String, data: Data<D>) {
+        let mut cached = CachedData::new(data);
+        cached.retain = true;
+        self.0.borrow_mut().insert(key, cached);
+    }
+
+    /// Force-removes a retained entry by key, regardless of checkout count.
+    pub fn evict(&mut self, key: &str) {
+        self.0.borrow_mut().remove(key);
     }
 
     /// Prepares cached data by inserting a key-value pair with empty data into the `Cache`.
@@ -449,6 +468,7 @@ where
                     if let Some(ack_tx) = &state.ack_tx {
                         let _ = ack_tx.send(());
                     }
+                    self.cache.evict(&state.chunk_keys[state.ack_cursor]);
                     state.ack_cursor += 1;
                 }
             }
@@ -543,13 +563,15 @@ where
 
                         state.chunk_consumed[cursor] += 1;
 
-                        // Advance ack cursor for all fully-consumed chunks.
+                        // Advance ack cursor for all fully-consumed chunks and evict them
+                        // from the cache (they are retained, so normal release won't free them).
                         while state.ack_cursor < state.chunk_consumed.len()
                             && state.chunk_consumed[state.ack_cursor] >= num_consumers
                         {
                             if let Some(ack_tx) = &state.ack_tx {
                                 let _ = ack_tx.send(());
                             }
+                            self.cache.evict(&state.chunk_keys[state.ack_cursor]);
                             state.ack_cursor += 1;
                         }
                     }
@@ -608,7 +630,7 @@ where
                 chunk_key,
                 result: Ok(data),
             } => {
-                self.cache.insert(chunk_key.clone(), data.unwrap());
+                self.cache.insert_retained(chunk_key.clone(), data.unwrap());
                 let mut borrowed = self.stream_states.borrow_mut();
                 let state = borrowed.get_mut(&stream_key).unwrap();
                 state.chunk_keys.push(chunk_key);
