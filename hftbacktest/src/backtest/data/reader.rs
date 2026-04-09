@@ -1,7 +1,7 @@
 use std::{
     any::TypeId,
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     io::{Error as IoError, ErrorKind},
     rc::Rc,
     sync::{
@@ -262,7 +262,12 @@ where
 struct StreamState {
     started: bool,
     finished: bool,
-    ready_chunks: VecDeque<String>,
+    /// Append-only list of chunk cache keys, in production order.
+    chunk_keys: Vec<String>,
+    /// Per-chunk counter: how many Reader clones have consumed this chunk.
+    chunk_consumed: Vec<usize>,
+    /// Index of the next chunk to ack (all consumers must have consumed it first).
+    ack_cursor: usize,
     ack_tx: Option<Sender<()>>,
     error: Option<IoError>,
 }
@@ -377,6 +382,7 @@ where
             data_num: 0,
             stream_sources: self.stream_sources,
             stream_states: Default::default(),
+            stream_cursors: HashMap::new(),
             tx,
             rx: Rc::new(rx),
             parallel_load: self.parallel_load,
@@ -386,7 +392,6 @@ where
 }
 
 /// Provides `Data` reading based on the given sequence of data through `Cache`.
-#[derive(Clone)]
 pub struct Reader<D>
 where
     D: NpyDTyped + Clone,
@@ -396,10 +401,33 @@ where
     data_num: usize,
     stream_sources: HashMap<String, TardisStreamDayConfig>,
     stream_states: Rc<RefCell<HashMap<String, StreamState>>>,
+    /// Per-clone cursor: tracks how far this clone has read in each stream.
+    stream_cursors: HashMap<String, usize>,
     tx: Sender<LoadDataResult<D>>,
     rx: Rc<Receiver<LoadDataResult<D>>>,
     parallel_load: bool,
     preprocessor: Option<Arc<Box<dyn DataPreprocess<D> + Sync + Send + 'static>>>,
+}
+
+impl<D> Clone for Reader<D>
+where
+    D: NpyDTyped + Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            data_key_list: self.data_key_list.clone(),
+            cache: self.cache.clone(),
+            data_num: self.data_num,
+            stream_sources: self.stream_sources.clone(),
+            stream_states: self.stream_states.clone(),
+            // Each clone starts with fresh cursors so it reads all chunks from the beginning.
+            stream_cursors: HashMap::new(),
+            tx: self.tx.clone(),
+            rx: self.rx.clone(),
+            parallel_load: self.parallel_load,
+            preprocessor: self.preprocessor.clone(),
+        }
+    }
 }
 
 impl<D> Reader<D>
@@ -431,6 +459,7 @@ where
             }
 
             if self.stream_sources.contains_key(&key) {
+                // Check for prior errors.
                 {
                     let borrowed = self.stream_states.borrow();
                     let state = borrowed.get(&key).unwrap();
@@ -442,41 +471,63 @@ where
                     }
                 }
 
+                let cursor = *self.stream_cursors.get(&key).unwrap_or(&0);
+
+                // Wait until a chunk is available at our cursor position, or stream is finished.
                 while {
                     let borrowed = self.stream_states.borrow();
                     borrowed
                         .get(&key)
-                        .is_some_and(|state| state.ready_chunks.is_empty() && !state.finished)
+                        .is_some_and(|state| state.chunk_keys.len() <= cursor && !state.finished)
                 } {
                     let result = self.rx.recv().unwrap();
                     self.handle_load_result(result)?;
                 }
 
-                let (chunk_key, ack_tx, should_advance) = {
-                    let mut borrowed = self.stream_states.borrow_mut();
-                    let state = borrowed.get_mut(&key).unwrap();
+                let (chunk_key, should_advance) = {
+                    let borrowed = self.stream_states.borrow();
+                    let state = borrowed.get(&key).unwrap();
                     if let Some(err) = &state.error {
                         return Err(BacktestError::DataError(IoError::new(
                             err.kind(),
                             format!("Failed to stream data '{key}': {err}"),
                         )));
                     }
-                    if let Some(chunk_key) = state.ready_chunks.pop_front() {
-                        (
-                            Some(chunk_key),
-                            state.ack_tx.clone(),
-                            state.finished && state.ready_chunks.is_empty(),
-                        )
+                    if cursor < state.chunk_keys.len() {
+                        let chunk_key = state.chunk_keys[cursor].clone();
+                        let should_advance =
+                            state.finished && cursor + 1 >= state.chunk_keys.len();
+                        (Some(chunk_key), should_advance)
                     } else {
-                        (None, None, false)
+                        (None, false)
                     }
                 };
 
                 if let Some(chunk_key) = chunk_key {
-                    if let Some(ack_tx) = ack_tx {
-                        let _ = ack_tx.send(());
-                    }
                     let data = self.cache.get(&chunk_key);
+
+                    // Advance this clone's cursor.
+                    self.stream_cursors.insert(key.clone(), cursor + 1);
+
+                    // Mark chunk as consumed by this clone; send ack when all clones are done.
+                    {
+                        let mut borrowed = self.stream_states.borrow_mut();
+                        let state = borrowed.get_mut(&key).unwrap();
+                        let num_consumers = Rc::strong_count(&self.stream_states);
+
+                        state.chunk_consumed[cursor] += 1;
+
+                        // Advance ack cursor for all fully-consumed chunks.
+                        while state.ack_cursor < state.chunk_consumed.len()
+                            && state.chunk_consumed[state.ack_cursor] >= num_consumers
+                        {
+                            if let Some(ack_tx) = &state.ack_tx {
+                                let _ = ack_tx.send(());
+                            }
+                            state.ack_cursor += 1;
+                        }
+                    }
+
                     if should_advance {
                         self.data_num += 1;
                     }
@@ -532,12 +583,10 @@ where
                 result: Ok(data),
             } => {
                 self.cache.insert(chunk_key.clone(), data.unwrap());
-                self.stream_states
-                    .borrow_mut()
-                    .get_mut(&stream_key)
-                    .unwrap()
-                    .ready_chunks
-                    .push_back(chunk_key);
+                let mut borrowed = self.stream_states.borrow_mut();
+                let state = borrowed.get_mut(&stream_key).unwrap();
+                state.chunk_keys.push(chunk_key);
+                state.chunk_consumed.push(0);
                 Ok(())
             }
             LoadDataPayload::StreamChunk {
