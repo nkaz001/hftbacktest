@@ -1,0 +1,56 @@
+# Notional MM Strategy Configuration for Testnet
+#
+# Conservative params for BTC on Binance Futures Testnet.
+# Uses USD-notional sizing: order_notional / mid_price = order qty.
+
+[global]
+tick_size = 0.1
+lot_size = 0.001
+order_notional = 200.0       # ~$200 per order (~0.002 BTC at $100k)
+max_notional = 2000.0        # ~$2000 max exposure
+grid_num = 2
+grid_interval = 1.0          # $1 between grid levels
+roi_lb = 0.0
+roi_ub = 200000.0
+
+[params]
+looking_depth = 0.001        # 0.1% depth for OBI
+window = 60                  # shorter for testnet
+volatility_window = 10       # shorter for testnet
+half_spread = 0.0005         # 0.05%
+skew = 0.01
+c1 = 0.0001
+power = 1.0
+live_seconds = 60.0          # 60s order lifetime
+update_interval_ns = 10000000000     # 10s quote cycle
+volatility_interval_ns = 60000000000 # 60s vol update
+
+[stop_loss]
+volatility_mean = 0.005
+volatility_std = 0.002
+change_mean = 0.001
+change_std = 0.003
+volatility_threshold = 3.0
+change_threshold = 3.0
+
+[cancel]
+mode = "evolved"
+cancel_interval_ns = 2000000000      # 2s cancel cycle
+
+[cancel.evolved]
+vol_power = 0.5
+vol_cap = 1.5
+pos_threshold = 0.2
+pos_penalty_scale = 2.0
+pos_extend_scale = 0.8
+depth_start = 2.0
+depth_k = 0.10
+depth_floor = 0.20
+min_timeout = 8.0
+
+[power_depth]
+n_levels = 5
+power = 0.3
+micro_weight = 0.3
+depth_pct = 0.0
+window = 60                          # shorter for testnet

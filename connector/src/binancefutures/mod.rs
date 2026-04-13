@@ -87,7 +87,13 @@ impl From<BinanceFuturesError> for Value {
 
 #[derive(Deserialize)]
 pub struct Config {
+    /// WebSocket URL for market data (e.g. wss://fstream.binance.com/public/ws)
     pub stream_url: String,
+    /// WebSocket URL for user data stream.
+    /// If empty, defaults to stream_url with /public/ replaced by /private/,
+    /// or stream_url as-is for legacy URLs.
+    #[serde(default)]
+    pub user_stream_url: String,
     pub api_url: String,
     #[serde(default)]
     pub order_prefix: String,
@@ -167,7 +173,17 @@ impl BinanceFutures {
     }
 
     pub fn connect_user_data_stream(&self, ev_tx: UnboundedSender<PublishEvent>) {
-        let base_url = self.config.stream_url.clone();
+        // Resolve user data stream URL:
+        // 1. Explicit user_stream_url if set
+        // 2. stream_url with /public/ → /private/ for new-style URLs
+        // 3. stream_url as-is for legacy URLs (e.g. /ws)
+        let base_url = if !self.config.user_stream_url.is_empty() {
+            self.config.user_stream_url.trim_end_matches('/').to_string()
+        } else if self.config.stream_url.contains("/public/") {
+            self.config.stream_url.replace("/public/", "/private/")
+        } else {
+            self.config.stream_url.clone()
+        };
         let client = self.client.clone();
         let order_manager = self.order_manager.clone();
         let instruments = self.symbols.clone();

@@ -179,12 +179,17 @@ impl BinancePapi {
         // User data stream URL: wss://fstream.binance.com/pm/ws/{listenKey}
         // The base URL should end with /ws so that appending /{listenKey} gives the correct path.
         let user_stream_base = if self.config.user_stream_url.is_empty() {
-            // Default to stream_url with /pm path
-            self.config
-                .stream_url
-                .replace("/ws", "/pm/ws")
-                .trim_end_matches('/')
-                .to_string()
+            // Derive PAPI user stream URL from stream_url.
+            // New-style: /public/ws → strip /public, add /pm/ws
+            // Legacy:    /ws → replace with /pm/ws
+            let base = self.config.stream_url.trim_end_matches('/');
+            if base.contains("/public/") {
+                // wss://fstream.binance.com/public/ws → wss://fstream.binance.com/pm/ws
+                base.replace("/public/ws", "/pm/ws").to_string()
+            } else {
+                // wss://fstream.binance.com/ws → wss://fstream.binance.com/pm/ws
+                base.replace("/ws", "/pm/ws").to_string()
+            }
         } else {
             let base = self
                 .config

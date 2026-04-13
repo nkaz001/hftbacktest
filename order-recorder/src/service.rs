@@ -215,13 +215,26 @@ pub struct RecordingPublisher {
 }
 
 impl RecordingPublisher {
-    /// Create a new publisher with default max_publishers
+    /// Open an existing recording service and create a publisher.
+    ///
+    /// The service must already be created by the order-recorder process.
+    /// This avoids max_publishers mismatch between creator and opener.
     pub fn new(service_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::with_max_publishers(service_name, DEFAULT_MAX_PUBLISHERS)
+        let node = NodeBuilder::new().create::<ipc::Service>()?;
+        let service_name = ServiceName::new(service_name)?;
+
+        let service = node
+            .service_builder(&service_name)
+            .publish_subscribe::<RecordingMessage>()
+            .open()?;
+
+        let publisher = service.publisher_builder().create()?;
+
+        Ok(Self { publisher })
     }
 
-    /// Create a new publisher with custom max_publishers
-    pub fn with_max_publishers(
+    /// Create a new service with specified max_publishers (used by order-recorder).
+    pub fn create_service(
         service_name: &str,
         max_publishers: usize,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -232,7 +245,7 @@ impl RecordingPublisher {
             .service_builder(&service_name)
             .publish_subscribe::<RecordingMessage>()
             .max_publishers(max_publishers)
-            .max_subscribers(2) // Recording service + potential monitoring
+            .max_subscribers(2)
             .open_or_create()?;
 
         let publisher = service.publisher_builder().create()?;

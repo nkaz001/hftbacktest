@@ -3,16 +3,16 @@
 # PAPI provides unified margin for UM Futures, CM Futures, and Margin trading.
 # This connector supports UM Futures trading through PAPI.
 #
-# Production:
+# Production (use /public/ws after 2026-04-23, legacy /ws deprecated):
 #   api_url = "https://papi.binance.com"
-#   stream_url = "wss://fstream.binance.com/ws"
+#   stream_url = "wss://fstream.binance.com/public/ws"
 #   user_stream_url = "wss://fstream.binance.com/pm/ws"
 #
 # Note: PAPI doesn't have a testnet. Use binancefutures connector for testnet testing.
 
 # Current: Production
 api_url = "https://papi.binance.com"
-stream_url = "wss://fstream.binance.com/ws"
+stream_url = "wss://fstream.binance.com/public/ws"
 user_stream_url = "wss://fstream.binance.com/pm/ws"
 
 order_prefix = "papi"

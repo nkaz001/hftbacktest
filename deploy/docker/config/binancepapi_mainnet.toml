@@ -9,11 +9,11 @@
 api_url = "https://papi.binance.com"
 
 # WebSocket stream URL for market data (UM Futures)
-# Mainnet: wss://fstream.binance.com/ws
-stream_url = "wss://fstream.binance.com/ws"
+# Legacy /ws deprecated after 2026-04-23, use /public/ws
+stream_url = "wss://fstream.binance.com/public/ws"
 
-# user_stream_url is omitted; defaults to stream_url with /pm/ws path
-# i.e. wss://fstream.binance.com/pm/ws
+# PAPI user data stream (explicit to avoid auto-derivation issues)
+user_stream_url = "wss://fstream.binance.com/pm/ws"
 
 # Order prefix to identify orders from this system
 order_prefix = "hft"

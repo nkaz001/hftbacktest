@@ -81,7 +81,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --features live && \
     cd /build/submodules/hft-strategies && \
     cargo build --release -p template_strategy && \
-    cp target/release/obi_mm_live target/release/template_strategy \
+    cp target/release/obi_mm_live target/release/notional_mm_live \
+       target/release/template_strategy \
        /tmp/
 
 # =============================================================================
@@ -113,6 +114,7 @@ COPY --from=builder /tmp/hft-supervisor /usr/local/bin/
 COPY --from=builder /tmp/hft-server /usr/local/bin/
 COPY --from=builder /tmp/hftctl /usr/local/bin/
 COPY --from=builder /tmp/obi_mm_live /usr/local/bin/
+COPY --from=builder /tmp/notional_mm_live /usr/local/bin/
 COPY --from=builder /tmp/template_strategy /usr/local/bin/
 
 # Copy dashboard from dashboard-builder

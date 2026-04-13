@@ -15,6 +15,8 @@
 # Current: Testnet
 stream_url = "wss://fstream.binancefuture.com/ws"
 api_url = "https://demo-fapi.binance.com"
+# user_stream_url auto-derived: same as stream_url for legacy /ws format
+# For mainnet /public/ws, auto-derives to /private/ws
 
 order_prefix = "test"
 api_key = ""

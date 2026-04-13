@@ -1,0 +1,7 @@
+# Binance Futures Testnet (not PAPI — testnet doesn't support PAPI)
+stream_url = "wss://fstream.binancefuture.com/ws"
+api_url = "https://demo-fapi.binance.com"
+
+order_prefix = "test"
+api_key = "${BINANCE_API_KEY}"
+secret = "${BINANCE_SECRET}"
