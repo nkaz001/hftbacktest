@@ -597,7 +597,7 @@ async fn main() {
                         );
                         let provider = Arc::new(BinanceFuturesProvider::new(client));
 
-                        match SyncTask::new(sync_config, symbols) {
+                        match SyncTask::new(sync_config, symbols).await {
                             Ok(sync_task) => {
                                 info!(
                                     "Started position, account, and income sync for binancefutures"
@@ -628,7 +628,7 @@ async fn main() {
                         );
                         let provider = Arc::new(BybitProvider::new(client, "linear"));
 
-                        match SyncTask::new(sync_config, symbols) {
+                        match SyncTask::new(sync_config, symbols).await {
                             Ok(sync_task) => {
                                 info!("Started position, account, and income sync for bybit");
                                 let provider2 = provider.clone();
@@ -657,7 +657,7 @@ async fn main() {
                         );
                         let provider = Arc::new(BybitProvider::new(client, "linear"));
 
-                        match SyncTask::new(sync_config, symbols) {
+                        match SyncTask::new(sync_config, symbols).await {
                             Ok(sync_task) => {
                                 info!("Started position, account, and income sync for bybit_rest");
                                 let provider2 = provider.clone();
@@ -686,7 +686,7 @@ async fn main() {
                         );
                         let provider = Arc::new(BinancePapiProvider::new(client));
 
-                        match SyncTask::new(sync_config, symbols) {
+                        match SyncTask::new(sync_config, symbols).await {
                             Ok(sync_task) => {
                                 info!("Started position, account, and income sync for binancepapi");
                                 let provider2 = provider.clone();

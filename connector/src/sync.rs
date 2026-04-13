@@ -121,18 +121,39 @@ pub mod recording {
     }
 
     impl SyncTask {
-        /// Create a new sync task
-        pub fn new(
+        /// Create a new sync task, retrying IPC connection up to 10 times.
+        ///
+        /// The order-recorder process may not have created the IPC service yet
+        /// when the connector starts. Retry with backoff to handle this race.
+        pub async fn new(
             config: SyncConfig,
             symbols: Arc<Mutex<HashSet<String>>>,
         ) -> Result<Self, Box<dyn std::error::Error>> {
-            let publisher = RecordingPublisher::new(&config.recording_service)?;
-            Ok(Self {
-                config,
-                publisher,
-                symbols,
-                last_income_time: Arc::new(Mutex::new(0)),
-            })
+            let mut last_err = None;
+            for attempt in 1..=10 {
+                match RecordingPublisher::new(&config.recording_service) {
+                    Ok(publisher) => {
+                        if attempt > 1 {
+                            tracing::info!("Sync IPC connected on attempt {attempt}");
+                        }
+                        return Ok(Self {
+                            config,
+                            publisher,
+                            symbols,
+                            last_income_time: Arc::new(Mutex::new(0)),
+                        });
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            attempt,
+                            "Sync IPC not ready, retrying in 2s: {e}"
+                        );
+                        last_err = Some(e);
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    }
+                }
+            }
+            Err(last_err.unwrap())
         }
 
         /// Run position sync loop
