@@ -642,6 +642,18 @@ impl BotManager {
             cmd.arg("--lot-size").arg(ls.to_string());
         }
 
+        // Pass strategy-id (= bot id) for recording + stagger offset
+        cmd.arg("--strategy-id").arg(&bot.config.id);
+
+        // Pass stagger index for quote cycle offset (bot's position among peers)
+        {
+            let bots = self.bots.read().await;
+            let mut ids: Vec<&String> = bots.keys().collect();
+            ids.sort();
+            let index = ids.iter().position(|id| *id == bot_id).unwrap_or(0);
+            cmd.arg("--stagger-index").arg(index.to_string());
+        }
+
         // Pass warmup data directory and settings
         let config = self.config.read().await;
         cmd.arg("--warmup-data-dir")
