@@ -61,6 +61,8 @@ pub struct ManagedBot {
     pub pid: Option<u32>,
     pub started_at: Option<Instant>,
     pub restart_count: u32,
+    /// Stagger index for quote cycle offset (bot's sorted position among peers)
+    pub stagger_index: usize,
 }
 
 impl ManagedBot {
@@ -72,6 +74,7 @@ impl ManagedBot {
             pid: None,
             started_at: None,
             restart_count: 0,
+            stagger_index: 0,
         }
     }
 }
@@ -220,9 +223,19 @@ impl BotManager {
     /// Start a specific bot
     pub async fn start_bot(&self, bot_id: &str) -> Result<()> {
         let mut bots = self.bots.write().await;
+
+        // Compute stagger index first (needs immutable access to keys)
+        let stagger_index = {
+            let mut ids: Vec<&String> = bots.keys().collect();
+            ids.sort();
+            ids.iter().position(|id| id.as_str() == bot_id).unwrap_or(0)
+        };
+
         let bot = bots
             .get_mut(bot_id)
             .with_context(|| format!("Bot not found: {}", bot_id))?;
+
+        bot.stagger_index = stagger_index;
 
         if !bot.config.enabled {
             anyhow::bail!("Bot {} is disabled in configuration", bot_id);
@@ -645,14 +658,9 @@ impl BotManager {
         // Pass strategy-id (= bot id) for recording + stagger offset
         cmd.arg("--strategy-id").arg(&bot.config.id);
 
-        // Pass stagger index for quote cycle offset (bot's position among peers)
-        {
-            let bots = self.bots.read().await;
-            let mut ids: Vec<&String> = bots.keys().collect();
-            ids.sort();
-            let index = ids.iter().position(|id| *id == bot_id).unwrap_or(0);
-            cmd.arg("--stagger-index").arg(index.to_string());
-        }
+        // Pass stagger index for quote cycle offset
+        // NOTE: index is computed by caller (start_bot) to avoid RwLock deadlock
+        cmd.arg("--stagger-index").arg(bot.stagger_index.to_string());
 
         // Pass warmup data directory and settings
         let config = self.config.read().await;
