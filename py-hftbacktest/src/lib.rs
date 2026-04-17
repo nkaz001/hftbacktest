@@ -9,7 +9,7 @@ use hftbacktest::{
     backtest::{
         Asset, Backtest, DataSource,
         assettype::{InverseAsset, LinearAsset},
-        data::{Data, DataPtr, FeedLatencyAdjustment, Reader, read_npz_file},
+        data::{Data, DataPtr, FeedLatencyAdjustment, Reader, TardisStreamDayConfig, read_npz_file},
         models::{
             CommonFees, ConstantLatency, FlatPerTradeFeeModel, IntpOrderLatency, L3FIFOQueueModel,
             LogProbQueueFunc, LogProbQueueFunc2, OrderLatencyRow, PowerProbQueueFunc,
@@ -182,6 +182,30 @@ impl BacktestAsset {
 
     pub fn add_file(mut slf: PyRefMut<Self>, data: String) -> PyRefMut<Self> {
         slf.data.push(DataSource::File(data));
+        slf
+    }
+
+    /// Adds a day of Tardis CSV.gz streaming data (trades + incremental L2 depth,
+    /// optional book_ticker). Each call appends one day; call repeatedly for a
+    /// multi-day backtest. Equivalent to `DataSource::TardisStream` on the Rust side.
+    ///
+    /// Args:
+    ///     trades: path to the trades CSV.gz for this day.
+    ///     depth: path to the incremental_book_L2 CSV.gz for this day.
+    ///     book_ticker: optional path to the book_ticker CSV.gz (BBO) for this day.
+    #[pyo3(signature = (trades, depth, book_ticker=None))]
+    pub fn add_tardis_stream(
+        mut slf: PyRefMut<Self>,
+        trades: String,
+        depth: String,
+        book_ticker: Option<String>,
+    ) -> PyRefMut<Self> {
+        slf.data
+            .push(DataSource::TardisStream(TardisStreamDayConfig {
+                trades,
+                depth,
+                book_ticker,
+            }));
         slf
     }
 

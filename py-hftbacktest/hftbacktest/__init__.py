@@ -112,7 +112,7 @@ __all__ = (
     'Recorder'
 )
 
-__version__ = '2.4.4'
+__version__ = '2.7.2'
 
 
 class BacktestAsset(BacktestAsset_):
@@ -120,28 +120,40 @@ class BacktestAsset(BacktestAsset_):
         self._add_data_ndarray(data.ctypes.data, len(data))
         return self
 
-    def data(self, data: str | List[str] | EVENT_ARRAY | List[EVENT_ARRAY]):
+    def data(self, data):
         """
-        Sets the feed data.
+        Sets the feed data. Accepts:
+          * ``str`` — path to an NPZ file (equivalent to ``add_file``)
+          * ``np.ndarray`` — an in-memory event array
+          * ``dict`` with keys ``trades``, ``depth``, and optional ``book_ticker``
+            — one day of Tardis CSV.gz streaming (equivalent to
+            ``DataSource::TardisStream``)
+          * ``list`` mixing any of the above (one entry per day / per file)
+        """
+        def _add_one(item):
+            if isinstance(item, str):
+                self.add_file(item)
+            elif isinstance(item, np.ndarray):
+                self.add_data(item)
+            elif isinstance(item, dict):
+                trades = item.get('trades')
+                depth = item.get('depth')
+                book_ticker = item.get('book_ticker')
+                if not isinstance(trades, str) or not isinstance(depth, str):
+                    raise ValueError(
+                        "Streaming entry requires str 'trades' and 'depth' paths"
+                    )
+                if book_ticker is not None and not isinstance(book_ticker, str):
+                    raise ValueError("'book_ticker' must be a str path or None")
+                self.add_tardis_stream(trades, depth, book_ticker)
+            else:
+                raise ValueError(f"Unsupported feed entry: {type(item)!r}")
 
-        Args:
-            data: A list of file paths for the feed data in `.npz` format, or a list of NumPy arrays containing the feed
-                  data.
-        """
-        if isinstance(data, str):
-            self.add_file(data)
-        elif isinstance(data, np.ndarray):
-            self.add_data(data)
-        elif isinstance(data, list):
+        if isinstance(data, list):
             for item in data:
-                if isinstance(item, str):
-                    self.add_file(item)
-                elif isinstance(item, np.ndarray):
-                    self.add_data(item)
-                else:
-                    raise ValueError
+                _add_one(item)
         else:
-            raise ValueError
+            _add_one(data)
         return self
 
     def intp_order_latency(self, data: str | NDArray | List[str], latency_offset: int = 0):
