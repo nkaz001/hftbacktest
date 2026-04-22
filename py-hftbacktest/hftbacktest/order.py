@@ -117,7 +117,7 @@ class Order:
         """
         Returns the tick size.
         """
-        return self.arr[0].price_tick
+        return self.arr[0].tick_size
 
     @property
     def exch_timestamp(self) -> int64:
