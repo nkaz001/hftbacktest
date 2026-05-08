@@ -17,9 +17,9 @@ def market_making_algo(hbt):
 
         """
         You can find the core ideas from the following articles.
-        https://ieor.columbia.edu/files/seasdepts/industrial-engineering-operations-research/pdf-files/Borden_D_FESeminar_Sp10.pdf (page 5)
+        https://web.archive.org/web/20210204083000/https://ieor.columbia.edu/files/seasdepts/industrial-engineering-operations-research/pdf-files/Borden_D_FESeminar_Sp10.pdf (page 5)
         https://arxiv.org/abs/1105.3115 (the last three equations on page 13 and 7 Backtests)
-        https://blog.bitmex.com/wp-content/uploads/2019/11/Algo-Trading-and-Market-Making.pdf
+        https://web.archive.org/web/20241004182252/https://blog.bitmex.com/wp-content/uploads/2019/11/Algo-Trading-and-Market-Making.pdf
 
         Also see my other repo.
         """
