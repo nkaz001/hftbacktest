@@ -196,10 +196,12 @@ where
 
         let orig_price_tick = order.price_tick;
         let orig_qty = order.qty;
+        let orig_leaves_qty = order.leaves_qty;
 
         let price_tick = (price / self.depth.tick_size()).round() as i64;
         order.price_tick = price_tick;
         order.qty = qty;
+        order.leaves_qty = qty;
 
         order.req = Status::Replaced;
         order.local_timestamp = current_timestamp;
@@ -208,6 +210,7 @@ where
             order.req = Status::Rejected;
             order.price_tick = orig_price_tick;
             order.qty = orig_qty;
+            order.leaves_qty = orig_leaves_qty;
         });
 
         Ok(())

@@ -1161,7 +1161,13 @@ mod test {
         },
         depth::HashMapMarketDepth,
         prelude::{Bot, Event},
-        types::{EXCH_EVENT, LOCAL_EVENT},
+        types::{
+            EXCH_EVENT,
+            EXCH_SELL_TRADE_EVENT,
+            LOCAL_ASK_DEPTH_EVENT,
+            LOCAL_BID_DEPTH_EVENT,
+            LOCAL_EVENT,
+        },
     };
 
     #[test]
@@ -1235,6 +1241,78 @@ mod test {
 
         backtester.elapse_bt(1)?;
         assert_eq!(3, backtester.cur_ts);
+
+        Ok(())
+    }
+
+    #[test]
+    fn modifies_order_leaves_qty_when_requeued() -> Result<(), Box<dyn Error>> {
+        let data = Data::from_data(&[
+            Event {
+                ev: LOCAL_BID_DEPTH_EVENT | EXCH_EVENT,
+                exch_ts: 0,
+                local_ts: 0,
+                px: 99.0,
+                qty: 100.0,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            },
+            Event {
+                ev: LOCAL_ASK_DEPTH_EVENT | EXCH_EVENT,
+                exch_ts: 0,
+                local_ts: 0,
+                px: 101.0,
+                qty: 100.0,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            },
+            Event {
+                ev: EXCH_SELL_TRADE_EVENT,
+                exch_ts: 10,
+                local_ts: 10,
+                px: 100.0,
+                qty: 2.0,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            },
+        ]);
+
+        let mut backtester = Backtest::builder()
+            .add_asset(
+                L2AssetBuilder::default()
+                    .data(vec![DataSource::Data(data)])
+                    .latency_model(ConstantLatency::new(0, 0))
+                    .asset_type(LinearAsset::new(1.0))
+                    .fee_model(TradingValueFeeModel::new(CommonFees::new(0.0, 0.0)))
+                    .queue_model(ProbQueueModel::new(PowerProbQueueFunc3::new(3.0)))
+                    .exchange(NoPartialFillExchange)
+                    .depth(|| HashMapMarketDepth::new(1.0, 1.0))
+                    .build()?,
+            )
+            .build()?;
+
+        backtester.elapse(0)?;
+        backtester.submit_buy_order(
+            0,
+            1,
+            99.0,
+            1.0,
+            crate::types::TimeInForce::GTC,
+            crate::types::OrdType::Limit,
+            true,
+        )?;
+        backtester.modify(0, 1, 100.0, 2.0, true)?;
+
+        let order = backtester.orders(0).get(&1).unwrap();
+        assert_eq!(order.qty, 2.0);
+        assert_eq!(order.leaves_qty, 2.0);
+
+        backtester.elapse(10)?;
+
+        assert_eq!(backtester.position(0), 2.0);
 
         Ok(())
     }
