@@ -303,6 +303,32 @@ where
         order: &mut Order,
         timestamp: i64,
     ) -> Result<(), BacktestError> {
+        // If the modified price crosses the book, the order becomes marketable and must take
+        // liquidity rather than rest at a crossed price. `ack_new` already fills a marketable
+        // order, so mirror the L2 `NoPartialFillExchange` (which modifies via cancel + new) and
+        // cancel + re-submit, instead of repositioning the order in the queue at a price through
+        // the opposite best.
+        let marketable = match order.side {
+            Side::Buy => order.price_tick >= self.depth.best_ask_tick(),
+            Side::Sell => order.price_tick <= self.depth.best_bid_tick(),
+            _ => false,
+        };
+        if marketable {
+            let mut cancel_order = order.clone();
+            self.ack_cancel(&mut cancel_order, timestamp)?;
+            if cancel_order.status == Status::Canceled {
+                // The resting order existed and was removed; re-submit it so it takes the market.
+                // The modify request carries the new quantity in `qty`, so normalize `leaves_qty`
+                // before re-submitting, matching the resting-modify path below.
+                order.leaves_qty = order.qty;
+                return self.ack_new(order, timestamp);
+            }
+            // The order was already gone (filled/expired/unknown id); reject the modify, matching
+            // the `OrderNotFound` handling below.
+            order.req = Status::Rejected;
+            order.exch_timestamp = timestamp;
+            return Ok(());
+        }
         match self
             .queue_model
             .modify_backtest_order(order.order_id, order, &self.depth)
@@ -448,5 +474,158 @@ where
         self.order_e2l
             .earliest_send_order_timestamp()
             .unwrap_or(i64::MAX)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::L3NoPartialFillExchange;
+    use crate::{
+        backtest::{
+            assettype::LinearAsset,
+            models::{CommonFees, ConstantLatency, L3FIFOQueueModel, TradingValueFeeModel},
+            order::{LocalToExch, order_bus},
+            proc::Processor,
+            state::State,
+        },
+        depth::HashMapMarketDepth,
+        types::{
+            EXCH_ASK_ADD_ORDER_EVENT,
+            EXCH_BID_ADD_ORDER_EVENT,
+            Event,
+            OrdType,
+            Order,
+            Side,
+            Status,
+            TimeInForce,
+        },
+    };
+
+    type TestExchange = L3NoPartialFillExchange<
+        LinearAsset,
+        ConstantLatency,
+        L3FIFOQueueModel,
+        HashMapMarketDepth,
+        TradingValueFeeModel<CommonFees>,
+    >;
+
+    fn ev(flags: u64, px: f64, qty: f64, order_id: u64, ts: i64) -> Event {
+        Event {
+            ev: flags,
+            exch_ts: ts,
+            local_ts: ts,
+            px,
+            qty,
+            order_id,
+            ival: 0,
+            fval: 0.0,
+        }
+    }
+
+    fn order(order_id: u64, price_tick: i64, qty: f64, side: Side, req: Status, ts: i64) -> Order {
+        let mut o = Order::new(
+            order_id,
+            price_tick,
+            1.0,
+            qty,
+            side,
+            OrdType::Limit,
+            TimeInForce::GTC,
+        );
+        o.req = req;
+        o.local_timestamp = ts;
+        o.exch_timestamp = ts;
+        o
+    }
+
+    /// Builds an exchange with a market book of bid 100 / ask 101, along with the local side of
+    /// the order bus used to submit requests and receive responses.
+    fn setup() -> (TestExchange, LocalToExch<ConstantLatency>) {
+        let depth = HashMapMarketDepth::new(1.0, 1.0);
+        let (e2l, l2e) = order_bus(ConstantLatency::new(0, 0));
+        let state = State::new(
+            LinearAsset::new(1.0),
+            TradingValueFeeModel::new(CommonFees::new(0.0002, 0.0005)),
+        );
+        let mut exch = L3NoPartialFillExchange::new(depth, state, L3FIFOQueueModel::new(), e2l);
+        exch.process(&ev(EXCH_BID_ADD_ORDER_EVENT, 100.0, 10.0, 1001, 0))
+            .unwrap();
+        exch.process(&ev(EXCH_ASK_ADD_ORDER_EVENT, 101.0, 10.0, 1002, 0))
+            .unwrap();
+        (exch, l2e)
+    }
+
+    /// Modifying a resting buy to a price at/through the best ask must take the market, matching
+    /// the L2 `NoPartialFillExchange`, instead of resting at a crossed price.
+    #[test]
+    fn test_modify_buy_to_marketable_price_takes() {
+        let (mut exch, mut l2e) = setup();
+
+        l2e.request(order(1, 99, 5.0, Side::Buy, Status::New, 10), |o| {
+            o.req = Status::Rejected
+        });
+        exch.process_recv_order(10, None).unwrap();
+        let resting = l2e.receive(10).unwrap();
+        assert_eq!(resting.status, Status::New);
+        assert_eq!(resting.exec_qty, 0.0);
+
+        // Modify the buy to 101 (== best ask) -> marketable.
+        l2e.request(order(1, 101, 5.0, Side::Buy, Status::Replaced, 20), |o| {
+            o.req = Status::Rejected
+        });
+        exch.process_recv_order(20, None).unwrap();
+        let modified = l2e.receive(20).unwrap();
+        assert_eq!(modified.status, Status::Filled);
+        assert_eq!(modified.exec_qty, 5.0);
+        assert_eq!(modified.leaves_qty, 0.0);
+        assert_eq!(modified.exec_price_tick, 101);
+    }
+
+    /// The mirror sell case: modifying a resting sell to a price at/through the best bid takes.
+    #[test]
+    fn test_modify_sell_to_marketable_price_takes() {
+        let (mut exch, mut l2e) = setup();
+
+        l2e.request(order(1, 102, 5.0, Side::Sell, Status::New, 10), |o| {
+            o.req = Status::Rejected
+        });
+        exch.process_recv_order(10, None).unwrap();
+        let resting = l2e.receive(10).unwrap();
+        assert_eq!(resting.status, Status::New);
+
+        // Modify the sell to 100 (== best bid) -> marketable.
+        l2e.request(order(1, 100, 5.0, Side::Sell, Status::Replaced, 20), |o| {
+            o.req = Status::Rejected
+        });
+        exch.process_recv_order(20, None).unwrap();
+        let modified = l2e.receive(20).unwrap();
+        assert_eq!(modified.status, Status::Filled);
+        assert_eq!(modified.exec_qty, 5.0);
+        assert_eq!(modified.leaves_qty, 0.0);
+        assert_eq!(modified.exec_price_tick, 100);
+    }
+
+    /// A non-marketable modify must still rest and reposition through the queue model, unaffected
+    /// by the marketable fast-path.
+    #[test]
+    fn test_modify_to_non_marketable_price_rests() {
+        let (mut exch, mut l2e) = setup();
+
+        l2e.request(order(1, 99, 5.0, Side::Buy, Status::New, 10), |o| {
+            o.req = Status::Rejected
+        });
+        exch.process_recv_order(10, None).unwrap();
+        l2e.receive(10).unwrap();
+
+        // Modify to 98 (still below the ask) -> stays resting.
+        l2e.request(order(1, 98, 5.0, Side::Buy, Status::Replaced, 20), |o| {
+            o.req = Status::Rejected
+        });
+        exch.process_recv_order(20, None).unwrap();
+        let modified = l2e.receive(20).unwrap();
+        assert_eq!(modified.status, Status::New);
+        assert_eq!(modified.exec_qty, 0.0);
+        assert_eq!(modified.leaves_qty, 5.0);
+        assert_eq!(modified.price_tick, 98);
     }
 }
