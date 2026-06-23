@@ -316,7 +316,8 @@ impl L2MarketDepth for ROIVectorMarketDepth {
                     let clear_upto = (clear_upto_price / self.tick_size).round() as i64;
                     if self.best_ask_tick != INVALID_MAX {
                         let from = self.best_ask_tick - self.roi_lb;
-                        let to = (clear_upto + 1 - self.roi_ub).min(self.ask_depth.len() as i64);
+                        // Depth vector indices are offset by roi_lb, not roi_ub.
+                        let to = (clear_upto + 1 - self.roi_lb).min(self.ask_depth.len() as i64);
                         for t in from..to {
                             unsafe {
                                 *self.ask_depth.get_unchecked_mut(t as usize) = 0.0;
@@ -805,7 +806,14 @@ impl L3MarketDepth for ROIVectorMarketDepth {
 #[cfg(test)]
 mod tests {
     use crate::{
-        depth::{INVALID_MAX, INVALID_MIN, L3MarketDepth, MarketDepth, ROIVectorMarketDepth},
+        depth::{
+            INVALID_MAX,
+            INVALID_MIN,
+            L2MarketDepth,
+            L3MarketDepth,
+            MarketDepth,
+            ROIVectorMarketDepth,
+        },
         types::Side,
     };
 
@@ -1028,5 +1036,34 @@ mod tests {
         assert_eq!(depth.best_ask_tick(), 5001);
         assert_eq_qty!(depth.ask_qty_at_tick(4981), 0.0, lot_size);
         assert_eq_qty!(depth.ask_qty_at_tick(5002), 0.002, lot_size);
+    }
+
+    #[test]
+    fn test_l2_clear_depth_upto_price() {
+        let lot_size = 1.0;
+        let mut depth = ROIVectorMarketDepth::new(1.0, lot_size, 100.0, 200.0);
+
+        // Clearing the ask side up to a price must remove every level up to that price,
+        // rather than leaving stale quantity sitting behind the best ask.
+        depth.update_ask_depth(150.0, 5.0, 0);
+        depth.update_ask_depth(151.0, 7.0, 0);
+        depth.update_ask_depth(160.0, 9.0, 0);
+
+        depth.clear_depth(Side::Sell, 155.0);
+        assert_eq_qty!(depth.ask_qty_at_tick(150), 0.0, lot_size);
+        assert_eq_qty!(depth.ask_qty_at_tick(151), 0.0, lot_size);
+        assert_eq_qty!(depth.ask_qty_at_tick(160), 9.0, lot_size);
+        assert_eq!(depth.best_ask_tick(), 160);
+
+        // The bid side, which already behaved correctly.
+        depth.update_bid_depth(150.0, 5.0, 0);
+        depth.update_bid_depth(149.0, 7.0, 0);
+        depth.update_bid_depth(140.0, 9.0, 0);
+
+        depth.clear_depth(Side::Buy, 145.0);
+        assert_eq_qty!(depth.bid_qty_at_tick(150), 0.0, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(149), 0.0, lot_size);
+        assert_eq_qty!(depth.bid_qty_at_tick(140), 9.0, lot_size);
+        assert_eq!(depth.best_bid_tick(), 140);
     }
 }
