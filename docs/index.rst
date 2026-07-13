@@ -279,6 +279,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    :hidden:
 
    tutorials/Data Preparation
+   tutorials/CryptoHFTData
    tutorials/Getting Started
    tutorials/Working with Market Depth and Trades
    tutorials/Integrating Custom Data

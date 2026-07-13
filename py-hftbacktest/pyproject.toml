@@ -43,6 +43,7 @@ Repository = "https://github.com/nkaz001/hftbacktest"
 
 [project.optional-dependencies]
 databento = ["databento"]
+cryptohftdata = ["cryptohftdata>=0.4.0"]
 
 [tool.maturin]
 include = [{ path = "rust-toolchain.toml", format = "sdist" }]

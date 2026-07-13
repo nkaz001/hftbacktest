@@ -207,6 +207,10 @@ Examples
 
 You can find more examples in `examples <https://github.com/nkaz001/hftbacktest/tree/master/examples>`_ directory and `Rust examples <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/>`_.
 
+`CryptoHFTData Workflow <https://github.com/nkaz001/hftbacktest/blob/master/examples/CryptoHFTData%20Workflow.ipynb>`_: End-to-end workflow for downloading CryptoHFTData orderbook and trades data, converting it into HftBacktest's normalized format, deriving an end-of-day snapshot, and running a simple backtest.
+
+`CryptoHFTData script <https://github.com/nkaz001/hftbacktest/blob/master/examples/cryptohftdata.py>`_: Command-line download and conversion of CryptoHFTData orderbook and trade data.
+
 The complete process of backtesting Binance Futures
 ---------------------------------------------------
 `high-frequency gridtrading <https://github.com/nkaz001/hftbacktest/blob/master/hftbacktest/examples/gridtrading.ipynb>`_: The complete process of backtesting Binance Futures using a high-frequency grid trading strategy implemented in Rust.

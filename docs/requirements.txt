@@ -8,3 +8,4 @@ polars
 holoviews
 matplotlib
 databento
+cryptohftdata>=0.4.0
