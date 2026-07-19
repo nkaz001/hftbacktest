@@ -74,7 +74,13 @@ impl FusedHashMapMarketDepth {
 
     pub fn update_bid_depth(&mut self, ev: Event) -> Vec<Event> {
         let mut result = Vec::new();
+        self.update_bid_depth_into(ev, &mut result);
+        result
+    }
 
+    /// Updates the bid market depth and appends the resulting events to `output`, preserving its
+    /// existing contents.
+    pub fn update_bid_depth_into(&mut self, ev: Event, output: &mut Vec<Event>) {
         let price_tick = (ev.px / self.tick_size).round() as i64;
         let qty_lot = (ev.qty / self.lot_size).round() as i64;
 
@@ -89,7 +95,7 @@ impl FusedHashMapMarketDepth {
             //     best_ask_timestamp = self.best_ask_timestamp,
             //     "update_bid_depth: attempts to update the BBO, but the event is outdated."
             // );
-            return result;
+            return;
         }
 
         match self.bid_depth.entry(price_tick) {
@@ -104,7 +110,7 @@ impl FusedHashMapMarketDepth {
                     } else {
                         entry.remove();
                     }
-                    result.push(ev.clone());
+                    output.push(ev.clone());
                 } else {
                     // debug!(
                     //     ?ev,
@@ -120,7 +126,7 @@ impl FusedHashMapMarketDepth {
                         qty: ev.qty,
                         ts: ev.exch_ts,
                     });
-                    result.push(ev.clone());
+                    output.push(ev.clone());
                 }
             }
         }
@@ -164,7 +170,7 @@ impl FusedHashMapMarketDepth {
                             //     "update_bid_depth: Ask deletion event is generated \
                             //     by the best bid crossing."
                             // );
-                            result.push(Event {
+                            output.push(Event {
                                 ev: SELL_EVENT | DEPTH_EVENT,
                                 exch_ts: ev.exch_ts,
                                 local_ts: ev.local_ts,
@@ -185,12 +191,17 @@ impl FusedHashMapMarketDepth {
             }
             self.low_bid_tick = self.low_bid_tick.min(price_tick);
         }
-        result
     }
 
     pub fn update_ask_depth(&mut self, ev: Event) -> Vec<Event> {
         let mut result = Vec::new();
+        self.update_ask_depth_into(ev, &mut result);
+        result
+    }
 
+    /// Updates the ask market depth and appends the resulting events to `output`, preserving its
+    /// existing contents.
+    pub fn update_ask_depth_into(&mut self, ev: Event, output: &mut Vec<Event>) {
         let price_tick = (ev.px / self.tick_size).round() as i64;
         let qty_lot = (ev.qty / self.lot_size).round() as i64;
 
@@ -205,7 +216,7 @@ impl FusedHashMapMarketDepth {
             //     best_ask_timestamp = self.best_ask_timestamp,
             //     "update_ask_depth: attempts to update the BBO, but the event is outdated."
             // );
-            return result;
+            return;
         }
 
         match self.ask_depth.entry(price_tick) {
@@ -220,7 +231,7 @@ impl FusedHashMapMarketDepth {
                     } else {
                         entry.remove();
                     }
-                    result.push(ev.clone());
+                    output.push(ev.clone());
                 } else {
                     // debug!(
                     //     ?ev,
@@ -236,7 +247,7 @@ impl FusedHashMapMarketDepth {
                         qty: ev.qty,
                         ts: ev.exch_ts,
                     });
-                    result.push(ev.clone());
+                    output.push(ev.clone());
                 }
             }
         }
@@ -280,7 +291,7 @@ impl FusedHashMapMarketDepth {
                             //     "update_ask_depth: Bid deletion event is generated \
                             //     by the best ask crossing."
                             // );
-                            result.push(Event {
+                            output.push(Event {
                                 ev: BUY_EVENT | DEPTH_EVENT,
                                 exch_ts: ev.exch_ts,
                                 local_ts: ev.local_ts,
@@ -301,7 +312,6 @@ impl FusedHashMapMarketDepth {
             }
             self.high_ask_tick = self.high_ask_tick.max(price_tick);
         }
-        result
     }
 
     pub fn clear_depth(&mut self, side: Side, clear_upto_price: f64, timestamp: i64) {
@@ -714,8 +724,103 @@ impl MarketDepth for FusedHashMapMarketDepth {
 mod tests {
     use crate::{
         depth::{FusedHashMapMarketDepth, MarketDepth},
-        types::{BUY_EVENT, DEPTH_EVENT, Event, SELL_EVENT},
+        types::{BUY_EVENT, DEPTH_EVENT, DEPTH_SNAPSHOT_EVENT, Event, SELL_EVENT},
     };
+
+    fn assert_same_depth(left: &FusedHashMapMarketDepth, right: &FusedHashMapMarketDepth) {
+        assert_eq!(left.timestamp, right.timestamp);
+        assert_eq!(left.best_bid_tick, right.best_bid_tick);
+        assert_eq!(left.best_ask_tick, right.best_ask_tick);
+        assert_eq!(left.best_bid_timestamp, right.best_bid_timestamp);
+        assert_eq!(left.best_ask_timestamp, right.best_ask_timestamp);
+        assert_eq!(left.low_bid_tick, right.low_bid_tick);
+        assert_eq!(left.high_ask_tick, right.high_ask_tick);
+        assert_eq!(left.bid_depth.len(), right.bid_depth.len());
+        assert_eq!(left.ask_depth.len(), right.ask_depth.len());
+        for (price_tick, left_value) in &left.bid_depth {
+            let right_value = right.bid_depth.get(price_tick).unwrap();
+            assert_eq!(left_value.qty.to_bits(), right_value.qty.to_bits());
+            assert_eq!(left_value.ts, right_value.ts);
+        }
+        for (price_tick, left_value) in &left.ask_depth {
+            let right_value = right.ask_depth.get(price_tick).unwrap();
+            assert_eq!(left_value.qty.to_bits(), right_value.qty.to_bits());
+            assert_eq!(left_value.ts, right_value.ts);
+        }
+    }
+
+    #[test]
+    fn test_update_depth_into_matches_returning_api() {
+        let mut returning = FusedHashMapMarketDepth::new(0.1, 0.01);
+        let mut appending = FusedHashMapMarketDepth::new(0.1, 0.01);
+        let sentinel = Event {
+            ev: 0,
+            exch_ts: 0,
+            local_ts: 0,
+            px: 0.0,
+            qty: 0.0,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        };
+        let mut output = vec![sentinel.clone()];
+        let mut state = 0x5eed_u64;
+
+        for index in 0..20_000usize {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let buy = state & 1 == 0;
+            let snapshot = index % 127 == 0;
+            let level = ((state >> 32) % 128) as f64;
+            let mut price = if buy {
+                1_000.0 - level / 10.0
+            } else {
+                1_000.1 + level / 10.0
+            };
+            if index > 2 && index % 97 == 0 {
+                price = if buy { 1_000.2 } else { 999.9 };
+            }
+            let qty = if index > 256 && state.is_multiple_of(11) {
+                0.0
+            } else {
+                (state % 20 + 1) as f64 / 100.0
+            };
+            let exch_ts = if index > 50 && index % 113 == 0 {
+                index as i64 - 50
+            } else {
+                index as i64 + 1
+            };
+            let event = Event {
+                ev: if snapshot {
+                    DEPTH_SNAPSHOT_EVENT
+                } else {
+                    DEPTH_EVENT
+                } | if buy { BUY_EVENT } else { SELL_EVENT },
+                exch_ts,
+                local_ts: index as i64 + 101,
+                px: price,
+                qty,
+                order_id: 0,
+                ival: 0,
+                fval: 0.0,
+            };
+
+            let expected = if buy {
+                returning.update_bid_depth(event.clone())
+            } else {
+                returning.update_ask_depth(event.clone())
+            };
+            let output_len = output.len();
+            if buy {
+                appending.update_bid_depth_into(event, &mut output);
+            } else {
+                appending.update_ask_depth_into(event, &mut output);
+            }
+
+            assert_eq!(&output[output_len..], expected.as_slice());
+            assert_same_depth(&returning, &appending);
+        }
+        assert_eq!(output.first(), Some(&sentinel));
+    }
 
     #[test]
     fn test_update_bid_depth() {
