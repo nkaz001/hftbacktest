@@ -152,7 +152,7 @@ where
                     // q_ahead is negative since is_filled is true and its value represents the
                     // executable quantity of this order after execution in the queue ahead of this
                     // order.
-                    let exec_qty = if filled_qty > order.leaves_qty {
+                    let exec_qty = if filled_qty >= order.leaves_qty {
                         self.filled_orders.push(order.order_id);
                         order.leaves_qty
                     } else {
@@ -192,7 +192,7 @@ where
                     // q_ahead is negative since is_filled is true and its value represents the
                     // executable quantity of this order after execution in the queue ahead of this
                     // order.
-                    let exec_qty = if filled_qty > order.leaves_qty {
+                    let exec_qty = if filled_qty >= order.leaves_qty {
                         self.filled_orders.push(order.order_id);
                         order.leaves_qty
                     } else {
