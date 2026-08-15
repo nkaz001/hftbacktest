@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     cmp::Ordering,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
 
@@ -70,10 +70,10 @@ where
     FM: FeeModel,
 {
     // key: order_id, value: Order<Q>
-    orders: Rc<RefCell<HashMap<OrderId, Order>>>,
+    orders: Rc<RefCell<BTreeMap<OrderId, Order>>>,
     // key: order's price tick, value: order_ids
-    buy_orders: HashMap<i64, HashSet<OrderId>>,
-    sell_orders: HashMap<i64, HashSet<OrderId>>,
+    buy_orders: BTreeMap<i64, BTreeSet<OrderId>>,
+    sell_orders: BTreeMap<i64, BTreeSet<OrderId>>,
 
     order_e2l: ExchToLocal<LM>,
 
@@ -645,5 +645,62 @@ where
         self.order_e2l
             .earliest_send_order_timestamp()
             .unwrap_or(i64::MAX)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        backtest::{
+            assettype::LinearAsset,
+            models::{CommonFees, ConstantLatency, RiskAdverseQueueModel, TradingValueFeeModel},
+            order::order_bus,
+            state::State,
+        },
+        depth::HashMapMarketDepth,
+    };
+
+    #[test]
+    fn simultaneous_responses_are_ordered_by_order_id() {
+        for iteration in 0..32 {
+            let (order_e2l, mut local_to_exch) = order_bus(ConstantLatency::new(0, 0));
+            let mut exchange = NoPartialFillExchange::new(
+                HashMapMarketDepth::new(1.0, 1.0),
+                State::new(
+                    LinearAsset::new(1.0),
+                    TradingValueFeeModel::new(CommonFees::new(0.0, 0.0)),
+                ),
+                RiskAdverseQueueModel::new(),
+                order_e2l,
+            );
+
+            for order_id in [7003, 7001, 7002] {
+                let mut order = Order::new(
+                    order_id,
+                    100,
+                    1.0,
+                    1.0,
+                    Side::Sell,
+                    OrdType::Limit,
+                    TimeInForce::GTC,
+                );
+                order.status = Status::New;
+                exchange.orders.borrow_mut().insert(order_id, order);
+                exchange
+                    .sell_orders
+                    .entry(100)
+                    .or_default()
+                    .insert(order_id);
+            }
+
+            exchange.on_best_bid_update(INVALID_MIN, 100, 42).unwrap();
+
+            let response_order = (0..3)
+                .map(|_| local_to_exch.receive(42).unwrap().order_id)
+                .collect::<Vec<_>>();
+            assert_eq!(response_order, [7001, 7002, 7003], "iteration {iteration}");
+            assert!(local_to_exch.receive(42).is_none());
+        }
     }
 }
