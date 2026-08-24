@@ -102,6 +102,29 @@ class SR(Metric):
             return {self.name: np.divide(pnl.drop_nans().mean(), pnl.drop_nans().std()) * np.sqrt(c)}
 
 
+class Volatility(Metric):
+    """
+    Annualised volatility of the strategy's PnL.
+
+    Parameters:
+        name: Name of this metric. The default value is `Volatility`.
+        trading_days_per_year: The number of trading days per year to annualise. Commonly, 252 is used in trad-fi, so
+                               the default value is 252 to match that scale. However, you can use 365 instead of 252 for
+                               crypto markets, which run 24/7.
+    """
+
+    def __init__(self, name: str = None, trading_days_per_year: float = 252):
+        self.name = name if name is not None else 'Volatility'
+        self.trading_days_per_year = trading_days_per_year
+
+    def compute(self, df: pl.DataFrame, context: Dict[str, Any]) -> Mapping[str, Any]:
+        equity = df['equity_wo_fee'] - df['fee']
+        pnl = equity.diff().drop_nans()
+        c = get_num_samples_per_day(df['timestamp']) * self.trading_days_per_year
+
+        return {self.name: pnl.std() * np.sqrt(c)}
+
+
 class Sortino(Metric):
     """
     Sortino Ratio without considering a benchmark.
