@@ -24,6 +24,8 @@ Metrics
 
 .. autoclass:: hftbacktest.stats.SR
 
+.. autoclass:: hftbacktest.stats.Volatility
+
 .. autoclass:: hftbacktest.stats.Sortino
 
 .. autoclass:: hftbacktest.stats.MaxDrawdown
