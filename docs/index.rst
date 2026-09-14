@@ -186,6 +186,7 @@ Tutorials
 * `Data Preparation <https://hftbacktest.readthedocs.io/en/latest/tutorials/Data%20Preparation.html>`_
 * `Getting Started <https://hftbacktest.readthedocs.io/en/latest/tutorials/Getting%20Started.html>`_
 * `Working with Market Depth and Trades <https://hftbacktest.readthedocs.io/en/latest/tutorials/Working%20with%20Market%20Depth%20and%20Trades.html>`_
+* `Event and Volume Clocks <https://hftbacktest.readthedocs.io/en/latest/tutorials/Event%20and%20Volume%20Clocks.html>`_
 * `Integrating Custom Data <https://hftbacktest.readthedocs.io/en/latest/tutorials/Integrating%20Custom%20Data.html>`_
 * `Making Multiple Markets - Introduction <https://hftbacktest.readthedocs.io/en/latest/tutorials/Making%20Multiple%20Markets%20-%20Introduction.html>`_
 * `High-Frequency Grid Trading <https://hftbacktest.readthedocs.io/en/latest/tutorials/High-Frequency%20Grid%20Trading.html>`_
@@ -281,6 +282,7 @@ Please see the `roadmap <https://github.com/nkaz001/hftbacktest/blob/master/ROAD
    tutorials/Data Preparation
    tutorials/Getting Started
    tutorials/Working with Market Depth and Trades
+   tutorials/Event and Volume Clocks
    tutorials/Integrating Custom Data
    tutorials/Making Multiple Markets - Introduction
    tutorials/High-Frequency Grid Trading
