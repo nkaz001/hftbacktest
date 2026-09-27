@@ -125,6 +125,16 @@ where
         }
     }
 
+    /// Whether executing `exec_qty` against `order` completes it, decided in lots exactly as
+    /// [`fill()`](Self::fill) decides `Status::Filled`: the remainder `leaves_qty - exec_qty`
+    /// rounds to zero lots. A float comparison (`exec_qty >= leaves_qty`) disagrees with `fill()`
+    /// when the leaves carry float dust (0.05 - 0.03 = 0.020000000000000004 against a lot-exact
+    /// exec of 0.02): `fill()` marks the order Filled, but it is never pushed to `filled_orders`,
+    /// stays in the book, and the next matching event fails with `InvalidOrderStatus`.
+    fn completes(&self, order: &Order, exec_qty: f64) -> bool {
+        ((order.leaves_qty - exec_qty) / self.depth.lot_size()).round() <= 0f64
+    }
+
     fn check_if_sell_filled(
         &mut self,
         order: &mut Order,
@@ -152,7 +162,7 @@ where
                     // q_ahead is negative since is_filled is true and its value represents the
                     // executable quantity of this order after execution in the queue ahead of this
                     // order.
-                    let exec_qty = if filled_qty > order.leaves_qty {
+                    let exec_qty = if self.completes(order, filled_qty) {
                         self.filled_orders.push(order.order_id);
                         order.leaves_qty
                     } else {
@@ -192,7 +202,7 @@ where
                     // q_ahead is negative since is_filled is true and its value represents the
                     // executable quantity of this order after execution in the queue ahead of this
                     // order.
-                    let exec_qty = if filled_qty > order.leaves_qty {
+                    let exec_qty = if self.completes(order, filled_qty) {
                         self.filled_orders.push(order.order_id);
                         order.leaves_qty
                     } else {
@@ -863,5 +873,140 @@ where
         self.order_e2l
             .earliest_send_order_timestamp()
             .unwrap_or(i64::MAX)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        backtest::{
+            assettype::LinearAsset,
+            models::{CommonFees, ConstantLatency, RiskAdverseQueueModel, TradingValueFeeModel},
+            order::order_bus,
+        },
+        depth::HashMapMarketDepth,
+    };
+
+    const TICK: f64 = 0.1;
+    const LOT: f64 = 0.01;
+
+    type Exch = PartialFillExchange<
+        LinearAsset,
+        ConstantLatency,
+        RiskAdverseQueueModel<HashMapMarketDepth>,
+        HashMapMarketDepth,
+        TradingValueFeeModel<CommonFees>,
+    >;
+
+    fn event(ev: u64, ts: i64, px: f64, qty: f64) -> Event {
+        Event {
+            ev,
+            exch_ts: ts,
+            local_ts: ts,
+            px,
+            qty,
+            order_id: 0,
+            ival: 0,
+            fval: 0.0,
+        }
+    }
+
+    /// A book of 99.9 x 2.0 bid / 100.1 x 2.0 ask and one resting GTX order of `qty` at the
+    /// displayed level on `side`, 2.0 of displayed quantity ahead of it.
+    fn resting(side: Side, qty: f64) -> Exch {
+        let (order_e2l, _order_l2e) = order_bus(ConstantLatency::new(1, 1));
+        let mut exch = PartialFillExchange::new(
+            HashMapMarketDepth::new(TICK, LOT),
+            State::new(
+                LinearAsset::new(1.0),
+                TradingValueFeeModel::new(CommonFees::new(0.0, 0.0)),
+            ),
+            RiskAdverseQueueModel::new(),
+            order_e2l,
+        );
+        exch.process(&event(EXCH_BID_DEPTH_EVENT, 1, 99.9, 2.0))
+            .unwrap();
+        exch.process(&event(EXCH_ASK_DEPTH_EVENT, 1, 100.1, 2.0))
+            .unwrap();
+        let price_tick = if side == Side::Buy { 999 } else { 1001 };
+        let mut order = Order::new(
+            1,
+            price_tick,
+            TICK,
+            qty,
+            side,
+            OrdType::Limit,
+            TimeInForce::GTX,
+        );
+        exch.ack_new(&mut order, 2).unwrap();
+        assert_eq!(order.status, Status::New);
+        exch
+    }
+
+    /// A print that trades against the resting order's level.
+    fn print(exch: &mut Exch, side: Side, ts: i64, qty: f64) -> Result<(), BacktestError> {
+        if side == Side::Buy {
+            exch.process(&event(EXCH_SELL_TRADE_EVENT, ts, 99.9, qty))
+        } else {
+            exch.process(&event(EXCH_BUY_TRADE_EVENT, ts, 100.1, qty))
+        }
+    }
+
+    fn level(exch: &Exch, side: Side) -> usize {
+        let (map, tick) = if side == Side::Buy {
+            (&exch.buy_orders, 999)
+        } else {
+            (&exch.sell_orders, 1001)
+        };
+        map.get(&tick).map_or(0, |ids| ids.len())
+    }
+
+    /// Defect #5b: 0.05 filled as `first` then the lot-exact rest leaves a float remainder a
+    /// hair above the second exec (0.05 - 0.03 = 0.020000000000000004 against 2 lots = 0.02;
+    /// 0.05 - 0.04 = 0.010000000000000002 against 1 lot = 0.01), so `filled_qty >= leaves_qty`
+    /// is false while `fill()`'s own lot rounding marks the order Filled. The order must still be
+    /// removed, or the next print at the level fills a Filled order (`InvalidOrderStatus`).
+    fn dust_remainder_is_removed(side: Side, first: f64, rest: f64) {
+        assert!(0.05 - first > rest); // the float dust this case depends on
+        let mut exch = resting(side, 0.05);
+        print(&mut exch, side, 10, 2.0 + first).unwrap(); // 2.0 ahead + the first piece
+        {
+            let orders = exch.orders.borrow();
+            let order = orders
+                .get(&1)
+                .expect("a remainder of a lot or more stays resting");
+            assert_eq!(order.status, Status::PartiallyFilled);
+            assert_eq!(order.leaves_qty, 0.05 - first);
+        }
+        assert_eq!(level(&exch, side), 1);
+        print(&mut exch, side, 20, rest).unwrap(); // the lot-exact remainder
+        print(&mut exch, side, 30, 0.5).expect("no double fill on the next print");
+        assert!(exch.orders.borrow().is_empty());
+        assert_eq!(level(&exch, side), 0);
+    }
+
+    #[test]
+    fn dust_remainder_is_removed_buy() {
+        dust_remainder_is_removed(Side::Buy, 0.03, 0.02);
+        dust_remainder_is_removed(Side::Buy, 0.04, 0.01);
+    }
+
+    #[test]
+    fn dust_remainder_is_removed_sell() {
+        dust_remainder_is_removed(Side::Sell, 0.03, 0.02);
+        dust_remainder_is_removed(Side::Sell, 0.04, 0.01);
+    }
+
+    /// Defect #5: a print that fills exactly the resting leaves removes the order.
+    #[test]
+    fn exact_fill_is_removed() {
+        for side in [Side::Buy, Side::Sell] {
+            let mut exch = resting(side, 1.0);
+            print(&mut exch, side, 10, 3.0).unwrap(); // 2.0 ahead + exactly the 1.0
+            assert!(exch.orders.borrow().is_empty());
+            assert_eq!(level(&exch, side), 0);
+            print(&mut exch, side, 20, 0.5).unwrap();
+        }
     }
 }
