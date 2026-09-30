@@ -281,14 +281,14 @@ class ROIVectorMarketDepth:
         """
         Returns the quantity at the best bid price.
         """
-        return roivecdepth_best_bid(self.ptr)
+        return roivecdepth_best_bid_qty(self.ptr)
 
     @property
     def best_ask_qty(self) -> float64:
         """
         Returns the quantity at the best ask price.
         """
-        return roivecdepth_best_ask(self.ptr)
+        return roivecdepth_best_ask_qty(self.ptr)
 
     @property
     def tick_size(self) -> float64:
