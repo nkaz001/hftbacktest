@@ -5,8 +5,15 @@ from numba import njit
 
 from hftbacktest import (
     BacktestAsset,
+    BUY_EVENT,
+    DEPTH_EVENT,
+    EXCH_EVENT,
     HashMapMarketDepthBacktest,
-    ALL_ASSETS, ROIVectorMarketDepthBacktest
+    LOCAL_EVENT,
+    ROIVectorMarketDepthBacktest,
+    SELL_EVENT,
+    ALL_ASSETS,
+    event_dtype,
 )
 
 
@@ -75,3 +82,34 @@ class TestPyHftBacktest(unittest.TestCase):
         # hbt = HashMapMarketDepthMultiAssetMultiExchangeBacktest([asset])
         hbt = ROIVectorMarketDepthBacktest([asset])
         test_run(hbt)
+
+    def test_roi_vector_depth_returns_quantities_at_best_prices(self):
+        data = np.zeros(2, event_dtype)
+        data["ev"] = [
+            DEPTH_EVENT | BUY_EVENT | EXCH_EVENT | LOCAL_EVENT,
+            DEPTH_EVENT | SELL_EVENT | EXCH_EVENT | LOCAL_EVENT,
+        ]
+        data["exch_ts"] = data["local_ts"] = [1_000_000_000, 1_000_000_001]
+        data["px"] = [1.0419, 1.0420]
+        data["qty"] = [23_266.0, 18_000.0]
+
+        asset = (
+            BacktestAsset()
+            .data([data])
+            .linear_asset(1.0)
+            .constant_order_latency(0, 0)
+            .no_partial_fill_exchange()
+            .risk_adverse_queue_model()
+            .tick_size(0.0001)
+            .lot_size(0.1)
+            .roi_lb(0.8)
+            .roi_ub(2.0)
+        )
+        hbt = ROIVectorMarketDepthBacktest([asset])
+        try:
+            hbt.elapse(10_000_000_000)
+            depth = hbt.depth(0)
+            self.assertEqual(depth.best_bid_qty, 23_266.0)
+            self.assertEqual(depth.best_ask_qty, 18_000.0)
+        finally:
+            hbt.close()
