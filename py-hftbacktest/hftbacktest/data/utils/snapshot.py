@@ -39,17 +39,21 @@ def create_last_snapshot(
         asset.initial_snapshot(initial_snapshot)
 
     hbt = HashMapMarketDepthBacktest([asset])
+    try:
+        # Go to the end of the data.
+        if hbt._goto_end() not in [0, 1]:
+            raise RuntimeError
 
-    # Go to the end of the data.
-    if hbt._goto_end() not in [0, 1]:
-        raise RuntimeError
+        depth = hbt.depth(0)
+        snapshot = depth.snapshot()
+        try:
+            snapshot_copied = snapshot.copy()
+        finally:
+            depth.snapshot_free(snapshot)
 
-    depth = hbt.depth(0)
-    snapshot = depth.snapshot()
-    snapshot_copied = snapshot.copy()
-    depth.snapshot_free(snapshot)
+        if output_snapshot_filename is not None:
+            np.savez_compressed(output_snapshot_filename, data=snapshot_copied)
 
-    if output_snapshot_filename is not None:
-        np.savez_compressed(output_snapshot_filename, data=snapshot_copied)
-
-    return snapshot_copied
+        return snapshot_copied
+    finally:
+        hbt.close()
