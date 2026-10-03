@@ -280,34 +280,34 @@ def _convert_depth(out, inp, row_num, ss_bid, ss_ask, snapshot_mode):
             if is_snapshot:
                 is_snapshot = False
 
-                ss_bid = ss_bid[:ss_bid_rn]
-                if len(ss_bid) > 0:
+                # Do not reassign ss_bid/ss_ask to a slice of themselves here; a later snapshot in the same input
+                # would then be truncated to this snapshot's size.
+                if ss_bid_rn > 0:
                     out[row_num].ev = DEPTH_CLEAR_EVENT | BUY_EVENT
                     out[row_num].exch_ts = ss_bid[0].exch_ts
                     out[row_num].local_ts = ss_bid[0].local_ts
-                    out[row_num].px = ss_bid[-1].px
+                    out[row_num].px = ss_bid[ss_bid_rn - 1].px
                     out[row_num].qty = 0
                     out[row_num].order_id = 0
                     out[row_num].ival = 0
                     out[row_num].fval = 0
                     row_num += 1
-                    out[row_num:row_num + len(ss_bid)] = ss_bid[:]
-                    row_num += len(ss_bid)
+                    out[row_num:row_num + ss_bid_rn] = ss_bid[:ss_bid_rn]
+                    row_num += ss_bid_rn
                 ss_bid_rn = 0
 
-                ss_ask = ss_ask[:ss_ask_rn]
-                if len(ss_ask) > 0:
+                if ss_ask_rn > 0:
                     out[row_num].ev = DEPTH_CLEAR_EVENT | SELL_EVENT
                     out[row_num].exch_ts = ss_ask[0].exch_ts
                     out[row_num].local_ts = ss_ask[0].local_ts
-                    out[row_num].px = ss_ask[-1].px
+                    out[row_num].px = ss_ask[ss_ask_rn - 1].px
                     out[row_num].qty = 0
                     out[row_num].order_id = 0
                     out[row_num].ival = 0
                     out[row_num].fval = 0
                     row_num += 1
-                    out[row_num:row_num + len(ss_ask)] = ss_ask[:]
-                    row_num += len(ss_ask)
+                    out[row_num:row_num + ss_ask_rn] = ss_ask[:ss_ask_rn]
+                    row_num += ss_ask_rn
                 ss_ask_rn = 0
 
             # Regular depth update
