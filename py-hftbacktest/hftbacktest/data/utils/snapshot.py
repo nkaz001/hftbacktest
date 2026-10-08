@@ -7,10 +7,10 @@ from ... import BacktestAsset, HashMapMarketDepthBacktest
 
 
 def create_last_snapshot(
-        data: List[str],
+        data: str | List[str] | NDArray | List[NDArray],
         tick_size: float,
         lot_size: float,
-        initial_snapshot: str | None = None,
+        initial_snapshot: str | NDArray | None = None,
         output_snapshot_filename: str | None = None
 ) -> NDArray:
     r"""
