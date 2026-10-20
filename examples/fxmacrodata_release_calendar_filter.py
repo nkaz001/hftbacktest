@@ -4,6 +4,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 import json
+from math import isfinite
 import os
 from typing import Any, Dict, Iterable, List, Set
 from urllib.parse import urlencode
@@ -59,29 +60,42 @@ def build_blackout_dates(
     min_market_tier: int = 1,
     window_days: int = 0,
 ) -> Set[str]:
-    """Build a set of UTC calendar dates around confirmed macro events."""
+    if isinstance(window_days, bool) or not isinstance(window_days, int) or window_days < 0:
+        raise ValueError("window_days must be a non-negative integer")
+    if isinstance(min_market_tier, bool) or not isinstance(min_market_tier, int) or min_market_tier < 1:
+        raise ValueError("min_market_tier must be a positive integer")
     blackout_dates: Set[str] = set()
 
     for event in events:
-        if not event.get("release_date_confirmed"):
+        if event.get("release_date_confirmed") is not True:
             continue
 
         market_tier = event.get("market_tier")
-        if market_tier is None or int(market_tier) > min_market_tier:
+        if isinstance(market_tier, bool):
+            continue
+        try:
+            tier = float(market_tier)
+        except (ValueError, TypeError, OverflowError):
+            continue
+        if not isfinite(tier) or not tier.is_integer() or tier < 1 or tier > min_market_tier:
             continue
 
         announcement_ts = event.get("announcement_datetime")
-        if announcement_ts is None:
+        if announcement_ts is None or isinstance(announcement_ts, bool):
             continue
 
-        event_date = datetime.fromtimestamp(
-            int(announcement_ts),
-            tz=timezone.utc,
-        ).date()
+        try:
+            event_date = datetime.fromtimestamp(
+                float(announcement_ts),
+                tz=timezone.utc,
+            ).date()
+        except (ValueError, TypeError, OverflowError, OSError):
+            continue
         for offset in range(-window_days, window_days + 1):
             blackout_dates.add((event_date + timedelta(days=offset)).isoformat())
 
     return blackout_dates
+
 
 
 def timestamp_ns_to_date(timestamp_ns: int) -> str:
