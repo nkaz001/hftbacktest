@@ -11,6 +11,7 @@ mod binancefuturesum;
 mod bybit;
 mod error;
 mod file;
+mod fxmacrodata;
 mod hyperliquid;
 mod throttler;
 
@@ -103,6 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 writer_tx,
             ))
         }
+        "fxmacrodata" => tokio::spawn(fxmacrodata::run_collection(args.symbols, writer_tx)),
         exchange => {
             return Err(anyhow!("{exchange} is not supported."));
         }
