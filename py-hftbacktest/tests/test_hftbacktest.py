@@ -6,7 +6,14 @@ from numba import njit
 from hftbacktest import (
     BacktestAsset,
     HashMapMarketDepthBacktest,
-    ALL_ASSETS, ROIVectorMarketDepthBacktest
+    ALL_ASSETS,
+    BUY_EVENT,
+    DEPTH_EVENT,
+    EXCH_EVENT,
+    LOCAL_EVENT,
+    ROIVectorMarketDepthBacktest,
+    SELL_EVENT,
+    event_dtype,
 )
 
 
@@ -54,6 +61,40 @@ def test_run(hbt):
 class TestPyHftBacktest(unittest.TestCase):
     def setUp(self) -> None:
         pass
+
+    def test_roi_vector_best_depth_quantities(self):
+        data = np.zeros(2, event_dtype)
+        data["ev"] = [
+            DEPTH_EVENT | BUY_EVENT | EXCH_EVENT | LOCAL_EVENT,
+            DEPTH_EVENT | SELL_EVENT | EXCH_EVENT | LOCAL_EVENT,
+        ]
+        data["exch_ts"] = data["local_ts"] = [1_000_000_000, 1_000_000_001]
+        data["px"] = [1.0419, 1.0420]
+        data["qty"] = [23266.0, 18000.0]
+
+        asset = (
+            BacktestAsset()
+            .data([data])
+            .linear_asset(1.0)
+            .constant_order_latency(0, 0)
+            .no_partial_fill_exchange()
+            .risk_adverse_queue_model()
+            .tick_size(0.0001)
+            .lot_size(0.1)
+            .roi_lb(0.8)
+            .roi_ub(2.0)
+        )
+        hbt = ROIVectorMarketDepthBacktest([asset])
+        try:
+            hbt.elapse(10_000_000_000)
+            depth = hbt.depth(0)
+
+            self.assertAlmostEqual(depth.best_bid, 1.0419)
+            self.assertAlmostEqual(depth.best_ask, 1.0420)
+            self.assertEqual(depth.best_bid_qty, 23266.0)
+            self.assertEqual(depth.best_ask_qty, 18000.0)
+        finally:
+            hbt.close()
 
     def test_run_backtest(self):
         arr = np.load('tmp_20240501.npz')['data']
