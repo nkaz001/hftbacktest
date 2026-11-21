@@ -4,6 +4,7 @@ use std::{
 };
 
 use chrono::Utc;
+use crypto_orderbook::Market;
 use futures_util::{SinkExt, StreamExt};
 use hftbacktest::{live::ipc::TO_ALL, prelude::*};
 use tokio::{
@@ -31,7 +32,7 @@ use crate::{
         rest::BinanceFuturesClient,
     },
     connector::PublishEvent,
-    utils::{generate_rand_string, parse_depth, parse_px_qty_tup},
+    utils::{depth_gap, generate_rand_string, parse_depth, parse_px_qty_tup},
 };
 
 pub struct MarketDataStream {
@@ -65,10 +66,14 @@ impl MarketDataStream {
     fn process_message(&mut self, stream: EventStream) {
         match stream {
             EventStream::DepthUpdate(data) => {
-                let mut prev_u_val = self.prev_u.get_mut(&data.symbol);
-                if prev_u_val.is_none()
-                /* fixme: || data.prev_update_id != **prev_u_val.as_ref().unwrap()*/
-                {
+                let prev_u_val = self.prev_u.get(&data.symbol).copied();
+                if depth_gap(
+                    Market::UsdM,
+                    prev_u_val,
+                    data.first_update_id,
+                    data.last_update_id,
+                    Some(data.prev_update_id),
+                ) {
                     // if !pending_depth_messages.contains_key(&data.symbol) {
                     let client_ = self.client.clone();
                     let symbol = data.symbol.clone();

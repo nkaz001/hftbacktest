@@ -8,6 +8,11 @@ use std::{
 
 use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
+use crypto_orderbook::{
+    DepthUpdate,
+    Market,
+    orderbook::sync::{self, Live},
+};
 use ed25519_dalek::{Signature as Ed25519Signature, Signer, SigningKey, pkcs8::DecodePrivateKey};
 use hashbrown::Equivalent;
 use hftbacktest::prelude::OrderId;
@@ -168,6 +173,28 @@ pub fn parse_depth(
     Ok((bids_, asks_))
 }
 
+/// Whether a Binance depth diff fails to continue from the previous diff's `u` (`prev_u`), so
+/// the local book is missing updates and needs a new snapshot. No `prev_u` counts as a gap.
+pub fn depth_gap(
+    market: Market,
+    prev_u: Option<i64>,
+    first_u: i64,
+    u: i64,
+    pu: Option<i64>,
+) -> bool {
+    let Some(prev_u) = prev_u else {
+        return true;
+    };
+    let update = DepthUpdate {
+        first_update_id: first_u as u64,
+        last_update_id: u as u64,
+        prev_last_update_id: pu.map(|pu| pu as u64),
+        bids: Vec::new(),
+        asks: Vec::new(),
+    };
+    matches!(sync::live(market, prev_u as u64, &update), Live::Gap { .. })
+}
+
 pub fn parse_px_qty_tup(px: String, qty: String) -> Result<PxQty, BybitError> {
     Ok((px.parse()?, qty.parse()?))
 }
@@ -326,9 +353,33 @@ mod tests {
         time::{Duration, Instant},
     };
 
+    use crypto_orderbook::Market;
     use hashbrown::HashMap;
 
-    use crate::utils::{BackoffStrategy, ExponentialBackoff, RefSymbolOrderId, SymbolOrderId};
+    use crate::utils::{
+        BackoffStrategy,
+        ExponentialBackoff,
+        RefSymbolOrderId,
+        SymbolOrderId,
+        depth_gap,
+    };
+
+    #[test]
+    fn depth_gap_futures_checks_pu() {
+        assert!(depth_gap(Market::UsdM, None, 100, 110, Some(99)));
+        assert!(!depth_gap(Market::UsdM, Some(110), 111, 120, Some(110)));
+        // The diff with u=120 was dropped: the next one points back to 120, not 110.
+        assert!(depth_gap(Market::UsdM, Some(110), 121, 130, Some(120)));
+    }
+
+    #[test]
+    fn depth_gap_spot_checks_first_update_id() {
+        assert!(depth_gap(Market::Spot, None, 100, 110, None));
+        assert!(!depth_gap(Market::Spot, Some(110), 111, 120, None));
+        assert!(depth_gap(Market::Spot, Some(110), 121, 130, None));
+        // A duplicate is not a gap.
+        assert!(!depth_gap(Market::Spot, Some(110), 101, 110, None));
+    }
 
     #[test]
     fn equivalent_symbol_order_id() {
