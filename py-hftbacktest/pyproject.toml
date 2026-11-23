@@ -11,8 +11,8 @@ license = { file = "LICENSE" }
 version = "2.4.4"
 requires-python = ">=3.11"
 dependencies = [
- "numpy >=2.0, <2.3",
- "numba ~= 0.61",
+ "numpy >=2.0, <2.4",
+ "numba ~= 0.63",
  "polars",
  "matplotlib",
  "holoviews"
@@ -33,6 +33,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: Rust",
   "Topic :: Scientific/Engineering",
   "Topic :: Office/Business :: Financial :: Investment"
